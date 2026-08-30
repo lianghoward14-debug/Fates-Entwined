@@ -1963,7 +1963,6 @@ const AUTHORITY_STATUS_BANNER_RULES = Object.freeze({
   SELVA_EXTRA_SUPPORTER:Object.freeze({cardId:'74', groupClass:'effect-pill-selva', requiresRemaining:true}),
   MAJA_EXTRA_SUPPORTERS:Object.freeze({cardId:'07', groupClass:'effect-pill-maja', requiresRemaining:true}),
   FACE_DOWN_CONSOLIDATION_PERMISSION:Object.freeze({cardId:'78', groupClass:'effect-pill-chaparral', requiresRemaining:true}),
-  MOVEMENT_GRANT:Object.freeze({cardId:'69', groupClass:'effect-pill-busser', requiresRemaining:true})
 });
 
 function normalizedUiText(value){

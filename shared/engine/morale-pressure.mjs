@@ -267,10 +267,7 @@ export function modifyMorale(ctx, operation = {}){
   }
   const sourceEntry = operation.sourceIid ? findCard(state, operation.sourceIid) : null;
   const sourcePlayer = Number(operation.sourceController ?? sourceEntry?.card?.controller ?? sourceEntry?.card?.owner);
-  const damagePrevented = requestedAmount < 0 && (
-    String(state.landscapeId || '') === 'igb1'
-    || moraleDamageInflictionBlocked(state, sourcePlayer)
-  );
+  const damagePrevented = requestedAmount < 0 && moraleDamageInflictionBlocked(state, sourcePlayer);
   const after = damagePrevented
     ? before
     : Math.max(0, Math.min(Number(system.maxMorale || STARTING_MORALE), before + requestedAmount));
@@ -564,7 +561,7 @@ function zoneFateMoraleResolution(state){
   const damage = [0, 0];
   for(const result of zoneResults){
     if(result.damagedPlayer === 0 || result.damagedPlayer === 1){
-      damage[result.damagedPlayer] += result.difference;
+      damage[result.damagedPlayer] += Math.floor(result.difference / 2);
     }
   }
   return {zoneResults, damage};
@@ -574,6 +571,9 @@ function resolveZoneFateMoraleDamage(ctx){
   const state = ctx.state;
   const system = state.moralePressure;
   const resolution = zoneFateMoraleResolution(state);
+  // Pacifica prevents only the automatic damage created by Fate differences
+  // in zones. Card-effect Morale damage is accumulated separately below.
+  if(String(state.landscapeId || '') === 'igb1') resolution.damage = [0, 0];
   const outgoing = [0, 0];
   const outgoingSources = [[], []];
   const pressureReworks = state.gameSettings?.pressureCardReworks === true;
@@ -624,9 +624,6 @@ function resolveZoneFateMoraleDamage(ctx){
     }
   }
   for(let owner = 0; owner < 2; owner += 1) resolution.damage[1 - owner] += outgoing[owner];
-  if(String(state.landscapeId || '') === 'igb1'){
-    resolution.damage = [0, 0];
-  }
   pushEvent(ctx, {
     type:'MORALE_CYCLE_RESOLVED',
     zoneResults:cloneSerializable(resolution.zoneResults),
@@ -684,6 +681,30 @@ function resolveZoneFateMoraleDamage(ctx){
         sound:'morale-break'
       });
     }
+  }
+  for(const status of state.geometry?.squareStatuses || []){
+    if(String(status?.type || '') !== 'MORALE_RECOVERY_SQUARE') continue;
+    const player = Number(status.playerIndex ?? status.sourceController);
+    if(player !== 0 && player !== 1) continue;
+    const occupantCard = state.board?.[Number(status.z)]?.[Number(status.r)]?.[Number(status.c)] || null;
+    const occupant = occupantCard ? findBoardCard(state, occupantCard.iid) : null;
+    if(!occupant?.card) continue;
+    const requested = Math.max(0, Number(effectiveFate(state, occupant)) || 0);
+    const before = Number(system.morale[player] || 0);
+    const after = Math.min(Number(system.maxMorale || STARTING_MORALE), before + requested);
+    const amount = Math.max(0, after - before);
+    if(!amount) continue;
+    system.morale[player] = after;
+    const source = findCard(state, status.sourceIid)?.card;
+    if(source){
+      if(!source.counters || typeof source.counters !== 'object') source.counters = {};
+      source.counters.moraleRecoveredFromSquare = Math.max(0, Number(source.counters.moraleRecoveredFromSquare) || 0) + amount;
+    }
+    pushEvent(ctx, {
+      type:'MORALE_HEALED',playerIndex:player,amount,before,after,
+      sourceIid:status.sourceIid || null,overlayTargetIid:String(occupant.card.iid || ''),
+      semanticSourceCardId:'bh22',reason:'A_MOONLIT_SHORE',sound:'morale-heal'
+    });
   }
   return resolution;
 }

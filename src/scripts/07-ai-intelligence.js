@@ -123,8 +123,8 @@
       const own = Math.max(0, Number(mine[z]) || 0);
       const enemy = Math.max(0, Number(theirs[z]) || 0);
       const margin = own-enemy;
-      if(margin < 0) incoming += Math.abs(margin);
-      else if(margin > 0) outgoing += margin;
+      if(margin < 0) incoming += Math.floor(Math.abs(margin)/2);
+      else if(margin > 0) outgoing += Math.floor(margin/2);
       zones.push({zone:z, own, enemy, margin});
     }
     return {incoming, outgoing, zones};

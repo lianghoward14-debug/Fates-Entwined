@@ -2906,7 +2906,7 @@
     restoreOnlineTransientEffectFlashes(g.board, transientEffectFlashes);
     [
       'extraCells','extraRows','extraRowFullOwners','extraRowOwners','markSafeSquares','blockedCells','immuneCards','shieldWallZones',
-      'fateModifiers','landscapeId','landscapeBgNum','_landscapeState','_turnTimerSeconds','_freePlayGameSettings','currentPlayer','turn','turnNumber','maxTurns','phase','selectedHandCard','selectedBoardCard',
+      'fateModifiers','landscapeId','landscapeBgNum','_landscapeState','_turnTimerSeconds','_freePlayGameSettings','_makennaBirdCultActivated','currentPlayer','turn','turnNumber','maxTurns','phase','selectedHandCard','selectedBoardCard',
       'placing','blockingCell','_blockingEffectSourceIid','_blockingEffectZone','supportsPlacedThisTurn','supportersSetForCapThisTurn','maxSupportsPerTurn','extraSupportsThisTurn','pendingEffect','_turnStartedAt',
       'instanceCounter','damageDoneP','supportersSetP','supporterReinforcementSetP','_pendingSelvaSupportBoost','_selvaSupportBoosts','_supporterEffectsActivatedP','_snowyVillageUses','_whisperLandscapeUses','_landscapeChangeLocks','_balladEffects','_mailDeliveries','_blameGameEffects','_administrativeBloatEffects','_wojciechTurnPlacementCounts','_wojciechLastTurnPlacementCounts','_serverRngCounter','usMarinesUses','polishArmyUses','oppSuppressedNextTurn','suppressTarget','erbsActive',
       'p1Deck','p2Deck','majaEffectThisTurn','_majaSupportBoost','_artilleryLockedZone','_artilleryLockOwner','_artilleryLockTurnsLeft',
@@ -3345,6 +3345,10 @@
       ['img','runtimeImg','rarity','type','name','ability','effect','flavor','cost','xCost','xFate','set'].forEach(function(key){
         if((next[key] == null || next[key] === '') && definition[key] != null) next[key] = definition[key];
       });
+      // Jamie shipped while an older authority catalog still supplied another
+      // card's subtitle. Her immutable local catalog text is authoritative for
+      // presentation even when a stale server projection contains text.
+      if(String(next.id || '') === 'bh22' && definition.flavor != null) next.flavor = definition.flavor;
       if(!String(next.aff || '').trim()) next.aff = String(definition.aff || definition.affiliation || '');
       const sourceHasPrintedFate = card.baseFate != null || card.fate != null;
       if(!sourceHasPrintedFate && definition.fate != null) next.fate = definition.fate;
@@ -3523,15 +3527,16 @@
     } : null;
     const blockedCells = (Array.isArray(projected.geometry?.squareStatuses) ? projected.geometry.squareStatuses : [])
       .filter(function(status){
-        return ['PERMANENTLY_BLOCKED','CONSOLIDATION_BLOCKED'].includes(String(status?.type || ''));
+        return ['PERMANENTLY_BLOCKED','CONSOLIDATION_BLOCKED','FIELD_LEAVE_LOCKED','MORALE_RECOVERY_SQUARE'].includes(String(status?.type || ''));
       })
       .map(function(status){
-        const zoe = String(status.type || '') === 'CONSOLIDATION_BLOCKED';
+        const zoe = ['CONSOLIDATION_BLOCKED','FIELD_LEAVE_LOCKED'].includes(String(status.type || ''));
+        const jamie = String(status.type || '') === 'MORALE_RECOVERY_SQUARE';
         return {
           z:Number(status.z),
           r:Number(status.r),
           c:Number(status.c),
-          type:zoe ? 'zoe' : 'carolyn',
+          type:jamie ? 'jamie' : (zoe ? 'zoe' : 'carolyn'),
           owner:Number.isInteger(Number(status.sourceController)) ? Number(status.sourceController) : viewer,
           blockedPlayer:Number.isInteger(Number(status.blockedPlayer)) ? Number(status.blockedPlayer) : null,
           sourceIid:String(status.sourceIid || '')
@@ -3987,7 +3992,11 @@
     phase7CurrentUiSession.destinationCommands = [];
     phase7CurrentUiSession.destinationLabel = '';
     const g = gameState();
-    if(g) g._phase7DestinationOptions = null;
+    if(g){
+      g._phase7DestinationOptions = null;
+      g._phase7EffectSquareKind = '';
+    }
+    phase7CurrentUiSession.effectSquarePromptKey = '';
     if(typeof window.clearPlaceHighlights === 'function') window.clearPlaceHighlights();
     try{
       if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function'){
@@ -5594,6 +5603,9 @@
       phase7CurrentUiSession.submittingHandLimitKey = '';
     }
     if(phase7CurrentUiSession.promptKey !== promptKey){
+      if(phase7CurrentUiSession.effectSquarePromptKey && phase7CurrentUiSession.effectSquarePromptKey !== promptKey){
+        phase7ClearDestinationChoice();
+      }
       phase7CurrentUiSession.promptGuardKey = '';
       if(phase7CurrentUiSession.promptGuardTimer){
         clearTimeout(phase7CurrentUiSession.promptGuardTimer);
@@ -5643,6 +5655,24 @@
         phase7OpenOptionPrompt(promptKey, prompt, commands);
         phase7GuardOptionPrompt(promptKey, prompt);
       }else if(['BOARD_DESTINATION'].includes(prompt.type)){
+        const sourceCard = phase7FindAnyCard(prompt?.sourceIid);
+        const sourceId = String(sourceCard?.id || prompt?.sourceCardId || '');
+        const boardHighlightKind = sourceId === '04' ? 'zoe' : (sourceId === 'bh22' ? 'jamie' : '');
+        if(boardHighlightKind){
+          const highlighted = commands.filter(function(command){ return !!command?.payload?.destination; });
+          if(phase7CurrentUiSession.effectSquarePromptKey !== promptKey){
+            phase7CurrentUiSession.effectSquarePromptKey = promptKey;
+            const g = gameState();if(g)g._phase7EffectSquareKind=boardHighlightKind;
+            phase7BeginDestinationChoice(highlighted, boardHighlightKind === 'jamie' ? 'Jamie: choose a highlighted safe-row square' : 'Zoe: choose a highlighted square');
+            highlighted.forEach(function(command){
+              const destination=command?.payload?.destination;if(!destination)return;
+              const cell=document.querySelector('#board .cell[data-z="'+Number(destination.z)+'"][data-r="'+Number(destination.r)+'"][data-c="'+Number(destination.c)+'"]');
+              if(cell)cell.classList.add('block-target-choice',boardHighlightKind === 'jamie' ? 'jamie-heal-choice' : 'zoe-block-choice');
+            });
+          }
+          if(hint)hint.textContent=boardHighlightKind === 'jamie' ? 'Jamie: choose a highlighted safe-row square' : 'Zoe: choose a highlighted square';
+          return;
+        }
         const multi = commands.filter(function(command){ return Array.isArray(command?.payload?.destinations); });
         if(multi.length){
           phase7OpenBoardPromptPicker(promptKey, multi, {
@@ -6917,7 +6947,7 @@
             '<div class="p1"><span>' + esc(players[0]?.name || 'Player 1') + '</span><strong>' + (Number(finalMorale[0]) || 0) + '</strong></div>' +
             '<div class="win-seal-mark" aria-hidden="true">♥</div>' +
             '<div class="p2"><span>' + esc(players[1]?.name || 'Player 2') + '</span><strong>' + (Number(finalMorale[1]) || 0) + '</strong></div>' +
-          '</div><div class="win-seal-origin">Morale damage is the sum of the Fate deficits in zones each player does not control.</div>';
+          '</div><div class="win-seal-origin">In each uncontrolled zone, half the Fate difference is dealt as Morale damage (rounded down).</div>';
         zones.appendChild(morale);
       }
       zoneResults.forEach(function(result){

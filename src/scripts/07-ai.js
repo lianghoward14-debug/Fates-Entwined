@@ -3635,7 +3635,6 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       inst._effectTurnLocked = true;
       return;
     }
-    if(typeof resolveBusserInitiatorMorale==='function')resolveBusserInitiatorMorale(cp,inst);
   }
   if(!instIsSupporterForRules && inst.type!=='Initiator' && !G._suppressEffectPrompt && typeof getCharacterEffectAffectedOwners === 'function'){
     const affectedOwners = getCharacterEffectAffectedOwners(inst, z, r, c, cp, opp);
@@ -4372,34 +4371,8 @@ async function aiTriggerWhenSet(inst, z, r, c) {
         }
       } break;
     }
-    case '69': { // Breakfast Republic Busser: grant any controlled card in this zone three turns of movement
-      if(window.FATE_PRESSURE_CARD_REWORKS_ENABLED === true){
-        G._busserInitiatorMorale={owner:cp,expiresAfterTurn:Number(G.turn),sourceIid:String(inst.iid||'')};
-        if(typeof showBusserStatusBanner==='function')showBusserStatusBanner(inst,1,cp);
-        if(typeof refreshStatusEffectsNow==='function')refreshStatusEffectsNow();
-        break;
-      }
-      const friendlyCards = [];
-      (G.board[z] || []).forEach((row,ri)=>row.forEach((cell,ci)=>{
-        if(cell && cell.owner===cp && !isFaceDownCard(cell) && !cell.cantBeMoved && !cell.immuneFlag && String(cell.id || '') !== '76'){
-          friendlyCards.push({card:cell,z:z,r:ri,c:ci});
-        }
-      }));
-      const strat = G._selectedAI?._deckStrategy || '';
-      const busserTargets = strat === 'ai_movement'
-        ? (friendlyCards.filter(entry => entry.card.id === '73').length ? friendlyCards.filter(entry => entry.card.id === '73') : friendlyCards)
-        : friendlyCards;
-      const target = busserTargets[0];
-      if(target){
-        target.card._busserTurnsLeft = Math.max(3, typeof getBusserTurnsLeft === 'function' ? getBusserTurnsLeft(target.card) : 0);
-        target.card._busserMoves = target.card._busserTurnsLeft;
-        target.card._busserOwner = cp;
-        target.card._busserMovedThisTurn = false;
-        target.card._busserSourceIid = inst.iid || null;
-        inst.effectUsedInitial = true;
-        inst.whenSetActivated = true;
-        log('p2',`AI: Corner! Behind! granted movement to ${target.card.name}`);
-      }
+    case '69': {
+      if(typeof resolveBreakfastRepublicBusser==='function')resolveBreakfastRepublicBusser(inst,cp,{auto:true});
       break;
     }
     case '71': // Fort Calvin Watcher: set reveal flag
@@ -4754,7 +4727,6 @@ async function aiRunEffect(card, z, r, c) {
         card._effectTurnLocked = true;
         return;
       }
-      if(typeof resolveBusserInitiatorMorale==='function')resolveBusserInitiatorMorale(cp,card);
     }
     switch(effectId){
     case '03': { // Howard: double highest-fate own card, then +5
@@ -5056,6 +5028,25 @@ async function aiRunEffect(card, z, r, c) {
         await resolveBoleslawAfterSearchSelection(cp, searchedCardsAdded, {sourceCardId:'29'});
       }
       if(added) log('p2',`AI: Leader of Free World added ${added} cards`);
+      break;
+    }
+    case 'bh22': {
+      const safeRow=cp===0?2:0;
+      const choices=[];
+      for(let zz=0;zz<3;zz++)for(let cc=0;cc<3;cc++){
+        if((G.blockedCells||[]).some(b=>b.z===zz&&b.r===safeRow&&b.c===cc))continue;
+        const occupant=G.board?.[zz]?.[safeRow]?.[cc]||null;
+        const fate=occupant?(typeof getEffectiveFate==='function'?getEffectiveFate(occupant,zz):Number(occupant.currentFate??occupant.fate??0)):0;
+        choices.push({z:zz,r:safeRow,c:cc,score:Number(fate)||0});
+      }
+      if(choices.length){
+        choices.sort((a,b)=>b.score-a.score);
+        const best=choices[0];
+        G.blockedCells.push({...best,type:'jamie',owner:cp,blockedPlayer:null,sourceIid:card.iid});
+        effectNeedsBlocks=true;
+        if(typeof showBlockVisual==='function')showBlockVisual(best.z,best.r,best.c,'jamie');
+        if(typeof refreshStatusEffectsNow==='function')refreshStatusEffectsNow();
+      }
       break;
     }
     case '08': { // Lina: search for a Reality card from deck/discard, set for free

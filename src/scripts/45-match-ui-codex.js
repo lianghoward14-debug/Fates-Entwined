@@ -47,8 +47,8 @@
     <footer class="codex-v19-footer">
       <aside class="codex-v19-archive">
         <nav aria-label="Card piles">
-          <button data-deck aria-label="View deck"><span class="codex-v19-archive-art" aria-hidden="true"></span><span class="codex-v19-archive-copy"><small>DECK</small><b data-text="my-deck-count">0</b></span></button>
-          <button data-discard aria-label="View discard"><span class="codex-v19-archive-art" aria-hidden="true"></span><span class="codex-v19-archive-copy"><small>DISCARD</small><b data-text="my-discard-count">0</b></span></button>
+          <button data-deck aria-label="View deck"><span class="codex-v19-archive-art" aria-hidden="true"><img src="back.png" alt=""></span><span class="codex-v19-archive-copy"><small>DECK</small><b data-text="my-deck-count">0</b></span></button>
+          <button data-discard aria-label="View discard"><span class="codex-v19-archive-art" aria-hidden="true"><img src="back.png" alt=""></span><span class="codex-v19-archive-copy"><small>DISCARD</small><b data-text="my-discard-count">0</b></span></button>
         </nav>
       </aside>
       <div class="codex-v19-hand" data-hand></div>
@@ -82,7 +82,12 @@
     if(document.body?.classList.contains('fate-authority-v3-single-player-active')){
       const screen=window.FateAuthorityV3SinglePlayer?.currentScreen?.();
       const command=screen?.view?.legalCommands?.find(item=>item.type==='END_TURN');
-      if(screen&&command){screen.submit(command);}
+      if(screen&&command){
+        const turn=Number(screen.view?.state?.turn||0);
+        if(typeof window.playEndTurnSfxOnce==='function')window.playEndTurnSfxOnce('end-turn:authority-local:'+turn);
+        else if(typeof window.playSfx==='function')window.playSfx('endTurn');
+        screen.submit(command);
+      }
       return;
     }
     invoke('endTurn');
@@ -189,18 +194,24 @@
     if(clockText&&clockMatch)clockText.textContent=clockMatch[0].replace(/\s/g,'');
     copyHtml(root,'my-stat');copyHtml(root,'opp-stat');
     const raw=invoke('getPerspectivePlayerIndex'),authorityView=currentAuthoritativeView(),projectedSelf=Number(authorityView?.playerIndex),self=Number.isInteger(projectedSelf)?projectedSelf:(Number.isInteger(Number(raw))?Number(raw):0),rival=self===0?1:0;
+    const turnState=authorityView?.state||(invoke('getFateGameState')||window.FATE_GAME_STATE||{}),activePlayer=Number(turnState?.activePlayer??turnState?.currentPlayer),turnNumber=Number(turnState?.turn??turnState?.turnNumber??0),turnSoundKey=[String(turnState?.matchId||turnState?._onlineRoomCode||'local'),turnNumber,activePlayer].join(':');
+    if(root._lastTurnOwnershipSoundKey!==turnSoundKey){
+      root._lastTurnOwnershipSoundKey=turnSoundKey;
+      if(activePlayer===self&&(!window.shouldPlayTurnChangeSfx||window.shouldPlayTurnChangeSfx())){
+        if(typeof window.playSfx==='function')window.playSfx('turnChange');
+      }
+    }
     const selfProjected=authorityView?.state?.players?.[self],rivalProjected=authorityView?.state?.players?.[rival];
     const selfHand=Number.isFinite(Number(selfProjected?.handCount))?Number(selfProjected.handCount):(Number(invoke('getPlayerHandCount',self))||0),rivalHand=Number.isFinite(Number(rivalProjected?.handCount))?Number(rivalProjected.handCount):(Number(invoke('getPlayerHandCount',rival))||0);
-    root.querySelector('[data-hand-count="self"]').textContent=String(selfHand);root.querySelector('[data-hand-count="rival"]').textContent=String(rivalHand);
+    const bh21Concealed=typeof window.isBh21ViewerConcealed==='function'&&window.isBh21ViewerConcealed(self);
+    root.querySelector('[data-hand-count="self"]').textContent=bh21Concealed?'?':String(selfHand);root.querySelector('[data-hand-count="rival"]').textContent=bh21Concealed?'?':String(rivalHand);
+    if(clockText&&bh21Concealed)clockText.textContent='?:??';
     const pilePlayer=currentPilePlayer(self);
     const discardArt=root.querySelector('[data-discard] .codex-v19-archive-art');
-    const discardCards=pilePlayer?.discard;
-    const latestDiscard=Array.isArray(discardCards)&&discardCards.length?discardCards[discardCards.length-1]:null;
     if(discardArt){
-      if(latestDiscard?.img){
-        const resolved=typeof window.getRuntimeCardImageSrc==='function'?window.getRuntimeCardImageSrc(latestDiscard.img,'board'):latestDiscard.img;
-        discardArt.style.setProperty('--archive-card-image',`url("${String(resolved).replace(/"/g,'\\"')}")`);
-      }else discardArt.style.removeProperty('--archive-card-image');
+      // Let the stylesheet resolve the packaged card back relative to itself.
+      // The old inline URL resolved from the document and left this pile blank.
+      discardArt.style.removeProperty('--archive-card-image');
     }
     [['my-pic','my-pic'],['opp-pic','opp-pic']].forEach(([key,id])=>{const out=root.querySelector(`[data-art="${key}"]`),art=findArt($(id));if(out&&art)out.style.backgroundImage=art});
     const land=$('landscape-panel'),landOut=root.querySelector('[data-land]');if(land&&landOut&&landOut.dataset.cache!==land.innerHTML){landOut.innerHTML=land.innerHTML;landOut.dataset.cache=land.innerHTML;scheduleLandscapeFit(landOut)}
@@ -220,16 +231,23 @@
        endControl.disabled=!canEnd;
        endControl.setAttribute('aria-disabled',String(!canEnd));
      }
-     const authoritativeMorale=authorityScreen?.view?.state?.moralePressure||null;
-      const liveState=invoke('getFateGameState')||window.FATE_GAME_STATE||null;
-      const moraleSystem=window.getPresentedMoraleSystem?.()||authoritativeMorale||liveState?._moralePressure||null;
-     const hud=$('morale-pressure-hud'),max=Math.max(1,Number(moraleSystem?.maxMorale||200));
-     [['you','.mp-left','.mp-status-player'],['opp','.mp-right','.mp-status-opponent']].forEach(([key,side,status])=>{
-       const panel=hud?.querySelector(side),legacyLocal=Number(invoke('getPerspectivePlayerIndex'))||0,local=authorityScreen?Number(authorityScreen.view?.playerIndex):legacyLocal,seat=key==='you'?local:1-local,stateMorale=Number(moraleSystem?.morale?.[seat]),value=Number.isFinite(stateMorale)?stateMorale:Number(((panel?.querySelector('.mp-heading strong')?.textContent||String(max)).match(/\d+/)||[max])[0]);
-      const label=root.querySelector(`[data-morale="${key}"]`),fill=root.querySelector(`[data-fill="${key}"]`),button=root.querySelector(`[data-status="${key}"]`),statusNode=hud?.querySelector(status);
-      if(label)label.textContent=value;if(fill)fill.style.width=Math.max(0,Math.min(100,value/max*100))+'%';
-      const moralePanel=root.querySelector(`[data-morale-panel="${key}"]`);
-       if(moralePanel)moralePanel.dataset.content=panel?.querySelector('.mp-morale-tip')?.innerHTML||'<p>Morale penalties are inactive.</p>';
+       const authoritativeMorale=authorityScreen?.view?.state?.moralePressure||null;
+       const liveState=invoke('getFateGameState')||window.FATE_GAME_STATE||null;
+       const moraleSystem=window.getPresentedMoraleSystem?.()||authoritativeMorale||liveState?._moralePressure||null;
+       const hud=$('morale-pressure-hud'),max=Math.max(1,Number(moraleSystem?.maxMorale||200));
+       if(!bh21Concealed)root._bh21MoraleUiSnapshot=null;
+       if(bh21Concealed&&!root._bh21MoraleUiSnapshot){
+         root._bh21MoraleUiSnapshot={values:[Math.max(0,Number(moraleSystem?.morale?.[0])||0),Math.max(0,Number(moraleSystem?.morale?.[1])||0)],contents:{}};
+       }
+      [['you','.mp-left','.mp-status-player'],['opp','.mp-right','.mp-status-opponent']].forEach(([key,side,status])=>{
+        const panel=hud?.querySelector(side),legacyLocal=Number(invoke('getPerspectivePlayerIndex'))||0,local=authorityScreen?Number(authorityScreen.view?.playerIndex):legacyLocal,seat=key==='you'?local:1-local,stateMorale=Number(moraleSystem?.morale?.[seat]),value=Number.isFinite(stateMorale)?stateMorale:Number(((panel?.querySelector('.mp-heading strong')?.textContent||String(max)).match(/\d+/)||[max])[0]);
+       const label=root.querySelector(`[data-morale="${key}"]`),fill=root.querySelector(`[data-fill="${key}"]`),button=root.querySelector(`[data-status="${key}"]`),statusNode=hud?.querySelector(status);
+        const displayedValue=bh21Concealed?Number(root._bh21MoraleUiSnapshot?.values?.[seat]??value):value;
+        if(label)label.textContent=bh21Concealed?'???':String(value);if(fill)fill.style.width=Math.max(0,Math.min(100,displayedValue/max*100))+'%';
+       const moralePanel=root.querySelector(`[data-morale-panel="${key}"]`);
+        const liveMoraleContent=panel?.querySelector('.mp-morale-tip')?.innerHTML||'<p>Morale penalties are inactive.</p>';
+        if(bh21Concealed&&root._bh21MoraleUiSnapshot&&!root._bh21MoraleUiSnapshot.contents[key])root._bh21MoraleUiSnapshot.contents[key]=liveMoraleContent;
+        if(moralePanel)moralePanel.dataset.content=bh21Concealed?(root._bh21MoraleUiSnapshot?.contents?.[key]||liveMoraleContent):liveMoraleContent;
        if(button){
          const rail=statusRailSummary(key),summaryCount=Number((statusNode?.querySelector(':scope > b')?.textContent||'0').match(/\d+/)?.[0]||0),count=Math.max(summaryCount,rail.count),content=rail.count?rail.content:(statusNode?.querySelector('.mp-status-popover')?.innerHTML||'<p>No active status effects.</p>');
           button.querySelector('[data-status-count]').textContent=String(count);button.dataset.content=content;

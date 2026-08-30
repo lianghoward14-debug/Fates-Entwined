@@ -670,8 +670,6 @@ export class FateAuthoritativeV3SinglePlayerScreen {
       DELAYED_HAND_DELIVERY:['94','mail_delivery','Mail Delivery',`A scheduled card arrives after ${remaining || 1} owner turn${remaining === 1 ? '' : 's'}.`,'effect-pill-mail'],
       WINE_COUNTRY_GUERILLA_INFILTRATION:['70','guerilla','A Gun Behind Every Grapevine',`Reduces a random eligible opposing hand card by 2 Fate at turn start for ${remaining} more turn${remaining === 1 ? '' : 's'}.`,'effect-pill-guerilla'],
       FACE_DOWN_CONSOLIDATION_PERMISSION:['78','chaparral','Chaparral Ambush','The next consolidation in this zone may be set face down.','effect-pill-chaparral'],
-      MOVEMENT_GRANT:['69','busser_boot','Corner! Behind!','A friendly card can move to an adjacent-zone own-side square once this turn.','effect-pill-busser'],
-      BUSSER_INITIATOR_MORALE:['69','busser_boot','Corner! Behind!','Every Initiator effect you activate this turn recovers 10 Morale.','effect-pill-busser'],
       PERMANENT_FATE_GAIN_POTENCY:['bh19','high_t','High-T','Permanent Fate gain effects have doubled potency for this turn.','effect-pill-high-t']
     };
     const descriptor = definitions[type];

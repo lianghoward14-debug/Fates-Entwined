@@ -642,7 +642,7 @@
         const opponent=1-player;
         const before=Number(system.morale[opponent]||0);
         const block=state._southWindMoraleBlock;
-        const blocked=String(state.landscapeId||'')==='igb1' || !!(block
+        const blocked=!!(block
           && Number(block.targetPlayer)===player
           && Number(block.activeFromTurn)<=Number(state.turn)
           && Number(block.remainingTargetTurns)>0);
@@ -788,7 +788,7 @@
     // throw before presentation and before endTurn could advance the player.
     const outgoing=[0,0];
     const outgoingSources=[[],[]];
-    zoneResults.forEach(function(result){if(result.damagedPlayer===0||result.damagedPlayer===1)damage[result.damagedPlayer]+=result.difference;});
+    zoneResults.forEach(function(result){if(!pacificaPreventsMoraleDamage&&(result.damagedPlayer===0||result.damagedPlayer===1))damage[result.damagedPlayer]+=Math.floor(result.difference/2);});
       const pressureReworks=window.FATE_PRESSURE_CARD_REWORKS_ENABLED === true
         || state?.gameSettings?.pressureCardReworks === true
         || state?._freePlayGameSettings?.pressureCardReworks === true;
@@ -825,7 +825,6 @@
       }
       for(let owner=0;owner<2;owner+=1)damage[1-owner]+=outgoing[owner];
     }
-    if(pacificaPreventsMoraleDamage){ damage[0]=0; damage[1]=0; }
     events.push({
       type:'MORALE_CYCLE_RESOLVED',
       zoneResults:zoneResults,
@@ -867,6 +866,20 @@
       });
       if(before>0&&system.morale[player]===0)events.push({type:'MORALE_BROKEN',playerIndex:player,sourcePlayerIndex:1-player});
     }
+    (state.blockedCells||[]).filter(function(block){return block&&block.type==='jamie';}).forEach(function(block){
+      const player=Number(block.owner);
+      const card=state.board?.[Number(block.z)]?.[Number(block.r)]?.[Number(block.c)]||null;
+      if((player!==0&&player!==1)||!card)return;
+      const fate=typeof getEffectiveFate==='function'?getEffectiveFate(card,Number(block.z)):Number(card.currentFate??card.fate??0);
+      const before=Math.max(0,Number(system.morale[player])||0);
+      const after=Math.min(Number(system.maxMorale||200),before+Math.max(0,Number(fate)||0));
+      const amount=after-before;
+      if(!amount)return;
+      system.morale[player]=after;
+      const source=entries.map(function(entry){return entry.card;}).find(function(entryCard){return String(entryCard.iid||'')===String(block.sourceIid||'');});
+      if(source)source._moraleRecoveredFromSquare=Math.max(0,Number(source._moraleRecoveredFromSquare)||0)+amount;
+      events.push({type:'MORALE_HEALED',playerIndex:player,amount:amount,before:before,after:after,sourceIid:block.sourceIid,overlayTargetIid:String(card.iid||''),semanticSourceCardId:'bh22',reason:'A_MOONLIT_SHORE'});
+    });
     const lowMoraleDiscard = resolveLegacyMoraleLowHandDiscard(Number(endingPlayer));
     if(lowMoraleDiscard) events.push(lowMoraleDiscard);
     system.cycle+=1;
@@ -1131,7 +1144,7 @@
     const max = Math.max(1, Number(system?.maxMorale || 200));
     const morale = Math.max(0, Number(system?.morale?.[seat] || 0));
     return '<header><span>Morale</span><b>' + morale + '/' + max + '</b></header>' +
-      '<div class="mp-morale-rule active"><b>Every 2 turns, starting Turn 4</b><span>Add the Fate deficits from every zone you do not control. That total is dealt as Morale damage.</span></div>' +
+      '<div class="mp-morale-rule active"><b>Every 2 turns, starting Turn 4</b><span>In each zone you do not control, half the Fate difference is dealt as Morale damage (rounded down).</span></div>' +
       '<div class="mp-morale-rule ' + (morale <= max * .8 ? 'active' : '') + '"><b>80% Morale</b><span>Maximum 2 consolidations per turn.</span></div>' +
       '<div class="mp-morale-rule ' + (morale <= max * .6 ? 'active' : '') + '"><b>60% Morale</b><span>Your normal draw phase occurs every other personal turn.</span></div>' +
       '<div class="mp-morale-rule ' + (morale <= max * .4 ? 'active' : '') + '"><b>40% Morale</b><span>Your Supporters discard themselves after 2 completed turns.</span></div>' +
@@ -1343,26 +1356,11 @@
   }
 
   function moraleEffectSourceDescriptor(card,event){
-    const busserEvent=String(event&&event.semanticSourceCardId||'')==='69'||String(event&&event.reason||'').toUpperCase()==='BUSSER_INITIATOR_MORALE';
-    if(!busserEvent||String(event&&event.type||'').toUpperCase()!=='MORALE_HEALED')return null;
-    return {kind:'breakfast_republic_busser',label:'Corner! Behind!'};
+    return null;
   }
 
   function flashMoraleEffectSourceOverlay(event){
-    const busserEvent=String(event&&event.semanticSourceCardId||'')==='69'||String(event&&event.reason||'').toUpperCase()==='BUSSER_INITIATOR_MORALE';
-    const targetIid=busserEvent?event&&event.overlayTargetIid:event&&(event.overlayTargetIid||event.sourceIid);
-    const source=findMoraleOverlaySource(targetIid);
-    if(!source||typeof window.flashCardEffect!=='function')return false;
-    const descriptor=moraleEffectSourceDescriptor(source,event);
-    if(!descriptor)return false;
-    const shown=window.flashCardEffect(source,descriptor.kind,{
-      label:descriptor.label,
-      soundKey:['morale-effect',descriptor.kind,String(source.iid||source.id||''),String(event&&event.before||0),String(event&&event.after||0),String(G&&G.turn||0)].join(':')
-    });
-    if(shown&&window.FateMatchRendererAdapter?.renderFromGameState){
-      window.FateMatchRendererAdapter.renderFromGameState({source:'morale-effect-source-overlay'});
-    }
-    return !!shown;
+    return false;
   }
 
   function flashMoraleCalculationSourceOverlays(cycleEvent){
@@ -1540,10 +1538,15 @@
     const rows = [0,1,2].map(function(zone){
       const result = zones.find(function(item){return Number(item?.zone)===zone;}) || {scores:[0,0],difference:0,controller:null};
       const scores = Array.isArray(result.scores) ? result.scores : [0,0];
-      const outcome = result.controller == null ? 'Tied — no damage' : 'Player ' + (Number(result.controller)+1) + ' controls · ' + Math.max(0,Number(result.difference)||0) + ' damage';
+      const zoneDamage = Math.floor(Math.max(0,Number(result.difference)||0)/2);
+      const zoneDamageLabel = typeof window.getBh21ConcealedNumericLabel === 'function' ? window.getBh21ConcealedNumericLabel(zoneDamage) : String(zoneDamage);
+      const outcome = result.controller == null ? 'Tied — no damage' : 'Player ' + (Number(result.controller)+1) + ' controls · ' + zoneDamageLabel + ' Morale damage';
       return '<div class="morale-cycle-zone"><span>Zone ' + (zone+1) + '</span><b>' + Math.max(0,Number(scores[0])||0) + ' — ' + Math.max(0,Number(scores[1])||0) + '</b><em>' + outcome + '</em></div>';
     }).join('');
-    modal.innerHTML = '<div class="pressure-resolution-card morale-cycle-resolution-card"><div class="seal-checkpoint-kicker">End of Turn Cycle</div><h2>Morale Calculation</h2><div class="morale-cycle-zones">' + rows + '</div><footer><span>Player 1 Damage <b>' + Math.max(0,Number(damage[0])||0) + '</b></span><span>Player 2 Damage <b>' + Math.max(0,Number(damage[1])||0) + '</b></span></footer></div>';
+    const damage0 = Math.max(0,Number(damage[0])||0), damage1 = Math.max(0,Number(damage[1])||0);
+    const damageLabel0 = typeof window.getBh21ConcealedNumericLabel === 'function' ? window.getBh21ConcealedNumericLabel(damage0) : String(damage0);
+    const damageLabel1 = typeof window.getBh21ConcealedNumericLabel === 'function' ? window.getBh21ConcealedNumericLabel(damage1) : String(damage1);
+    modal.innerHTML = '<div class="pressure-resolution-card morale-cycle-resolution-card"><div class="seal-checkpoint-kicker">End of Turn Cycle</div><h2>Morale Calculation</h2><div class="morale-cycle-zones">' + rows + '</div><footer><span>Player 1 Damage <b>' + damageLabel0 + '</b></span><span>Player 2 Damage <b>' + damageLabel1 + '</b></span></footer></div>';
     document.body.appendChild(modal);
     if(typeof window.playMoralePressureSfx === 'function') window.playMoralePressureSfx('morale-damage');
     return new Promise(function(resolve){
@@ -1559,7 +1562,9 @@
     const visiblePlayer = visibleMoralePresentationTarget(event?.playerIndex);
     const floater = document.createElement('div');
     floater.className = 'morale-damage-floater';
-    floater.textContent = '-' + Math.max(0,Number(event?.amount)||0) + ' Morale';
+    const damageAmount = Math.max(0,Number(event?.amount)||0);
+    const damageLabel = typeof window.getBh21ConcealedNumericLabel === 'function' ? window.getBh21ConcealedNumericLabel(damageAmount) : String(damageAmount);
+    floater.textContent = '-' + damageLabel + ' Morale';
     positionMoraleFloater(floater,player,event?.playerIndex);
     document.body.appendChild(floater);
     player.classList.remove('mp-morale-hit');
@@ -1577,7 +1582,9 @@
     const visiblePlayer = visibleMoralePresentationTarget(event?.playerIndex);
     const floater = document.createElement('div');
     floater.className = 'morale-heal-floater';
-    floater.textContent = '+' + Math.max(0,Number(event?.amount)||0) + ' Morale';
+    const healAmount = Math.max(0,Number(event?.amount)||0);
+    const healLabel = typeof window.getBh21ConcealedNumericLabel === 'function' ? window.getBh21ConcealedNumericLabel(healAmount) : String(healAmount);
+    floater.textContent = '+' + healLabel + ' Morale';
     positionMoraleFloater(floater,player,event?.playerIndex);
     document.body.appendChild(floater);
     player.classList.remove('mp-morale-heal');

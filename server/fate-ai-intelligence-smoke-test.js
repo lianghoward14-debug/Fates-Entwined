@@ -85,15 +85,15 @@ const moraleSystem = {maxMorale:100,morale:[45,100],shields:[0,0],pressure:[0,0]
 assert.deepStrictEqual(
   AI.moraleCycleDamage([2,10,10],[8,8,8]),
   {
-    incoming:6,
-    outgoing:4,
+    incoming:3,
+    outgoing:2,
     zones:[
       {zone:0,own:2,enemy:8,margin:-6},
       {zone:1,own:10,enemy:8,margin:2},
       {zone:2,own:10,enemy:8,margin:2}
     ]
   },
-  'morale planning must total losing-zone deficits and winning-zone damage separately'
+  'morale planning must total half of each losing- and winning-zone difference, rounded down'
 );
 const cautiousDefense = AI.scoreMoralePositionDelta({
   system:moraleSystem,playerIndex:0,ownScores:[2,10,10],enemyScores:[8,8,8],

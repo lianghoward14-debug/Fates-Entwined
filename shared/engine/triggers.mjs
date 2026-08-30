@@ -458,7 +458,6 @@ export function collectTriggeredOperations(state, event){
     const source=findCard(state,event.sourceIid);
     if(source?.card&&effectiveCardType(state,source.card)==='Initiator'){
       const playerIndex=controllerOf(source.card);
-      for(const status of (state.statuses||[]).filter(item=>item?.type==='BUSSER_INITIATOR_MORALE'&&Number(item.playerIndex)===playerIndex&&Number(item.remainingOwnerTurns||0)>0))operations.push({type:'MODIFY_MORALE',playerIndex:playerIndex,amount:10,sourceIid:status.sourceIid,overlayTargetIid:event.sourceIid,semanticSourceCardId:'69',reason:'BUSSER_INITIATOR_MORALE'});
     }
   }
   if(event.type === 'DRAW_PHASE_COMPLETED'){

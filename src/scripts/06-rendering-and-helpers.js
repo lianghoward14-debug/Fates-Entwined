@@ -509,6 +509,10 @@ function getRuntimeCardImageSrc(src, role) {
   const raw = String(src);
   const m = raw.match(/^([A-Za-z0-9_-]+)\.png([?#].*)?$/);
   if(!m) return raw;
+  // Newly supplied Brave Horizons art does not yet have generated JPEG
+  // thumbnails. Use the real packaged PNG on every surface until the normal
+  // thumbnail build produces those derivatives.
+  if(m[1] === 'bh22') return raw;
   if(isElectronCardImageRuntime() && (role === 'board' || role === 'hand' || role === 'detail' || role === 'full')) return raw;
   return 'optimized/card-thumbs/' + m[1] + '.jpg' + (m[2] || '');
 }
@@ -1360,6 +1364,7 @@ function boardCardDomSignature(card, z, r, c, visual, perspectivePlayer, isHidde
   return [
     z, r, c, perspectivePlayer, isHidden ? 1 : 0, selected ? 1 : 0,
     block && block.type === 'zoe' ? 1 : 0, statusState.primary || '', statusState.immune ? 1 : 0, statusState.lowMoraleExpiry ? 1 : 0,
+    isHighTSourceCardActive(card) ? 1 : 0,
     typeof isFlowerKingBlessedCard === 'function' && isFlowerKingBlessedCard(card, z, r, c) ? 1 : 0,
     visual && visual.runtimeImg || '', visual && visual.img || '', visual && visual.name || '',
     visual && visual.displayFate || '',
@@ -1511,6 +1516,23 @@ function applyOpponentHandDensity(container, count) {
     container.style.removeProperty('--opp-hand-card-h');
   }
 }
+
+function isHighTSourceCardActive(card) {
+  if(!card || String(card.id || '') !== 'bh19') return false;
+  const iid = String(card.iid || '');
+  if(!iid) return false;
+  const legacy = Array.isArray(G?._bh19HighTStatuses) ? G._bh19HighTStatuses : [];
+  if(legacy.some(function(status){
+    return String(status?.sourceIid || '') === iid && Number(status?.turn) === Number(G?.turn);
+  })) return true;
+  const authoritative = Array.isArray(G?._phase7Statuses) ? G._phase7Statuses : [];
+  return authoritative.some(function(status){
+    return String(status?.type || '') === 'PERMANENT_FATE_GAIN_POTENCY'
+      && String(status?.sourceIid || '') === iid
+      && Number(status?.remainingOwnerTurns ?? status?.remaining ?? 1) > 0;
+  });
+}
+if(typeof window !== 'undefined') window.isHighTSourceCardActive = isHighTSourceCardActive;
 
 function updateOpponentHandLabelDensity(label, count) {
   if(!label) return;
@@ -3488,6 +3510,12 @@ window.showCardFromDiscard = function(player, idx) {
 };
 
 function renderZoneScoreMarkup(z, s0, s1, ctrl) {
+  if(typeof isBh21ViewerConcealed === 'function' && isBh21ViewerConcealed(getPerspectivePlayerIndex())) {
+    return `<span class="zone-score p1">?</span>
+        <span class="zone-score-vs">vs</span>
+        <span class="zone-score p2">?</span>
+        <span class="zone-score-bar"><span class="zone-score-bar-p1" style="width:50%"></span><span class="zone-score-bar-p2" style="width:50%"></span></span>`;
+  }
   const total = s0 + s1 || 1;
   const p1pct = Math.round((s0 / total) * 100);
   const p2pct = 100 - p1pct;
@@ -3526,6 +3554,9 @@ function showZoneFateDecrease(zoneIndex, playerIndex, amount, options) {
 if(typeof window !== 'undefined') window.showZoneFateDecrease = showZoneFateDecrease;
 
 function getZoneScoreTooltip(z, s0, s1) {
+  if(typeof isBh21ViewerConcealed === 'function' && isBh21ViewerConcealed(getPerspectivePlayerIndex())) {
+    return 'Zone Fate values are concealed by The Vast Taklamakan.';
+  }
   const base0 = typeof getBaseZoneScore === 'function' ? getCachedBaseZoneScore(z, 0) : s0;
   const base1 = typeof getBaseZoneScore === 'function' ? getCachedBaseZoneScore(z, 1) : s1;
   if(G?._moralePressure){
@@ -3752,17 +3783,18 @@ function renderBoard() {
   for(let z=0;z<3;z++){
     const s0=getCachedZoneScore(z,0), s1=getCachedZoneScore(z,1);
     const ctrl=s0>s1?0:s1>s0?1:-1;
+    const visibleCtrl=shouldConcealBh21InformationForViewer()? -1 : ctrl;
     const scoreTip = escapeHtml(getZoneScoreTooltip(z, s0, s1));
     const zoneEl=document.createElement('div');
-    zoneEl.className='zone'+(ctrl===0?' zone-p1':ctrl===1?' zone-p2':' zone-tied');
+    zoneEl.className='zone'+(visibleCtrl===0?' zone-p1':visibleCtrl===1?' zone-p2':' zone-tied');
     zoneEl.dataset.zone=z;
     zoneEl.innerHTML=`<div class="zone-banner-over" aria-hidden="true">
       <span class="zone-hdr-ornament">◆</span><span class="zone-title">Zone ${z+1}</span><span class="zone-hdr-ornament">◆</span>
     </div>
     <div class="zone-hdr">
       <span class="zone-hdr-main"><span class="zone-hdr-ornament">◆</span><span class="zone-title">Zone ${z+1}</span><span class="zone-hdr-ornament">◆</span></span>
-      <span class="zone-score-card${ctrl>=0?' ctrl':''}" data-zone="${z}" aria-label="${scoreTip}" data-tooltip="${scoreTip}">
-        ${renderZoneScoreMarkup(z,s0,s1,ctrl)}
+      <span class="zone-score-card${visibleCtrl>=0?' ctrl':''}" data-zone="${z}" aria-label="${scoreTip}" data-tooltip="${scoreTip}">
+        ${renderZoneScoreMarkup(z,s0,s1,visibleCtrl)}
       </span>
     </div>`;
     const extraRowCount = (G.extraRows && G.extraRows[z]) || 0;
@@ -3904,6 +3936,25 @@ function getBoardCardPosition(card) {
   return found;
 }
 
+function getBh21ViewerConcealmentState(viewerIndex) {
+  const viewer = Number.isInteger(Number(viewerIndex)) ? Number(viewerIndex) : Number(getPerspectivePlayerIndex());
+  const turn = Number(G && G.turn || 0);
+  const canonical = (Array.isArray(G && G._phase7Statuses) ? G._phase7Statuses : []).find(function(status){
+    return status && status.type === 'TIMED_PLAYER_STATUS' && status.statusType === 'BH21_FATE_MORALE_CONCEALMENT'
+      && Number(status.playerIndex) === viewer && Number(status.activeFromTurn) <= turn && Number(status.remainingTargetTurns) > 0;
+  });
+  if(canonical) return canonical;
+  const legacy = G && G._bh21Concealment;
+  return legacy && Number(legacy.targetPlayer) === viewer && Number(legacy.activeFromTurn) <= turn
+    && Number(legacy.remainingTargetTurns) > 0 ? legacy : null;
+}
+function isBh21ViewerConcealed(viewerIndex) { return !!getBh21ViewerConcealmentState(viewerIndex); }
+function getBh21ConcealedNumericLabel(value, viewerIndex) {
+  const digits = String(Math.max(0, Math.trunc(Math.abs(Number(value) || 0)))).length;
+  return isBh21ViewerConcealed(viewerIndex) ? '?'.repeat(Math.max(1, digits)) : String(value);
+}
+if(typeof window !== 'undefined') { window.getBh21ViewerConcealmentState=getBh21ViewerConcealmentState; window.isBh21ViewerConcealed=isBh21ViewerConcealed; window.getBh21ConcealedNumericLabel=getBh21ConcealedNumericLabel; }
+
 function getCardVisualData(card, viewerP = getPerspectivePlayerIndex(), options = {}) {
   if(!card) return null;
   const boardPos = options.boardPos || getBoardCardPosition(card);
@@ -3955,9 +4006,11 @@ function getCardVisualData(card, viewerP = getPerspectivePlayerIndex(), options 
       rarity: card.rarity || 'circle',
       fate: runtimeRework ? runtimeRework.fate : (typeof getPrintedFateLabel === 'function' ? getPrintedFateLabel(card) : (card.xFate ? 'X' : card.fate)),
       currentFate: liveFate,
-      displayFate: typeof getSequentialFateDisplayValue === 'function' && getSequentialFateDisplayValue(card) != null
+      displayFate: boardPos && isBh21ViewerConcealed(viewerP)
+        ? '<img class="bh21-concealed-fate-icon" src="assets/ui/bh21-concealed-fate.svg" alt="Fate concealed">'
+        : (typeof getSequentialFateDisplayValue === 'function' && getSequentialFateDisplayValue(card) != null
         ? getSequentialFateDisplayValue(card)
-        : (boardPos ? getCachedEffectiveFate(card, boardPos.z) : (card.xFate ? 'X' : liveFate)),
+        : (boardPos ? getCachedEffectiveFate(card, boardPos.z) : (card.xFate ? 'X' : liveFate))),
       img: getRuntimeCardImageSrc(resolvedCardImg, 'detail'),
       runtimeImg: getRuntimeCardImageSrc(resolvedCardImg, boardPos ? 'board' : 'hand'),
       cost: handCost,
@@ -4010,6 +4063,10 @@ function getStatusEffectIcon(kind) {
     semper: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 18h40M12 46h40" stroke-width="4"/><path d="M22 26h20v12H22z" stroke-width="3.4"/><path d="M28 32h8" stroke-width="5"/><path d="M20 12l24 40" stroke-width="2.5" opacity=".38"/></g></svg>`,
     carolyn_lock: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="16" y="16" width="32" height="32" rx="4" stroke-width="3.5"/><path d="M24 24h16v16H24z" stroke-width="3"/><path d="M20 32h24M32 20v24" stroke-width="2.6" opacity=".45"/></g></svg>`,
     zoe_block: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 25V14h11M52 25V14H41M12 39v11h11M52 39v11H41" stroke-width="4"/><path d="M17 32c5-7 10-10 15-10s10 3 15 10c-5 7-10 10-15 10s-10-3-15-10z" stroke-width="3.5"/><circle cx="32" cy="32" r="4" stroke-width="3"/></g></svg>`,
+    zoe_overlay: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 29V24h7M42 29V24h-7M22 35v5h7M42 35v5h-7" stroke-width="4"/><path d="M17 32c5-7 10-10 15-10s10 3 15 10c-5 7-10 10-15 10s-10-3-15-10z" stroke-width="3.5"/><circle cx="32" cy="32" r="4" stroke-width="3"/></g></svg>`,
+    oktai_conceal: `<svg viewBox="0 0 64 64" aria-hidden="true"><g transform="translate(0 -3.5)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M8 43c8-10 16-10 24 0s16 10 24 0M8 51c8-8 16-8 24 0s16 8 24 0" stroke-width="3.5"/><path d="M14 28c6-7 12-10 18-10s12 3 18 10c-6 7-12 10-18 10s-12-3-18-10z" stroke-width="3.5"/><circle cx="32" cy="28" r="4" stroke-width="3"/></g></svg>`,
+    heal: `<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M25 10h14v15h15v14H39v15H25V39H10V25h15z" fill="currentColor" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/></svg>`,
+    heal_outline: `<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M25 10h14v15h15v14H39v15H25V39H10V25h15z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/></svg>`,
     wci_bonus: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="32" r="14" stroke-width="4"/><circle cx="32" cy="32" r="5" stroke-width="3.5"/><path d="M32 8v10M32 46v10M8 32h10M46 32h10M15 15l7 7M42 42l7 7M49 15l-7 7M22 42l-7 7" stroke-width="3.5"/></g></svg>`,
     shield_wall: `<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 8l18 8v14c0 12-7.2 20.4-18 26-10.8-5.6-18-14-18-26V16l18-8z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M22 34l7 7 14-17" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
     maja_unlimited: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10 46l14-14-14-14M24 46l14-14-14-14M38 46l14-14-14-14" stroke-width="4"/></g></svg>`,
@@ -4121,8 +4178,19 @@ function createBoardCardEl(card, z, r, c, reuseMap) {
   const isMarkedForDeath = !!statusEligibility.marked;
   const showMarkedIcon = statusState.primary === 'marked';
   const isZoeBlocked = statusState.primary === 'blocked';
+  const zoeFieldLockedRaw = !isHidden && typeof isZoeFieldLeaveLockedAt === 'function'
+    && isZoeFieldLeaveLockedAt(card, z, r, c);
+  const jamieHealingSquareRaw = !isHidden && (
+    !!(G.blockedCells || []).find(function(block){ return block && block.type === 'jamie' && block.z === z && block.r === r && block.c === c; })
+    || !!(G?._phase7Geometry?.squareStatuses || []).find(function(status){ return status && status.type === 'MORALE_RECOVERY_SQUARE' && Number(status.z) === z && Number(status.r) === r && Number(status.c) === c; })
+  );
+  const highTActive = !isHidden && isHighTSourceCardActive(card);
   const isFlowerBlessed = statusState.primary === 'flower';
   const lowMoraleExpiry = getLowMoraleSupporterExpiryState(card);
+  // A card may qualify for several persistent pulse overlays, but only the
+  // highest-priority one is mounted: low Morale > Zoe > Jamie.
+  const zoeFieldLocked = zoeFieldLockedRaw && !lowMoraleExpiry.active;
+  const jamieHealingSquare = jamieHealingSquareRaw && !lowMoraleExpiry.active && !zoeFieldLockedRaw;
   const selected = !!(G.selectedBoardCard && G.selectedBoardCard.card && G.selectedBoardCard.card.iid === card.iid);
   const iidKey = String(card.iid || '');
   const domSig = boardCardDomSignature(card, z, r, c, visual, perspectivePlayer, isHidden, selected);
@@ -4161,6 +4229,9 @@ function createBoardCardEl(card, z, r, c, reuseMap) {
     +(isEffectFlash?' fate-effect-flash effect-flash-'+effectFlashKind:'')
     +(showMarkedIcon?' fate-marked-death':'')
     +(isZoeBlocked?' fate-blocked-action':'')
+    +(zoeFieldLocked?' fate-zoe-field-lock':'')
+    +(jamieHealingSquare?' fate-jamie-healing-square':'')
+    +(highTActive?' fate-high-t-beat':'')
     +(isImmune?' fate-immune':'')
     +(isFlowerBlessed?' fate-flower-blessed':'')
     +(lowMoraleExpiry.active?' fate-low-morale-expiry':'');
@@ -4191,6 +4262,8 @@ function createBoardCardEl(card, z, r, c, reuseMap) {
     <div class="bc-art">${visual.runtimeImg?`<img src="${visual.runtimeImg}" alt="" decoding="async" loading="eager" onerror="this.onerror=null;this.src='${visual.img || 'blank.png'}';">`:''}<span class="bc-ico" style="${visual.runtimeImg?'display:none':''}">${getAffIcon(visual.aff)}</span></div>
     ${affBadge}
     ${isFlowerBlessed?'<span class="flower-king-overlay" aria-hidden="true"></span>':''}
+    ${zoeFieldLocked?'<span class="bc-zoe-field-lock" aria-hidden="true"><span class="bc-zoe-field-lock-icon">'+getStatusEffectIcon('zoe_overlay')+'</span></span>':''}
+    ${jamieHealingSquare?'<span class="bc-jamie-healing-square" aria-hidden="true"><span class="bc-jamie-heal-icon">'+getStatusEffectIcon('heal_outline')+'</span></span>':''}
     ${lowMoraleExpiry.active?'<span class="bc-low-morale-expiry" data-turns-left="'+lowMoraleExpiry.turnsLeft+'" aria-hidden="true"><span class="bc-low-morale-heart">♥</span></span>':''}
     <div class="bc-fate${fateStateCls}${changed?' pulse':''}">${visual.displayFate}</div>`;
   // Spawn mini floater on the card if fate changed
@@ -4628,14 +4701,16 @@ function renderZoneScores() {
   for(let z=0;z<3;z++){
     const s0=getCachedZoneScore(z,0),s1=getCachedZoneScore(z,1);
     const ctrl=s0>s1?0:s1>s0?1:-1;
+    const concealed=typeof isBh21ViewerConcealed==='function'&&isBh21ViewerConcealed(getPerspectivePlayerIndex());
+    const visibleCtrl=concealed?-1:ctrl;
     const el=document.querySelector('#board .zone[data-zone="'+z+'"] .zone-score-card');
     const zoneEl=document.querySelector('#board .zone[data-zone="'+z+'"]');
     if(el){
       const scoreTip = getZoneScoreTooltip(z, s0, s1);
-      const sig = [s0, s1, ctrl, scoreTip].join('|');
+      const sig = [s0, s1, visibleCtrl, scoreTip, concealed?1:0].join('|');
       if(G._zoneScoreRenderSigs[z] !== sig) {
         G._zoneScoreRenderSigs[z] = sig;
-        el.className='zone-score-card'+(ctrl>=0?' ctrl':'');
+        el.className='zone-score-card'+(visibleCtrl>=0?' ctrl':'');
         el.removeAttribute('title');
         el.setAttribute('aria-label', scoreTip);
         el.dataset.tooltip = scoreTip;
@@ -4643,9 +4718,9 @@ function renderZoneScores() {
       }
     }
     if(zoneEl){
-      zoneEl.classList.toggle('zone-p1', ctrl===0);
-      zoneEl.classList.toggle('zone-p2', ctrl===1);
-      zoneEl.classList.toggle('zone-tied', ctrl<0);
+      zoneEl.classList.toggle('zone-p1', visibleCtrl===0);
+      zoneEl.classList.toggle('zone-p2', visibleCtrl===1);
+      zoneEl.classList.toggle('zone-tied', visibleCtrl<0);
     }
     // Check for control change
     if(!G._prevZoneCtrl) G._prevZoneCtrl = {};
@@ -5561,15 +5636,27 @@ function renderTopbarEffects() {
       const zone = Number.isInteger(Number(status.zone)) ? 'Zone ' + (Number(status.zone) + 1) : 'this zone';
       add('78', 'chaparral', 'Chaparral Hoplite', 'Chaparral Ambush', 'The next consolidation in ' + zone + ' may be set face down.', 'effect-pill-chaparral');
       if(allEffects.length && (affected === 0 || affected === 1)) allEffects[allEffects.length - 1].owner = affected;
-    }else if(type === 'MOVEMENT_GRANT' && remaining > 0){
-      add('69', 'busser_boot', 'Breakfast Republic Busser', 'Corner! Behind!', 'A friendly card can move to an adjacent-zone own-side square once per turn for ' + remaining + ' more owner turn' + (remaining === 1 ? '' : 's') + '.', 'effect-pill-busser');
-    }else if(type === 'BUSSER_INITIATOR_MORALE' && remaining > 0){
-      add('69','busser_boot','Breakfast Republic Busser','Corner! Behind!','For this turn, every Initiator effect you activate recovers 10 Morale.','effect-pill-busser');
-      if(allEffects.length&&(affected===0||affected===1))allEffects[allEffects.length-1].owner=affected;
+    }else if(type === 'MOVEMENT_GRANT' || type === 'BUSSER_INITIATOR_MORALE'){
+      // Retired Breakfast Republic Busser statuses are deliberately invisible.
     }else if(type === 'PERMANENT_FATE_GAIN_POTENCY' && remaining > 0){
       add('bh19', 'high_t', 'Abed', 'High-T', 'Permanent Fate gain effects have doubled potency for this turn.', 'effect-pill-high-t');
       if(allEffects.length && (affected === 0 || affected === 1)) allEffects[allEffects.length - 1].owner = affected;
+    }else if(type === 'BH21_FATE_MORALE_CONCEALMENT' && remaining > 0){
+      add('bh21','oktai_conceal','Oktai','The Vast Taklamakan','The affected opponent cannot see field or zone Fate values, Morale values or changes, hand counts, or the turn timer for ' + remaining + ' remaining turn' + (remaining === 1 ? '' : 's') + '.','effect-pill-oktai-conceal');
     }
+  });
+  const jamieSquares = Array.isArray(G?._phase7Geometry?.squareStatuses)
+    ? G._phase7Geometry.squareStatuses.filter(function(status){ return String(status?.type || '') === 'MORALE_RECOVERY_SQUARE'; })
+    : [];
+  jamieSquares.forEach(function(status, index){
+    const card = phase7StatusCard('bh22');
+    allEffects.push({
+      icon:getStatusEffectIcon('heal'),label:card ? card.ability : 'A Moonlit Shore',
+      cardName:card ? card.name : 'Jamie',cardAbility:card ? card.ability : 'A Moonlit Shore',
+      cardEffect:card ? card.effect : 'At every Morale calculation, recover Morale equal to the Fate of the card on the selected safe-row square.',
+      owner:Number(status.sourceController),sourceIid:status.sourceIid,
+      extraClass:'effect-pill-jamie-heal',statusInstanceKey:'jamie-square:' + String(status.sourceIid || index)
+    });
   });
 
   // Legacy rules keep South Wind's self-protection while it is face-up. The
@@ -5638,6 +5725,17 @@ function renderTopbarEffects() {
       });
     });
   }
+  if(G._phase7CurrentMultiplayer !== true && G._bh21Concealment && Number(G._bh21Concealment.remainingTargetTurns || 0) > 0){
+    const status=G._bh21Concealment;
+    const card=phase7StatusCard('bh21');
+    allEffects.push({
+      icon:getStatusEffectIcon('oktai_conceal'),label:card?card.ability:'The Vast Taklamakan',
+      cardName:card?card.name:'Oktai',cardAbility:card?card.ability:'The Vast Taklamakan',
+      cardEffect:'The affected opponent cannot see field or zone Fate values, Morale values or changes, hand counts, or the turn timer.',
+      owner:Number(status.sourceController),turnsLeft:Number(status.remainingTargetTurns),
+      sourceIid:status.sourceIid,extraClass:'effect-pill-oktai-conceal',statusInstanceKey:'bh21:'+String(status.sourceIid||'')
+    });
+  }
 
   // Suppression — applied BY suppressor TO suppressTarget
   if(G.oppSuppressedNextTurn && G.suppressTarget !== undefined) {
@@ -5675,13 +5773,24 @@ function renderTopbarEffects() {
           icon: getStatusEffectIcon('zoe_block'), label: card ? card.ability : 'INTJ Stare',
           cardName: card ? card.name : 'Zoe',
           cardAbility: card ? card.ability : 'INTJ Stare',
-          cardEffect: card ? card.effect : 'Opponent cannot consolidate on or from the selected square.',
+          cardEffect: card ? card.effect : 'Opponent cards on the selected square cannot leave the field unless immune.',
           owner: zOwner,
           sourceIid:block.sourceIid,
           statusInstanceKey:'zoe:' + (block.sourceIid || [block.z, block.r, block.c, index].join(':'))
         });
       });
     }
+    const jamieBlocks = jamieSquares.length ? [] : G.blockedCells.filter(b => b.type === 'jamie');
+    jamieBlocks.forEach(function(block, index){
+      const card = CARDS.find(c => c.id === 'bh22');
+      allEffects.push({
+        icon:getStatusEffectIcon('heal'),label:card ? card.ability : 'A Moonlit Shore',
+        cardName:card ? card.name : 'Jamie',cardAbility:card ? card.ability : 'A Moonlit Shore',
+        cardEffect:card ? card.effect : 'Recover Morale equal to the Fate on the selected square at every Morale calculation.',
+        owner:Number(block.owner),sourceIid:block.sourceIid,
+        extraClass:'effect-pill-jamie-heal',statusInstanceKey:'jamie:' + String(block.sourceIid || index)
+      });
+    });
   }
 
   // WCI Bonus — benefits the player who placed it (current player context)
@@ -6123,39 +6232,6 @@ function renderTopbarEffects() {
     });
   }
 
-  const busserMovesByOwner = {0:0, 1:0};
-  if(typeof forEachBoardCard === 'function') {
-    forEachBoardCard(function(c){
-      if(!c || isFaceDownCard(c) || c.cantBeMoved || c.immuneFlag || String(c.id || '') === '76') return;
-      if(c._busserSourceIid && typeof window.isStoredEffectSourceSuppressed === 'function' && window.isStoredEffectSourceSuppressed(c._busserSourceIid)) return;
-      const moves = typeof getBusserTurnsLeft === 'function' ? getBusserTurnsLeft(c) : Math.max(0, Number(c._busserTurnsLeft || c._busserMoves || 0) || 0);
-      if(moves <= 0) return;
-      const owner = coerceStatusOwner(c._busserOwner == null ? c.owner : c._busserOwner, c.owner);
-      busserMovesByOwner[owner] = (Number(busserMovesByOwner[owner]) || 0) + moves;
-    });
-  }
-  const busserCard = CARDS.find(c => c.id === '69');
-  [0,1].forEach(function(owner){
-    const moves = Math.max(0, Number(busserMovesByOwner[owner]) || 0);
-    if(!moves) return;
-    allEffects.push({
-      icon: getStatusEffectIcon('busser_boot'),
-      label: busserCard ? busserCard.ability : 'Corner! Behind!',
-      cardName: busserCard ? busserCard.name : 'Breakfast Republic Busser',
-      cardAbility: busserCard ? busserCard.ability : 'Corner! Behind!',
-      cardEffect: 'Friendly cards can use Busser movement once per turn for ' + moves + ' turn' + (moves === 1 ? '' : 's') + '.',
-      owner: owner,
-      extraClass: 'effect-pill-busser',
-      turnsLeft: moves
-    });
-  });
-
-  if(window.FATE_PRESSURE_CARD_REWORKS_ENABLED===true&&G._busserInitiatorMorale&&Number(G._busserInitiatorMorale.expiresAfterTurn)===Number(G.turn)){
-    const owner=coerceStatusOwner(G._busserInitiatorMorale.owner,myP);
-    const card=CARDS.find(c=>c.id==='69');
-    allEffects.push({icon:getStatusEffectIcon('busser_boot'),label:card?card.ability:'Corner! Behind!',cardName:card?card.name:'Breakfast Republic Busser',cardAbility:card?card.ability:'Corner! Behind!',cardEffect:'For this turn, every Initiator effect you activate recovers 10 Morale.',owner:owner,extraClass:'effect-pill-busser',turnsLeft:1,statusInstanceKey:'legacy-busser-initiator:'+owner+':'+String(G.turn||0)});
-  }
-
   const duelistByOwner={0:0,1:0};
   if(typeof forEachBoardCard==='function')forEachBoardCard(function(card){
     if(!card||isFaceDownCard(card)||String(card.id||'')!=='64')return;
@@ -6187,14 +6263,15 @@ function renderTopbarEffects() {
     }, 0);
     if(total <= 1) return;
     group.forEach(function(effect){
-      effect.label = String(effect.label || effect.cardAbility || 'Active Effect') + ' ×' + total;
-      effect.cardEffect = total + ' instances of this effect are active at the same time. ' + String(effect.cardEffect || '');
+      const baseDescription = String(effect.cardEffect || '').trim();
+      effect.cardEffect = (baseDescription ? baseDescription + ' ' : '')
+        + total + ' instances of this ability are active.';
       effect.effectInstanceCount = total;
     });
   });
 
   // Multiple instances from the same card/effect use one banner. The banner's
-  // multiplicity label above communicates the count without consuming a slot
+  // appended multiplicity sentence above communicates the count without consuming a slot
   // for every instance (or for both canonical and compatibility projections).
   const seenEffectGroups = new Set();
   const coalescedEffects = allEffects.filter(function(effect){
@@ -6202,7 +6279,7 @@ function renderTopbarEffects() {
     const key = [
       owner,
       String(effect && effect.cardName || '').trim().toLowerCase(),
-      String(effect && (effect.cardAbility || effect.label) || '').replace(/\s+×\d+$/, '').trim().toLowerCase(),
+      String(effect && (effect.cardAbility || effect.label) || '').trim().toLowerCase(),
       String(effect && effect.extraClass || '').trim().toLowerCase()
     ].join('|');
     if(seenEffectGroups.has(key)) return false;
@@ -6886,6 +6963,11 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
     label = 'Effects Negated / Suppressed';
     value = String(triggers);
     sub = '+' + (2 + potencyBoost) + ' Fate Granted Per Trigger';
+  } else if(String(card.id || '') === 'bh22') {
+    const recovered = Math.max(0, Math.floor(Number(card._moraleRecoveredFromSquare ?? card.counters?.moraleRecoveredFromSquare) || 0));
+    label = 'Morale Recovered';
+    value = String(recovered);
+    sub = 'From A Moonlit Shore This Match';
   } else if(String(card.id || '') === '71') {
     const active = Array.isArray(G._fortCalvinActive)
       ? G._fortCalvinActive.find(function(w){ return w && String(w.sourceIid || '') === String(card.iid || ''); })
@@ -9283,6 +9365,29 @@ function highlightForBlock(z, sourceCard) {
   }
 }
 
+function highlightJamieHealingSquare(sourceCard) {
+  const owner = sourceCard && typeof sourceCard.owner === 'number' ? sourceCard.owner : G.currentPlayer;
+  const safeRow = owner === 0 ? 2 : 0;
+  toast('Jamie: choose a square in your safe row');
+  G.placing=true;
+  G.blockingCell=true;
+  G._blockingEffectType='jamie';
+  G._blockingEffectSourceIid=sourceCard && sourceCard.iid;
+  G._blockingEffectZone=-2;
+  window._blockZone=-2;
+  if(typeof clearPlaceHighlights === 'function') clearPlaceHighlights();
+  for(let z=0;z<3;z++){
+    const r=safeRow;
+    const row=G.board?.[z]?.[r]||[];
+    for(let c=0;c<row.length;c++){
+      if((G.blockedCells||[]).some(function(block){return block&&block.z===z&&block.r===r&&block.c===c;}))continue;
+      const el=document.querySelector('#board .cell[data-z="'+z+'"][data-r="'+r+'"][data-c="'+c+'"]');
+      if(el)el.classList.add('placeable','block-target-choice','jamie-heal-choice');
+    }
+  }
+  if(window.FateMatchRendererAdapter&&typeof window.FateMatchRendererAdapter.scheduleRender==='function')window.FateMatchRendererAdapter.scheduleRender('jamie-square-selection');
+}
+
 function highlightAllOpenCells() {
   clearPlaceHighlights();
   for(let z=0;z<3;z++){
@@ -9551,6 +9656,7 @@ function setHint(msg) {
 function discardBoardCard(card, z, r, c) {
   if(G._aiAbort) return;
   if(!card) return;
+  if(typeof isZoeFieldLeaveLockedAt==='function'&&isZoeFieldLeaveLockedAt(card,z,r,c)){toast(card.name+' cannot leave Zoe\'s locked square');return;}
   if(typeof isWojciechPierogiCounter === 'function' && isWojciechPierogiCounter(card)){toast(card.name+' cannot be discarded');return;}
   // ALPINE Infantry cannot be discarded
   if(card.id==='76'){toast(card.name+' cannot be discarded');return;}
@@ -10028,6 +10134,8 @@ const CINEMATIC_VOICELINES = Object.freeze({
   "bh18": "I...I never loved cynthia",
   "bh19": "Eating your own shit is High T, it has zinc and magnesium .",
   "bh20": "All of Costa Rica shall submit to the glory of Avian-kind!",
+  "bh21": "The Taklamakan is vast and unforgiving - just like my ex-wife",
+  "bh22": "Do you see it? Serenity, painted in soaring streaks across the sky.",
   "bh25": "I will burn this planet down before I spend another minute among these foids"
   ,"whisper17": "Tomorrow, I’ll be the same old me."
 });
@@ -10889,7 +10997,7 @@ function normalizeBlockedCells() {
     if(!b) return;
     const z = Number(b.z), r = Number(b.r), c = Number(b.c);
     if(!Number.isFinite(z) || !Number.isFinite(r) || !Number.isFinite(c)) return;
-    const type = b.type === 'carolyn' ? 'carolyn' : 'zoe';
+    const type = b.type === 'carolyn' ? 'carolyn' : (b.type === 'jamie' ? 'jamie' : 'zoe');
     const key = z + ':' + r + ':' + c;
     const prev = seen.get(key);
     // Carolyn is stronger; keep her if duplicate blocks ever exist.
@@ -10918,6 +11026,9 @@ function showBlockVisual(z, r, c, blockType) {
   if(blockType === 'carolyn') {
     overlay.innerHTML = '<div class="block-icon carolyn-lock-icon" aria-label="Carolyn lock"></div>';
     overlay.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:80;border-radius:4px;';
+  } else if(blockType === 'jamie') {
+    overlay.innerHTML = '<div class="block-icon jamie-heal-icon" aria-label="Jamie healing square">'+getStatusEffectIcon('heal_outline')+'</div>';
+    overlay.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:81;border-radius:7px;';
   } else {
     overlay.innerHTML = '<div class="block-icon">−</div><div class="block-label">NO CONSOLIDATE</div>';
     overlay.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:82;border-radius:7px;';

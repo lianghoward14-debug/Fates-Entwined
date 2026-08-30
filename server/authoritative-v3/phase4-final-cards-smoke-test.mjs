@@ -393,9 +393,7 @@ result = reduceCommand(
   {playerId:'p0'}
 );
 assert.equal(result.ok, true);
-assert.equal(result.prompt.type, 'BOARD_TARGET');
-assert.equal(result.prompt.eligibleIids.includes(recursiveLedgerKeepers.iid), false);
-assert.equal(result.prompt.eligibleIids.includes(snowyVillage.iid), false);
-assert.equal(result.prompt.eligibleIids.includes(busser.iid), true);
+assert.equal(result.prompt, null, 'Ledger Keepers must not expose retired Busser movement targeting');
+assert.equal(result.state.statuses.some(status=>String(status.statusId || '').startsWith('movement-grant:busser:')), false);
 
 console.log('authoritative-v3 Phase 4 final-card dependency smoke test passed');

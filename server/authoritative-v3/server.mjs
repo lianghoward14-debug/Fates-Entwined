@@ -43,7 +43,12 @@ const PHASE7_ALLOW_ORGANIC_TEST_FIXTURES = process.env.FATE_AUTHORITY_V3_PHASE7_
 const MATCHES_PATH = BETA_MODE ? '/v3/beta/matches' : '/v3/matches';
 const SOCKET_PATH = BETA_MODE ? '/v3/beta/socket' : '/v3/socket';
 const SNAPSHOT_INTERVAL = Math.max(1, Number(process.env.FATE_AUTHORITY_V3_SNAPSHOT_INTERVAL || 20) || 20);
-const PROMPT_TIMEOUT_MS = Math.max(1000, Number(process.env.FATE_AUTHORITY_V3_PROMPT_TIMEOUT_MS || 30000) || 30000);
+// Effect prompts are player decisions, not turn timers. Keep them pending until
+// the player answers (or the match ends/disconnect handling takes over).
+const configuredPromptTimeoutMs = Number(process.env.FATE_AUTHORITY_V3_PROMPT_TIMEOUT_MS || 0);
+const PROMPT_TIMEOUT_MS = Number.isFinite(configuredPromptTimeoutMs) && configuredPromptTimeoutMs > 0
+  ? Math.max(1000, configuredPromptTimeoutMs)
+  : 0;
 const PHASE7_QUEUE_STALE_MS = Math.max(
   250,
   Number(process.env.FATE_AUTHORITY_V3_PHASE7_QUEUE_STALE_MS || 45000) || 45000
@@ -349,6 +354,7 @@ function clearPromptTimer(matchId){
 function schedulePromptTimer(actor){
   const matchId = actor.state.matchId;
   clearPromptTimer(matchId);
+  if(PROMPT_TIMEOUT_MS <= 0) return;
   const timeout = actor.promptTimeoutCommand();
   if(!timeout) return;
   const promptId = actor.state.pendingPrompt.promptId;
@@ -620,7 +626,7 @@ const server = http.createServer(async (req, res)=>{
         rulesetVersion:RULESET_VERSION,
         testMatches:ALLOW_TEST_MATCHES,
         activeSockets:sockets.size,
-        promptTimeoutMs:PROMPT_TIMEOUT_MS,
+        promptTimeoutMs:PROMPT_TIMEOUT_MS > 0 ? PROMPT_TIMEOUT_MS : null,
         lonePineTurnTimeoutMs:30000,
         flyDataApi:process.env.FATE_FLY_DATA_API_ENABLED === '1',
         flyData:flyDataApi.counts()

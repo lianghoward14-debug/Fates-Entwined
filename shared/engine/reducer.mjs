@@ -349,6 +349,7 @@ function consumeReaction(card){
 function movementGrantFor(state, cardIid){
   return state.statuses.find(status=>
     status?.type === 'MOVEMENT_GRANT'
+    && !String(status.statusId || '').startsWith('movement-grant:busser:')
     && String(status.targetIid || '') === String(cardIid || '')
     && Number(status.remainingOwnerTurns) > 0
   ) || null;

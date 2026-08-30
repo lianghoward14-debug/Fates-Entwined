@@ -39,6 +39,18 @@ function operationError(code, reason, details = {}){
   return error;
 }
 
+function zoeFieldLeaveLock(state, entry){
+  if(!entry||entry.zone&&entry.zone!=='board'||!entry.card)return null;
+  const immune=isEffectImmutable(entry.card)||(entry.card.statuses||[]).some(status=>['IMMUNE_TO_OPPONENT_EFFECTS','EFFECT_IMMUNE','FULL_EFFECT_IMMUNITY'].includes(String(status&&typeof status==='object'?status.type:status)));
+  if(immune)return null;
+  return squareStatuses(state,entry,'FIELD_LEAVE_LOCKED').find(status=>Number(status.blockedPlayer)===controllerOf(entry.card))||null;
+}
+
+function assertZoeFieldDepartureAllowed(state,entry){
+  const lock=zoeFieldLeaveLock(state,entry);
+  if(lock)throw operationError('CARD_FIELD_LEAVE_LOCKED','Zoe prevents this card from leaving its square',{targetIid:entry.card.iid,statusId:lock.statusId});
+}
+
 export function emitRuleEvent(ctx, event){
   ctx.ruleEvents.push(event);
   ctx.events.push(event);
@@ -389,9 +401,8 @@ function consolidateCard(ctx, operation){
     throw operationError('INVALID_DESTINATION', 'the consolidated card must occupy a selected tribute square');
   }
   const blockedSquare = [destinationEntry, ...tributes].find(entry=>
-    squareStatuses(ctx.state, entry, 'CONSOLIDATION_BLOCKED').some(status=>
-      Number(status.blockedPlayer) === playerIndex
-    )
+    squareStatuses(ctx.state, entry, 'CONSOLIDATION_BLOCKED').some(status=>Number(status.blockedPlayer)===playerIndex)
+    || !!zoeFieldLeaveLock(ctx.state,entry)
   );
   if(blockedSquare){
     throw operationError('CONSOLIDATION_SQUARE_BLOCKED', 'Zoe prevents consolidation on or from this square');
@@ -507,6 +518,7 @@ function consolidateCard(ctx, operation){
 function moveCard(ctx, operation){
   const entry = findBoardCard(ctx.state, operation.cardIid);
   if(!entry) throw operationError('CARD_NOT_ON_BOARD', 'the moving card is not on the board');
+  assertZoeFieldDepartureAllowed(ctx.state,entry);
   const check = inspectOperation(ctx.state, {
     ...operation,
     sourceCard:cardSource(ctx, operation)
@@ -514,6 +526,7 @@ function moveCard(ctx, operation){
   if(!check.ok) throw operationError(check.rejection.code, check.rejection.reason, check.rejection.details);
   const {z, r, c} = operation.destination;
   const destinationCard = boardCardAt(ctx.state, operation.destination);
+  if(destinationCard){const swapped=findBoardCard(ctx.state,destinationCard.iid);assertZoeFieldDepartureAllowed(ctx.state,swapped);}
   ctx.state.board[entry.z][entry.r][entry.c] = destinationCard || null;
   ctx.state.board[z][r][c] = entry.card;
   emit(ctx, {
@@ -533,6 +546,7 @@ function moveCard(ctx, operation){
 function discardCard(ctx, operation){
   const entry = findCard(ctx.state, operation.targetIid);
   if(!entry) throw operationError('CARD_NOT_FOUND', 'the discarded card no longer exists');
+  if(entry.zone==='board')assertZoeFieldDepartureAllowed(ctx.state,entry);
   if(operation.bypassTargeting !== true){
     const check = inspectOperation(ctx.state, {
       ...operation,
@@ -857,6 +871,7 @@ function transferCards(ctx, operation){
   }
   const entries = targetIids.map(iid=>findCard(ctx.state, iid));
   if(entries.some(entry=>!entry)) throw operationError('CARD_NOT_FOUND', 'a transferred card no longer exists');
+  entries.filter(entry=>entry.zone==='board').forEach(entry=>assertZoeFieldDepartureAllowed(ctx.state,entry));
   if(ctx.state.landscapeId === 'igb4'
     && destinationPile !== 'discard'
     && entries.some(entry=>entry.zone === 'discard')){
@@ -1372,7 +1387,7 @@ function createSquareStatus(ctx, operation){
     throw operationError('INVALID_DESTINATION', 'square status requires a playable board square');
   }
   const type = String(operation.statusType || '');
-  if(!['PERMANENTLY_BLOCKED', 'CONSOLIDATION_BLOCKED', 'COORDINATOR_SUPPRESSED', 'FLOWER_KING_BLESSED'].includes(type)){
+  if(!['PERMANENTLY_BLOCKED', 'CONSOLIDATION_BLOCKED', 'FIELD_LEAVE_LOCKED', 'COORDINATOR_SUPPRESSED', 'FLOWER_KING_BLESSED', 'MORALE_RECOVERY_SQUARE'].includes(type)){
     throw operationError('INVALID_STATUS', 'unsupported square status');
   }
   if(type === 'PERMANENTLY_BLOCKED' && boardCardAt(ctx.state, destination)){
@@ -1385,6 +1400,7 @@ function createSquareStatus(ctx, operation){
     type,
     sourceIid:operation.sourceIid || null,
     sourceController:Number(operation.sourceController),
+    playerIndex:Number.isInteger(Number(operation.playerIndex)) ? Number(operation.playerIndex) : Number(operation.sourceController),
     blockedPlayer:Number.isInteger(Number(operation.blockedPlayer))
       ? Number(operation.blockedPlayer)
       : null
@@ -1981,6 +1997,9 @@ function setMaxTurns(ctx, operation){
       throw operationError('INVALID_MAX_TURNS', 'match turn limit must be a positive integer');
     }
     ctx.state.maxTurns = Math.max(previousMaxTurns, requested);
+  }
+  if(String(operation.reason || '') === 'THOUSAND_YEAR_BIRD_CULT'){
+    ctx.state._makennaBirdCultActivated = true;
   }
   const result = {previousMaxTurns, maxTurns:ctx.state.maxTurns};
   ctx.events.push({

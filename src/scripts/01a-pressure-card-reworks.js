@@ -12,7 +12,6 @@
     '47':{fate:1,cost:0,type:'Supporter',effect:'When set, inflict 10 Morale Damage to your opponent'},
     '64':{fate:1,cost:0,type:'Supporter',effectClass:null,effect:'When set, on the next Morale Damage Calculation, double the amount of Morale Damage you inflict.'},
     '65':{fate:1,cost:0,type:'Supporter',contestedOnly:false,effect:'While this card is on the field, inflict 2 Morale Damage at the start of each of your turns'},
-    '69':{fate:1,cost:0,type:'Supporter',effect:'When set, for one turn, every time you would activate an initiator effect, you recover 10 morale'},
     '73':{fate:1,cost:0,type:'Supporter',effect:'When this card would be used in the consolidation of a Character, that card gains 4 Fate.'}
   });
 

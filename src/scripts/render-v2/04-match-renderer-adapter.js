@@ -1237,10 +1237,11 @@
     visual = coordinatorFatePresentationVisual(card, visual);
     const fate = visual && visual.displayFate != null ? String(visual.displayFate) : '';
     if(!fate) return;
+    const bh21Concealed = fate.indexOf('bh21-concealed-fate-icon') >= 0;
     const deltaState = fateBadgeState(card, visual);
     const isUp = deltaState === 'up';
     const isDown = deltaState === 'down';
-    const label = visual && visual.isHidden ? '-' : fate;
+    const label = visual && visual.isHidden ? '-' : (bh21Concealed ? '' : fate);
     const accent = isUp ? '#7fff90' : isDown ? '#ff6060' : '#f1c40f';
     const accentGlow = isUp ? 'rgba(127,255,144,.82)' : isDown ? 'rgba(255,96,96,.78)' : 'rgba(241,196,15,.76)';
     const badgeH = Math.max(24, Math.min(34, r.w * .255));
@@ -1270,6 +1271,12 @@
     ctx.lineWidth = 1;
     ctx.stroke();
 
+    if(bh21Concealed){
+      ctx.strokeStyle='#ffd84a';ctx.lineWidth=Math.max(2,badgeH*.09);ctx.shadowColor='rgba(255,216,74,.9)';ctx.shadowBlur=Math.max(9,badgeH*.4);
+      ctx.beginPath();ctx.ellipse(cx,cy,badgeW*.27,badgeH*.20,0,0,Math.PI*2);ctx.stroke();
+      ctx.beginPath();ctx.arc(cx,cy,Math.max(2,badgeH*.09),0,Math.PI*2);ctx.fillStyle='#ffd84a';ctx.fill();
+      ctx.lineWidth=Math.max(3,badgeH*.12);ctx.beginPath();ctx.moveTo(cx-badgeW*.25,cy-badgeH*.27);ctx.lineTo(cx+badgeW*.25,cy+badgeH*.27);ctx.stroke();ctx.restore();return;
+    }
     ctx.fillStyle = accent;
     ctx.font = '950 ' + Math.max(15, Math.round(label.length > 1 ? badgeH * .60 : badgeH * .72)) + 'px Cinzel, serif';
     ctx.textAlign = 'center';
@@ -1919,16 +1926,17 @@
 
   function drawBlockOverlay(ctx, r, block){
     if(!block) return;
-    const type = block.type === 'carolyn' ? 'carolyn' : 'zoe';
+    const type = block.type === 'carolyn' ? 'carolyn' : (block.type === 'jamie' ? 'jamie' : 'zoe');
     const isCarolyn = type === 'carolyn';
+    const isJamie = type === 'jamie';
     const cx = r.x + r.w / 2;
     const cy = r.y + r.h / 2;
     ctx.save();
     roundedPath(ctx, r.x + 1, r.y + 1, Math.max(0, r.w - 2), Math.max(0, r.h - 2), 5);
-    ctx.fillStyle = isCarolyn ? 'rgba(88,12,18,.34)' : 'rgba(70,42,120,.22)';
+    ctx.fillStyle = isCarolyn ? 'rgba(88,12,18,.34)' : (isJamie ? 'rgba(235,143,204,.22)' : 'rgba(70,42,120,.22)');
     ctx.fill();
     ctx.lineWidth = isCarolyn ? 1.8 : 1.45;
-    ctx.strokeStyle = isCarolyn ? 'rgba(255,86,92,.72)' : 'rgba(190,150,255,.66)';
+    ctx.strokeStyle = isCarolyn ? 'rgba(255,86,92,.72)' : (isJamie ? 'rgba(255,190,231,.78)' : 'rgba(190,150,255,.66)');
     ctx.stroke();
     if(isCarolyn){
       const size = Math.max(30, Math.min(44, Math.min(r.w, r.h) * .32));
@@ -1968,6 +1976,10 @@
       ctx.strokeStyle = 'rgba(36,26,24,.90)';
       ctx.stroke();
       ctx.restore();
+    } else if(isJamie){
+      const size=Math.max(12,Math.min(24,Math.min(r.w,r.h)*.24));
+      ctx.strokeStyle='rgba(246,209,239,.96)';ctx.lineWidth=Math.max(1.8,size*.11);ctx.lineJoin='round';ctx.shadowColor='rgba(238,169,220,.9)';ctx.shadowBlur=10;
+      ctx.beginPath();ctx.moveTo(cx-size*.22,cy-size*.62);ctx.lineTo(cx+size*.22,cy-size*.62);ctx.lineTo(cx+size*.22,cy-size*.22);ctx.lineTo(cx+size*.62,cy-size*.22);ctx.lineTo(cx+size*.62,cy+size*.22);ctx.lineTo(cx+size*.22,cy+size*.22);ctx.lineTo(cx+size*.22,cy+size*.62);ctx.lineTo(cx-size*.22,cy+size*.62);ctx.lineTo(cx-size*.22,cy+size*.22);ctx.lineTo(cx-size*.62,cy+size*.22);ctx.lineTo(cx-size*.62,cy-size*.22);ctx.lineTo(cx-size*.22,cy-size*.22);ctx.closePath();ctx.stroke();
     } else {
       const iconR = Math.max(9, Math.min(16, Math.min(r.w, r.h) * .13));
       ctx.beginPath();
@@ -2002,6 +2014,10 @@
       const b = list[i];
       if(!b || Number(b.z) !== Number(z) || Number(b.r) !== Number(r) || Number(b.c) !== Number(c)) continue;
       if(!type || b.type === type) return true;
+    }
+    if(type === 'jamie'){
+      const statuses=G&&G._phase7Geometry&&Array.isArray(G._phase7Geometry.squareStatuses)?G._phase7Geometry.squareStatuses:[];
+      return statuses.some(function(status){return status&&status.type==='MORALE_RECOVERY_SQUARE'&&Number(status.z)===Number(z)&&Number(status.r)===Number(r)&&Number(status.c)===Number(c);});
     }
     return false;
   }
@@ -2064,9 +2080,16 @@
       || squareMatchesOption(G._singlePlayerPlacementOptions, z, r, c)) return true;
     if(G.blockingCell){
       const rawBlockZone = typeof window !== 'undefined' ? window._blockZone : null;
-      const blockType = Number(rawBlockZone) === -1 ? 'carolyn' : 'zoe';
-      const blockZ = blockType === 'carolyn' ? z : Number(rawBlockZone);
+      const blockType = G._blockingEffectType === 'jamie' ? 'jamie' : (Number(rawBlockZone) === -1 ? 'carolyn' : 'zoe');
+      const blockZ = blockType === 'carolyn' || blockType === 'jamie' ? z : Number(rawBlockZone);
       const owner = Number(G.currentPlayer) || 0;
+      if(blockType === 'jamie'){
+        if(cellHasBlock(z, r, c)) return false;
+        if(typeof isOwnSafeRowSquare === 'function') {
+          try { return !!isOwnSafeRowSquare(z, r, c, owner); } catch(e) { return false; }
+        }
+        return r === (owner === 0 ? 2 : 0);
+      }
       if(blockType === 'zoe'){
         if(z !== blockZ || cellHasBlock(z, r, c)) return false;
         if(typeof isZoeBlockTargetAllowed === 'function') {
@@ -2129,6 +2152,8 @@
     const z = Number(cell.z);
     const r = Number(cell.r);
     const c = Number(cell.c);
+    if(G._phase7EffectSquareKind === 'jamie' || G._phase7EffectSquareKind === 'zoe') return G._phase7EffectSquareKind;
+    if(G.blockingCell && G._blockingEffectType === 'jamie') return 'jamie';
     if(squareMatchesOption(G._phase7DestinationOptions, z, r, c)
       || squareMatchesOption(G._singlePlayerPlacementOptions, z, r, c)) return 'move';
     const optionStates = [G._wolfCreekMoving, G._berkeleyMoving, G._landscapeMoving, G._busserMoving];
@@ -2182,6 +2207,36 @@
   }
 
   function drawSquareSelectionCue(ctx, r, kind){
+    if(String(kind || '') === 'jamie') {
+      const t = animationsOff() ? .5 : ((Math.sin(nowMs() / 240) + 1) / 2);
+      ctx.save();
+      roundedPath(ctx, r.x + 3, r.y + 3, Math.max(0, r.w - 6), Math.max(0, r.h - 6), 6);
+      ctx.fillStyle = 'rgba(180,145,242,' + (.10 + t * .05).toFixed(3) + ')';
+      ctx.fill();
+      ctx.lineWidth = 1.6 + t * .7;
+      ctx.strokeStyle = 'rgba(218,198,255,' + (.68 + t * .20).toFixed(3) + ')';
+      ctx.shadowColor = 'rgba(174,132,242,' + (.25 + t * .18).toFixed(3) + ')';
+      ctx.shadowBlur = 9 + t * 7;
+      ctx.stroke();
+      ctx.restore();
+      requestSelectionTargetPulseFrame();
+      return;
+    }
+    if(String(kind || '') === 'zoe') {
+      const t = animationsOff() ? .5 : ((Math.sin(nowMs() / 240) + 1) / 2);
+      ctx.save();
+      roundedPath(ctx, r.x + 3, r.y + 3, Math.max(0, r.w - 6), Math.max(0, r.h - 6), 6);
+      ctx.fillStyle = 'rgba(128,80,190,' + (.10 + t * .05).toFixed(3) + ')';
+      ctx.fill();
+      ctx.lineWidth = 1.6 + t * .7;
+      ctx.strokeStyle = 'rgba(193,145,244,' + (.70 + t * .20).toFixed(3) + ')';
+      ctx.shadowColor = 'rgba(151,89,217,' + (.28 + t * .18).toFixed(3) + ')';
+      ctx.shadowBlur = 9 + t * 7;
+      ctx.stroke();
+      ctx.restore();
+      requestSelectionTargetPulseFrame();
+      return;
+    }
     if(String(kind || '') === 'brave-horizons-move') {
       ctx.save();
       roundedPath(ctx, r.x + 2, r.y + 2, Math.max(0, r.w - 4), Math.max(0, r.h - 4), 5);
@@ -2856,12 +2911,26 @@
   }
 
   let lowMoralePulseTimer = 0;
+  let highTBeatTimer = 0;
   function scheduleLowMoraleSupporterPulse(){
     if(lowMoralePulseTimer || typeof setTimeout !== 'function') return;
     lowMoralePulseTimer = setTimeout(function(){
       lowMoralePulseTimer = 0;
       if(ownsBoard() && isActiveMatchScreen()) scheduleRender('low-morale-supporter-pulse');
     }, 180);
+  }
+  function scheduleHighTBeat(){
+    if(highTBeatTimer || typeof setTimeout !== 'function') return;
+    highTBeatTimer = setTimeout(function(){
+      highTBeatTimer = 0;
+      if(ownsBoard() && isActiveMatchScreen()) scheduleRender('high-t-beat');
+    }, 34);
+  }
+
+  function isHighTBeatCard(entry){
+    return !!(entry && entry.card && typeof window !== 'undefined'
+      && typeof window.isHighTSourceCardActive === 'function'
+      && window.isHighTSourceCardActive(entry.card));
   }
 
   function drawCardVisual(ctx, entry, visual, r, onChange, options){
@@ -2872,12 +2941,20 @@
     const lift = Number(opts.lift) || 0;
     const cx = r.x + r.w / 2;
     const cy = r.y + r.h / 2;
+    const highTBeat = isHighTBeatCard(entry);
+    const beatPhase = highTBeat ? (nowMs() % 468.75) / 468.75 : 0;
+    const beat = highTBeat ? Math.pow(.5 - .5 * Math.cos(beatPhase * Math.PI * 2), 1.55) : 0;
     if(!opts.noShadow) drawCardContactShadow(ctx, r, opts);
     ctx.save();
     ctx.translate(cx + offset.x, cy + offset.y - lift * 4);
     ctx.rotate(tilt);
-    ctx.scale(1 + lift * .012, 1 - Math.abs(tilt) * .22 + lift * .008);
+    ctx.scale((1 + lift * .012) * (1 + beat * .035), (1 - Math.abs(tilt) * .22 + lift * .008) * (1 + beat * .035));
     ctx.translate(-cx, -cy);
+    if(highTBeat){
+      ctx.shadowColor='rgba(255,211,105,'+(.22+beat*.48).toFixed(3)+')';
+      ctx.shadowBlur=7+beat*15;
+      scheduleHighTBeat();
+    }
     const flags = entry && entry.card && entry.card.flags ? entry.card.flags : {};
     const markedForDeath = !!(showStatus && entry && entry.card && (entry.card._markedForDeath || flags.markedForDeath));
     const suppressed = !!(showStatus && entry && entry.card && flags.suppressed);
@@ -2886,16 +2963,23 @@
     const flowerKingBlessed = !!(showStatus && entry && entry.card && flags.flowerKingBlessed);
     const effectFlashKind = showStatus && entry && entry.card && flags.effectFlashKind ? String(flags.effectFlashKind) : '';
     const immune = !!(showStatus && entry && entry.card && (flags.immune || (typeof window !== 'undefined' && typeof window.shouldShowProtectionStatusIcon === 'function' && window.shouldShowProtectionStatusIcon(entry.card))));
-    const zoeBlocked = !!(showStatus && entry && entry.card && (flags.zoeBlocked || cellHasBlock(entry.z, entry.r, entry.c, 'zoe')));
+    const zoeBlocked = !!(showStatus && entry && entry.card && (
+      typeof window !== 'undefined' && typeof window.isZoeFieldLeaveLockedAt === 'function'
+        ? window.isZoeFieldLeaveLockedAt(entry.card, entry.z, entry.r, entry.c)
+        : (flags.zoeBlocked || cellHasBlock(entry.z, entry.r, entry.c, 'zoe'))
+    ));
+    const jamieHealing = !!(showStatus && entry && entry.card && cellHasBlock(entry.z, entry.r, entry.c, 'jamie'));
     const lowMoraleExpiry = !!(showStatus && entry && entry.card && typeof window !== 'undefined'
       && typeof window.getLowMoraleSupporterExpiryState === 'function'
       && window.getLowMoraleSupporterExpiryState(entry.card).active);
+    const showZoePulse = zoeBlocked && !lowMoraleExpiry;
+    const showJamiePulse = jamieHealing && !lowMoraleExpiry && !zoeBlocked;
     const statusState = getCardVisualStatusState(entry, {
       negated,
       suppressed,
       snowball:snowballHit,
       marked:markedForDeath,
-      blocked:zoeBlocked,
+      blocked:false,
       immune,
       flower:flowerKingBlessed,
       lowMoraleExpiry,
@@ -2915,6 +2999,14 @@
     drawCardPlaneGleam(ctx, r, tilt);
     if(statusState.lowMoraleExpiry){
       drawLowMoraleSupporterOverlay(ctx, r, entry && entry.card);
+      scheduleLowMoraleSupporterPulse();
+    }
+    if(showZoePulse){
+      drawBlockedActionCardOverlay(ctx, r);
+      scheduleLowMoraleSupporterPulse();
+    }
+    if(showJamiePulse){
+      drawJamieHealingCardOverlay(ctx,r);
       scheduleLowMoraleSupporterPulse();
     }
     if(primaryStatus === 'negated') drawNegatedCardOverlay(ctx, r);
@@ -3050,7 +3142,6 @@
     ,west_caribbea_marines:{color:'rgba(166,242,255,.99)',glow:'rgba(65,198,229,.66)',tint:'rgba(25,116,145,.17)'}
     ,zimbabwean_honor_guard:{color:'rgba(255,226,148,.99)',glow:'rgba(226,173,67,.66)',tint:'rgba(104,75,23,.17)'}
     ,soviet_grenadiers:{color:'rgba(255,206,178,.99)',glow:'rgba(222,85,72,.68)',tint:'rgba(116,35,31,.18)'}
-    ,breakfast_republic_busser:{color:'rgba(255,232,166,.99)',glow:'rgba(231,178,70,.66)',tint:'rgba(105,79,27,.16)'}
     ,alexander_hellenic_glory:{color:'rgba(255,232,154,.99)',glow:'rgba(232,190,79,.70)',tint:'rgba(108,82,28,.17)'}
     ,rozsi_hungarian_crest:{color:'rgba(255,218,129,.99)',glow:'rgba(224,62,72,.72)',tint:'rgba(116,24,37,.20)'}
   });
@@ -3094,12 +3185,52 @@
   function drawBlockedActionCardOverlay(ctx, r){
     if(!ctx || !r) return;
     const radius = Math.max(3, Math.min(8, r.w * .08));
+    const phase = (Math.sin((Date.now() % 2800) / 2800 * Math.PI * 2) + 1) / 2;
     ctx.save();
     roundedPath(ctx, r.x, r.y, r.w, r.h, radius);
     ctx.clip();
-    ctx.fillStyle = 'rgba(70,42,120,.16)';
+    ctx.globalAlpha = .38 + phase * .42;
+    ctx.fillStyle = 'rgba(94,54,150,.18)';
     ctx.fillRect(r.x, r.y, r.w, r.h);
-    drawStatusBadge(ctx, r, 'blocked');
+    const cx = r.x + r.w * .5;
+    const cy = r.y + r.h * .5;
+    const iw = r.w * .52;
+    const ih = r.h * .25;
+    ctx.strokeStyle = 'rgba(234,216,255,.96)';
+    ctx.fillStyle = 'rgba(234,216,255,.96)';
+    ctx.lineWidth = Math.max(1.5, r.w * .025);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.shadowColor = 'rgba(174,116,237,.9)';
+    ctx.shadowBlur = 7 + phase * 7;
+    ctx.beginPath();
+    ctx.moveTo(cx - iw * .5, cy);
+    ctx.quadraticCurveTo(cx, cy - ih, cx + iw * .5, cy);
+    ctx.quadraticCurveTo(cx, cy + ih, cx - iw * .5, cy);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx, cy, Math.max(2, r.w * .075), 0, Math.PI * 2);
+    ctx.fill();
+    const bx = iw * .48;
+    const by = ih * 1.05;
+    const notch = Math.max(4, r.w * .09);
+    ctx.beginPath();
+    ctx.moveTo(cx - bx, cy - by + notch); ctx.lineTo(cx - bx, cy - by); ctx.lineTo(cx - bx + notch, cy - by);
+    ctx.moveTo(cx + bx - notch, cy - by); ctx.lineTo(cx + bx, cy - by); ctx.lineTo(cx + bx, cy - by + notch);
+    ctx.moveTo(cx - bx, cy + by - notch); ctx.lineTo(cx - bx, cy + by); ctx.lineTo(cx - bx + notch, cy + by);
+    ctx.moveTo(cx + bx - notch, cy + by); ctx.lineTo(cx + bx, cy + by); ctx.lineTo(cx + bx, cy + by - notch);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawJamieHealingCardOverlay(ctx,r){
+    if(!ctx||!r)return;
+    const phase=(Math.sin((Date.now()%2800)/2800*Math.PI*2)+1)/2;
+    const cx=r.x+r.w*.5,cy=r.y+r.h*.5,size=Math.min(r.w,r.h)*(.25+phase*.025);
+    ctx.save();roundedPath(ctx,r.x,r.y,r.w,r.h,Math.max(3,Math.min(8,r.w*.08)));ctx.clip();
+    ctx.globalAlpha=.4+phase*.42;ctx.fillStyle='rgba(123,82,171,.17)';ctx.fillRect(r.x,r.y,r.w,r.h);
+    ctx.strokeStyle='rgba(222,202,255,.96)';ctx.lineWidth=Math.max(1.8,size*.1);ctx.lineJoin='round';ctx.shadowColor='rgba(196,157,239,.95)';ctx.shadowBlur=8+phase*7;
+    ctx.beginPath();ctx.moveTo(cx-size*.2,cy-size*.58);ctx.lineTo(cx+size*.2,cy-size*.58);ctx.lineTo(cx+size*.2,cy-size*.2);ctx.lineTo(cx+size*.58,cy-size*.2);ctx.lineTo(cx+size*.58,cy+size*.2);ctx.lineTo(cx+size*.2,cy+size*.2);ctx.lineTo(cx+size*.2,cy+size*.58);ctx.lineTo(cx-size*.2,cy+size*.58);ctx.lineTo(cx-size*.2,cy+size*.2);ctx.lineTo(cx-size*.58,cy+size*.2);ctx.lineTo(cx-size*.58,cy-size*.2);ctx.lineTo(cx-size*.2,cy-size*.2);ctx.closePath();ctx.stroke();
     ctx.restore();
   }
 
@@ -3572,14 +3703,6 @@
       line([[32,7],[32,43]],false); line([[25,16],[32,7],[39,16]],false);
       line([[15,40],[32,51],[49,40]],false); line([[19,51],[32,59],[45,51]],false);
       line([[21,29],[43,29]],false);
-    } else if(kind === 'breakfast_republic_busser') {
-      // Selected Busser 03: compact front-of-bus/service-bell silhouette.
-      ctx.lineWidth = 4.1;
-      line([[13,43],[51,43]],false);
-      line([[18,43],[18,20],[46,20],[46,43]],false);
-      line([[25,20],[25,12],[39,12],[39,20]],false);
-      line([[18,51],[25,51]],false); line([[39,51],[46,51]],false);
-      circle(22,44,2.5); circle(42,44,2.5);
     } else if(kind === 'alexander_hellenic_glory') {
       // Selected Alexander 06: Hellenic sun, kept deliberately spare.
       ctx.lineWidth = 3.5;
@@ -3786,6 +3909,9 @@
   }
 
   function zoneScore(z, player){
+    try {
+      if(typeof window.isBh21ViewerConcealed === 'function' && window.isBh21ViewerConcealed()) return '?';
+    } catch(e) {}
     try {
       if(typeof window.getCachedZoneScore === 'function') return window.getCachedZoneScore(z, player);
     } catch(e) {}

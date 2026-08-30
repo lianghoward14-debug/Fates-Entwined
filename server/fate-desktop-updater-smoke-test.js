@@ -14,6 +14,7 @@ const workflow = read('.github/workflows/build-desktop.yml');
 
 assert(packageJson.dependencies && packageJson.dependencies['electron-updater'], 'electron-updater must be a runtime dependency');
 assert(Array.isArray(packageJson.build.publish), 'electron-builder publish configuration is required');
+assert(packageJson.build.files.includes('*.mp3'), 'desktop package must include root landscape-effect audio such as Oktai and Makenna');
 assert(packageJson.build.publish.some(entry => entry.provider === 'github'
   && entry.owner === 'lianghoward14-debug'
   && entry.repo === 'Fates-Entwined'), 'GitHub release provider is misconfigured');

@@ -66,6 +66,7 @@ function supporterActivationAvailable(state, card, playerIndex){
 function movementGrantFor(state, cardIid){
   return state.statuses.find(status=>
     status?.type === 'MOVEMENT_GRANT'
+    && !String(status.statusId || '').startsWith('movement-grant:busser:')
     && String(status.targetIid || '') === String(cardIid || '')
     && Number(status.remainingOwnerTurns) > 0
   ) || null;
@@ -335,9 +336,13 @@ export function legalCommandTemplates(state, playerIndex){
         if(squareStatuses(state, destination, 'CONSOLIDATION_BLOCKED').some(status=>
           Number(status.blockedPlayer) === player
         )) continue;
+        if(squareStatuses(state,destination,'FIELD_LEAVE_LOCKED').some(status=>Number(status.blockedPlayer)===player)
+          && !isEffectImmutable(destination.card)&&!isImmuneToOpponentEffects(destination.card,state))continue;
         if(tributes.some(tribute=>squareStatuses(state, tribute, 'CONSOLIDATION_BLOCKED').some(status=>
           Number(status.blockedPlayer) === player
         ))) continue;
+        if(tributes.some(tribute=>squareStatuses(state,tribute,'FIELD_LEAVE_LOCKED').some(status=>Number(status.blockedPlayer)===player)
+          && !isEffectImmutable(tribute.card)&&!isImmuneToOpponentEffects(tribute.card,state)))continue;
         const colomboRestricted = boardEntries(state).some(entry=>
           entry.z === destination.z
           && runtimeRuleId(entry.card) === '53'

@@ -253,6 +253,7 @@ export function eligibleDestinations(state, frame, filter = {}){
   const accept = destination=>{
     const enriched = {...destination, owner:rowOwner(state, destination.z, destination.r)};
     if(filter.sameZone && (!source || destination.z !== source.z)) return false;
+    if(filter.controllerSafeRow && enriched.owner !== Number(frame.controller)) return false;
     if(filter.ownSide && !ownSide(frame.controller, enriched)) return false;
     if(filter.opponentSide && enriched.owner !== (frame.controller === 0 ? 1 : 0)) return false;
     if(filter.adjacent && (!source || destination.z !== source.z

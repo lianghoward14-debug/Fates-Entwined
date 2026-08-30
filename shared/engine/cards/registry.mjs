@@ -234,7 +234,7 @@ const REGISTRY = Object.freeze({
         operation:{
           type:'CREATE_SQUARE_STATUS',
           destination:'$destination',
-          statusType:'CONSOLIDATION_BLOCKED',
+          statusType:'FIELD_LEAVE_LOCKED',
           blockedPlayer:'$opponent'
         }
       }
@@ -1255,22 +1255,22 @@ const REGISTRY = Object.freeze({
   },
   '69':{
     timings:['WHEN_SET'],
-    operations:['CREATE_MOVEMENT_GRANT', 'MOVE_CARD'],
-    prompts:['BOARD_TARGET'],
+    operations:['MODIFY_MORALE', 'TRANSFER_CARDS'],
+    prompts:['CARD_SELECTION'],
     program:[
       {
-        kind:'SELECT_BOARD',
+        kind:'SELECT_CARDS',
         local:'targetIid',
-        filter:{sameZone:true, controller:true, faceUp:true, movable:true}
+        min:1,max:1,
+        filter:{locations:['discard'], playerIndex:'controller', type:'Initiator'}
       },
       {
         kind:'OPERATION',
-        operation:{
-          type:'CREATE_MOVEMENT_GRANT',
-          targetIid:'$targetIid',
-          playerIndex:'$controller',
-          ownerTurns:3
-        }
+        operation:{type:'MODIFY_MORALE',playerIndex:'$controller',sourceIid:'$sourceIid',amount:-25,reason:'BREAKFAST_REPUBLIC_BUSSER_COST'}
+      },
+      {
+        kind:'OPERATION',
+        operation:{type:'TRANSFER_CARDS',targetIid:'$targetIid',playerIndex:'$controller',destinationPile:'hand'}
       }
     ]
   },
@@ -1797,6 +1797,30 @@ const REGISTRY = Object.freeze({
       }
     ]
   },
+  'bh21':{
+    effectLabels:['VIEWER_FIELD_INFORMATION_CONCEALMENT'],
+    timings:['WHEN_SET'],
+    operations:['CREATE_TIMED_PLAYER_STATUS'],
+    prompts:[],
+    program:[{kind:'OPERATION',operation:{
+      type:'CREATE_TIMED_PLAYER_STATUS', statusType:'BH21_FATE_MORALE_CONCEALMENT',
+      playerIndex:'$opponent', sourceIid:'$sourceIid', sourceController:'$controller',
+      targetTurns:4, startsNextTargetTurn:true
+    }}]
+  },
+  'bh22':{
+    effectLabels:['MORALE_RECOVERY_SQUARE'],
+    timings:['WHEN_SET','PASSIVE'],
+    operations:['CREATE_SQUARE_STATUS','MODIFY_MORALE'],
+    prompts:['BOARD_DESTINATION'],
+    program:[
+      {kind:'SELECT_DESTINATION',local:'destination',filter:{controllerSafeRow:true,includeOccupied:true}},
+      {kind:'OPERATION',operation:{
+        type:'CREATE_SQUARE_STATUS',destination:'$destination',statusType:'MORALE_RECOVERY_SQUARE',
+        playerIndex:'$controller',sourceIid:'$sourceIid',sourceController:'$controller'
+      }}
+    ]
+  },
   'bh25':{
     timings:['WHEN_SET'],
     operations:['DISCARD_CARD'],
@@ -1912,8 +1936,10 @@ const PRESSURE_REWORK_REGISTRY = Object.freeze({
   '47':{timings:['WHEN_SET'],operations:['MODIFY_MORALE'],prompts:['REACTION'],havanoTargeting:'OPPONENT',program:[{kind:'OPERATION',operation:{type:'MODIFY_MORALE',playerIndex:'$opponent',sourceIid:'$sourceIid',amount:-10}}]},
   '64':{timings:['WHEN_SET'],operations:['SET_CARD_COUNTER'],prompts:['REACTION'],havanoTargeting:'OPPONENT',program:[{kind:'OPERATION',operation:{type:'SET_CARD_COUNTER',targetIid:'$sourceIid',counterKey:'doubleNextMoraleDamage',value:true}}]},
   '65':{timings:['PASSIVE','TURN_BOUNDARY'],operations:['MODIFY_MORALE'],prompts:['REACTION'],havanoPassiveEntry:true,triggerSubscriptions:['TURN_STARTED'],program:[]},
-  '69':{timings:['WHEN_SET'],operations:['CREATE_MATCH_STATUS'],prompts:[],program:[
-    {kind:'OPERATION',operation:{type:'CREATE_MATCH_STATUS',status:{type:'BUSSER_INITIATOR_MORALE',playerIndex:'$controller',sourceIid:'$sourceIid',remainingOwnerTurns:1}}}
+  '69':{timings:['WHEN_SET'],operations:['MODIFY_MORALE','TRANSFER_CARDS'],prompts:['CARD_SELECTION'],program:[
+    {kind:'SELECT_CARDS',local:'targetIid',min:1,max:1,filter:{locations:['discard'],playerIndex:'controller',type:'Initiator'}},
+    {kind:'OPERATION',operation:{type:'MODIFY_MORALE',playerIndex:'$controller',sourceIid:'$sourceIid',amount:-25,reason:'BREAKFAST_REPUBLIC_BUSSER_COST'}},
+    {kind:'OPERATION',operation:{type:'TRANSFER_CARDS',targetIid:'$targetIid',playerIndex:'$controller',destinationPile:'hand'}}
   ]},
   '73':{timings:['PASSIVE'],operations:[],prompts:[]}
 });

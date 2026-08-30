@@ -694,11 +694,52 @@ function hidePT() {
 }
 
 function getBusserTurnsLeft(card) {
-  if(!card) return 0;
-  const explicitTurns = Number(card._busserTurnsLeft);
-  if(Number.isFinite(explicitTurns) && explicitTurns > 0) return explicitTurns;
-  return Math.max(0, Number(card._busserMoves || 0) || 0);
+  // Breakfast Republic Busser no longer grants movement. Returning zero also
+  // quarantines movement grants persisted by saves made under the old rules.
+  return 0;
 }
+
+function resolveBreakfastRepublicBusser(inst, player, options) {
+  const cp=Number(player),opts=options||{},discard=G?.players?.[cp]?.discard;
+  if((cp!==0&&cp!==1)||!Array.isArray(discard))return false;
+  // Purge every retired runtime flag so old saves cannot expose the movement,
+  // Initiator-heal status banner, action button, or source overlay.
+  G._busserInitiatorMorale=null;G._busserMoving=null;G._busserMovingCard=null;
+  forEachBoardCard(function(card){
+    if(!card)return;delete card._busserTurnsLeft;delete card._busserMoves;delete card._busserOwner;
+    delete card._busserSourceIid;delete card._busserMovedThisTurn;delete card._busserActivationInFlight;
+  });
+  const candidates=discard.filter(function(card){return card&&String(card.type||'')==='Initiator';});
+  if(!candidates.length){toast('Corner! Behind!: there are no Initiators in your discard.');renderEffectResolutionForPlayer(cp,{hand:false,topbar:true});return false;}
+  const commit=function(chosen){
+    if(!chosen||!discard.some(function(card){return String(card.iid||'')===String(chosen.iid||'');}))return false;
+    const system=G._moralePressure;
+    if(system&&Array.isArray(system.morale)){
+      const before=Math.max(0,Number(system.morale[cp]||0));system.morale[cp]=Math.max(0,before-25);
+      if(typeof window.presentLegacyMoraleDelta==='function')window.presentLegacyMoraleDelta({playerIndex:cp,before:before,after:system.morale[cp],sourceIid:String(inst?.iid||''),semanticSourceCardId:'69',reason:'BREAKFAST_REPUBLIC_BUSSER_COST'});
+      else if(typeof window.refreshLegacyMoralePressure==='function')window.refreshLegacyMoralePressure({announce:true});
+    }
+    G.players[cp].discard=discard.filter(function(card){return String(card.iid||'')!==String(chosen.iid||'');});
+    // A recovered Initiator is being given a new opportunity to be set. Clear
+    // the previous field visit's one-shot state so its Initiator effect can
+    // resolve again (notably Zoe's square selection).
+    chosen.effectUsedInitial=false;
+    chosen._effectTurnLocked=false;
+    chosen._effectNegatedByReaction=false;
+    chosen.whenSetActivated=false;
+    delete chosen._effectActivationInFlight;
+    delete chosen._pendingWhenSetEffect;
+    delete chosen._pendingWhenSetActivationInFlight;
+    if(typeof addCardToHand==='function')addCardToHand(cp,chosen,{arrivalKind:'discard_recovery'});else G.players[cp].hand.push(chosen);
+    if(typeof playSfx==='function')playSfx('searchFound');
+    toast('Paid 25 Morale and returned '+chosen.name+' to your hand.');
+    renderEffectResolutionForPlayer(cp,{hand:false,piles:true,topbar:true});return true;
+  };
+  if(opts.auto===true){candidates.sort(function(a,b){return Number(b.fate||0)-Number(a.fate||0);});return commit(candidates[0]);}
+  pickCardsVisual(candidates,{title:'Corner! Behind!',subtitle:'Pay 25 Morale — choose an Initiator from your discard.',minCount:1,maxCount:1,confirmLabel:'Pay 25 Morale',immediate:true},function(picked){commit(picked&&picked[0]);});
+  return true;
+}
+window.resolveBreakfastRepublicBusser=resolveBreakfastRepublicBusser;
 
 function findBoardCardByIid(iid) {
   if(iid == null || typeof forEachBoardCard !== 'function') return null;
@@ -1442,6 +1483,12 @@ async function nextPlayerTurn() {
     G._bh19HighTStatuses = G._bh19HighTStatuses.filter(function(status){
       return Number(status.playerIndex) !== Number(endingPlayer);
     });
+  }
+  if(!G._onlineRoomCode && G._bh21Concealment
+    && Number(G._bh21Concealment.targetPlayer) === Number(endingPlayer)
+    && Number(G._bh21Concealment.activeFromTurn) <= Number(G.turn)){
+    G._bh21Concealment.remainingTargetTurns = Math.max(0, Number(G._bh21Concealment.remainingTargetTurns || 0) - 1);
+    if(G._bh21Concealment.remainingTargetTurns <= 0) G._bh21Concealment = null;
   }
   resolveCaliforniqueHandExpiryForPlayer(endingPlayer);
   expireBusserTurnsForPlayer(endingPlayer);
@@ -2462,7 +2509,7 @@ function isBlockedByAlondra(z,r,c,player) {
 function clearPlaceHighlights() {
   if(typeof G !== 'undefined' && G) G._singlePlayerPlacementOptions = null;
   document.querySelectorAll('#board .cell.placeable,#board .cell.move-target,#board .cell.landscape-move-target,#board .cell.brave-horizons-target').forEach(el=>el.classList.remove('placeable','move-target','landscape-move-target','brave-horizons-target'));
-  document.querySelectorAll('#board .cell.block-target-choice,#board .cell.carolyn-block-choice,#board .cell.zoe-block-choice,#board .cell.havano-deploy-choice,#board .cell.free-placement-choice,#board .cell.tutorial-target-square').forEach(el=>el.classList.remove('block-target-choice','carolyn-block-choice','zoe-block-choice','havano-deploy-choice','free-placement-choice','tutorial-target-square'));
+  document.querySelectorAll('#board .cell.block-target-choice,#board .cell.carolyn-block-choice,#board .cell.zoe-block-choice,#board .cell.jamie-heal-choice,#board .cell.havano-deploy-choice,#board .cell.free-placement-choice,#board .cell.tutorial-target-square').forEach(el=>el.classList.remove('block-target-choice','carolyn-block-choice','zoe-block-choice','jamie-heal-choice','havano-deploy-choice','free-placement-choice','tutorial-target-square'));
   document.querySelectorAll('#board .zone.busser-zone-target').forEach(el=>el.classList.remove('busser-zone-target'));
   if(typeof rendererV2OwnsBoardScene === 'function' && rendererV2OwnsBoardScene()) return;
   document.querySelectorAll('#board .bc.tribute-available,#board .bc.tribute-selected,#board .bc.tribute-ready').forEach(el=>{
@@ -2754,38 +2801,6 @@ function queueZimbabweAuraGainsAfterPlacement(placedCard){
   return queued;
 }
 window.queueZimbabweAuraGainsAfterPlacement=queueZimbabweAuraGainsAfterPlacement;
-
-function scheduleBusserInitiatorOverlayAfterResolution(player,initiator){
-  const owner=Number(player);
-  if(owner!==0&&owner!==1)return false;
-  const started=Date.now();
-  const poll=function(){
-    const busy=!!(G._effectActivationCinematicActive||G.pendingInteraction||G._boardTargeting||G._serverPendingReaction||G._serverPendingMove||G._serverPendingZonePick||G._serverPendingCardPick||G._serverPendingModalAction||document.querySelector('.visual-picker-v2,.board-target-picker,.modal.on'));
-    if(busy&&Date.now()-started<15000){setTimeout(poll,80);return;}
-    if(initiator&&!isFaceDownCard(initiator))flashCardEffect(initiator,'breakfast_republic_busser',{label:'Corner! Behind!',soundKey:['busser-initiator',String(initiator.iid||''),String(G.turn||0)].join(':')});
-  };
-  setTimeout(poll,0);
-  return true;
-}
-window.scheduleBusserInitiatorOverlayAfterResolution=scheduleBusserInitiatorOverlayAfterResolution;
-
-function resolveBusserInitiatorMorale(player,initiator){
-  const owner=Number(player);
-  const busser=G&&G._busserInitiatorMorale;
-  if((owner!==0&&owner!==1)||!initiator||!busser||Number(busser.owner)!==owner||Number(busser.expiresAfterTurn)!==Number(G.turn))return false;
-  const system=G._moralePressure;
-  if(!system)return false;
-  const before=Math.max(0,Number(system.morale[owner]||0));
-  const after=Math.min(Number(system.maxMorale||200),before+10);
-  system.morale[owner]=after;
-  if(after<=before)return false;
-  const eventOptions={playerIndex:owner,before:before,after:after,sourceIid:String(busser.sourceIid||''),overlayTargetIid:String(initiator.iid||''),semanticSourceCardId:'69',reason:'BUSSER_INITIATOR_MORALE'};
-  if(typeof window.presentLegacyMoraleDelta==='function')window.presentLegacyMoraleDelta(eventOptions);
-  else if(typeof window.refreshLegacyMoralePressure==='function')window.refreshLegacyMoralePressure({announce:true,events:[Object.assign({type:'MORALE_HEALED',amount:after-before},eventOptions)]});
-  else scheduleBusserInitiatorOverlayAfterResolution(owner,initiator);
-  return true;
-}
-window.resolveBusserInitiatorMorale=resolveBusserInitiatorMorale;
 
 function markMovementEffectFlash(card, soundKey) {
   return flashCardEffect(card, 'movement_boot', {
@@ -3476,11 +3491,16 @@ async function clickCell(z,r,c) {
   // Handle Zoe's blocking effect (zone-specific) or Carolyn's (any zone)
   if(G.blockingCell) {
     const pendingBlockZone = Number.isInteger(Number(G._blockingEffectZone)) ? Number(G._blockingEffectZone) : Number(window._blockZone);
-    const blockZ = pendingBlockZone===-1 ? z : pendingBlockZone;
-    const blockType = pendingBlockZone===-1 ? 'carolyn' : 'zoe';
+    const blockType = G._blockingEffectType === 'jamie' ? 'jamie' : (pendingBlockZone===-1 ? 'carolyn' : 'zoe');
+    const blockZ = blockType === 'jamie' ? z : (pendingBlockZone===-1 ? z : pendingBlockZone);
     const owner = G.currentPlayer;
     const blockedPlayer = blockType === 'zoe' ? 1 - owner : null;
     const occupiedCell = !!(G.board && G.board[blockZ] && G.board[blockZ][r] && G.board[blockZ][r][c]);
+    if(blockType === 'jamie' && !(typeof isOwnSafeRowSquare === 'function' && isOwnSafeRowSquare(blockZ, r, c, owner))) {
+      toast('Jamie must choose a square in your own safe row');
+      playSfx('blocked');
+      return;
+    }
     if(blockType === 'zoe' && z !== blockZ) {
       toast('Zoe can only block a square in her zone');
       playSfx('blocked');
@@ -3514,20 +3534,23 @@ async function clickCell(z,r,c) {
       existingBlock.owner = owner;
       existingBlock.blockedPlayer = null;
     } else if(!existingBlock) {
-      G.blockedCells.push({z:blockZ,r,c,type:blockType,owner,blockedPlayer,sourceIid:blockType === 'zoe' ? G._blockingEffectSourceIid : null});
+      G.blockedCells.push({z:blockZ,r,c,type:blockType,owner,blockedPlayer,sourceIid:(blockType === 'zoe' || blockType === 'jamie') ? G._blockingEffectSourceIid : null});
     }
     if(typeof normalizeBlockedCells === 'function') normalizeBlockedCells();
     G.blockingCell=false;G.placing=false;
     delete G._blockingEffectZone;
+    delete G._blockingEffectType;
     clearPlaceHighlights();
     // Show visual effect for the block
     if(typeof showBlockVisual === 'function') showBlockVisual(blockZ,r,c,blockType);
     if(blockType==='carolyn') {
       playSfx('carolynBlock');
       toast('Cell permanently locked by Carolyn!');
+    } else if(blockType === 'jamie') {
+      toast('Jamie marked a safe-row square for Morale recovery.');
     } else {
       playSfx('zoeBlock');
-      toast('Zoe: your opponent cannot consolidate on or from this square.');
+      toast('Zoe: opponent cards on this square cannot leave the field.');
     }
     if(G._blockingEffectSourceIid) {
       markInitialEffectResolvedByIid(G._blockingEffectSourceIid);
@@ -3566,6 +3589,11 @@ async function clickCell(z,r,c) {
     }
     if(typeof sel.zone === 'number' && z !== sel.zone){
       toast('That square is not available');
+      return;
+    }
+    if(blockType === 'jamie' && !(typeof isOwnSafeRowSquare === 'function' && isOwnSafeRowSquare(blockZ, r, c, owner))) {
+      toast('Jamie must choose a square in your safe row');
+      playSfx('blocked');
       return;
     }
     const expectedMarkRow = Number.isInteger(sel.row)
@@ -4096,11 +4124,24 @@ function isBlocked(z,r,c) {
 function isZoeConsolidationBlockedAt(z, r, c, player) {
   return (G.blockedCells || []).some(function(b){
     if(!b || b.type !== 'zoe' || b.z !== z || b.r !== r || b.c !== c) return false;
+    const occupant=G.board?.[z]?.[r]?.[c];
+    if(occupant&&(typeof isTargetImmuneToEffectOwner==='function'?isTargetImmuneToEffectOwner(occupant,b.owner):(occupant.immuneFlag||occupant.opponentEffectImmune)))return false;
     if(typeof b.blockedPlayer === 'number') return b.blockedPlayer === player;
     if(typeof b.owner === 'number') return b.owner !== player;
     return true;
   });
 }
+
+function isZoeFieldLeaveLockedAt(card,z,r,c){
+  if(!card)return false;
+  return (G.blockedCells||[]).some(function(block){
+    if(!block||block.type!=='zoe'||block.z!==z||block.r!==r||block.c!==c)return false;
+    const affected=typeof block.blockedPlayer==='number'?Number(block.blockedPlayer)===Number(card.owner):Number(block.owner)!==Number(card.owner);
+    if(!affected)return false;
+    return !(typeof isTargetImmuneToEffectOwner==='function'?isTargetImmuneToEffectOwner(card,block.owner):(card.immuneFlag||card.opponentEffectImmune||card.id==='76'));
+  });
+}
+window.isZoeFieldLeaveLockedAt=isZoeFieldLeaveLockedAt;
 
 function isBlockedForConsolidate(z,r,c) {
   const cp = G.currentPlayer;
@@ -5746,12 +5787,12 @@ function tickCarpathianSpecters() {
   });
 }
 
-const INITIAL_SET_INITIATOR_IDS = new Set(['03','04','06','07','08','13','17','22','29','30','39','43','45','48','51','54','66','81','82','83','87','90','99','bh04','bh05','bh06','bh10','bh13','bh14','bh19','bh20','bh25']);
+const INITIAL_SET_INITIATOR_IDS = new Set(['03','04','06','07','08','13','17','22','29','30','39','43','45','48','51','54','66','81','82','83','87','90','99','bh04','bh05','bh06','bh10','bh13','bh14','bh19','bh20','bh21','bh22','bh25']);
 // Browser timing mirror for shared/engine/cards/registry.mjs. This is the seam
 // that keeps single-player interaction timing identical to authoritative play.
 const AUTHORITATIVE_ACTIVATE_EFFECT_IDS = new Set(['03','06','22','26','27','29','30','38','39','40','48','83','93','bh01']);
 const AUTHORITATIVE_WHEN_SET_EFFECT_IDS = new Set([
-  '02','04','05','07','08','12','13','14','16','17','18','21','25','31','32','33','37','42','43','50','51','52','54','58','60','61','62','65','66','68','69','71','72','73','75','76','77','78','80','81','82','84','87','90','91','94','96','97','99','bh04','bh05','bh06','bh09','bh10','bh12','bh13','bh14','bh19','bh20','bh25'
+  '02','04','05','07','08','12','13','14','16','17','18','21','25','31','32','33','37','42','43','50','51','52','54','58','60','61','62','65','66','68','69','71','72','73','75','76','77','78','80','81','82','84','87','90','91','94','96','97','99','bh04','bh05','bh06','bh09','bh10','bh12','bh13','bh14','bh19','bh20','bh21','bh22','bh25'
 ]);
 const PRESSURE_REWORK_TIMING_CARD_IDS = new Set(['20','25','33','34','35','44','45','47','64','65','69','73']);
 const PRESSURE_REWORK_WHEN_SET_EFFECT_IDS = new Set(['20','33','34','45','47','64','69']);
@@ -5944,6 +5985,9 @@ async function triggerWhenSet(inst, z, r, c, opts = {}) {
   // Initiators fire their character effect
   if(isInitiatorWithEffect) {
     G.selectedBoardCard = {card:inst,z,r,c};
+    // Arm High-T before its activation cinematic so the source card begins
+    // pulsing immediately when set rather than seconds after activation.
+    if(String(id || '') === 'bh19' && !G._onlineRoomCode) activateHighTForTurn(inst, cp);
     if(opts.skipActivationCinematic !== true && typeof playEffectActivationCinematic === 'function') {
       await playEffectActivationCinematic(inst, z, r, c, {
         source:'automatic-when-set',
@@ -7492,47 +7536,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       break;
     }
     case '69': {
-      if(window.FATE_PRESSURE_CARD_REWORKS_ENABLED === true){
-        G._busserInitiatorMorale={owner:cp,expiresAfterTurn:Number(G.turn),sourceIid:String(inst.iid||'')};
-        if(typeof showBusserStatusBanner==='function')showBusserStatusBanner(inst,1,cp);
-        renderEffectResolutionForPlayer(cp,{hand:false,topbar:true});
-        break;
-      }
-      if(inst._busserGrantPending){
-        toast('Breakfast Republic Busser is already resolving.');
-        break;
-      }
-      inst._busserGrantPending = true;
-      const candidates = [];
-      if(G.board[z]) G.board[z].forEach((row,ri)=>row.forEach((cell,ci)=>{
-        if(cell && cell.owner===cp && !isFaceDownCard(cell) && !cell.cantBeMoved && !cell.immuneFlag && cell.id!=='76'){
-          candidates.push({card:cell,z:z,r:ri,c:ci});
-        }
-      }));
-      if(candidates.length===0){
-        inst._busserGrantPending = false;
-        toast('No movable friendly cards in this zone');
-        break;
-      }
-      pickCardInZone(z,'Corner! Behind!: select a friendly card in this zone to move between adjacent zones.',(target)=>{
-        if(!target || target.owner!==cp || isFaceDownCard(target) || target.cantBeMoved || target.immuneFlag || target.id==='76'){
-          toast('Select a movable friendly card');
-          return;
-        }
-        target._busserTurnsLeft = Math.max(3, getBusserTurnsLeft(target));
-        target._busserMoves = target._busserTurnsLeft;
-        target._busserOwner = cp;
-        target._busserMovedThisTurn = false;
-        target._busserSourceIid = inst.iid || null;
-        inst._busserGrantPending = false;
-        inst.effectUsedInitial = true;
-        inst.whenSetActivated = true;
-        toast(target.name + ' can move to adjacent zones.');
-        if(typeof showBusserStatusBanner === 'function') showBusserStatusBanner(target, 3, cp);
-        if(typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
-        else if(typeof renderTopbarEffects === 'function') renderTopbarEffects();
-        renderEffectResolutionForPlayer(cp, {hand:false});
-      }, cell=>cell && cell.owner===cp && !isFaceDownCard(cell) && !cell.cantBeMoved && !cell.immuneFlag && cell.id!=='76', null, inst);
+      resolveBreakfastRepublicBusser(inst,cp);
       break;
     }
     case '71': { // Fort Calvin Watcher: reveal three draws, redirect only the first Character
@@ -8116,8 +8120,6 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
       clearEffectActivationInFlight();
       return;
     }
-    const busser=G._busserInitiatorMorale;
-    if(busser&&typeof resolveBusserInitiatorMorale==='function')resolveBusserInitiatorMorale(cp,card);
   }
   if(card.type==='Initiator' && INITIAL_SET_INITIATOR_IDS.has(id)) {
     markInitialEffectResolved(card);
@@ -8149,11 +8151,27 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
     case 'bh20': {
       const previousMaxTurns = Math.max(1, Number(G.maxTurns) || 24);
       G.maxTurns = previousMaxTurns + 2;
+      // This is presentation state only: it records that Makenna actually
+      // extended this match, without replacing or changing the real landscape.
+      G._makennaBirdCultActivated = true;
       toast('Thousand Year Bird Cult extended the game to turn ' + G.maxTurns + '!');
       updateTopBar();
       renderEffectResolutionForPlayer(cp, {hand:false});
       break;
     }
+    case 'bh21': {
+      G._bh21Concealment = {
+        statusType:'BH21_FATE_MORALE_CONCEALMENT', sourceIid:String(card.iid || ''),
+        sourceController:cp, targetPlayer:opp, activeFromTurn:Number(G.turn) + 1,
+        remainingTargetTurns:4, backgroundFile:'oktai.png', statusIcon:'oktai_conceal'
+      };
+      toast('The Vast Taklamakan will conceal Fate and Morale from your opponent for their next 4 turns.');
+      renderEffectResolutionForPlayer(cp, {hand:false});
+      break;
+    }
+    case 'bh22':
+      if(typeof highlightJamieHealingSquare === 'function') highlightJamieHealingSquare(card);
+      break;
     case '03':
       pickCardInZone(z,'Select a card to double its current Fate, then gain +5:',(tgt)=>{
         if(typeof isTargetImmuneToEffectOwner === 'function' ? isTargetImmuneToEffectOwner(tgt, cp) : (typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(tgt) : (tgt.immuneFlag || tgt.id==='76'))){showBlockedAnimation('this card is immune');return;}
@@ -8164,7 +8182,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
         markInitialEffectResolved(card);
         renderEffectResolutionForPlayer(cp, {hand:false});
       },c=>!(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(c)), null, card); break;
-    case '04': // Zoe: block opponent consolidation on or from one square
+    case '04': // Zoe: lock opponent cards to one square
       highlightForBlock(z, card); break;
     case '06': // Jorge Alvarez: search deck for non-star card
       searchDeckForCard(cp, c=>c.rarity!=='star','Search deck (no Stars):', inst=>{
@@ -9765,7 +9783,7 @@ const DELAYED_REACTION_SUPPRESSION_IDS = new Set([
   '47', // Great Oak Infantry: later consolidation tribute bonus
   '54', // Wolf Creek Light Infantry: delayed movement picker
   '68', // Great Oak High Schooler: deferred Coordinator search
-  '69', // Breakfast Republic Busser: grants future movement
+  '69', // Breakfast Republic Busser: pays Morale to recover an Initiator
   '71', // Fort Calvin Watcher: future opponent draws
   '73', // ALPINE Expeditionary: later movement action
   '78', // Chaparral Hoplite: later consolidation ambush
@@ -10441,7 +10459,7 @@ function checkWin() {
         '<div class="p1"><span>'+escapeHtml(G.players[0].name)+'</span><strong>'+Number(morale[0] || 0)+'</strong></div>'+
         '<div class="win-seal-mark" aria-hidden="true">♥</div>'+
         '<div class="p2"><span>'+escapeHtml(G.players[1].name)+'</span><strong>'+Number(morale[1] || 0)+'</strong></div>'+
-      '</div><div class="win-seal-origin">Morale damage is the sum of the Fate deficits in zones each player does not control.</div>';
+      '</div><div class="win-seal-origin">In each uncontrolled zone, half the Fate difference is dealt as Morale damage (rounded down).</div>';
     wz.appendChild(sealEl);
   }
   zResults.forEach(({z,s0,s1,ctrl})=>{
@@ -10595,6 +10613,7 @@ async function activateVigilantes(card, z, r, c, options) {
 
 
 function startWolfCreekMove(cardToMove, fromZ, fromR, fromC, wolfCreekCard) {
+  if(typeof isZoeFieldLeaveLockedAt==='function'&&isZoeFieldLeaveLockedAt(cardToMove,fromZ,fromR,fromC)){toast(cardToMove.name+' cannot leave Zoe\'s locked square');return false;}
   if(!cardToMove || !wolfCreekCard) return false;
   if(typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(wolfCreekCard)) {
     toast('Wolf Creek movement was suppressed.');
@@ -10697,6 +10716,7 @@ function pickWolfCreekMoveCandidate(wolfCreekCard, prompt, callback, fallbackZon
 
 // ALPINE Expeditionary (73): move once per turn to open square on your side
 async function activateExpeditionaryMove(card, z, r, c) {
+  if(typeof isZoeFieldLeaveLockedAt==='function'&&isZoeFieldLeaveLockedAt(card,z,r,c)){toast(card.name+' cannot leave Zoe\'s locked square');return;}
   if(typeof isLocalPlayerActionTurn === 'function' && !isLocalPlayerActionTurn()){
     clearBoardTargetSelection();
     clearPlaceHighlights();
@@ -10745,6 +10765,7 @@ async function activateExpeditionaryMove(card, z, r, c) {
 
 function activateLandscapeEventideMove(card, z, r, c) {
   if(!card || !(typeof isLandscapeActive === 'function' && isLandscapeActive('igb7'))) return;
+  if(typeof isZoeFieldLeaveLockedAt==='function'&&isZoeFieldLeaveLockedAt(card,z,r,c)){toast(card.name+' cannot leave Zoe\'s locked square');return;}
   if(!canUsePanaceaLandscapeMoveCard(card)){ toast('Only eligible Eventide cards can use this landscape.'); return; }
   if(card._landscapeEventideMovedTurn === G.turn){ toast('This card already moved by landscape this turn.'); return; }
   if(card.cantBeMoved){ toast('This card cannot be moved.'); return; }

@@ -129,6 +129,7 @@
       "UIpictures/**/*",
       "artifacts/*.svg",
       "*.png",
+      "*.mp3",
       "electron/**/*"
     ],
     "afterPack": "build/afterPack.js",
