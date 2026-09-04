@@ -725,12 +725,28 @@ const server = http.createServer(async (req, res)=>{
       }
       const queuePlayerId = phase7QueuePlayerId(req, identity);
       migrateLegacyBetaQueueIdentity(identity, queuePlayerId);
-      const pendingDelivery = betaDeliveries.get(queuePlayerId) || betaDeliveries.get(identity.uid) || null;
+      const body = await readBody(req);
+      let pendingDelivery = betaDeliveries.get(queuePlayerId) || betaDeliveries.get(identity.uid) || null;
+      if(pendingDelivery){
+        const pendingMatch = resolveMatchState(pendingDelivery.matchId);
+        const requestedMode = ['ranked','warfront'].includes(String(body.queueMode || '')) ? String(body.queueMode) : 'freeplay';
+        const requestedWarfrontKey = requestedMode === 'warfront' ? String(body.matchmakingKey || '') : '';
+        const deliveryIsCurrent = pendingMatch
+          && !pendingMatch.outcome
+          && String(pendingDelivery.queueMode || 'freeplay') === requestedMode
+          && (requestedMode !== 'warfront' || String(pendingMatch.warfrontMatchmakingKey || '') === requestedWarfrontKey);
+        if(!deliveryIsCurrent){
+          betaDeliveries.delete(queuePlayerId);
+          betaDeliveries.delete(identity.uid);
+          store.deleteBetaMatchmakingDelivery(queuePlayerId);
+          store.deleteBetaMatchmakingDelivery(identity.uid);
+          pendingDelivery = null;
+        }
+      }
       if(pendingDelivery){
         writeJson(res, 200, {ok:true, status:'matched', credential:pendingDelivery});
         return;
       }
-      const body = await readBody(req);
       const requestedTestPool = String(body.testPool || '');
       const organicFixtureIdentity = PHASE7_ALLOW_ORGANIC_TEST_FIXTURES
         && phase7OrganicFixtureIdentity(req, identity, requestedTestPool);
