@@ -669,12 +669,14 @@ async function startSpectating({matchId, playerIndex:requestedPerspective = 0} =
       const snapshot=await matchmakingRequest(`/v3/beta/matches/${encodeURIComponent(id)}/spectator-snapshot`);
       if(spectatingMatchId!==id)return;
       const projected=clone(snapshot.state || {});
-      if(Array.isArray(projected.players))projected.players=projected.players.map(player=>({...player,hand:[],deck:[]}));
+      spectatorPerspective=Number(snapshot.playerIndex)===1?1:0;playerIndex=spectatorPerspective;
+      if(Array.isArray(projected.players))projected.players=projected.players.map((player,index)=>({...player,hand:index===spectatorPerspective?(player.hand||[]):[],deck:[]}));
       applyServerMessage({...snapshot,kind:'snapshot',state:projected,legalCommands:[],privateActionCards:[]});
       enforceWarfrontSpectatorState();
       if(projected.outcome){setTimeout(()=>stopSpectating(),1800);return;}
     }catch(error){
       if(Number(error?.status)===404){globalThis.toast?.('That Warfront match has ended.');stopSpectating();return;}
+      if(Number(error?.status)===403){globalThis.toast?.('Only deployed teammates may spectate this match.');stopSpectating();return;}
       console.warn('[Fate Phase 7 Beta] spectator refresh failed',error);
     }
     spectatorPollTimer=setTimeout(poll,1100);

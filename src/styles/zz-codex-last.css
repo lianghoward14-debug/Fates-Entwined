@@ -25835,7 +25835,7 @@ html body #s-challenger .ch-v5-rank-combined .ch-v5-elo.is-four-digit{
   left:0!important;
 }
 html body #s-challenger .ch-v5-rank-combined .ch-v5-elo.is-three-digit{
-  left:4px!important;
+  left:-2px!important;
 }
 
 /* Close the metadata rail around type, Fate, affiliation, and rarity. */

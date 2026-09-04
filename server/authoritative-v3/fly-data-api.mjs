@@ -554,6 +554,15 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
   return {
     handle,
     settleWarfrontForfeit,
+    warfrontSpectatorSeat(matchId, uid){
+      const binding=warfrontBindings.get(String(matchId));
+      if(!uid || !binding || binding.mapCode!==warfrontEvent?.mapCode) return null;
+      const team=['a','b'].find(t=>warfrontEvent.zones.some(z=>z[t]?.uid===uid));
+      const zone=warfrontEvent.zones.find(z=>z.id===binding.zoneId);
+      if(!team || !zone?.[team]?.uid) return null;
+      const seat=binding.uids.indexOf(zone[team].uid);
+      return seat===0 || seat===1 ? seat : null;
+    },
     flush,
     counts:()=>({profiles:profiles.size,challengerResultReceipts:challengerResultReceipts.size,saves:saves.size,decks:decks.size,listings:listings.size,warfrontEvent:!!warfrontEvent}),
     testSanitizeWarfrontState:value=>sanitizeWarfrontState(value),

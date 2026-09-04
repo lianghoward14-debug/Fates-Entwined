@@ -841,10 +841,12 @@ const server = http.createServer(async (req, res)=>{
         writeJson(res, 404, {ok:false, error:'match not found'});
         return;
       }
-      // This projection is deliberately read-only and contains neither hand.
-      // Warfront chooses and locks board orientation client-side by team, while
-      // the authority never exposes an opponent's private cards to spectators.
-      writeJson(res, 200, {ok:true, ...actor.snapshotForSpectator()});
+      const teammateIndex=flyDataApi.warfrontSpectatorSeat?.(matchId,identity.uid);
+      if(teammateIndex!==0 && teammateIndex!==1){
+        writeJson(res,403,{ok:false,error:'Only deployed teammates may spectate this Warfront match'});
+        return;
+      }
+      writeJson(res, 200, {ok:true, playerIndex:teammateIndex, ...actor.snapshotForSpectator(teammateIndex)});
       return;
     }
     const snapshotMatch = BETA_MODE

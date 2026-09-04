@@ -96,7 +96,7 @@ export function projectStateForPlayer(state, playerIndex){
   return projection;
 }
 
-export function projectStateForSpectator(state){
+export function projectStateForSpectator(state, teammateIndex = null){
   return {
     schemaVersion:state.schemaVersion,
     engineVersion:state.engineVersion,
@@ -126,7 +126,7 @@ export function projectStateForSpectator(state){
     turnTimerSeconds:state.turnTimerSeconds,
     landscapeState:cloneSerializable(state.landscapeState ?? null),
     moralePressure:cloneSerializable(state.moralePressure ?? null),
-    players:state.players.map(publicPlayer),
+    players:state.players.map((player,index)=>index === teammateIndex ? privatePlayer(player) : publicPlayer(player)),
     board:cloneSerializable(state.board),
     geometry:cloneSerializable(state.geometry),
     statuses:cloneSerializable(state.statuses),

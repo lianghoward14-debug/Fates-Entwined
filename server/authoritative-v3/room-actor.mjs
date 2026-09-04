@@ -83,14 +83,14 @@ export class AuthoritativeRoomActor {
     };
   }
 
-  snapshotForSpectator(){
+  snapshotForSpectator(teammateIndex = null){
     return {
       kind:'snapshot',
       protocolVersion:3,
       matchId:this.state.matchId,
       revision:this.state.revision,
       stateHash:canonicalHash(this.state),
-      state:projectStateForSpectator(this.state)
+      state:projectStateForSpectator(this.state, teammateIndex)
     };
   }
 

@@ -2832,7 +2832,7 @@ function renderChStoreTab(content) {
               <div class="ch-store-unopened-total"><strong>${packs+booster2Packs+booster3Packs+profilePacks}</strong> ${(packs+booster2Packs+booster3Packs+profilePacks)===1?'pack':'packs'}</div>
             </div>
             <div class="ch-store-unopened-title" aria-label="Unopened booster packs">
-              ${packs>0?`<button type="button" onclick="openNextPack()"><strong>${packs}</strong><i>Standard Booster</i><em>Open</em></button>`:''}
+              ${packs>0?`<button type="button" onclick="openNextPack()"><strong>${packs}</strong><i>Fates Entwined Booster</i><em>Open</em></button>`:''}
               ${booster2Packs>0?`<button type="button" onclick="openNextBooster2Pack()"><strong>${booster2Packs}</strong><i>Snow on the Carpathians Booster</i><em>Open</em></button>`:''}
               ${booster3Packs>0?`<button type="button" onclick="openNextBooster3Pack()"><strong>${booster3Packs}</strong><i>Brave Horizons Booster</i><em>Open</em></button>`:''}
               ${profilePacks>0?`<button type="button" onclick="openNextProfilePack()"><strong>${profilePacks}</strong><i>Profile Booster</i><em>Open</em></button>`:''}

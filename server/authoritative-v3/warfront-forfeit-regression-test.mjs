@@ -5,6 +5,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import {testState,command,takeFromHandToBoard} from './test-helpers.mjs';
 import {reduceCommand,legalCommandTemplates,projectStateForPlayer} from '../../shared/engine/index.mjs';
+import {projectStateForSpectator} from '../../shared/engine/projections.mjs';
 import {createWarfrontTakeoverDriver} from './warfront-takeover.mjs';
 
 function concede(state,seat){
@@ -12,6 +13,13 @@ function concede(state,seat){
   assert.equal(result.ok,true,JSON.stringify(result.rejection));return result.state;
 }
 let initial=testState({matchId:'takeover-'+'x'.repeat(130)});
+for(const seat of [0,1]){
+  const view=projectStateForSpectator(initial,seat);
+  assert.deepEqual(view.players[seat].hand,initial.players[seat].hand);
+  assert.equal(view.players[1-seat].hand,undefined,'opposing hand stays private');
+  assert.equal(view.players[seat].deck,undefined,'deck order stays private');
+}
+assert.equal(projectStateForSpectator(initial).players[0].hand,undefined,'public spectator remains public');
 initial.warfrontMatch=true;
 const locked=concede(initial,0);
 assert.equal(locked.warfrontForfeit.winner,1);
@@ -79,6 +87,10 @@ try{
     await api.handle({method:'POST',headers:{authorization:`Bearer ${token(uid)}`},body:{mapCode:'WF-TEST',zoneId:'z0',credential:{matchId:liveMatch.matchId,playerId,token:'test-seat-'+playerId}}},{},new URL('http://localhost/api/warfront/bind-match'));
     assert.equal(response.status,200,'account binds only using a server-issued match credential');
   }
+  assert.equal(api.warfrontSpectatorSeat(liveMatch.matchId,'zero'),0,'team A spectator sees team A seat');
+  assert.equal(api.warfrontSpectatorSeat(liveMatch.matchId,'unknown'),1,'team B spectator sees team B seat');
+  assert.equal(api.warfrontSpectatorSeat(liveMatch.matchId,'outsider'),null,'undeployed viewer has no private access');
+  assert.equal(api.warfrontSpectatorSeat('missing','zero'),null);
   liveMatch={...locked,warfrontMatchmakingKey:liveMatch.warfrontMatchmakingKey};
   api.settleWarfrontForfeit(liveMatch);
   a=await request('alpha');

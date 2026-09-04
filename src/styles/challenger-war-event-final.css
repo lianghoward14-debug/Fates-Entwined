@@ -1457,3 +1457,17 @@ html body #s-challenger .war2-drawer:has(>.war8-report){width:min(1280px,calc(10
   background-position:center!important;
   background-size:cover!important;
 }
+/* Spectator broadcast replaces the inactive command panel in this corner. */
+body:has(#s-game.warfront-team-spectator) #s-game .codex-v19-command{visibility:hidden!important;pointer-events:none!important}
+#warfront-spectator-panel{right:18px;bottom:18px}
+
+/* Keep spectating outside the zone's fixed three-row layout. */
+html body #s-challenger .war2-drawer:has(>.war-zone-spectate){overflow:visible!important}
+#s-challenger .war-zone-spectate{position:absolute;right:0;bottom:calc(100% + 14px);z-index:3;display:flex;align-items:center;gap:12px;min-height:46px;padding:14px 24px;border:1px solid #e8b85b;border-radius:4px;background:linear-gradient(#812a28,#481a20);color:#fff0cc;font:900 12px/1.3 Cinzel,serif;letter-spacing:.06em;cursor:pointer;box-shadow:0 8px 24px #0009}
+#s-challenger .war-zone-spectate i{width:7px;height:7px;border-radius:50%;background:#ff7265;box-shadow:0 0 10px #ff7265}
+#s-challenger .war-zone-spectate:hover{filter:brightness(1.2)}
+#s-challenger .war-zone-spectate:focus-visible{outline:2px solid #ffe5a0;outline-offset:4px}
+#s-challenger .war6-ledger-entry:has(.war-ledger-forfeit)>footer{position:relative!important;padding-top:16px!important}
+#s-challenger .war6-ledger-entry>footer>.war-ledger-forfeit{position:absolute!important;top:9px!important;left:50%!important;transform:translateX(-50%)!important;color:#efbd69!important;font:800 9px/1.2 Cinzel,serif!important;font-style:normal!important;overflow:visible!important}
+#s-challenger .war3-report-summary>.war-report-forfeit{margin:4px 0 8px;transform:translateY(-8px);color:#efbd69;font:800 12px/1.3 Cinzel,serif;letter-spacing:.08em}
+@media(max-height:860px){html body #s-challenger .war2-drawer:has(>.war-zone-spectate)>section.war2-zone-command-v3{height:calc(100vh - 180px)!important;min-height:0!important}}
