@@ -19,6 +19,7 @@ import {
   isEffectSourceSuppressed,
   isImmuneToOpponentEffects,
   runtimeRuleId,
+  structuralCardType,
   zoneActionBlock
 } from './modifiers.mjs';
 import {applyOperation, emitRuleEvent} from './operations.mjs';
@@ -1076,6 +1077,8 @@ function runEffectStack(state, ctx){
           });
         }
       }
+      const countsAsConsolidation = instruction.countsAsConsolidation === true
+        && structuralCardType(state, selected.card) !== 'Supporter';
       const result = applyOperation(ctx, {
         type:'SET_CARD',
         playerIndex:frame.controller,
@@ -1083,8 +1086,24 @@ function runEffectStack(state, ctx){
         destination,
         sourceIid:frame.sourceIid,
         sourceController:frame.controller,
+        consolidated:countsAsConsolidation,
         countTowardSupporterLimit:false
       });
+      if(countsAsConsolidation){
+        recordMoraleConsolidation(state, frame.controller);
+        emitRuleEvent(ctx, {
+          type:RULE_EVENT_TYPES.CARD_CONSOLIDATED,
+          playerIndex:frame.controller,
+          cardIid:result.cardIid,
+          tributeIids:[],
+          reinforcement:0,
+          cost:0,
+          destination:result.destination,
+          effectFreeConsolidation:true,
+          sourceIid:frame.sourceIid,
+          semanticSourceCardId:frame.sourceCardId || undefined
+        });
+      }
       frame.instructionIndex += 1;
       const placed = findBoardCard(state, result.cardIid)?.card;
       if(placed && placed.faceDown !== true && startPassiveTargetReaction(state, ctx, placed, frame.controller, frame.originalCommandId)){

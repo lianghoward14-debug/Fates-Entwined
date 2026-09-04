@@ -4072,6 +4072,9 @@ async function clickCell(z,r,c) {
   const achillesCountsAsConsolidated = isAchillesToken && card._achillesPlayMode === 'consolidated';
   const isLinaFree = !!(card._linaFree || (G._linaFreeIids && G._linaFreeIids.has(card.iid)) || isAchillesToken);
   const cardIsSupporterForRules = typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, cp) : card.type === 'Supporter';
+  const freeCharacterCountsAsConsolidated = !cardIsSupporterForRules
+    && ['lina-free-set', 'kvetka-svoboda-free-set'].includes(String(card._freePlacementCinematicKind || ''));
+  const placementCountsAsConsolidated = achillesCountsAsConsolidated || freeCharacterCountsAsConsolidated;
   const defenseInDepthStatus = cardIsSupporterForRules && Array.isArray(G._bh24DefenseInDepth)
     ? G._bh24DefenseInDepth[cp]
     : null;
@@ -4123,10 +4126,14 @@ async function clickCell(z,r,c) {
     inst.aff = card.aff || inst.aff;
     inst._suppressCinematicSubtitle = true;
   }
-  preparePlacementFateReveal(inst, card, achillesCountsAsConsolidated ? 'consolidation' : 'set');
+  if(freeCharacterCountsAsConsolidated) {
+    inst._wasConsolidated = true;
+    inst._wasSet = false;
+  }
+  preparePlacementFateReveal(inst, card, placementCountsAsConsolidated ? 'consolidation' : 'set');
   markCardSetTurn(inst, G.currentPlayer);
   if(typeof applyLandscapePlacementBonuses === 'function') applyLandscapePlacementBonuses(inst, z, r, c);
-  if(achillesCountsAsConsolidated && typeof trackLandscapeConsolidation === 'function') trackLandscapeConsolidation(G.currentPlayer, inst, z);
+  if(placementCountsAsConsolidated && typeof trackLandscapeConsolidation === 'function') trackLandscapeConsolidation(G.currentPlayer, inst, z);
   consumePendingPlacementFlags(card, inst);
   const handIndex = G.selectedHandCard;
   function createSetCommitProfiler(tx){
@@ -4150,11 +4157,12 @@ async function clickCell(z,r,c) {
     const markCommit = createSetCommitProfiler(tx);
     if(!isFaceDownCard(inst)) inst._onlineSetResolutionPending = true;
     G.board[z][r][c] = inst;
-    if(typeof window.recordLegacyMoralePressureCardSet === 'function') {
+    if(!placementCountsAsConsolidated && typeof window.recordLegacyMoralePressureCardSet === 'function') {
       window.recordLegacyMoralePressureCardSet(inst);
     }
     applyRiveraBuffToPlacedCard(inst, inst.owner);
-    if(achillesCountsAsConsolidated) {
+    if(placementCountsAsConsolidated) {
+      if(typeof window.recordLegacyMoraleConsolidation === 'function') window.recordLegacyMoraleConsolidation(G.currentPlayer);
       if(typeof noteBalladConsolidation === 'function') noteBalladConsolidation(G.currentPlayer, inst);
       if(typeof updateDailyChallengeProgress === 'function') updateDailyChallengeProgress('consolidations', 1, 'add');
     }
@@ -4225,11 +4233,11 @@ async function clickCell(z,r,c) {
     deferSetCommitHook(function(){ triggerAIDialogue(dialogueEvent); });
   }
   markCommit('hooks');
-  if(!achillesCountsAsConsolidated && typeof recordSupporterHardCapSet === 'function') {
+  if(!placementCountsAsConsolidated && typeof recordSupporterHardCapSet === 'function') {
     recordSupporterHardCapSet(inst, G.currentPlayer);
   }
   // Count Supporter sets for match trackers/effects even when an effect sets the card for free.
-  if(cardIsSupporterForRules && !achillesCountsAsConsolidated) {
+  if(cardIsSupporterForRules && !placementCountsAsConsolidated) {
     const rawSetReinforcementValue = typeof getSupportReinforcementValue === 'function' ? getSupportReinforcementValue(inst) : 1;
     const setReinforcementValue = Math.max(0, Number(rawSetReinforcementValue) || 0);
     if(!isLinaFree && !defenseInDepthSet) G.supportsPlacedThisTurn++;
@@ -4264,7 +4272,7 @@ async function clickCell(z,r,c) {
   }
   markCommit('supporterTracking');
   
-  log(G.currentPlayer===0?'p1':'p2', `${player.name} ${achillesCountsAsConsolidated ? 'consolidated' : 'placed'} ${card.name} in Zone ${z+1}`);
+  log(G.currentPlayer===0?'p1':'p2', `${player.name} ${placementCountsAsConsolidated ? 'consolidated' : 'placed'} ${card.name} in Zone ${z+1}`);
   markCommit('log');
 
     G.placing = false;

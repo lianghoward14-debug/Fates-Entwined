@@ -57,7 +57,8 @@ const REGISTRY = Object.freeze({
       {
         kind:'FREE_SET',
         cardIid:'$targetIid',
-        destination:'$destination'
+        destination:'$destination',
+        countsAsConsolidation:true
       }
     ]
   },
@@ -200,7 +201,8 @@ const REGISTRY = Object.freeze({
       {
         kind:'FREE_SET',
         cardIid:'$targetIid',
-        destination:'$destination'
+        destination:'$destination',
+        countsAsConsolidation:true
       }
     ]
   },
