@@ -14,7 +14,16 @@ export function createWarfrontTakeoverDriver(){
       const key = `${seat}:${state.turn}`;
       let plan = plans.get(state.matchId);
       if(!plan || plan.key !== key){plan={key,sequence:[]};plans.set(state.matchId,plan);}
-      const choice = chooseStrategicV3AiCommand(legal,view.state,{playerIndex:seat,planCache:plan});
+      const choice = chooseStrategicV3AiCommand(legal,view.state,{
+        playerId:state.players[seat].id,
+        playerIndex:seat,
+        canonicalState:state,
+        difficulty:'medium',
+        planningDepth:3,
+        personality:'adaptive',
+        style:'adaptive',
+        planCache:plan
+      });
       if(!choice) return null;
       const result = await actor.dispatch(state.players[seat].id,{
         type:choice.type,payload:choice.payload || {},matchId:state.matchId,

@@ -857,7 +857,8 @@ const server = http.createServer(async (req, res)=>{
         writeJson(res, 404, {ok:false, error:'match not found'});
         return;
       }
-      const teammateIndex=flyDataApi.warfrontSpectatorSeat?.(matchId,identity.uid);
+      const spectatorPlayerId=phase7QueuePlayerId(req,identity);
+      const teammateIndex=flyDataApi.warfrontSpectatorSeat?.(matchId,identity.uid,spectatorPlayerId);
       const requestedPerspective=Number(url.searchParams.get('perspective'))===1?1:0;
       const perspective=teammateIndex===0||teammateIndex===1?teammateIndex:requestedPerspective;
       writeJson(res, 200, {ok:true, playerIndex:perspective, ...actor.snapshotForSpectator(teammateIndex)});

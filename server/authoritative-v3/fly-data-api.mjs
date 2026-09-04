@@ -508,12 +508,15 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
         }
         const expected=[body.mapCode,body.zoneId,...[zone.a?.uid,zone.b?.uid].map(String).sort()].join('|');
         if(match.warfrontMatchmakingKey!==expected) throw Object.assign(new Error('Warfront match does not belong to this zone'),{status:403});
-        const binding=warfrontBindings.get(c.matchId) || {matchId:c.matchId,mapCode:body.mapCode,zoneId:body.zoneId,uids:[null,null]};
+        const binding=warfrontBindings.get(c.matchId) || {matchId:c.matchId,mapCode:body.mapCode,zoneId:body.zoneId,uids:[null,null],playerIds:[null,null]};
         const seat=Number(auth.seat);
         if(![0,1].includes(seat) || (binding.uids[seat] && binding.uids[seat]!==uid) || binding.uids[1-seat]===uid){
           throw Object.assign(new Error('Warfront account already bound to another seat'),{status:403});
         }
-        binding.uids[seat]=uid;warfrontBindings.set(c.matchId,binding);
+        binding.uids[seat]=uid;
+        binding.playerIds=Array.isArray(binding.playerIds)?binding.playerIds:[null,null];
+        binding.playerIds[seat]=String(c.playerId);
+        warfrontBindings.set(c.matchId,binding);
         zone.activeMatch={matchId:c.matchId,teamASeat:team==='a'?seat:1-seat,startedAt:zone.activeMatch?.startedAt||Date.now()};
         persist();settleWarfrontForfeit(match);
         writeJson(res,200,{ok:true});return true;
@@ -601,9 +604,13 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
   return {
     handle,
     settleWarfrontForfeit,
-    warfrontSpectatorSeat(matchId, uid){
+    warfrontSpectatorSeat(matchId, uid, playerId){
       const binding=warfrontBindings.get(String(matchId));
-      if(!uid || !binding || binding.mapCode!==warfrontEvent?.mapCode) return null;
+      if(!binding || binding.mapCode!==warfrontEvent?.mapCode) return null;
+      const match=resolveMatchState(String(matchId));
+      const matchSeat=(match?.players||[]).findIndex(player=>String(player?.id||'')===String(playerId||''));
+      if((matchSeat===0||matchSeat===1)&&binding.uids?.[matchSeat]) return matchSeat;
+      if(!uid) return null;
       const team=['a','b'].find(t=>warfrontEvent.zones.some(z=>z[t]?.uid===uid));
       const zone=warfrontEvent.zones.find(z=>z.id===binding.zoneId);
       if(!team || !zone?.[team]?.uid) return null;
