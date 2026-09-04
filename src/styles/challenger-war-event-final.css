@@ -548,7 +548,7 @@ html body #s-challenger .war2-zone-command-v3{border:2px solid #c19a43!important
 
 body.war-replay-active #war-full-replay-controls.war-full-replay-controls{
   position:fixed!important;z-index:10080!important;left:auto!important;right:20px!important;bottom:21px!important;
-  transform:none!important;width:min(520px,calc(100vw - 40px))!important;height:184px!important;min-height:184px!important;box-sizing:border-box!important;
+  transform:none!important;width:min(490px,calc(100vw - 40px))!important;height:184px!important;min-height:184px!important;box-sizing:border-box!important;
   display:grid!important;grid-template-columns:minmax(0,1.18fr) minmax(190px,.82fr)!important;grid-template-rows:46px 52px 52px!important;
   align-items:stretch!important;gap:6px 12px!important;padding:14px 18px!important;border:0!important;border-radius:0!important;
   clip-path:polygon(14px 0,calc(100% - 14px) 0,100% 14px,100% calc(100% - 14px),calc(100% - 14px) 100%,14px 100%,0 calc(100% - 14px),0 14px)!important;
@@ -563,6 +563,10 @@ body.war-replay-active #war-full-replay-controls.war-full-replay-controls{
 .war-full-replay-controls .wfr-progress>div{height:4px;background:#ffffff14}.war-full-replay-controls .wfr-progress>div i{display:block;height:100%;background:#d7ad4c;box-shadow:0 0 9px #d7ad4c88}
 .war-full-replay-controls .wfr-transport{grid-column:1!important;grid-row:2!important;display:grid!important;grid-template-columns:34px 1fr 34px!important;gap:5px!important}
 .war-full-replay-controls .wfr-transport button{width:100%}.war-full-replay-controls .wfr-play{min-width:0!important}
+.war-full-replay-controls .wfr-transport>button:not(.wfr-play){display:grid!important;place-items:center!important;padding:0!important;font-size:0!important;line-height:0!important}
+.war-full-replay-controls .wfr-transport>button:not(.wfr-play)::before{content:"";display:block;width:10px;height:10px;box-sizing:border-box;border-top:3px solid currentColor;border-right:3px solid currentColor}
+.war-full-replay-controls .wfr-transport>button:first-child::before{transform:translateX(2px) rotate(-135deg)}
+.war-full-replay-controls .wfr-transport>button:last-child::before{transform:translateX(-2px) rotate(45deg)}
 .war-full-replay-controls .wfr-speeds,.war-full-replay-controls .wfr-perspective{display:grid!important;padding:0!important;border:0!important;gap:4px!important}
 .war-full-replay-controls .wfr-speeds{grid-column:2!important;grid-row:2!important;grid-template-columns:repeat(3,1fr)!important}.war-full-replay-controls .wfr-speeds>i{display:none!important}
 .war-full-replay-controls .wfr-perspective{grid-column:1!important;grid-row:3!important;grid-template-columns:1fr 1fr!important}.war-full-replay-controls .wfr-perspective>i{display:none!important}

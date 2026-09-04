@@ -94,9 +94,9 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
       if(!replay||typeof replay!=='object'||!Array.isArray(replay.actions)){delete match.replay;return match;}
       replay.version=Math.max(1,Math.floor(Number(replay.version)||1));
       replay.hands=replay.hands&&typeof replay.hands==='object'?replay.hands:{a:[],b:[]};
-      replay.actions=replay.actions.slice(0,500).map(action=>{const clean=action&&typeof action==='object'?action:{};delete clean.view;return clean;});
+      replay.actions=replay.actions.slice(0,500).map(action=>action&&typeof action==='object'?action:{});
       const bytes=Buffer.byteLength(JSON.stringify(replay),'utf8');
-      if(bytes>1500000)delete match.replay;
+      if(bytes>8000000)delete match.replay;
       return match;
     };
     const stripReward=report=>{if(report&&typeof report==='object'){delete report.localReward;(report.zones||[]).forEach(zone=>(zone.matches||[]).forEach(sanitizeReplayMatch));}return report;};
