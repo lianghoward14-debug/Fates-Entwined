@@ -49,6 +49,11 @@ assert.match(
   'every live effect window must suspend the shared turn clock and preserve its elapsed pause'
 );
 assert.match(
+  rooms,
+  /legacyLandscapeState\.igb20FateThresholdClaims\s*=\s*cloneOnlinePlain\([\s\S]{0,160}landscapeState\?\.fateThresholdClaims/,
+  'both multiplayer views must map authoritative Pella winners into the colored landscape race panel'
+);
+assert.match(
   gameplay,
   /if\(updateTurnTimerPauseState\(turnTimerPauseNow\(\)\)\)\{[\s\S]*updateTimerDisplay\(\);[\s\S]*return;/,
   'the countdown loop must not consume a second while any interaction window is open'
@@ -172,6 +177,9 @@ assert.match(client, /containsForbiddenPostState[\s\S]*Phase 7 commands cannot c
 assert.match(client, /scheduleReconnect[\s\S]*connect\(\)/);
 assert.match(client, /const enterQueue = \(\)=>matchmakingRequest\('\/v3\/beta\/matchmaking\/enter'/, 'matchmaking must retain the exact queue payload for recovery');
 assert.match(client, /result\.status === 'idle'[\s\S]*onStatus\(\{status:'waiting', recovered:true\}\)[\s\S]*result = await recoverableRequest\(enterQueue\)/, 'a transient host restart must re-enter a waiting player instead of failing with idle');
+assert.match(client, /let matchmakingGeneration = 0[\s\S]*const generation = \+\+matchmakingGeneration[\s\S]*generation !== matchmakingGeneration/, 'cancelled or superseded matchmaking runs must not revive');
+assert.match(client, /await connect\(matchedCredential\)[\s\S]{0,260}if\(cancelled\(\)\)[\s\S]{0,180}disconnect\(\{forget:true\}\)[\s\S]{0,360}await waitForInitialView\(\)[\s\S]{0,260}if\(cancelled\(\)\)/, 'matchmaking cancellation must fence both connection and pre-mount view loading');
+assert.match(client, /async function leaveMatchmaking\(\)[\s\S]{0,180}matchmakingCancelled = true[\s\S]{0,120}matchmakingGeneration \+= 1/, 'leaving matchmaking must invalidate the active generation synchronously');
 assert.doesNotMatch(client, /FateAuthoritativeV3SinglePlayerScreen/);
 assert.match(client, /FatePhase7CurrentMultiplayerUi/);
 assert.match(client, /waitForInitialView/);
@@ -233,13 +241,18 @@ assert.match(
 );
 assert.match(
   renderingHelpers,
-  /function queueLandscapeOutsideDrawBonus\(player, drawnCard\)\s*\{[\s\S]{0,520}_phase7CurrentMultiplayer === true\) return false/,
-  'West Coast Dreaming must not use the legacy client-owned draw bonus in a Phase 7 match'
+  /function queueLandscapeOutsideDrawBonus\(player, drawnCard, effectActivationId\)\s*\{[\s\S]{0,700}_onlineRoomCode\) return false/,
+  'West Coast Dreaming must not use the legacy client-owned draw bonus in any multiplayer match'
+);
+assert.doesNotMatch(
+  rooms,
+  /LANDSCAPE_OUTSIDE_DRAW_BONUS[\s\S]{0,1200}queueLandscapeOutsideDrawBonus/,
+  'online presentation events must never manufacture a West Coast gameplay prompt'
 );
 assert.match(
   renderingHelpers,
-  /function processLandscapeDrawQueue\(\)\s*\{[\s\S]{0,420}_phase7CurrentMultiplayer === true\)[\s\S]{0,220}_landscapeDrawQueue = \[\]/,
-  'a stale legacy West Coast Dreaming queue must be discarded when Phase 7 authority is active'
+  /function processLandscapeDrawQueue\(\)\s*\{[\s\S]{0,420}_onlineRoomCode\)[\s\S]{0,220}_landscapeDrawQueue = \[\]/,
+  'a stale legacy West Coast Dreaming queue must be discarded whenever multiplayer authority is active'
 );
 assert.match(
   gameplay,
@@ -520,5 +533,9 @@ assert.match(
   /app = 'node server\/authoritative-v3\/phase7-beta-server\.mjs'[\s\S]*FATE_SERVER_AUTHORITATIVE_V3_PHASE7_BETA_ENABLED = '1'/,
   'the default deployment must run only the Phase 7 authoritative server'
 );
+assert.match(rooms, /if\(resultMotionStarted\) await phase7WaitForPresentationIdle[\s\S]*presentationBusy = phase7CurrentUiSession\.presentationQueued > 0[\s\S]*if\(!phase7CurrentUiSession\.presentationBusy\)[\s\S]*phase7SyncInteractionUi\(\)/, 'authoritative pickers must remain gated until all result overlays and cinematics finish');
+assert.match(rooms, /flash\.persistent !== true/, 'persistent Kvetka notes must never enter the transient overlay cache');
+assert.match(rooms, /CONSOLIDATION_FATE_BONUS[\s\S]{0,300}affectedIids[\s\S]{0,300}_persistentEffectOverlay/, 'authoritative Ballad status targets must project persistent card notes');
+assert.match(renderingHelpers, /legacyPersistent[\s\S]{0,500}kind:'kvetka_ballad'[\s\S]{0,200}persistent:true/, 'single-player Ballad targets must retain notes until the active effect is removed');
 
 console.log('authoritative v3 Phase 7 client routing smoke test passed');

@@ -2004,7 +2004,7 @@ const CARD_SOUNDS = {
   '90': '../new voices/90set', '99': '../new voices/99set', '100': '../new voices/100set',
   'bh01': 'bh1', 'bh02': 'bh2', 'bh03': 'bh3', 'bh04': 'bh4', 'bh05': 'bh5', 'bh06': 'bh6', 'bh07': 'bh7', 'bh08': 'bh8', 'bh09': 'bh9', 'bh10': 'bh10', 'bh11': 'bh11', 'bh12': 'bh12', 'bh13': 'bh13', 'bh14': 'bh14', 'bh15': 'bh15', 'bh16': 'bh16', 'bh17': 'bh17', 'bh18': 'bh18', 'bh19': 'bh19', 'bh20': 'bh20', 'bh25': 'bh25set'
 };
-const GAME_SONGS = Array.from({length:20}, (_,i)=>'board'+(i+1));
+const GAME_SONGS = Array.from({length:24}, (_,i)=>'board'+(i+1));
 const GAME_AUDIO_FALLBACKS = {
   board17:'../igb17/board17'
 };
@@ -2090,7 +2090,7 @@ function getIgb17RotationIndex() {
 }
 
 function getGameLandscapeBackgroundPath(bgNum) {
-  const n = Math.max(1, Math.min(20, Number(bgNum) || 1));
+  const n = Math.max(1, Math.min(24, Number(bgNum) || 1));
   let path = '';
   if(n === 17) path = IGB17_BACKGROUND_FILES[getIgb17RotationIndex()] || IGB17_BACKGROUND_FILES[0];
   else if(n === 18) path = 'ingamebackgrouds/igb18.png';
@@ -2226,7 +2226,7 @@ function applyGameBackground(song=null) {
   const board = document.getElementById('board');
   const gameScreen = document.getElementById('s-game');
   const coinScreen = document.getElementById('s-coin');
-  const bgNum = Math.max(1, Math.min(20, parseInt(String(pickedSong).replace('board',''), 10) || 1));
+  const bgNum = Math.max(1, Math.min(24, parseInt(String(pickedSong).replace('board',''), 10) || 1));
   if(typeof initLandscapeForSong === 'function') initLandscapeForSong(pickedSong);
   const bgImg = getGameLandscapeBackgroundPath(bgNum);
   if(board){
@@ -2268,8 +2268,8 @@ function applyGameBackground(song=null) {
 
 function transitionGameLandscape(song, opts = {}) {
   const pickedSong = (song && GAME_SONGS.includes(song)) ? song : pickGameSong();
-  const bgNum = Math.max(1, Math.min(20, parseInt(String(pickedSong).replace('board',''), 10) || 1));
-  if(!opts.remote && opts.sourceCard && String(opts.sourceCard.id || '') === '82' && typeof getFelicitaLandscapeChangeBlockReason === 'function') {
+  const bgNum = Math.max(1, Math.min(24, parseInt(String(pickedSong).replace('board',''), 10) || 1));
+  if(!opts.remote && typeof getFelicitaLandscapeChangeBlockReason === 'function') {
     const reason = getFelicitaLandscapeChangeBlockReason('igb' + bgNum);
     if(reason) {
       if(typeof showFelicitaLandscapeChangeBlockedBanner === 'function') showFelicitaLandscapeChangeBlockedBanner(reason);
@@ -2851,7 +2851,7 @@ function confirmEndGame() {
         const forfeitBgImage = gameScreen ? getComputedStyle(gameScreen).backgroundImage : '';
         const lastBg = window.__fateLastGameBackground || null;
         const forfeitFallbackBg = (!forfeitBgVar && typeof _lastGameSong !== 'undefined' && typeof getGameLandscapeBackgroundPath === 'function')
-          ? `url(${getGameLandscapeBackgroundPath(Math.max(1, Math.min(20, parseInt(String(_lastGameSong || lastBg?.song || 'board1').replace('board',''), 10) || 1)))})`
+          ? `url(${getGameLandscapeBackgroundPath(Math.max(1, Math.min(24, parseInt(String(_lastGameSong || lastBg?.song || 'board1').replace('board',''), 10) || 1)))})`
           : (lastBg?.cssVar || '');
         let eloChange = 0;
         if(G.aiEnabled){
@@ -3210,7 +3210,7 @@ function stopProfilePickerObserver() {
 }
 
 function profilePickerThumbSrc(pfpId) {
-  return `optimized/pfp-thumbs/pfp${Math.max(1, parseInt(pfpId, 10) || 1)}.jpg?v=pfp-picker-20260722a`;
+  return `optimized/pfp-thumbs/pfp${Math.max(1, parseInt(pfpId, 10) || 1)}.jpg?v=pfp-picker-20260831a`;
 }
 
 function openProfileImageEditor() {

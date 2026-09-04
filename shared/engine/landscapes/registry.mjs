@@ -1,6 +1,6 @@
 const LANDSCAPE_RULES = Object.freeze({
   igb1:{kind:'NO_EFFECT'},
-  igb2:{kind:'TURN_CONSOLIDATION_REWARD', resolutionTurn:14, amount:12},
+  igb2:{kind:'TURN_CONSOLIDATION_REWARD', resolutionTurn:14, amount:16},
   igb3:{kind:'CONSOLIDATION_ZONE_FATE_BONUS', amount:4, beforeTurn:10},
   igb4:{kind:'DISCARD_RECOVERY_BLOCK'},
   igb5:{kind:'LEADER_SET_FATE_BONUS', amount:2},
@@ -18,7 +18,11 @@ const LANDSCAPE_RULES = Object.freeze({
   igb17:{kind:'COORDINATOR_COPY_TOKEN', oncePerGame:true},
   igb18:{kind:'DRAW_PHASE_AFFILIATION_FATE_BONUS', affiliation:'expanded_worlds', amount:1},
   igb19:{kind:'HAND_CHARACTER_EXPIRY', ownerTurns:3},
-  igb20:{kind:'TOTAL_FATE_THRESHOLDS', thresholds:[20, 35, 50]}
+  igb20:{kind:'TOTAL_FATE_THRESHOLDS', thresholds:[20, 35, 50]},
+  igb21:{kind:'CATALOG_TO_HAND', maxCards:4, excludeRarity:'star', oncePerGame:true},
+  igb22:{kind:'ZONE_CONSOLIDATION_COST', randomZoneCount:2, amount:1},
+  igb23:{kind:'MORALE_COST_WAIVER_AND_HAND_HEAL', handMultiplier:2},
+  igb24:{kind:'TURN_BOARD_SUPPORTER_FATE_BONUS', resolutionTurn:20, requiredBoardTurns:10, amount:6}
 });
 
 export function landscapeRule(landscapeId){

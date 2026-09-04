@@ -222,7 +222,7 @@ function runGame(gameIndex, settings){
   const eligibleIds = catalog.cards.map(card=>String(card.id)).filter(id=>eligibleSet.has(id));
   const landscapes = multiplayerEligibleLandscapeIds();
   if(eligibleIds.length < 40) throw new Error('authoritative soak requires at least 40 eligible cards');
-  if(landscapes.length !== 20) throw new Error(`authoritative soak expected 20 landscapes, found ${landscapes.length}`);
+  if(landscapes.length !== 24) throw new Error(`authoritative soak expected 24 landscapes, found ${landscapes.length}`);
   const seed = `${settings.seed}:game:${gameIndex}`;
   const landscapeId = landscapes[gameIndex % landscapes.length];
   const offset = (gameIndex * 17) % eligibleIds.length;

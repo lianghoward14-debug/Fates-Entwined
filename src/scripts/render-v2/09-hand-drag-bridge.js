@@ -677,12 +677,34 @@
     return true;
   }
 
+  function isZeroCostAnickaRowDrop(card, hit){
+    if(!card || !hit || hit.kind !== 'cell' || boardCardAt(hit)) return false;
+    const cp = typeof G !== 'undefined' && G ? Number(G.currentPlayer) : -1;
+    const isCharacter = typeof isCardCharacterForRules === 'function'
+      ? isCardCharacterForRules(card, cp)
+      : String(card.type || '') !== 'Supporter';
+    if(!isCharacter || !canPlaceCardOnCell(card, hit)) return false;
+    const generated = Array.isArray(G?.anickaSafeRows) && G.anickaSafeRows.some(function(entry){
+      return Number(entry?.z) === Number(hit.z)
+        && Number(entry?.r) === Number(hit.r)
+        && Number(entry?.owner) === cp;
+    });
+    if(!generated) return false;
+    const baseCost = typeof getDisplayedCardCost === 'function' ? getDisplayedCardCost(card) : Number(card.cost || 0);
+    return typeof getConsolidationCostForZone === 'function'
+      && getConsolidationCostForZone(card, hit.z, cp, baseCost, hit.r, hit.c) <= 0;
+  }
+
   function hitDropState(card, hit){
     if(!card || !hit) return 'invalid';
     if(isBlockedHandSetCard(card)) return 'invalid';
+    if(typeof G !== 'undefined' && G && G._phase7CurrentMultiplayer === true
+      && typeof window.fatePhase7CanDropCardAt === 'function'
+      && window.fatePhase7CanDropCardAt(card, {z:Number(hit.z), r:Number(hit.r), c:Number(hit.c)})) return 'valid';
     const boardCard = boardCardAt(hit);
     if(isFreeSetCard(card)) return canPlaceCardOnCell(card, hit) ? 'valid' : 'invalid';
     if(isDirectSetCard(card)) return canPlaceCardOnCell(card, hit) ? 'valid' : 'invalid';
+    if(isZeroCostAnickaRowDrop(card, hit)) return 'valid';
     if(state && state.card === card && state.canPayReinforcement === false) return 'invalid';
     if(!(state && state.card === card) && !hasEnoughReinforcement(card)) return 'invalid';
     if(!boardCard || boardCard.owner !== G.currentPlayer || boardCard.noConsolidate) return 'invalid';
@@ -1185,7 +1207,14 @@
       cleanup({clearPlacement:true});
       return;
     }
-    if(isDirectSetCard(state.card) || isFreeSetCard(state.card)) finishSupporterDrop(hit);
+    if(isZeroCostAnickaRowDrop(state.card, hit)) {
+      const card = state.card;
+      cleanup({clearPlacement:false});
+      if(typeof window.consolidateZeroCostIntoAnickaRow === 'function') {
+        window.consolidateZeroCostIntoAnickaRow(card, {z:Number(hit.z), r:Number(hit.r), c:Number(hit.c)});
+      }
+    }
+    else if(isDirectSetCard(state.card) || isFreeSetCard(state.card)) finishSupporterDrop(hit);
     else finishConsolidationDrop(hit);
   }
 

@@ -1260,7 +1260,7 @@ textarea.profile-input{resize:vertical;min-height:70px;line-height:1.5;}
 
 .landscape-pella-race{transform:translateY(3px);}
 .landscape-pella-race{border-top:0!important;}
-.landscape-pella-race::before{content:'';position:absolute;left:.6rem;right:.6rem;top:-4px;border-top:1px solid rgba(218,185,82,.16);pointer-events:none;}
+.landscape-pella-race::before{content:none!important;display:none!important;border:0!important;}
 .landscape-pella-race .pella-fate-threshold{font-weight:800;letter-spacing:.04em;}
 .landscape-pella-race .pella-fate-threshold.is-you{color:#72caff;text-shadow:0 0 8px rgba(55,169,255,.42);}
 .landscape-pella-race .pella-fate-threshold.is-opponent{color:#ff727b;text-shadow:0 0 8px rgba(255,72,91,.4);}

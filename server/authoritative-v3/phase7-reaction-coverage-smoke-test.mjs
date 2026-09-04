@@ -23,8 +23,8 @@ const DEFINITIONS = ACTIVE_CARDS.map(card=>({...card}));
 const INVENTORY = cardCoverageInventory(ACTIVE_CARDS);
 const REACTION_CARD_IDS = ['56', '67', '79'];
 const INTERRUPTIBLE_SOURCE_IDS = [
-  '08', '14', '16', '30', '39', '51', '52',
-  '61', '66', '90', '93', '96', 'bh04'
+  '08', '14', '16', '20', '30', '34', '39', '51', '52',
+  '61', '64', '66', '90', '93', '96', 'bh04'
 ];
 
 const reactionCards = INVENTORY.filter(item=>item.abilityTiming.includes('REACTION'));
@@ -43,7 +43,7 @@ assert.deepEqual(
   [...INTERRUPTIBLE_SOURCE_IDS].sort(),
   'the reaction batch must enumerate every non-Improvisor effect declaring a reaction window'
 );
-assert.equal(reactionPromptCards.length, 16);
+assert.equal(reactionPromptCards.length, 19);
 
 function snapshot(value){
   return JSON.parse(stableStringify(value));
@@ -100,7 +100,7 @@ function makeFixture(sourceId, reactorIds = [], suffix = ''){
 function triggerFixture(fixture, sequence = 1){
   const type = fixture.timing === 'ACTIVATE' ? 'ACTIVATE_EFFECT' : 'FLIP_CARD';
   const payload = fixture.timing === 'ACTIVATE'
-    ? {sourceIid:fixture.source.iid}
+    ? {sourceIid:fixture.source.iid, userActivated:true}
     : {cardIid:fixture.source.iid};
   return reduceCommand(
     fixture.state,
@@ -199,7 +199,7 @@ for(const item of interruptibleSources){
     seculesIneligible.push(item.cardId);
   }
 }
-assert.deepEqual(seculesEligible.sort(), ['08', '16', '30', '39', '51', '52', '66', '90', '96', 'bh04'].sort());
+assert.deepEqual(seculesEligible.sort(), ['08', '16', '30', '39', '51', '52', '64', '66', '90', '96', 'bh04'].sort());
 
 // Multiple Improvisors must produce separate legal commands, including the
 // common decline command, without collapsing the identity of either card.

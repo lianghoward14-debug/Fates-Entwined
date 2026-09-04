@@ -126,6 +126,8 @@ assertInvariants(result.state);
 
 // Kazumi: one activation is one effect activation followed by exactly three
 // ordered draw events, which the presentation adapter must animate separately.
+// Only the first card carries activatedEffect=true so draw-trigger landscapes
+// fire once for the draw effect rather than once per card.
 state = stateFor('P7-PRESENT-KAZUMI', ['27', '32', '32', '32', '74']);
 const kazumi = moveToBoard(state, 0, '27', {z:0, r:2, c:0});
 result = reduceCommand(state, command(state, 'p0', 1, 'ACTIVATE_EFFECT', {
@@ -133,10 +135,11 @@ result = reduceCommand(state, command(state, 'p0', 1, 'ACTIVATE_EFFECT', {
 }), {playerId:'p0'});
 assert.equal(result.ok, true);
 assert.equal(result.events.filter(event=>event.type === 'DRAW_EFFECT_ACTIVATED').length, 1);
-const kazumiDraws = result.events.filter(event=>event.type === 'CARD_DRAWN' && event.activatedEffect === true);
+const kazumiDraws = result.events.filter(event=>event.type === 'CARD_DRAWN' && String(event.sourceIid) === String(kazumi.iid));
 assert.equal(kazumiDraws.length, 3, 'Kazumi must produce exactly three draw-animation inputs');
 assert(kazumiDraws.every(event=>String(event.sourceIid) === String(kazumi.iid)));
 assert.equal(new Set(kazumiDraws.map(event=>event.cardIid)).size, 3);
+assert.equal(kazumiDraws.filter(event=>event.activatedEffect === true).length, 1);
 assertInvariants(result.state);
 
 // Selva while active: the source-specific status is visible immediately and

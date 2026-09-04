@@ -1,0 +1,13 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Remaining Free World Clips 482–605</title>
+<style>:root{color-scheme:dark;font-family:Inter,system-ui,sans-serif}body{margin:0;background:radial-gradient(circle at top,#33405f,#090b12 55%);color:#f4f6ff}main{max-width:1120px;margin:auto;padding:40px 22px}h1{margin:0 0 8px;font-size:clamp(28px,5vw,46px)}p{margin:0 0 25px;color:#bcc4da}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:11px}button{min-height:98px;padding:15px;border:1px solid #4c587d;border-radius:14px;background:linear-gradient(145deg,#29324d,#171c2c);color:inherit;text-align:left;cursor:pointer}button:hover{border-color:#90a5ff;transform:translateY(-1px)}button.playing{background:linear-gradient(145deg,#5971c9,#293b78)}button.split{border-color:#9b7b50}b{display:block;font-size:20px}span{color:#bdc5dc;font-size:12px}</style></head>
+<body><main><h1>Remaining clips · 482–605</h1><p>Gold-bordered buttons are proposed parts of an over-merged source clip. Everything else is unchanged.</p><section class="grid" id="board"></section></main>
+<script>
+const splits={482:12,483:6,484:3,493:2,497:2,498:4,501:3,512:8,563:2,586:3};
+const board=document.querySelector('#board');let audio,active;
+function sourceFor(n){if(n<=512)return[3,n-473];return[4,n-512]}
+function add(label,src,isSplit=false){const button=document.createElement('button');if(isSplit)button.className='split';button.innerHTML=`<b>${label}</b><span>Loading duration…</span>`;const probe=new Audio(src);probe.preload='metadata';probe.onloadedmetadata=()=>button.querySelector('span').textContent=probe.duration.toFixed(3)+' seconds';button.onclick=()=>{audio?.pause();active?.classList.remove('playing');audio=new Audio(src);active=button;button.classList.add('playing');audio.onended=()=>button.classList.remove('playing');audio.play()};board.append(button)}
+for(let n=482;n<=605;n++){
+  if(splits[n]){for(let part=1;part<=splits[n];part++){const p=String(part).padStart(2,'0');add(`${n} · part ${part}`,`clips/split-${n}-${p}.mp3?v=3`,true)}continue}
+  const[set,local]=sourceFor(n),id=String(local).padStart(3,'0');add(String(n),`../voice-line-batches/set-${set}/clips/voice-line-${id}.mp3`)
+}
+</script></body></html>

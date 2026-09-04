@@ -465,8 +465,9 @@
       var defaults = {
         username:'Player', bio:'', profileImg:'blank.png', elo:600,
         wins:0, losses:0, level:1, xp:0, totalXp:0, featuredPresets:[],
-        starterChosen:false, ownedCards:{}, ownedPfps:[], starlight:0,
-        unopenedPacks:0, unopenedProfilePacks:0, unopenedFavoredPacks:0,
+        starterChosen:false, ownedCards:{}, ownedPfps:[], ownedMedals:[], displayedMedals:[], warfrontParticipations:0, warfrontWins:0,
+        warfrontRewardReceipts:{}, warfrontMatchReceipts:{}, starlight:0,
+        unopenedPacks:0, unopenedProfilePacks:0, unopenedFavoredPacks:0, unopenedBooster2Packs:0, unopenedBooster3Packs:0,
         challengerElo:600, challengerWins:0, challengerLosses:0,
         humanWins:0, humanLosses:0, matchesPlayed:0,
         challengerPresets:{}, lastFreePackClaim:0, createdAt:Date.now()
@@ -486,6 +487,12 @@
         USER_PROFILE.username = _cloudRepairLegacyUsername(USER_PROFILE.username || USER_PROFILE.displayName, 'Player');
         if(USER_PROFILE.displayName) USER_PROFILE.displayName = _cloudRepairLegacyUsername(USER_PROFILE.displayName, USER_PROFILE.username);
         if(typeof window.fateNormalizeLeaderboardStatsReset === 'function') window.fateNormalizeLeaderboardStatsReset(USER_PROFILE);
+        if(typeof window.fateApplyGlobalChallengerCardReset === 'function'
+          && window.fateApplyGlobalChallengerCardReset(USER_PROFILE)){
+          // Persist the reset marker and emptied Challenger card state so stale
+          // cloud collection data cannot win again on the next launch.
+          setTimeout(cloudSaveProfile, 0);
+        }
       }
       try {
         var storageKey = uid ? 'fate_user_profile_' + uid : 'fate_user_profile';

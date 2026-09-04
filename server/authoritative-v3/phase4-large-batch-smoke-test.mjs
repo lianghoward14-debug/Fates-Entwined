@@ -226,7 +226,10 @@ result = reduceCommand(
   {playerId:'p0'}
 );
 assert.equal(result.ok, true);
-assert(result.state.statuses.some(status=>status.type === 'CONSOLIDATION_FATE_BONUS'));
+const initialBalladStatus = result.state.statuses.find(status=>status.type === 'CONSOLIDATION_FATE_BONUS');
+assert(initialBalladStatus);
+assert.deepEqual(initialBalladStatus.affectedIids, [kvetka.iid], 'Kvetka must retain her music-note overlay while her Ballad status is active');
+assert.equal(boardCard(result.state, kvetka.iid).currentFate, 6, 'Kvetka Ukulele must benefit from the Ballad created by her own consolidation');
 state = result.state;
 const firstBalladCharacter = state.players[0].hand.find(card=>card.id === 'batch-character');
 result = reduceCommand(
@@ -240,6 +243,7 @@ result = reduceCommand(
 );
 assert.equal(result.ok, true);
 assert.equal(boardCard(result.state, firstBalladCharacter.iid).currentFate, 7);
+assert(result.state.statuses.find(status=>status.type === 'CONSOLIDATION_FATE_BONUS')?.affectedIids.includes(firstBalladCharacter.iid), 'later Ballad targets must retain the music-note overlay');
 state = result.state;
 const endingSupporter = state.players[0].hand.find(card=>card.id === '32');
 result = reduceCommand(

@@ -5,7 +5,7 @@ import {
   resolvePhase7GameSettings
 } from './phase7-game-settings.mjs';
 
-assert.equal(PHASE7_MULTIPLAYER_LANDSCAPE_IDS.length, 20);
+assert.equal(PHASE7_MULTIPLAYER_LANDSCAPE_IDS.length, 24);
 
 // Every selected landscape must survive normalization and resolution exactly;
 // no mode is allowed to collapse a valid choice back to Pacifica/igb1.

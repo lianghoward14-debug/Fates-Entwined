@@ -13,13 +13,13 @@ import {multiplayerEligibleCardIds} from '../../shared/engine/cards/registry.mjs
 import {createInitialState, effectiveFate, findBoardCard} from '../../shared/engine/index.mjs';
 
 const eligible = multiplayerEligibleCardIds();
-const landscapes = Array.from({length:20}, (_value, index)=>`igb${index + 1}`);
+const landscapes = Array.from({length:24}, (_value, index)=>`igb${index + 1}`);
 const catalog = validateRuleOracleCatalog(eligible, landscapes);
 assert.equal(catalog.ok, true, catalog.errors.join('\n'));
-assert.equal(catalog.cardCount, 123);
-assert.equal(catalog.landscapeCount, 20);
-assert.equal(Object.keys(CARD_RULE_ORACLE).length, 123);
-assert.equal(Object.keys(LANDSCAPE_RULE_ORACLE).length, 20);
+assert.equal(catalog.cardCount, 125);
+assert.equal(catalog.landscapeCount, 24);
+assert.equal(Object.keys(CARD_RULE_ORACLE).length, 125);
+assert.equal(Object.keys(LANDSCAPE_RULE_ORACLE).length, 24);
 
 for(const id of eligible){
   const rule = cardRuleOracle(id);

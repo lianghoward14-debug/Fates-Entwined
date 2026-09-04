@@ -8,6 +8,7 @@ import {AuthorityV3RoomManager} from './room-manager.mjs';
 import {SQLiteAuthorityStore} from './storage.mjs';
 import {normalizePhase7GameSettings, resolvePhase7GameSettings} from './phase7-game-settings.mjs';
 import {createFlyDataApi} from './fly-data-api.mjs';
+import {chooseStrategicV3AiCommand} from '../../src/scripts/authoritative-v3-ai-policy.mjs';
 
 if(process.env.FATE_SERVER_AUTHORITATIVE_V3_ENABLED !== '1'){
   throw new Error(
@@ -98,6 +99,49 @@ const sockets = new Set();
 const matchSockets = new Map();
 const promptTimers = new Map();
 const turnTimers = new Map();
+const takeoverJobs = new Set();
+function scheduleTakeover(actor){
+  const id=actor.state.matchId;
+  if(actor.state.outcome||takeoverJobs.has(id))return;
+  const seat=Number(actor.state.pendingPrompt?.playerIndex ?? actor.state.pendingHandLimit?.playerIndex ?? (actor.state.phase==='coin'?actor.state.coinFlip?.winner:actor.state.activePlayer));
+  if(!actor.state.aiTakeoverSeats?.includes(seat))return;
+  takeoverJobs.add(id);
+  setTimeout(async()=>{
+    try{
+      const view=actor.snapshotForPlayer(seat);
+      const choice=chooseStrategicV3AiCommand(view.legalCommands,view.state,{playerIndex:seat});
+      if(!choice)return;
+      const result=await actor.dispatch(actor.state.players[seat].id,{...choice,matchId:id,expectedRevision:actor.state.revision,commandId:'takeover:'+id+':'+actor.state.revision});
+      if(result.broadcasts.length)broadcastPrivate(id,result.broadcasts);
+    }catch(error){console.error('Warfront AI takeover failed',error);}
+    finally{takeoverJobs.delete(id);scheduleAuthorityTimers(actor);}
+  },600);
+}
+// Sidecar clock accounting stays outside deterministic engine state/hashes.
+const turnClockUsage = new Map();
+function clockUsage(matchId){
+  if(!turnClockUsage.has(matchId)){
+    let value={consumedMs:[0,0]};
+    try{value=JSON.parse(fs.readFileSync(path.join(DATA_DIR,encodeURIComponent(matchId)+'.clock.json'),'utf8'));}catch(_){}
+    turnClockUsage.set(matchId,value);
+  }
+  return turnClockUsage.get(matchId);
+}
+function settleTurnClock(matchId){
+  const entry=turnTimers.get(matchId);
+  const usage=clockUsage(matchId);
+  if(entry&&!entry.suspended){
+    const remaining=Math.max(0,entry.deadlineAt-Date.now());
+    usage.consumedMs[entry.playerIndex]+=Math.max(0,entry.remainingMs-remaining);
+    entry.remainingMs=remaining;
+    fs.writeFileSync(path.join(DATA_DIR,encodeURIComponent(matchId)+'.clock.json'),JSON.stringify(usage));
+  }
+  return usage;
+}
+function withTurnClock(matchId,message){
+  if(!message?.state)return message;
+  return {...message,state:{...message.state,turnClockUsage:JSON.parse(JSON.stringify(clockUsage(matchId)))}};
+}
 const disconnectForfeitTimers = new Map();
 const betaQueue = new Map(
   BETA_MODE
@@ -184,7 +228,7 @@ function betaCredentialFor(result, uid, queueMode = 'freeplay'){
     playerId:item.playerId,
     playerIndex:item.seat,
     token:item.token,
-    queueMode:queueMode === 'ranked' ? 'ranked' : 'freeplay',
+    queueMode:['ranked','warfront'].includes(queueMode) ? queueMode : 'freeplay',
     protocolVersion:3,
     clientVersion:PHASE7_CLIENT_VERSION
   };
@@ -195,6 +239,7 @@ function betaQueueOpponent(entry){
     candidate.uid !== entry.uid
     && String(candidate.testPool || '') === String(entry.testPool || '')
     && String(candidate.queueMode || 'freeplay') === String(entry.queueMode || 'freeplay')
+    && String(candidate.matchmakingKey || '') === String(entry.matchmakingKey || '')
   ) || null;
 }
 
@@ -203,7 +248,7 @@ function completeBetaQueueMatch(queued){
   if(!opponent) return null;
   const matchId = `BETA_${Date.now().toString(36)}_${crypto.randomBytes(5).toString('hex')}`;
   const gameSettings = resolvePhase7GameSettings(opponent.gameSettings, matchId);
-  const queueMode = queued.queueMode === 'ranked' ? 'ranked' : 'freeplay';
+  const queueMode = ['ranked','warfront'].includes(queued.queueMode) ? queued.queueMode : 'freeplay';
   const result = manager.createMatch({
     mode:queueMode,
     matchId,
@@ -217,8 +262,8 @@ function completeBetaQueueMatch(queued){
         ? {zeroReinforcementCost:true}
         : null,
     players:[
-      {id:opponent.uid, name:opponent.name, rankElo:opponent.rankElo, deckIds:opponent.deckIds, organicFixture:opponent.organicFixture, testOpeningCardIds:opponent.testOpeningCardIds, testDeckCardIds:opponent.testDeckCardIds, testDeckTopCardIds:opponent.testDeckTopCardIds},
-      {id:queued.uid, name:queued.name, rankElo:queued.rankElo, deckIds:queued.deckIds, organicFixture:queued.organicFixture, testOpeningCardIds:queued.testOpeningCardIds, testDeckCardIds:queued.testDeckCardIds, testDeckTopCardIds:queued.testDeckTopCardIds}
+      {id:opponent.uid, name:opponent.name, photoURL:opponent.photoURL, rankElo:opponent.rankElo, deckIds:opponent.deckIds, organicFixture:opponent.organicFixture, testOpeningCardIds:opponent.testOpeningCardIds, testDeckCardIds:opponent.testDeckCardIds, testDeckTopCardIds:opponent.testDeckTopCardIds},
+      {id:queued.uid, name:queued.name, photoURL:queued.photoURL, rankElo:queued.rankElo, deckIds:queued.deckIds, organicFixture:queued.organicFixture, testOpeningCardIds:queued.testOpeningCardIds, testDeckCardIds:queued.testDeckCardIds, testDeckTopCardIds:queued.testDeckTopCardIds}
     ]
   });
   const opponentCredential = betaCredentialFor(result, opponent.uid, queueMode);
@@ -338,10 +383,11 @@ function register(ws, session){
 }
 
 function broadcastPrivate(matchId, broadcasts){
+  settleTurnClock(matchId);
   const players = matchSockets.get(matchId);
   if(!players) return;
   for(const broadcast of broadcasts){
-    for(const ws of players.get(broadcast.playerId) || []) send(ws, broadcast.message);
+    for(const ws of players.get(broadcast.playerId) || []) send(ws, withTurnClock(matchId,broadcast.message));
   }
 }
 
@@ -374,12 +420,14 @@ function schedulePromptTimer(actor){
 }
 
 function clearTurnTimer(matchId){
+  settleTurnClock(matchId);
   const entry = turnTimers.get(matchId);
   if(entry?.timer) clearTimeout(entry.timer);
   turnTimers.delete(matchId);
 }
 
 function suspendTurnTimer(matchId){
+  settleTurnClock(matchId);
   const entry = turnTimers.get(matchId);
   if(!entry || entry.suspended) return;
   if(entry.timer) clearTimeout(entry.timer);
@@ -393,6 +441,7 @@ function armTurnTimer(actor, timeout, delayMs){
   const matchId = actor.state.matchId;
   const remainingMs = Math.max(1, Number(delayMs) || Number(timeout.timeoutMs) || 1);
   const entry = {
+    playerIndex:Number(actor.state.activePlayer),
     timer:null,
     signature:timeout.turnSignature,
     remainingMs,
@@ -400,6 +449,7 @@ function armTurnTimer(actor, timeout, delayMs){
     suspended:false
   };
   entry.timer = setTimeout(async ()=>{
+    settleTurnClock(matchId);
     turnTimers.delete(matchId);
     const current = actor.turnTimeoutCommand();
     if(!current || current.turnSignature !== timeout.turnSignature) return;
@@ -434,6 +484,7 @@ function scheduleTurnTimer(actor){
 }
 
 function scheduleAuthorityTimers(actor){
+  scheduleTakeover(actor);
   schedulePromptTimer(actor);
   if(actor.state.pendingPrompt || actor.state.pendingHandLimit) suspendTurnTimer(actor.state.matchId);
   else scheduleTurnTimer(actor);
@@ -468,7 +519,8 @@ async function handleSocketMessage(ws, message){
       playerId:String(message.playerId),
       playerIndex:Number(credential.seat)
     });
-    send(ws, actor.snapshotForPlayer(Number(credential.seat)));
+    settleTurnClock(actor.state.matchId);
+    send(ws, withTurnClock(actor.state.matchId,actor.snapshotForPlayer(Number(credential.seat))));
     scheduleAuthorityTimers(actor);
     return;
   }
@@ -477,6 +529,10 @@ async function handleSocketMessage(ws, message){
   if(message.kind !== 'command') throw new Error('unknown v3 message kind');
   const actor = manager.actor(session.matchId);
   if(!actor) throw new Error('match not found');
+  if(actor.state.aiTakeoverSeats?.includes(Number(session.playerIndex))){
+    send(ws,{kind:'rejected',rejection:{code:'AI_TAKEOVER',reason:'You forfeited this Warfront match. AI now controls your seat.'}});
+    return;
+  }
   const outcome = await actor.dispatch(session.playerId, message.command);
   if(outcome.idempotentReplay || !outcome.broadcasts.length){
     send(ws, outcome.response);
@@ -545,13 +601,13 @@ function writeJson(res, status, body){
   res.end(json(body));
 }
 
-function readBody(req){
+function readBody(req, maxBytes = MAX_MESSAGE_BYTES){
   return new Promise((resolve, reject)=>{
     const chunks = [];
     let length = 0;
     req.on('data', chunk=>{
       length += chunk.length;
-      if(length > MAX_MESSAGE_BYTES){
+      if(length > maxBytes){
         reject(new Error('request body is too large'));
         req.destroy();
         return;
@@ -570,7 +626,7 @@ function readBody(req){
 }
 
 const flyDataApi = process.env.FATE_FLY_DATA_API_ENABLED === '1'
-  ? createFlyDataApi({readBody, writeJson})
+  ? createFlyDataApi({readBody:req=>readBody(req, 2 * 1024 * 1024), writeJson})
   : {handle:async()=>false, flush:()=>{}, counts:()=>null};
 
 function bearer(req){
@@ -616,10 +672,10 @@ const server = http.createServer(async (req, res)=>{
         matchmakingIdentityMode:BETA_MODE ? 'client-session' : null,
         queuedPlayers:BETA_MODE ? betaQueue.size : 0,
         queuedPlayersByMode:BETA_MODE ? [...betaQueue.values()].reduce((counts, entry)=>{
-          const mode = entry?.queueMode === 'ranked' ? 'challenger' : 'freeplay';
+          const mode = entry?.queueMode === 'ranked' ? 'challenger' : entry?.queueMode === 'warfront' ? 'warfront' : 'freeplay';
           counts[mode] = Number(counts[mode] || 0) + 1;
           return counts;
-        }, {freeplay:0, challenger:0}) : null,
+        }, {freeplay:0, challenger:0, warfront:0}) : null,
         queueStaleMs:BETA_MODE ? PHASE7_QUEUE_STALE_MS : null,
         disconnectForfeitMs:BETA_MODE ? DISCONNECT_FORFEIT_MS : null,
         engineVersion:ENGINE_VERSION,
@@ -687,9 +743,11 @@ const server = http.createServer(async (req, res)=>{
         uid:queuePlayerId,
         authUid:identity.uid,
         name:String(body.name || identity.uid).slice(0, 80),
+        photoURL:String(body.photoURL || '').slice(0, 2048),
         rankElo:Math.max(0, Math.round(Number(body.rankElo) || 600)),
         deckIds,
-        queueMode:String(body.queueMode || '') === 'ranked' ? 'ranked' : 'freeplay',
+        queueMode:['ranked','warfront'].includes(String(body.queueMode || '')) ? String(body.queueMode) : 'freeplay',
+        matchmakingKey:String(body.queueMode || '') === 'warfront' && /^[A-Za-z0-9_.:@|-]{3,180}$/.test(String(body.matchmakingKey || '')) ? String(body.matchmakingKey) : '',
         organicFixture:organicFixtureIdentity,
         gameSettings:normalizePhase7GameSettings(body.gameSettings, body.landscapeId),
         testOpeningCardIds:organicFixtureIdentity && Array.isArray(body.testOpeningCardIds)
@@ -708,6 +766,10 @@ const server = http.createServer(async (req, res)=>{
         joinedAt:Date.now(),
         lastSeenAt:Date.now()
       };
+      if(queued.queueMode === 'warfront' && !queued.matchmakingKey){
+        writeJson(res, 400, {ok:false, error:'Warfront matchmaking requires a valid campaign matchup key'});
+        return;
+      }
       betaQueue.set(queuePlayerId, queued);
       store.upsertBetaMatchmakingEntry(queued);
       const matched = completeBetaQueueMatch(queued);
@@ -758,6 +820,31 @@ const server = http.createServer(async (req, res)=>{
       betaQueue.delete(queuePlayerId);
       store.deleteBetaMatchmakingEntry(queuePlayerId);
       writeJson(res, 200, {ok:true, status:'idle'});
+      return;
+    }
+    const spectatorSnapshotMatch = BETA_MODE
+      ? url.pathname.match(/^\/v3\/beta\/matches\/([^/]+)\/spectator-snapshot$/)
+      : null;
+    if(req.method === 'GET' && spectatorSnapshotMatch){
+      if(!phase7ClientCompatible(req)){
+        writeJson(res, 426, {ok:false, error:'compatible Phase 7 client version is required'});
+        return;
+      }
+      const identity = await phase7Identity(req);
+      if(!identity){
+        writeJson(res, 401, {ok:false, error:'valid client session is required'});
+        return;
+      }
+      const matchId = decodeURIComponent(spectatorSnapshotMatch[1]);
+      const actor = manager.actor(matchId);
+      if(!actor){
+        writeJson(res, 404, {ok:false, error:'match not found'});
+        return;
+      }
+      // This projection is deliberately read-only and contains neither hand.
+      // Warfront chooses and locks board orientation client-side by team, while
+      // the authority never exposes an opponent's private cards to spectators.
+      writeJson(res, 200, {ok:true, ...actor.snapshotForSpectator()});
       return;
     }
     const snapshotMatch = BETA_MODE

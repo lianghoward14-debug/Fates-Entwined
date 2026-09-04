@@ -1,0 +1,412 @@
+[
+  {
+    "id": "482.1",
+    "file": "clips/clip-482-part-01.mp3",
+    "label": "Έτοιμος διοικητά",
+    "kind": "recut",
+    "duration": 2.08
+  },
+  {
+    "id": "482.2",
+    "file": "clips/clip-482-part-02.mp3",
+    "label": "Διατάξτε",
+    "kind": "recut",
+    "duration": 1.02
+  },
+  {
+    "id": "482.3",
+    "file": "clips/clip-482-part-03.mp3",
+    "label": "Διατάξτε",
+    "kind": "recut",
+    "duration": 1.02
+  },
+  {
+    "id": "482.4",
+    "file": "clips/clip-482-part-04.mp3",
+    "label": "Παράγγελμα",
+    "kind": "recut",
+    "duration": 1.02
+  },
+  {
+    "id": "482.5",
+    "file": "clips/clip-482-part-05.mp3",
+    "label": "Παράγγελμα",
+    "kind": "recut",
+    "duration": 1.02
+  },
+  {
+    "id": "482.6",
+    "file": "clips/clip-482-part-06.mp3",
+    "label": "Έτοιμος προς αποχώρηση",
+    "kind": "recut",
+    "duration": 1.24
+  },
+  {
+    "id": "482.7",
+    "file": "clips/clip-482-part-07.mp3",
+    "label": "Έτοιμος προς αποχώρηση",
+    "kind": "recut",
+    "duration": 1.4
+  },
+  {
+    "id": "482.8",
+    "file": "clips/clip-482-part-08.mp3",
+    "label": "Έτοιμος προς αποχώρηση",
+    "kind": "recut",
+    "duration": 1.26
+  },
+  {
+    "id": "483.1",
+    "file": "clips/clip-483-part-01.mp3",
+    "label": "Ακούω",
+    "kind": "recut",
+    "duration": 0.78
+  },
+  {
+    "id": "483.2",
+    "file": "clips/clip-483-part-02.mp3",
+    "label": "Ακούστε",
+    "kind": "recut",
+    "duration": 0.62
+  },
+  {
+    "id": "483.3",
+    "file": "clips/clip-483-part-03.mp3",
+    "label": "Ακούω",
+    "kind": "recut",
+    "duration": 0.62
+  },
+  {
+    "id": "483.4",
+    "file": "clips/clip-483-part-04.mp3",
+    "label": "Ακούστε",
+    "kind": "recut",
+    "duration": 0.57
+  },
+  {
+    "id": "483.5",
+    "file": "clips/clip-483-part-05.mp3",
+    "label": "Ακούω",
+    "kind": "recut",
+    "duration": 0.54
+  },
+  {
+    "id": "483.6",
+    "file": "clips/clip-483-part-06.mp3",
+    "label": "Ακούστε",
+    "kind": "recut",
+    "duration": 0.3
+  },
+  {
+    "id": "483.7",
+    "file": "clips/clip-483-part-07.mp3",
+    "label": "Καλυφθείτε",
+    "kind": "recut",
+    "duration": 0.77
+  },
+  {
+    "id": "483.8",
+    "file": "clips/clip-483-part-08.mp3",
+    "label": "Καλυφθείτε",
+    "kind": "recut",
+    "duration": 0.92
+  },
+  {
+    "id": "483.9",
+    "file": "clips/clip-483-part-09.mp3",
+    "label": "Καλυφθείτε",
+    "kind": "recut",
+    "duration": 0.92
+  },
+  {
+    "id": "483.10",
+    "file": "clips/clip-483-part-10.mp3",
+    "label": "Δέχομαι πυρά",
+    "kind": "recut",
+    "duration": 0.96
+  },
+  {
+    "id": "483.11",
+    "file": "clips/clip-483-part-11.mp3",
+    "label": "Δέχομαι πυρά",
+    "kind": "recut",
+    "duration": 1.12
+  },
+  {
+    "id": "484.1",
+    "file": "clips/clip-484-part-01.mp3",
+    "label": "Δέχομαι πυρά",
+    "kind": "recut",
+    "duration": 0.95
+  },
+  {
+    "id": "484.2",
+    "file": "clips/clip-484-part-02.mp3",
+    "label": "Μην σταματάτε",
+    "kind": "recut",
+    "duration": 0.91
+  },
+  {
+    "id": "484.3",
+    "file": "clips/clip-484-part-03.mp3",
+    "label": "Μην σταματάτε",
+    "kind": "recut",
+    "duration": 0.98
+  },
+  {
+    "id": "485",
+    "file": "../voice-line-batches/set-3/clips/voice-line-012.mp3",
+    "label": "Original — unchanged",
+    "kind": "original"
+  },
+  {
+    "id": "486",
+    "file": "../voice-line-batches/set-3/clips/voice-line-013.mp3",
+    "label": "Original — unchanged",
+    "kind": "original"
+  },
+  {
+    "id": "487",
+    "file": "../voice-line-batches/set-3/clips/voice-line-014.mp3",
+    "label": "Original — unchanged",
+    "kind": "original"
+  },
+  {
+    "id": "488",
+    "file": "../voice-line-batches/set-3/clips/voice-line-015.mp3",
+    "label": "Original — unchanged",
+    "kind": "original"
+  },
+  {
+    "id": "489",
+    "file": "../voice-line-batches/set-3/clips/voice-line-016.mp3",
+    "label": "Original — unchanged",
+    "kind": "original"
+  },
+  {
+    "id": "490",
+    "file": "../voice-line-batches/set-3/clips/voice-line-017.mp3",
+    "label": "Original — unchanged",
+    "kind": "original"
+  },
+  {
+    "id": "491",
+    "file": "../voice-line-batches/set-3/clips/voice-line-018.mp3",
+    "label": "Original — unchanged",
+    "kind": "original"
+  },
+  {
+    "id": "492",
+    "file": "../voice-line-batches/set-3/clips/voice-line-019.mp3",
+    "label": "Original — unchanged",
+    "kind": "original"
+  },
+  {
+    "id": "493.1",
+    "file": "clips/clip-493-part-01.mp3",
+    "label": "Command",
+    "kind": "recut",
+    "duration": 0.76
+  },
+  {
+    "id": "493.2",
+    "file": "clips/clip-493-part-02.mp3",
+    "label": "Command",
+    "kind": "recut",
+    "duration": 1.07
+  },
+  {
+    "id": "493.3",
+    "file": "clips/clip-493-part-03.mp3",
+    "label": "Κρατήσατε αποστάσεις",
+    "kind": "recut",
+    "duration": 1.37
+  },
+  {
+    "id": "494",
+    "file": "../voice-line-batches/set-3/clips/voice-line-021.mp3",
+    "label": "Original — unchanged",
+    "kind": "original"
+  },
+  {
+    "id": "495",
+    "file": "../voice-line-batches/set-3/clips/voice-line-022.mp3",
+    "label": "Original — unchanged",
+    "kind": "original"
+  },
+  {
+    "id": "496",
+    "file": "../voice-line-batches/set-3/clips/voice-line-023.mp3",
+    "label": "Original — unchanged",
+    "kind": "original"
+  },
+  {
+    "id": "497",
+    "file": "../voice-line-batches/set-3/clips/voice-line-024.mp3",
+    "label": "Original — unchanged",
+    "kind": "original"
+  },
+  {
+    "id": "498.1",
+    "file": "clips/clip-498-part-01.mp3",
+    "label": "Command",
+    "kind": "recut",
+    "duration": 1.71
+  },
+  {
+    "id": "498.2",
+    "file": "clips/clip-498-part-02.mp3",
+    "label": "Τους απωθούμε διοικητά",
+    "kind": "recut",
+    "duration": 1.26
+  },
+  {
+    "id": "498.3",
+    "file": "clips/clip-498-part-03.mp3",
+    "label": "Τους απωθούμε διοικητά",
+    "kind": "recut",
+    "duration": 1.11
+  },
+  {
+    "id": "498.4",
+    "file": "clips/clip-498-part-04.mp3",
+    "label": "Τους απωθούμε διοικητά",
+    "kind": "recut",
+    "duration": 1.46
+  },
+  {
+    "id": "499",
+    "file": "../voice-line-batches/set-3/clips/voice-line-026.mp3",
+    "label": "Original — unchanged",
+    "kind": "original"
+  },
+  {
+    "id": "500",
+    "file": "../voice-line-batches/set-3/clips/voice-line-027.mp3",
+    "label": "Original — unchanged",
+    "kind": "original"
+  },
+  {
+    "id": "501.1",
+    "file": "clips/clip-501-part-01.mp3",
+    "label": "Δώστε τους να καταλάβουν",
+    "kind": "recut",
+    "duration": 1.62
+  },
+  {
+    "id": "501.2",
+    "file": "clips/clip-501-part-02.mp3",
+    "label": "Εμπρός",
+    "kind": "recut",
+    "duration": 0.56
+  },
+  {
+    "id": "501.3",
+    "file": "clips/clip-501-part-03.mp3",
+    "label": "Εμπρός",
+    "kind": "recut",
+    "duration": 0.49
+  },
+  {
+    "id": "502",
+    "file": "../voice-line-batches/set-3/clips/voice-line-029.mp3",
+    "label": "Original — unchanged",
+    "kind": "original"
+  },
+  {
+    "id": "503",
+    "file": "../voice-line-batches/set-3/clips/voice-line-030.mp3",
+    "label": "Original — unchanged",
+    "kind": "original"
+  },
+  {
+    "id": "504",
+    "file": "../voice-line-batches/set-3/clips/voice-line-031.mp3",
+    "label": "Original — unchanged",
+    "kind": "original"
+  },
+  {
+    "id": "505",
+    "file": "../voice-line-batches/set-3/clips/voice-line-032.mp3",
+    "label": "Original — unchanged",
+    "kind": "original"
+  },
+  {
+    "id": "506",
+    "file": "../voice-line-batches/set-3/clips/voice-line-033.mp3",
+    "label": "Original — unchanged",
+    "kind": "original"
+  },
+  {
+    "id": "507",
+    "file": "../voice-line-batches/set-3/clips/voice-line-034.mp3",
+    "label": "Original — unchanged",
+    "kind": "original"
+  },
+  {
+    "id": "508",
+    "file": "../voice-line-batches/set-3/clips/voice-line-035.mp3",
+    "label": "Original — unchanged",
+    "kind": "original"
+  },
+  {
+    "id": "509",
+    "file": "../voice-line-batches/set-3/clips/voice-line-036.mp3",
+    "label": "Original — unchanged",
+    "kind": "original"
+  },
+  {
+    "id": "510",
+    "file": "../voice-line-batches/set-3/clips/voice-line-037.mp3",
+    "label": "Original — unchanged",
+    "kind": "original"
+  },
+  {
+    "id": "511",
+    "file": "../voice-line-batches/set-3/clips/voice-line-038.mp3",
+    "label": "Original — unchanged",
+    "kind": "original"
+  },
+  {
+    "id": "512.1",
+    "file": "clips/clip-512-part-01.mp3",
+    "label": "Προχωρείτε",
+    "kind": "recut",
+    "duration": 0.84
+  },
+  {
+    "id": "512.2",
+    "file": "clips/clip-512-part-02.mp3",
+    "label": "Συνεχίσατε",
+    "kind": "recut",
+    "duration": 0.92
+  },
+  {
+    "id": "512.3",
+    "file": "clips/clip-512-part-03.mp3",
+    "label": "Συνεχίσατε",
+    "kind": "recut",
+    "duration": 1.14
+  },
+  {
+    "id": "512.4",
+    "file": "clips/clip-512-part-04.mp3",
+    "label": "Συνεχίσατε",
+    "kind": "recut",
+    "duration": 1.16
+  },
+  {
+    "id": "512.5",
+    "file": "clips/clip-512-part-05.mp3",
+    "label": "Υποχώρηση",
+    "kind": "recut",
+    "duration": 0.86
+  },
+  {
+    "id": "512.6",
+    "file": "clips/clip-512-part-06.mp3",
+    "label": "Υποχώρηση",
+    "kind": "recut",
+    "duration": 1.04
+  }
+]

@@ -87,10 +87,13 @@
           const stats = isAI ? normalizedAIRecordStats(entry) : {wins:recordWins(entry), losses:recordLosses(entry), matchesPlayed:Number(entry.matchesPlayed || 0) || 0};
           const wins = stats.wins;
           const losses = stats.losses;
+          const displayName = nameOf(entry);
           next[uid] = {
             uid:entry.uid || uid,
-            name:entry.name || entry.username || 'Player',
-            username:entry.username || entry.name || 'Player',
+            name:displayName,
+            username:displayName,
+            chosenUsername:entry.chosenUsername || displayName,
+            displayName:entry.displayName || displayName,
             baseCode:entry.baseCode || '',
             photoURL:entry.photoURL || entry.profileImg || 'blank.png',
             profileImg:entry.profileImg || entry.photoURL || 'blank.png',
@@ -381,6 +384,14 @@
     try{ if(window.FateCloudSave) window.FateCloudSave.saveMatchHistory(); }catch(e){}
     return added;
   }
+  async function fetchFlySimulationMatches(){
+    if(!flyLeaderboardEnabled() || !authUid()) return 0;
+    const data = await flyApiRequest(`/api/challenger-ai/matches?limit=75&monthKey=${encodeURIComponent(currentMonthKey())}`).catch(e=>{
+      console.warn('Fly AI match history fetch failed', e);
+      return null;
+    });
+    return appendFlySimulationMatches(data?.matches);
+  }
   function dailyTrueEloFor(rec, day=currentDayKey()){
     const base = Math.max(100, Number(rec.trueElo || rec.elo + 200) || 800);
     const variation = (hashInt(`${rec.name || rec.aiId}:${day}`) % 301) - 150;
@@ -627,6 +638,7 @@
       }
     }
     await fetchFlyLeaderboard().catch(()=>{});
+    await fetchFlySimulationMatches().catch(()=>{});
     return roster.length ? roster : records;
   }
   function isLiveOnlineRoom(room){
@@ -707,6 +719,7 @@
         return null;
       });
       appendFlySimulationMatches(data?.matches);
+      await fetchFlySimulationMatches().catch(()=>{});
       const records = (Array.isArray(data?.roster) ? data.roster : []).map(applySharedAIRecord).filter(Boolean);
       if(records.length){
         window.FATE_SHARED_AI_ROSTER = records;
@@ -835,7 +848,7 @@
     setTimeout(tick, 2500);
     sharedAISimulationTimer = setInterval(tick, 60 * 60 * 1000);
   }
-  async function submitChallengerResult({didWin, opponentUid=null, opponentElo=1000, roomCode='', source='client', oldElo:givenOldElo=null, newElo:givenNewElo=null, delta:givenDelta=null, wins:givenWins=null, losses:givenLosses=null}={}){
+  async function submitChallengerResult({didWin, isDraw=false, opponentUid=null, opponentElo=1000, roomCode='', source='client', eloGainMultiplier=1, oldElo:givenOldElo=null, newElo:givenNewElo=null, delta:givenDelta=null, wins:givenWins=null, losses:givenLosses=null}={}){
     const u=user(); if(!u) return;
     await FO.syncPublicProfile().catch(()=>{});
     const p=profile();
@@ -849,15 +862,16 @@
       const expected=1/(1+Math.pow(10,(Number(opponentElo||1000)-oldElo)/400));
       const score=didWin?1:0;
       const k=didWin?32:40;
-      delta=Math.round(k*(score-expected));
-      if(didWin && delta<=0) delta=1; if(!didWin && delta>=0) delta=-1;
+      delta=isDraw?0:Math.round(k*(score-expected));
+      if(didWin) delta=Math.max(1,Math.round(delta*Math.max(1,Math.min(3,Number(eloGainMultiplier)||1))));
+      if(!isDraw && !didWin && delta>=0) delta=-1;
       newElo=Math.max(0,oldElo+delta);
       if(!flyLeaderboardEnabled() && lp){
         lp.challengerElo=newElo;
-        if(didWin) lp.challengerWins=(lp.challengerWins||0)+1; else lp.challengerLosses=(lp.challengerLosses||0)+1;
+        if(didWin) lp.challengerWins=(lp.challengerWins||0)+1; else if(!isDraw) lp.challengerLosses=(lp.challengerLosses||0)+1;
         lp.matchesPlayed=(Number(lp.matchesPlayed)||0)+1;
         if(source !== 'ai'){
-          if(didWin) lp.humanWins=(Number(lp.humanWins)||0)+1; else lp.humanLosses=(Number(lp.humanLosses)||0)+1;
+          if(didWin) lp.humanWins=(Number(lp.humanWins)||0)+1; else if(!isDraw) lp.humanLosses=(Number(lp.humanLosses)||0)+1;
         }
         if(typeof saveProfile==='function') saveProfile();
       }
@@ -874,10 +888,12 @@
             uid:u.uid,
             profile:publicProfile,
             didWin,
+            isDraw,
             opponentUid,
             opponentElo,
             roomCode,
-            source
+            source,
+            eloGainMultiplier
           }
         });
         if(data?.profile && typeof window.fateApplyServerProfileStats === 'function'){
@@ -961,6 +977,7 @@
     if(typeof window.recordChallengerResult === 'function' && !window.recordChallengerResult._onlineWrapped){
       const orig = window.recordChallengerResult;
       const wrapped = function(didWin, opponentElo, isAI){
+        const options = arguments[3] && typeof arguments[3] === 'object' ? arguments[3] : {};
         const beforeProfile = localProfile();
         const oldElo = Number(beforeProfile.challengerElo || 600);
         const result = orig.apply(this, arguments);
@@ -970,7 +987,9 @@
         if(user()) submitChallengerResult({
           didWin,
           opponentElo,
-          source:isAI?'ai':'human',
+          roomCode:String(options.roomCode || ''),
+          source:String(options.source || (isAI?'ai':'human')),
+          eloGainMultiplier:Math.max(1,Math.min(3,Number(options.eloGainMultiplier)||1)),
           oldElo,
           newElo,
           delta:Number.isFinite(delta) ? delta : newElo - oldElo,

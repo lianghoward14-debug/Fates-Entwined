@@ -40,7 +40,7 @@ function validatePlayer(player, seat){
   const testDeckTopCardIds = Array.isArray(player?.testDeckTopCardIds)
     ? player.testDeckTopCardIds.map(String).filter(Boolean).slice(0, 2)
     : [];
-  return {id, name:String(player?.name || `Player ${seat + 1}`).slice(0, 80), rankElo:Math.max(0, Math.round(Number(player?.rankElo) || 600)), deckIds, testOpeningCardIds, testDeckCardIds, testDeckTopCardIds};
+  return {id, name:String(player?.name || `Player ${seat + 1}`).slice(0, 80), photoURL:String(player?.photoURL || '').slice(0, 2048), rankElo:Math.max(0, Math.round(Number(player?.rankElo) || 600)), deckIds, testOpeningCardIds, testDeckCardIds, testDeckTopCardIds};
 }
 
 function forceTestOpeningCards(state, players){
@@ -217,6 +217,7 @@ export class AuthorityV3RoomManager {
         ? {zeroReinforcementCost:true}
         : null
     });
+    state.warfrontMatch = input.mode === 'warfront';
     if(this.allowOrganicTestFixtures){
       forceTestOpeningCards(state, players);
       forceTestDeckCards(state, players);

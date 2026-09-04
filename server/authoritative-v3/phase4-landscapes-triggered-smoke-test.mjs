@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {
   assertInvariants,
   createInitialState,
+  queueLandscapeRuleEventFrame,
   reduceCommand,
   stableStringify
 } from '../../shared/engine/index.mjs';
@@ -67,6 +68,53 @@ assert.equal(result.ok, true);
 assert.equal(result.state.board[0][2][0].currentFate, beforeDreamFate + 3);
 assert.equal(result.state.pendingPrompt, null);
 assert.equal(result.state.effectStack.length, 0);
+
+// A multi-card effect draw still opens only one West Coast Dreaming prompt.
+state = stateFor('igb9', 'P4LAND-IGB9-MULTI');
+const multiDreamTarget = takeFromPileToBoard(state, 0, 'deck', {z:0, r:2, c:0});
+const beforeMultiDreamFate = multiDreamTarget.currentFate;
+result = reduceCommand(
+  state,
+  command(state, 'p0', 1, 'DRAW_CARD', {
+    playerIndex:0,
+    count:2,
+    activatedEffect:true
+  }),
+  {playerId:'p0', allowDebugCommands:true}
+);
+assert.equal(result.ok, true);
+assert.equal(result.prompt.type, 'BOARD_TARGET');
+state = JSON.parse(stableStringify(result.state));
+result = reduceCommand(
+  state,
+  command(state, 'p0', 2, 'ANSWER_PROMPT', {
+    promptId:state.pendingPrompt.promptId,
+    selectedIid:multiDreamTarget.iid
+  }),
+  {playerId:'p0'}
+);
+assert.equal(result.ok, true);
+assert.equal(result.state.board[0][2][0].currentFate, beforeMultiDreamFate + 3);
+assert.equal(result.state.pendingPrompt, null, 'multi-card draw must not queue a second West Coast prompt');
+assert.equal(result.state.effectStack.length, 0, 'multi-card draw resolves exactly one West Coast frame');
+
+// Multiple DRAW_CARD operations belonging to the same effect activation also
+// resolve West Coast Dreaming only once. This covers effects/copies whose
+// program emits individual draws instead of one count-N operation.
+state = stateFor('igb9', 'P4LAND-IGB9-SPLIT-DRAW');
+takeFromPileToBoard(state, 0, 'deck', {z:0, r:2, c:0});
+const splitDrawEvent = {
+  type:'CARD_DRAWN',
+  playerIndex:0,
+  activatedEffect:true,
+  sourceIid:'kazumi-source-1',
+  effectActivationId:'split-draw-frame-1'
+};
+queueLandscapeRuleEventFrame(state, splitDrawEvent);
+assert.equal(state.effectStack.length, 1);
+queueLandscapeRuleEventFrame(state, {...splitDrawEvent, effectActivationId:'split-draw-frame-2'});
+queueLandscapeRuleEventFrame(state, {...splitDrawEvent, effectActivationId:'split-draw-frame-3'});
+assert.equal(state.effectStack.length, 1, 'one effect activation must queue exactly one West Coast frame');
 
 // An ordinary draw-phase draw does not invoke West Coast Dreaming.
 state = stateFor('igb9', 'P4LAND-IGB9-NORMAL');

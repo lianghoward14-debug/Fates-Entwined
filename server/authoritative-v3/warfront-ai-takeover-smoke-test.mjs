@@ -1,0 +1,31 @@
+import assert from 'node:assert/strict';
+import {reduceCommand,projectStateForPlayer,legalCommandTemplates} from '../../shared/engine/index.mjs';
+import {testState,command} from './test-helpers.mjs';
+import {chooseStrategicV3AiCommand} from '../../src/scripts/authoritative-v3-ai-policy.mjs';
+let state=testState({player0:['27'],player1:['27']});
+state.warfrontMatch=true;
+let result=reduceCommand(state,command(state,'p0',1,'CONCEDE'),{playerId:'p0'});
+assert.equal(result.ok,true);
+assert.equal(result.state.outcome,null);
+assert.deepEqual(result.state.aiTakeoverSeats,[0]);
+assert(result.events.some(e=>e.type==='WARFRONT_AI_TAKEOVER'));
+state=result.state;
+const view=projectStateForPlayer(state,0);
+assert.deepEqual(view.aiTakeoverSeats,[0]);
+const choice=chooseStrategicV3AiCommand(legalCommandTemplates(state,0),view,{playerIndex:0});
+assert(choice&&choice.type!=='CONCEDE');
+result=reduceCommand(state,command(state,'p0',2,choice.type,choice.payload),{playerId:'p0'});
+assert.equal(result.ok,true,'AI must submit a legal move after takeover');
+state=result.state;
+for(let i=3;i<500&&!state.outcome;i++){
+  const seat=Number(state.pendingPrompt?.playerIndex??state.pendingHandLimit?.playerIndex??state.activePlayer);
+  const action=chooseStrategicV3AiCommand(legalCommandTemplates(state,seat),projectStateForPlayer(state,seat),{playerIndex:seat});
+  assert(action,'continued match must have a legal AI action');
+  const next=reduceCommand(state,command(state,state.players[seat].id,i,action.type,action.payload),{playerId:state.players[seat].id});
+  assert.equal(next.ok,true);state=next.state;
+}
+assert(state.outcome,'AI-controlled continuation must finish');
+const normal=testState();
+result=reduceCommand(normal,command(normal,'p0',1,'CONCEDE'),{playerId:'p0'});
+assert.equal(result.state.outcome.type,'CONCEDED');
+console.log('Warfront AI takeover smoke test passed');

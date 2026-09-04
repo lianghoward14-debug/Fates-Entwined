@@ -1660,14 +1660,14 @@
     '04','10','14','16','17','18','21','26','30','31','36','39','50','52','53','61','62','64','71','72'
   ]);
   const ONLINE_SECULES_WHEN_SET_IDS = new Set([
-    '02','03','04','05','06','07','08','12','13','14','16','17','18','21','22','25','26','27','29','30','31','32','33','34','35','37','38','39','40','42','43','45','46','48','50','51','52','54','56','58','60','61','62','66','68','69','71','72','73','75','76','77','80','84','91','94','bh09','bh25'
+    '02','03','04','05','06','07','08','12','13','14','16','17','18','21','22','25','26','27','29','30','31','32','33','34','35','37','38','39','40','42','43','45','46','48','50','51','52','54','56','58','60','61','62','66','68','69','71','72','73','75','76','77','80','84','91','94','bh09','bh23','bh24','bh25'
   ]);
   const resumedOnlinePlacementReactionPrompts = new Set();
 
   function onlinePlacementReactionSourceIsImmune(card){
     if(!card || card.faceDown) return true;
     const id = String(card.id || '');
-    return id === '20' || id === '70' || id === '76' || id === 'bh01' || card.immuneFlag === true || card.opponentEffectImmune === true;
+    return id === '70' || id === '76' || id === 'bh01' || card.immuneFlag === true || card.opponentEffectImmune === true;
   }
   function forEachOnlineBoardEntry(g, callback){
     (Array.isArray(g?.board) ? g.board : []).forEach(function(zone, z){
@@ -2743,7 +2743,10 @@
           const flash = typeof window.getActiveCardEffectFlash === 'function'
             ? window.getActiveCardEffectFlash(card)
             : card._effectFlash;
-          if(iid && flash) flashes.set(iid, cloneOnlinePlain(flash));
+          // Canonical Kvetka notes are derived from the live Ballad status.
+          // Never copy them into the transient flash cache or a removed status
+          // can be resurrected visually after a Supporter breaks the effect.
+          if(iid && flash && flash.persistent !== true) flashes.set(iid, cloneOnlinePlain(flash));
         });
       });
     });
@@ -3132,6 +3135,24 @@
     promptMissingSince:0,
     aliTransferPendingIids:new Set()
   };
+  let phase7PendingWhiteboardCatalogIds = null;
+  let phase7PendingWhiteboardCatalogTimer = null;
+  function phase7FlushPendingWhiteboardCatalog(){
+    if(!Array.isArray(phase7PendingWhiteboardCatalogIds)) return false;
+    if(!phase7CurrentUiSession.mounted || !phase7CurrentUiSession.adapter){
+      if(!phase7PendingWhiteboardCatalogTimer){
+        phase7PendingWhiteboardCatalogTimer = setTimeout(function(){
+          phase7PendingWhiteboardCatalogTimer = null;
+          phase7FlushPendingWhiteboardCatalog();
+        }, 50);
+      }
+      return false;
+    }
+    const ids = phase7PendingWhiteboardCatalogIds.slice();
+    phase7PendingWhiteboardCatalogIds = null;
+    phase7SubmitCommand({type:'ACTIVATE_LANDSCAPE', payload:{cardIds:ids}});
+    return true;
+  }
   function phase7CurrentUiActive(){
     return !!(phase7CurrentUiSession.mounted && phase7CurrentUiSession.adapter && phase7CurrentUiSession.view);
   }
@@ -3150,9 +3171,22 @@
       next.owner = projectedController;
       next.controller = projectedController;
     }
+      const cardIid = String(card.iid || '');
+      const hasActiveBalladOverlay = cardIid && Array.isArray(projectedState?.statuses)
+        && projectedState.statuses.some(function(status){
+          return String(status?.type || '') === 'CONSOLIDATION_FATE_BONUS'
+            && Array.isArray(status.affectedIids)
+            && status.affectedIids.some(function(iid){ return String(iid) === cardIid; });
+        });
+      if(hasActiveBalladOverlay){
+        next._persistentEffectOverlay = {kind:'kvetka_ballad', label:'A Noble Effort at a Ballad'};
+      }
       next.aff = String(card.affiliation || card.aff || '');
       next.fate = Number(card.baseFate ?? card.fate ?? card.currentFate ?? 0) || 0;
       next.currentFate = Number(card.currentFate ?? next.fate) || 0;
+      if(String(card.id || '') === 'bh02'){
+        next._joieProcCount = Math.max(0, Math.floor(Number(card.counters?.joieProcCount) || 0));
+      }
       const permanentFateCeiling = Number(card.counters?.permanentFateCeiling);
       if(Number.isFinite(permanentFateCeiling)){
         // Preserve legacy save metadata while the actual overflow reduction is
@@ -3163,6 +3197,14 @@
         next._permanentFateDebuffed = true;
       }
       const statuses = Array.isArray(card.statuses) ? card.statuses.map(String) : [];
+      const fieldEnteredTurn = Number(card.counters?.fieldEnteredTurn);
+      if(Number.isFinite(fieldEnteredTurn)) next._setTurn = fieldEnteredTurn;
+      if(card.counters?.igb24DawnFateGranted === true) next._igb24DawnFateGranted = true;
+      if(statuses.includes('IMMUNE_TO_OPPONENT_EFFECTS')) next._igb24OpponentEffectImmune = true;
+      if(statuses.includes('IMMUNE_TO_ALL_EFFECTS') || statuses.includes('EFFECT_IMMUTABLE')){
+        next.immuneFlag = true;
+        next.cantBeReduced = true;
+      }
       const adaptiveDefinition = (typeof ACHILLES_ADAPTIVE_TOKEN_DEFINITIONS !== 'undefined'
         && Array.isArray(ACHILLES_ADAPTIVE_TOKEN_DEFINITIONS))
         ? ACHILLES_ADAPTIVE_TOKEN_DEFINITIONS.find(function(definition){
@@ -3417,7 +3459,7 @@
   }
   function phase7LandscapeNumber(landscapeId){
     const match = String(landscapeId || '').match(/(\d+)$/);
-    return match ? Math.max(1, Math.min(20, Number(match[1]) || 1)) : 1;
+    return match ? Math.max(1, Math.min(24, Number(match[1]) || 1)) : 1;
   }
   function phase7GeometryToLegacy(projected){
     const geometry = projected?.geometry || {};
@@ -3431,6 +3473,7 @@
     });
     const extraRowOwners = [[], [], []];
     const markSafeSquares = [];
+    const anickaSafeRows = [];
     const playable = Array.isArray(geometry.playableExtraSquares)
       ? geometry.playableExtraSquares
       : [];
@@ -3447,6 +3490,19 @@
           });
         });
         extraRowOwners[z][offset] = fullRow && [0, 1].includes(owner) ? owner : null;
+        const anickaSquare = squares.find(function(square){
+          const sourceIid = String(square?.sourceIid || '');
+          return sourceIid && (board || []).some(function(zone){
+            return (zone || []).some(function(row){
+              return (row || []).some(function(card){
+                return String(card?.iid || '') === sourceIid && String(card?.id || '') === '02';
+              });
+            });
+          });
+        });
+        if(anickaSquare && [0, 1].includes(owner)){
+          anickaSafeRows.push({z, r, owner, sourceIid:String(anickaSquare.sourceIid || '')});
+        }
         if(!fullRow){
           squares.forEach(function(square){
             const squareOwner = Number(square?.owner);
@@ -3466,7 +3522,7 @@
       const fullOwners = owners.filter(function(owner){ return [0, 1].includes(owner); });
       return fullOwners.length === 1 && owners.length === 1 ? fullOwners[0] : null;
     });
-    return {extraRows, extraRowOwners, extraRowFullOwners, markSafeSquares};
+    return {extraRows, extraRowOwners, extraRowFullOwners, markSafeSquares, anickaSafeRows};
   }
   window.fatePhase7GeometryToLegacy = phase7GeometryToLegacy;
   function phase7ProjectionToLegacy(view){
@@ -3567,6 +3623,20 @@
           sourceIid:String(status.sourceIid || '')
         };
       });
+    const legacyLandscapeState = cloneOnlinePlain(projected.landscapeState || {});
+    if(String(projected.landscapeId || '') === 'igb21'){
+      legacyLandscapeState.igb21CatalogUses = cloneOnlinePlain(
+        projected.landscapeState?.oncePerGameUses || [0, 0]
+      );
+    }
+    // The shipping Pella panel predates the authority schema. Preserve the
+    // canonical claims under its legacy field name for both player views so
+    // an opponent's threshold win receives the red/blue race color too.
+    if(String(projected.landscapeId || '') === 'igb20'){
+      legacyLandscapeState.igb20FateThresholdClaims = cloneOnlinePlain(
+        projected.landscapeState?.fateThresholdClaims || {}
+      );
+    }
     return {
       v:3,
       players,
@@ -3579,6 +3649,7 @@
       extraRowOwners:legacyGeometry.extraRowOwners,
       extraRowFullOwners:legacyGeometry.extraRowFullOwners,
       markSafeSquares:legacyGeometry.markSafeSquares,
+      anickaSafeRows:legacyGeometry.anickaSafeRows,
       blockedCells,
       currentPlayer:Number(projected.activePlayer) === 1 ? 1 : 0,
       _coinWinner:[0, 1].includes(Number(projected.coinFlip?.winner)) ? Number(projected.coinFlip.winner) : null,
@@ -3593,7 +3664,7 @@
       landscapeBgNum,
       _turnTimerSeconds:Math.max(30, Math.min(600, Math.round(Number(projected.turnTimerSeconds) || 180))),
       _freePlayGameSettings:cloneOnlinePlain(projected.gameSettings || null),
-      _landscapeState:cloneOnlinePlain(projected.landscapeState || {}),
+      _landscapeState:legacyLandscapeState,
       _moralePressure:cloneOnlinePlain(projected.moralePressure || null),
       maxSupportsPerTurn:Math.max(0, Number(projected.baseSupportersPerTurn) || 0),
       supportsPlacedThisTurn:Number(projected.supportersSetThisTurn?.[projected.activePlayer] || 0) || 0,
@@ -3620,6 +3691,10 @@
       _phase7Outcome:cloneOnlinePlain(projected.outcome || null),
       _phase7Geometry:cloneOnlinePlain(projected.geometry || null),
       _phase7Statuses:cloneOnlinePlain(projected.statuses || []),
+      // Canonical statuses own Ballad in authoritative matches. Always clear
+      // the legacy mirror when projecting a snapshot so a reused G object
+      // cannot carry Kvetka's status banner into the next match.
+      _balladEffects:[[], []],
       _blameGameEffects:blameGameEffects,
       _administrativeBloatEffects:administrativeBloatEffects,
       _selvaSupportBoosts:selvaSupportBoosts,
@@ -3963,6 +4038,30 @@
     inflight.set(key, promise);
     return promise;
   }
+  window.fatePhase7SubmitWhiteboardCatalog = function(cardIds, options){
+    // The shipping catalog modal can survive a transient UI remount while the
+    // authoritative adapter and canonical view remain ready. Requiring the
+    // mounted paint flag here incorrectly fell through to legacy hand mutation.
+    // Selection is made from the immutable local catalog, so dispatch does not
+    // depend on a simultaneously painted canonical view. During a snapshot
+    // commit `view` can briefly be null even though the authoritative adapter
+    // remains mounted and fully able to submit the command.
+    const ids = Array.isArray(cardIds) ? cardIds.map(String).filter(Boolean) : [];
+    if(ids.length < 1 || ids.length > 4) return false;
+    const g = gameState();
+    const authoritativeMatch = !!(options?.authoritativeIntent === true
+      || phase7CurrentUiSession.adapter
+      || g?._phase7CurrentMultiplayer === true
+      || g?._phase7AuthorityMatchId
+      || g?._onlineRoomCode);
+    if(!authoritativeMatch) return false;
+    // Closing the catalog can coincide with a canonical UI remount. Retain the
+    // user's authoritative intent across that short gap instead of falling
+    // through to the retired optimistic hand-mutation route.
+    phase7PendingWhiteboardCatalogIds = ids;
+    phase7FlushPendingWhiteboardCatalog();
+    return true;
+  };
   function phase7ChooseCommand(matches, label, options){
     const choices = Array.isArray(matches) ? matches.filter(Boolean) : [];
     if(choices.length === 1) return phase7SubmitCommand(choices[0], options);
@@ -4097,11 +4196,12 @@
     const selectedReinforcement = (con.chosenIdxs || []).reduce(function(total, index){
       return total + Math.max(0, Number(con.allPossible?.[index]?.reinforcement) || 0);
     }, 0);
+    const displayCost = Number(con.cost || 0);
     // The shipping highlighter uses a cost threshold.  Preserve the actual
     // reinforcement values from the server-issued tribute combinations rather
     // than treating every tribute as worth one.  Blue is reserved for an exact
     // legal combination; gold remains the partial-selection state.
-    con._phase7VisualReady = exact.length > 0 && selectedReinforcement >= Number(con.cost || 0);
+    con._phase7VisualReady = exact.length > 0;
     if(typeof window.highlightTributeCards === 'function') window.highlightTributeCards();
     try{
       if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function'){
@@ -4112,7 +4212,7 @@
     if(hint){
       hint.textContent = exact.length
         ? 'Ready: click a selected tribute to place ' + String(con.card?.name || 'the Character') + '.'
-        : 'Select cards to consolidate ' + String(con.card?.name || 'the Character') + ' (' + selectedReinforcement + '/' + con.cost + ' reinforcement).';
+        : 'Select cards to consolidate ' + String(con.card?.name || 'the Character') + ' (' + selectedReinforcement + '/' + displayCost + ' reinforcement).';
     }
     return true;
   }
@@ -4509,6 +4609,7 @@
     // intentionally retain the single-player "Activate Effect" label.
     if(String(card?.id || '') === '93') return {label:'Snowball Fight', prompt:'Snowball Fight'};
     if(String(card?.id || '') === 'bh16') return {label:'Storm of Ten Thousand Blades', prompt:'Storm of Ten Thousand Blades'};
+    if(String(card?.id || '') === '20') return {label:'Shield Wall', prompt:'Shield Wall'};
     return {label:'Activate Effect', prompt:'Activate Effect'};
   }
   function phase7AliTransferPending(card){
@@ -4614,6 +4715,13 @@
       return command?.type === 'CONSOLIDATE_CARD' && String(command?.payload?.cardIid || '') === iid;
     });
     if(consolidations.length){
+      const directZeroCost = consolidations.filter(function(command){
+        return !(command?.payload?.tributeIids || []).length
+          && phase7SameDestination(command?.payload?.destination, destination);
+      });
+      if(directZeroCost.length){
+        return phase7ChooseCommand(directZeroCost, 'Consolidate Card');
+      }
       const g = gameState();
       const droppedOn = g?.board?.[Number(destination.z)]?.[Number(destination.r)]?.[Number(destination.c)] || null;
       const droppedOnIid = String(droppedOn?.iid || '');
@@ -4627,6 +4735,16 @@
     }
     if(window.toast) toast('That card cannot be played there.');
     return true;
+  }
+  function phase7CanDropCardAt(card, destination){
+    if(!phase7CurrentUiActive() || !card || !destination) return false;
+    const iid = String(card.iid || '');
+    return phase7CurrentCommands().some(function(command){
+      if(!['SET_CARD','SET_ADAPTIVE_TOKEN','CONSOLIDATE_CARD'].includes(String(command?.type || ''))) return false;
+      if(String(command?.payload?.cardIid || '') !== iid) return false;
+      if(!phase7SameDestination(command?.payload?.destination, destination)) return false;
+      return command.type !== 'CONSOLIDATE_CARD' || !(command?.payload?.tributeIids || []).length;
+    });
   }
   function phase7CommandLabel(command){
     const payload = command?.payload || {};
@@ -5439,13 +5557,9 @@
       }else if(window.toast) toast('That target combination is not legal.');
     };
     withOnlinePromptBypass(gameState(), function(){
-      if(pickerZones.length === 1 && !opts.squareTargets && typeof window.showZonePicker === 'function'){
-        const source = phase7FindAnyCard(prompt?.sourceIid);
-        window.showZonePicker(pickerZones[0], opts.prompt || 'Choose the required targets.', entries,
-          Math.max(1, Number(opts.maxCount) || 1), Number(phase7CurrentUiSession.view?.playerIndex),
-          acceptChosen, null, cancelPicker, source);
-        return;
-      }
+      // Use one immediate authoritative picker even when every target happens
+      // to be in one zone. The older compact zone picker mounts after an
+      // animation delay, during which an incidental board click can replace it.
       window.showBoardTargetPicker({
         pickerClass:'phase7-authoritative-board-picker',
         title:opts.title || 'Resolve Effect',
@@ -5454,6 +5568,7 @@
         zones:pickerZones,
         minCount:Math.max(0, Number(opts.minCount) || 0),
         maxCount:Math.max(1, Number(opts.maxCount) || 1),
+        immediate:true,
         confirmLabel:'Confirm',
         viewerPlayerIndex:Number(phase7CurrentUiSession.view?.playerIndex),
         showZoneTitles:true,
@@ -6001,6 +6116,7 @@
       const event = events[index];
       const eventType = String(event?.type || '').toUpperCase();
       if(eventType !== 'EFFECT_ACTIVATED' && eventType !== 'EFFECT_REACTED') continue;
+      if(eventType === 'EFFECT_ACTIVATED' && event?.suppressActivationCinematic === true) continue;
       const sourceIid = eventType === 'EFFECT_REACTED' ? event?.reactionIid : event?.sourceIid;
       const source = phase7PresentationCard(phase7FindAnyCard(sourceIid)) || phase7FindProjectedEntry(view, sourceIid)?.card;
       if(!source || typeof window.showEffectActivationCinematic !== 'function') continue;
@@ -6061,7 +6177,8 @@
       'bh07':{kind:'bh07_overclock', label:'Overclock'},
       'bh08':{kind:'bh08_mischief', label:'Mischievous Activities'},
       'bh17':{kind:'bh17_crushing_momentum', label:'Crushing Momentum'},
-      'bh25':{kind:'jimmy_wrath', label:'Left Hook of the Incel'}
+      'bh24':{kind:'bh24_winter_star', label:'Defense in Depth'},
+      'bh25':{kind:'alpine_engineer_proc', label:"An Engineer's Ambition"}
     };
     if(type === 'EFFECT_ACTIVATED'){
       // Snowball Fight's visible status belongs on the hit target, not the
@@ -6069,7 +6186,7 @@
       // The 17th Regiment and Isaac Perez follow the same rule: their icon
       // describes the selected card's Fate result, never the source card's
       // activation. Their subsequent FATE_CHANGED event owns the target icon.
-      if(sourceId === '93' || sourceId === '31' || sourceId === '05' || sourceId === '22' || sourceId === '83') return null;
+      if(sourceId === '93' || sourceId === '31' || sourceId === '05' || sourceId === '22' || sourceId === '83' || sourceId === 'bh24') return null;
       return bySourceId[sourceId] || null;
     }
     if(type !== 'FATE_CHANGED') return null;
@@ -6516,7 +6633,15 @@
           return ['FATE_CHANGED','CARD_MOVED'].includes(candidateType)
             && String(candidate?.sourceIid || '') === String(event?.sourceIid || '');
         });
-        if(!sourceHasResultOverlay && source) phase7ShowExactEffectOverlay(view, event, source, eventIndex);
+        const explicitOverlayIid = String(event?.overlayTargetIid || event?.targetIid || '');
+        const explicitOverlayTarget = explicitOverlayIid
+          ? (phase7PresentationCard(phase7FindAnyCard(explicitOverlayIid))
+            || phase7FindProjectedEntry(view, explicitOverlayIid)?.card)
+          : null;
+        const overlayTarget = explicitOverlayTarget || source;
+        if((event?.forceEffectOverlay === true || !sourceHasResultOverlay) && overlayTarget){
+          phase7ShowExactEffectOverlay(view, event, overlayTarget, eventIndex);
+        }
         return;
       }
       if(type === 'CARD_DRAWN'
@@ -6675,9 +6800,18 @@
           : (hasSequentialFateRiders
             ? Math.max(fateBefore, fateAfter - bh15Bonus - highTBonus)
             : fateAfter);
-        const exactOverlayDescriptor = !isBh15AuraFollowUp
+        let exactOverlayDescriptor = !isBh15AuraFollowUp
           ? phase7ExactEffectOverlayDescriptor(view, event, target)
           : null;
+        if(exactOverlayDescriptor && Number(event?.presentationDelayMs) > 0){
+          const delayedDescriptor = exactOverlayDescriptor;
+          const delayedTargetIid = String(target.iid || '');
+          setTimeout(function(){
+            const delayedTarget = phase7PresentationCard(phase7FindAnyCard(delayedTargetIid)) || target;
+            if(delayedTarget) phase7ShowExactEffectOverlay(view, event, delayedTarget, eventIndex, Date.now());
+          }, Math.max(0, Number(event.presentationDelayMs) || 0));
+          exactOverlayDescriptor = null;
+        }
         let pairedOverlayQueued = false;
         if(exactOverlayDescriptor && exactOverlayDescriptor.kind !== 'snowball' && baseFateAfter > fateBefore && typeof window.queuePairedOverlayFateGain === 'function'){
           const displayedFateBefore = pos?.zone === 'board' && typeof getEffectiveFate === 'function'
@@ -6699,6 +6833,7 @@
             soundKey:['phase7', batchId, 'paired', String(event?.eventId || event?.id || eventIndex), exactOverlayDescriptor.kind].join(':')
           });
           if(pairedOverlayQueued){
+            resultMotionStarted = true;
             target._suppressNextFatePulse = true;
             const pairedLiveTarget = phase7FindAnyCard(target?.iid);
             if(pairedLiveTarget) pairedLiveTarget._suppressNextFatePulse = true;
@@ -6714,6 +6849,7 @@
             finalValue:fateAfter,
             delayMs:820
           });
+          resultMotionStarted = true;
           target._suppressNextFatePulse = true;
           const highTLiveTarget = phase7FindAnyCard(target?.iid);
           if(highTLiveTarget) highTLiveTarget._suppressNextFatePulse = true;
@@ -6726,6 +6862,7 @@
             finalValue:fateAfter,
             delayMs:highTBonus > 0 ? 4380 : 820
           });
+          resultMotionStarted = true;
           // The canonical view already contains Hseih-Ling's permanent bonus.
           // Suppress its generic reconciliation pulse; the queued +1 pulse is
           // the only presentation of that bonus and is synchronized to overlay.
@@ -6910,6 +7047,8 @@
   }
   function phase7RenderAuthoritativeOutcome(view, outcome){
     if(!view?.state || !outcome) return false;
+    let warfrontCompletion = null;
+    try { warfrontCompletion = window.fateCompleteWarfrontMatch?.(view, outcome) || null; } catch(error) { console.warn('Warfront match reporting failed', error); }
     const localIndex = Number(view.playerIndex) === 1 ? 1 : 0;
     const winner = Number.isInteger(Number(outcome.winner)) ? Number(outcome.winner) : null;
     const isDraw = String(outcome.type || '').toUpperCase() === 'DRAW' || winner === null;
@@ -7011,8 +7150,11 @@
       }
     }
     if(rewards){
-      rewards.innerHTML = '';
-      rewards.style.display = 'none';
+      const warfrontRewards = typeof window.renderWarfrontMatchRewards === 'function'
+        ? window.renderWarfrontMatchRewards(warfrontCompletion?.reward)
+        : '';
+      rewards.innerHTML = warfrontRewards;
+      rewards.style.display = warfrontRewards ? 'block' : 'none';
     }
     const returnButton = winScreen?.querySelector('.win-return-action .btn');
     if(returnButton){
@@ -7111,10 +7253,10 @@
     g._onlinePlayerIndex = localIndex;
     g.localPlayerIndex = localIndex;
     g.viewerPlayerIndex = localIndex;
-    const phase7RoomMode = view.queueMode === 'ranked' ? 'ranked' : 'freeplay';
+    const phase7RoomMode = view.queueMode === 'ranked' ? 'ranked' : (view.queueMode === 'warfront' ? 'warfront' : 'freeplay');
     g._onlineRoomMode = phase7RoomMode;
     if(typeof window.setFateCurrentMode === 'function'){
-      window.setFateCurrentMode(phase7RoomMode === 'ranked' ? 'challenger' : 'free');
+      window.setFateCurrentMode(['ranked','warfront'].includes(phase7RoomMode) ? 'challenger' : 'free');
     }
     g._onlineActionLogMode = true;
     g._onlineGameSong = 'board' + legacy.landscapeBgNum;
@@ -7126,6 +7268,9 @@
       const player = projectedPlayers[playerIndex] || {};
       g.playerProfiles[playerIndex] = Object.assign({}, previousProfiles[playerIndex] || {}, {
         name:String(player.name || ('Player ' + (playerIndex + 1))),
+        photoURL:String(player.photoURL || previousProfiles[playerIndex]?.photoURL || ''),
+        profileImg:String(player.photoURL || previousProfiles[playerIndex]?.profileImg || ''),
+        img:String(player.photoURL || previousProfiles[playerIndex]?.img || ''),
         elo:Math.max(0, Math.round(Number(player.rankElo) || 600)),
         challengerElo:Math.max(0, Math.round(Number(player.rankElo) || 600))
       });
@@ -8683,7 +8828,7 @@
     try{
       window.showLandscapeChoiceModal(0, function(song, landscape, bgNum){
         const latest = gameState();
-        const n = Math.max(1, Math.min(20, Number(bgNum || String(song || '').replace('board', '')) || 0));
+        const n = Math.max(1, Math.min(24, Number(bgNum || String(song || '').replace('board', '')) || 0));
         const payload = {
           playerIndex:localIndex,
           turn:latest?.turn || g.turn || 0,
@@ -9958,15 +10103,10 @@
       } else if(type === 'CARD_EFFECT_FLASH'){
         eventShown = showOnlineCardEffectFlashEvent(action, event, index);
       } else if(type === 'LANDSCAPE_OUTSIDE_DRAW_BONUS'){
+        // Presentation events are informational only. Authoritative multiplayer
+        // exposes West Coast Dreaming through pendingPrompt; creating another
+        // client-owned picker here caused one prompt per drawn card.
         eventShown = true;
-        const localIndex = Number(gameState()?._onlinePlayerIndex);
-        if(
-          Number.isInteger(localIndex) &&
-          Number(event?.playerIndex) === localIndex &&
-          typeof window.queueLandscapeOutsideDrawBonus === 'function'
-        ){
-          window.queueLandscapeOutsideDrawBonus(localIndex, {name:String(event?.cardName || 'a card')});
-        }
       }
       if(eventShown){
         if(type === 'CONSOLIDATION_COMPLETED'){
@@ -12505,7 +12645,7 @@
     const won = outcome === 'victory';
     let result = null;
     let starlightGained = 0;
-    const forfeitOptions = { forfeit:true, skipXp:true, skipDrops:true };
+    const forfeitOptions = { forfeit:true, skipXp:true, skipDrops:true, isHuman:true };
     try{
       if(isRanked && typeof recordChallengerResult === 'function'){
         result = recordChallengerResult(won, opponentElo, false, forfeitOptions);
@@ -13001,7 +13141,7 @@
   function normalizeOnlineFreePlayGameSettings(value){
     const source = value && typeof value === 'object' ? value : {};
     const landscapeMode = source.landscapeMode === 'selected' ? 'selected' : 'random';
-    const match = String(source.landscapeId || '').match(/^igb([1-9]|1\d|20)$/);
+    const match = String(source.landscapeId || '').match(/^igb([1-9]|1\d|2[0-4])$/);
     const landscapeId = match ? 'igb' + Number(match[1]) : 'igb1';
     const turnTimerMinutes = Math.max(1, Math.min(10, Math.round(Number(source.turnTimerMinutes) || 3)));
     return {
@@ -16239,6 +16379,11 @@
       window.pickCardsVisual = function(cards, opts, onConfirm){
         const g = gameState();
         if(g?._onlineServerPromptBypass || window.__fateOnlineServerPromptBypass) return originals.pickCardsVisual.apply(this, arguments);
+        // Some shipping pickers collect payload for a direct authoritative
+        // command rather than resolving a legacy picker action. Moffitt's
+        // catalog is one: wrapping its Confirm as PICK_CARDS_VISUAL causes the
+        // Phase 7 fence to reject it before ACTIVATE_LANDSCAPE can be sent.
+        if(opts?.authoritativeDirectAction === true) return originals.pickCardsVisual.apply(this, arguments);
         const effectTransactions = window.FateOnlineEffectTransactions || null;
         const transactionOwnsPicker = opts?.onlineParentAction === true
           && effectTransactions
@@ -17244,6 +17389,7 @@
         const result = await beta.startUnrankedMatchmaking({
           deckIds:deck.deckIds,
           name:pName(prof),
+          photoURL:pPhoto(prof),
           rankElo:Number(prof.challengerElo ?? prof.elo ?? 600) || 600,
           queueMode:mode,
           gameSettings:settings,
@@ -17375,6 +17521,48 @@
   }
 
   window.FatePhase7CurrentMultiplayerUi = Object.freeze({
+    submitWhiteboardCatalog(cardIds){
+      return window.fatePhase7SubmitWhiteboardCatalog(cardIds);
+    },
+    mountReplay(options){
+      const opts = options || {};
+      if(!opts.adapter || typeof opts.adapter.view !== 'function') throw new Error('Phase 7 replay UI requires a replay adapter');
+      phase7CurrentUiSession.adapter = opts.adapter;
+      phase7CurrentUiSession.view = cloneOnlinePlain(opts.adapter.view());
+      phase7CurrentUiSession.mounted = true;
+      phase7CurrentUiSession.onExit = null;
+      phase7CurrentUiSession.promptKey = '';
+      phase7CurrentUiSession.pickerKey = '';
+      phase7CurrentUiSession.consolidation = null;
+      phase7CurrentUiSession.outcomeKey = '';
+      phase7CurrentUiSession.seenPresentationBatchIds = new Set();
+      phase7CurrentUiSession.presentationGeneration += 1;
+      phase7CurrentUiSession.presentationTail = Promise.resolve();
+      phase7CurrentUiSession.presentationBusy = false;
+      phase7CurrentUiSession.presentationQueued = 0;
+      phase7CurrentUiSession.presentationTrace = [];
+      const initial = phase7CurrentUiSession.view;
+      if(!initial?.state) throw new Error('Phase 7 replay snapshot is not ready');
+      phase7ApplyCurrentView(initial, 'Phase 7 replay bootstrap');
+      return {
+        async render(nextView){
+          phase7ApplyCurrentView(cloneOnlinePlain(nextView), 'Phase 7 replay snapshot');
+          await Promise.resolve(phase7CurrentUiSession.presentationTail);
+          return true;
+        },
+        unmount(){
+          phase7CurrentUiSession.presentationGeneration += 1;
+          phase7CurrentUiSession.mounted = false;
+          phase7CurrentUiSession.adapter = null;
+          phase7CurrentUiSession.view = null;
+          phase7CurrentUiSession.seenPresentationBatchIds = new Set();
+          phase7CurrentUiSession.presentationTail = Promise.resolve();
+          phase7CurrentUiSession.presentationBusy = false;
+          phase7CurrentUiSession.presentationQueued = 0;
+          phase7ClearConsolidation({silent:true, force:true});
+        }
+      };
+    },
     mount(options){
       const opts = options || {};
       if(!opts.adapter || typeof opts.adapter.view !== 'function' || typeof opts.adapter.dispatchLegalCommand !== 'function'){
@@ -17383,6 +17571,7 @@
       phase7CurrentUiSession.adapter = opts.adapter;
       phase7CurrentUiSession.view = cloneOnlinePlain(opts.adapter.view());
       phase7CurrentUiSession.mounted = true;
+      phase7FlushPendingWhiteboardCatalog();
       phase7CurrentUiSession.onExit = typeof opts.onExit === 'function' ? opts.onExit : null;
       phase7CurrentUiSession.promptKey = '';
       phase7CurrentUiSession.pickerKey = '';
@@ -17525,6 +17714,7 @@
   window.fatePhase7CanActivateSource = phase7CanActivateSource;
   window.fatePhase7PopulateCardActions = phase7PopulateCardActions;
   window.fatePhase7HandleHandDrop = phase7HandleHandDrop;
+  window.fatePhase7CanDropCardAt = phase7CanDropCardAt;
   window.fatePhase7HandleBoardClick = phase7HandleBoardClick;
   window.fatePhase7HandleUiCommand = phase7HandleUiCommand;
   window.fatePhase7CanvasActions = phase7CanvasActions;

@@ -290,6 +290,9 @@ async function flyApiRequest(route, options={}){
     'authorization':`Bearer ${accountToken || `session:${identity}`}`
   };
   const init = {method:safe(options.method || 'GET').toUpperCase(), headers};
+  // Shared live-state reads must never be satisfied by an intermediary or
+  // browser cache; two signed-in players need to observe the same snapshot.
+  if(init.method === 'GET') init.cache = 'no-store';
   if(options.body !== undefined){
     headers['content-type'] = 'application/json';
     init.body = JSON.stringify(options.body || {});
@@ -591,7 +594,11 @@ async function syncAccountPresence(account){
 }
 
 async function handleAccountState(account){
+  const previousUser = state.user;
   state.unsubs.splice(0).forEach(unsub=>{ try{ unsub(); }catch(_){ } });
+  if(previousUser && typeof window._fateClearActiveAccount === 'function'){
+    if(previousUser.uid !== account?.uid) window._fateClearActiveAccount();
+  }
   state.user = account || null;
   state.ready = true;
   state.profile = account ? buildLocalProfile(account) : null;

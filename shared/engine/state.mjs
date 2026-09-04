@@ -82,6 +82,7 @@ export function createInitialState(input = {}){
     return {
       id:playerIds[playerIndex],
       name:String(player.name || `Player ${playerIndex + 1}`),
+      ...(player.photoURL ? {photoURL:String(player.photoURL).slice(0, 2048)} : {}),
       rankElo:Math.max(0, Math.round(Number(player.rankElo) || 600)),
       deck,
       hand,
@@ -169,6 +170,16 @@ export function createInitialState(input = {}){
       ? {zeroReinforcementCost:true}
       : null,
     rngState,
+    cardCatalog:definitions.map(definition=>({
+      id:String(definition.id || ''),
+      name:String(definition.name || definition.id || ''),
+      ability:String(definition.ability || ''),
+      type:String(definition.type || 'Supporter'),
+      affiliation:String(definition.affiliation || definition.aff || ''),
+      rarity:String(definition.rarity || ''),
+      fate:Number(definition.fate || 0),
+      cost:Number(definition.cost || 0)
+    })),
     players:playerStates,
     board:createEmptyBoard(
       zoneControlRework && input.gameSettings?.expandedContestedRow === true,

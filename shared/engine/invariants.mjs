@@ -62,6 +62,13 @@ export function collectInvariantViolations(state){
       && ![0, 1, 2].includes(state.landscapeState.targetZone)){
       violations.push(issue('landscapeState.targetZone', 'must be null or a zone index'));
     }
+    if(state.landscapeState.targetZones !== null
+      && (!Array.isArray(state.landscapeState.targetZones)
+        || state.landscapeState.targetZones.length !== 2
+        || new Set(state.landscapeState.targetZones).size !== 2
+        || state.landscapeState.targetZones.some(zone=>![0,1,2].includes(zone)))){
+      violations.push(issue('landscapeState.targetZones', 'must be null or two distinct zone indices'));
+    }
   }
   if(!['coin', 'main', 'ended'].includes(state.phase)) violations.push(issue('phase', 'must be coin, main, or ended'));
   if(state.phase === 'coin'){
@@ -107,9 +114,15 @@ export function collectInvariantViolations(state){
         && state.gameSettings?.expandedContestedRow === true;
       const uniformFour = expanded && state.gameSettings?.zoneLayout444 === true;
       zone.forEach((row, rowIndex)=>{
+        const playableExtraColumns = rowIndex >= 3 && Array.isArray(state.geometry?.playableExtraSquares)
+          ? state.geometry.playableExtraSquares
+              .filter(square=>Number(square?.z) === zoneIndex && Number(square?.r) === rowIndex)
+              .map(square=>Number(square?.c))
+              .filter(column=>Number.isInteger(column) && column >= 0)
+          : [];
         const expectedColumns = rowIndex < 3
           ? (uniformFour ? 4 : (expanded && rowIndex === 1 ? 6 : 3))
-          : 3;
+          : Math.max(3, playableExtraColumns.length ? Math.max(...playableExtraColumns) + 1 : 3);
         if(!Array.isArray(row) || row.length !== expectedColumns){
           violations.push(issue(`board.${zoneIndex}.${rowIndex}`, `must contain exactly ${expectedColumns} columns`));
         }

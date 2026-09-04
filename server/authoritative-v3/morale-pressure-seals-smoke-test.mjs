@@ -16,7 +16,8 @@ import {command} from './test-helpers.mjs';
 const definitions = [
   {id:'init', name:'Initiator', type:'Initiator', aff:'reality', fate:6, cost:1},
   {id:'down', name:'Dauntless', type:'Dauntless', aff:'eventide', fate:9, cost:1},
-  {id:'support', name:'Known Supporter', type:'Supporter', aff:'expanded_worlds', fate:2, cost:0}
+  {id:'support', name:'Known Supporter', type:'Supporter', aff:'expanded_worlds', fate:2, cost:0},
+  {id:'64', name:'Cook Islands Duelist', type:'Supporter', aff:'eventide', fate:1, cost:0}
 ];
 
 const experimental = createInitialState({
@@ -96,9 +97,34 @@ assert.deepEqual(
   'Rozsi must identify every matching-affiliation contributor and exclude other cards'
 );
 
+let duelistState = createInitialState({
+  matchId:'cook-islands-duelist-morale-smoke',seed:'cook-islands-duelist-morale-smoke',
+  players:[{id:'p0',deckIds:['64','init']},{id:'p1',deckIds:['support']}],
+  cardDefinitions:definitions,handSize:2,activePlayer:0,
+  gameSettings:{healthPressureSeals:true,pressureCardReworks:true,zoneControlRework:true,expandedContestedRow:true}
+});
+const duelistInHand=duelistState.players[0].hand.find(card=>card.id==='64');
+const duelistSetResult=reduceCommand(
+  duelistState,
+  command(duelistState,'p0',1,'SET_CARD',{cardIid:duelistInHand.iid,destination:{z:0,r:2,c:0}}),
+  {playerId:'p0'}
+);
+assert.equal(duelistSetResult.ok,true,'Cook Islands Duelist can be set through the real command path');
+duelistState=duelistSetResult.state;
+const duelistCtx={state:duelistState,events:[],ruleEvents:[]};
+assert.equal(duelistState.board[0][2][0].counters.doubleNextMoraleDamage,true,'setting Cook Islands Duelist arms Blade Dance');
+const duelistInitiator=duelistState.players[0].hand.find(card=>card.id==='init');
+applyOperation(duelistCtx,{type:'SET_CARD',playerIndex:0,cardIid:duelistInitiator.iid,destination:{z:0,r:2,c:1},playedFromHand:true});
+const duelistDefender=duelistState.players[1].hand[0];
+applyOperation(duelistCtx,{type:'SET_CARD',playerIndex:1,cardIid:duelistDefender.iid,destination:{z:0,r:0,c:0},playedFromHand:true});
+duelistState.turn=4;
+resolveMoralePressureCycle(duelistCtx);
+assert.equal(duelistState.moralePressure.morale[1],196,'Cook Islands Duelist doubles the complete 2-damage zone Morale calculation to 4');
+assert.equal(duelistState.board[0][2][0].counters.doubleNextMoraleDamage,false,'Cook Islands Duelist consumes its next-calculation double');
+
 const lowMorale = createInitialState({
-  matchId:'morale-20-discard-smoke',
-  seed:'morale-20-discard-smoke',
+  matchId:'morale-40-discard-smoke',
+  seed:'morale-40-discard-smoke',
   players:[
     {id:'p0',name:'P0',deckIds:['init','down','support']},
     {id:'p1',name:'P1',deckIds:['init','down','support']}
@@ -112,33 +138,49 @@ const fieldCard = lowMorale.players[0].hand.find(card=>card.id === 'init');
 applyOperation({state:lowMorale,events:[],ruleEvents:[]},{
   type:'SET_CARD',playerIndex:0,cardIid:fieldCard.iid,destination:{z:0,r:2,c:0},playedFromHand:true
 });
-lowMorale.moralePressure.morale[0] = 40;
-assert.equal(zoneScore(lowMorale,0,0),6,'20% Morale no longer reduces zone Fate');
+lowMorale.moralePressure.morale[0] = 80;
+assert.equal(zoneScore(lowMorale,0,0),6,'40% Morale does not reduce zone Fate');
 const handBeforePenalty = lowMorale.players[0].hand.map(card=>card.iid);
 const lowResult = reduceCommand(lowMorale,command(lowMorale,'p0',1,'END_TURN'),{playerId:'p0'});
 assert.equal(lowResult.ok,true);
-assert.equal(lowResult.state.players[0].hand.length,handBeforePenalty.length-1,'20% Morale discards exactly one hand card at turn end');
-const moraleDiscardEvent = lowResult.events.find(event=>event.type === 'MORALE_20_HAND_DISCARDED');
-assert(moraleDiscardEvent,'20% Morale emits a dedicated presentation event');
+assert.equal(lowResult.state.players[0].hand.length,handBeforePenalty.length-1,'40% Morale discards exactly one hand card at turn end');
+const moraleDiscardEvent = lowResult.events.find(event=>event.type === 'MORALE_40_HAND_DISCARDED');
+assert(moraleDiscardEvent,'40% Morale emits a dedicated presentation event');
 assert(handBeforePenalty.includes(moraleDiscardEvent.cardIid),'the discarded card is chosen from the ending player hand');
 assert.notEqual(moraleDiscardEvent.cardName,'Card','the public event names the discarded card');
 assert(lowResult.events.some(event=>
   event.type === 'CARD_DISCARDED'
-  && event.reason === 'MORALE_20_RANDOM_HAND_DISCARD'
+  && event.reason === 'MORALE_40_RANDOM_HAND_DISCARD'
   && event.cardName === moraleDiscardEvent.cardName
 ),'the underlying discard is revealed and auditable');
 
 const aboveThreshold = createInitialState({
-  matchId:'morale-above-20-smoke',seed:'morale-above-20-smoke',
+  matchId:'morale-above-40-smoke',seed:'morale-above-40-smoke',
   players:[{id:'p0',deckIds:['init','down']},{id:'p1',deckIds:['init','down']}],
   cardDefinitions:definitions,handSize:2,activePlayer:0,
   gameSettings:{healthPressureSeals:true,pressureCardReworks:false,zoneControlRework:true,expandedContestedRow:true}
 });
-aboveThreshold.moralePressure.morale[0] = 41;
+aboveThreshold.moralePressure.morale[0] = 81;
 const aboveHandSize = aboveThreshold.players[0].hand.length;
 const aboveResult = reduceCommand(aboveThreshold,command(aboveThreshold,'p0',1,'END_TURN'),{playerId:'p0'});
-assert.equal(aboveResult.state.players[0].hand.length,aboveHandSize,'Morale above 20% does not trigger the random discard');
-assert(!aboveResult.events.some(event=>event.type === 'MORALE_20_HAND_DISCARDED'));
+assert.equal(aboveResult.state.players[0].hand.length,aboveHandSize,'Morale above 40% does not trigger the random discard');
+assert(!aboveResult.events.some(event=>event.type === 'MORALE_40_HAND_DISCARDED'));
+
+let expiryState = createInitialState({
+  matchId:'morale-20-supporter-expiry-smoke',seed:'morale-20-supporter-expiry-smoke',
+  players:[{id:'p0',deckIds:['support']},{id:'p1',deckIds:['support']}],
+  cardDefinitions:definitions,handSize:1,activePlayer:0,
+  gameSettings:{healthPressureSeals:true,pressureCardReworks:false,zoneControlRework:true,expandedContestedRow:true}
+});
+const expiringSupporter=expiryState.players[0].hand[0];
+applyOperation({state:expiryState,events:[],ruleEvents:[]},{type:'SET_CARD',playerIndex:0,cardIid:expiringSupporter.iid,destination:{z:0,r:2,c:0},playedFromHand:true});
+expiryState.moralePressure.morale[0]=40;
+for(const [revision,playerId] of [[1,'p0'],[2,'p1'],[3,'p0']]){
+  const expiryResult=reduceCommand(expiryState,command(expiryState,playerId,revision,'END_TURN'),{playerId});
+  assert.equal(expiryResult.ok,true);
+  expiryState=expiryResult.state;
+}
+assert.equal(expiryState.board[0][2][0],null,'20% Morale makes a Supporter discard itself after two completed owner turns');
 
 experimental.moralePressure.morale[0] = 0;
 assert.equal(calculateMoraleOutcome(experimental).winner, 1, 'zero Morale immediately loses');
@@ -167,7 +209,7 @@ assert.equal(zoneOnly.maxTurns, 24, 'the independent zone-control rework retains
 assert(!cardRule('03', {gameSettings:{pressureCardReworks:false}}).operations.includes('MODIFY_PRESSURE'));
 assert(!cardRule('03', {gameSettings:{pressureCardReworks:true}}).operations.includes('MODIFY_PRESSURE'), 'the Morale card flag no longer rewrites unrelated cards into Pressure effects');
 assert(!cardRule('03').operations.includes('MODIFY_PRESSURE'), 'omitting the experimental flag always selects the original card effect');
-assert(cardRule('20', {gameSettings:{pressureCardReworks:true}}).timings.includes('WHEN_SET'), 'the Morale rework flag selects the new South Wind Spearman effect');
+assert(cardRule('20', {gameSettings:{pressureCardReworks:true}}).timings.includes('ACTIVATE'), 'the Morale rework flag selects the current manual South Wind Spearman effect');
 for(const legacyOnlyId of ['10','41','87','bh19']){
   assert.deepEqual(
     cardRule(legacyOnlyId, {gameSettings:{pressureCardReworks:true}}),
@@ -178,10 +220,13 @@ for(const legacyOnlyId of ['10','41','87','bh19']){
 assert(cardRule('bh19', {gameSettings:{pressureCardReworks:false}}).timings.includes('WHEN_SET'), 'Abed remains an automatic when-set effect with the experiment off');
 
 const moraleUiSource = fs.readFileSync(path.resolve('src/scripts/27-morale-pressure-ui.js'),'utf8');
-assert(moraleUiSource.includes("if(type === 'MORALE_20_HAND_DISCARDED')"),'the morale UI presents the discard event');
-assert(moraleUiSource.includes('function resolveLegacyMoraleLowHandDiscard'),'legacy AI matches use the same 20% random-discard rule');
+assert(moraleUiSource.includes("if(type === 'MORALE_40_HAND_DISCARDED')"),'the morale UI presents the discard event');
+assert(moraleUiSource.includes('function resolveLegacyMoraleLowHandDiscard'),'legacy AI matches use the same 40% random-discard rule');
 assert(moraleUiSource.includes('was randomly discarded from your hand'),'the notification banner identifies the discarded card');
-assert(moraleUiSource.includes('discard 1 random card from your hand'),'the 20% tooltip documents the replacement rule');
+assert(moraleUiSource.includes('discard 1 random card from your hand'),'the 40% tooltip documents the random-discard rule');
+assert(moraleUiSource.includes("legacyMoralePenaltyActive(player, 20)"),'legacy Supporter expiry activates at 20% Morale');
+assert(moraleUiSource.includes("legacyMoralePenaltyActive(seat,40)"),'legacy random hand discard activates at 40% Morale');
+assert(moraleUiSource.includes('damage[1-owner]*=multiplier'),'legacy Cook Islands Duelist doubles zone-difference Morale damage');
 assert(!moraleUiSource.includes('Your Fate total in every zone is reduced by 25%.'),'the retired 20% Fate penalty copy is removed');
 assert(moraleUiSource.includes('damage[result.damagedPlayer]+=Math.floor(result.difference/2)'),'legacy Morale calculations halve each zone Fate difference and round down');
 assert(moraleUiSource.includes('half the Fate difference is dealt as Morale damage (rounded down)'),'the Morale tooltip documents half-difference damage');

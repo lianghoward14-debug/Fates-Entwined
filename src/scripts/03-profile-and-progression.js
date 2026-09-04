@@ -22,14 +22,29 @@ let USER_PROFILE = {
   starterChosen: false,   // has the player picked a starter deck?
   ownedCards: {},         // {cardId: count} — owned cards in Challenger mode
   ownedPfps: [],          // [pfpId]
+  ownedMedals: [],        // [1..50] unlocked hidden-achievement medals
+  displayedMedals: [],    // up to 3 owned medal IDs shown on profile
+  warfrontParticipations: 0,
+  warfrontWins: 0,
+  warfrontRewardReceipts: {}, // event-end reward receipts, keyed by map code
+  warfrontMatchReceipts: {},  // per-match reward receipts, keyed by match id
   starlight: 0,           // currency used to buy packs
   unopenedPacks: 0,       // packs not yet opened
   unopenedProfilePacks: 0,// profile picture packs not yet opened
   unopenedFavoredPacks: 0,
   unopenedBooster2Packs: 0,
+  unopenedBooster3Packs: 0,
   challengerElo: 600,     // separate ELO for challenger ranked
   challengerWins: 0,
   challengerLosses: 0,
+  challengerHumanWins: 0,
+  challengerHumanLosses: 0,
+  challengerAIWins: 0,
+  challengerAILosses: 0,
+  freePlayWins: 0,
+  freePlayLosses: 0,
+  freePlayHumanWins: 0,
+  freePlayHumanLosses: 0,
   humanWins: 0,
   humanLosses: 0,
   matchesPlayed: 0,
@@ -54,6 +69,7 @@ let _fateActiveUid = null;
 const _fateStorageWriteCache = Object.create(null);
 const FATE_LEADERBOARD_RESET_VERSION = '20260711a';
 const FATE_PROFILE_RECORD_RESET_VERSION = '20260714b';
+const FATE_CHALLENGER_CARD_RESET_VERSION = '20260902a';
 
 function _fateStorageKey(base) {
   if (_fateActiveUid) return base + '_' + _fateActiveUid;
@@ -107,7 +123,9 @@ function fateApplyServerProfileStats(profile, opts={}) {
   const uid = String(profile.uid || '');
   const activeUid = String(_fateActiveUid || window.FATE_ONLINE?.user?.uid || '');
   if(uid && activeUid && uid !== activeUid) return false;
-  resetProfileMatchRecord(profile);
+  // Server counters are authoritative current results. The legacy reset belongs
+  // only to stored pre-migration client data; clearing an incoming profile here
+  // made every newly recorded match look stale in Career Summary.
   const nextElo = Math.max(0, Math.round(Number(profile.challengerElo ?? profile.elo ?? USER_PROFILE.challengerElo ?? 600) || 600));
   const nextWins = Math.max(0, Math.round(Number(profile.challengerWins ?? profile.wins ?? USER_PROFILE.challengerWins ?? 0) || 0));
   const nextLosses = Math.max(0, Math.round(Number(profile.challengerLosses ?? profile.losses ?? USER_PROFILE.challengerLosses ?? 0) || 0));
@@ -119,6 +137,10 @@ function fateApplyServerProfileStats(profile, opts={}) {
   USER_PROFILE.losses = nextLosses;
   USER_PROFILE.humanWins = Math.max(0, Math.round(Number(profile.humanWins ?? USER_PROFILE.humanWins ?? 0) || 0));
   USER_PROFILE.humanLosses = Math.max(0, Math.round(Number(profile.humanLosses ?? USER_PROFILE.humanLosses ?? 0) || 0));
+  USER_PROFILE.challengerHumanWins = Math.max(0, Math.round(Number(profile.challengerHumanWins ?? profile.humanWins ?? USER_PROFILE.challengerHumanWins ?? 0) || 0));
+  USER_PROFILE.challengerHumanLosses = Math.max(0, Math.round(Number(profile.challengerHumanLosses ?? profile.humanLosses ?? USER_PROFILE.challengerHumanLosses ?? 0) || 0));
+  USER_PROFILE.challengerAIWins = Math.max(0, Math.round(Number(profile.challengerAIWins ?? (nextWins - USER_PROFILE.challengerHumanWins)) || 0));
+  USER_PROFILE.challengerAILosses = Math.max(0, Math.round(Number(profile.challengerAILosses ?? (nextLosses - USER_PROFILE.challengerHumanLosses)) || 0));
   USER_PROFILE.matchesPlayed = Math.max(
     nextWins + nextLosses,
     Math.round(Number(profile.matchesPlayed ?? USER_PROFILE.matchesPlayed ?? 0) || 0)
@@ -142,6 +164,14 @@ function normalizeLeaderboardStatsReset(profile) {
   profile.challengerLosses = 0;
   profile.humanWins = 0;
   profile.humanLosses = 0;
+  profile.challengerHumanWins = 0;
+  profile.challengerHumanLosses = 0;
+  profile.challengerAIWins = 0;
+  profile.challengerAILosses = 0;
+  profile.freePlayWins = 0;
+  profile.freePlayLosses = 0;
+  profile.freePlayHumanWins = 0;
+  profile.freePlayHumanLosses = 0;
   profile.matchesPlayed = 0;
   profile.leaderboardResetVersion = FATE_LEADERBOARD_RESET_VERSION;
   profile.leaderboardResetAt = Date.now();
@@ -150,16 +180,7 @@ function normalizeLeaderboardStatsReset(profile) {
 
 function resetProfileMatchRecord(profile) {
   if(!profile || typeof profile !== 'object') return false;
-  const hasStaleRecord = !!(
-    Number(profile.wins || 0) ||
-    Number(profile.losses || 0) ||
-    Number(profile.challengerWins || 0) ||
-    Number(profile.challengerLosses || 0) ||
-    Number(profile.humanWins || 0) ||
-    Number(profile.humanLosses || 0) ||
-    Number(profile.matchesPlayed || 0)
-  );
-  if(profile.profileRecordResetVersion === FATE_PROFILE_RECORD_RESET_VERSION && !hasStaleRecord) return false;
+  if(profile.profileRecordResetVersion === FATE_PROFILE_RECORD_RESET_VERSION) return false;
   profile.wins = 0;
   profile.losses = 0;
   profile.challengerWins = 0;
@@ -179,14 +200,18 @@ function resetStoredProfileRecordDataIfNeeded() {
     for(let i = 0; i < localStorage.length; i++){
       const key = localStorage.key(i);
       if(!key) continue;
-      if(key === 'fate_match_history' || key === 'fate_ai_elo_state'){
-        localStorage.removeItem(key);
-        changed = true;
-      }
       if(key === 'fate_user_profile' || key.startsWith('fate_user_profile_')){
         profileKeys.push(key);
       }
     }
+    const profilesNeedingReset = profileKeys.filter(key=>{
+      const profile = _fateReadJsonStorage(key);
+      return profile && profile.profileRecordResetVersion !== FATE_PROFILE_RECORD_RESET_VERSION;
+    });
+    if(!profilesNeedingReset.length) return false;
+    ['fate_match_history','fate_ai_elo_state'].forEach(key=>{
+      if(localStorage.getItem(key) != null){ localStorage.removeItem(key); changed = true; }
+    });
     for(let i = 0; i < localStorage.length; i++){
       const key = localStorage.key(i);
       if(!key || !key.startsWith('fate_account_aux_')) continue;
@@ -200,7 +225,7 @@ function resetStoredProfileRecordDataIfNeeded() {
         }
       }catch(e){}
     }
-    profileKeys.forEach(key=>{
+    profilesNeedingReset.forEach(key=>{
       const profile = _fateReadJsonStorage(key);
       if(profile && resetProfileMatchRecord(profile)){
         _fateSetJsonStorageIfChanged(key, profile);
@@ -338,15 +363,33 @@ window.fateResetLocalLeaderboardData = resetStoredLeaderboardDataIfNeeded;
 window.fateApplyServerProfileStats = fateApplyServerProfileStats;
 
 
-const FATE_BACKGROUND_ASSET_VERSION = 'bg20260722a';
+const FATE_BACKGROUND_ASSET_VERSION = 'bg20260831-landscapes';
 function FATE_BACKGROUND_URL(path){
   if(!path || typeof path !== 'string' || path.startsWith('data:')) return path;
   if(/[?&]v=/.test(path)) return path;
   return path + (path.includes('?') ? '&' : '?') + 'v=' + FATE_BACKGROUND_ASSET_VERSION;
 }
+
+function applyGlobalChallengerCardReset(profile) {
+  if(!profile || typeof profile !== 'object') return false;
+  if(profile.cardCollectionResetVersion === FATE_CHALLENGER_CARD_RESET_VERSION) return false;
+  profile.ownedCards = {};
+  profile.challengerPresets = {};
+  profile.featuredPresets = [];
+  profile.starterChosen = false;
+  profile.unopenedPacks = 0;
+  profile.unopenedFavoredPacks = 0;
+  profile.unopenedBooster2Packs = 0;
+  profile.unopenedBooster3Packs = 0;
+  profile.cardCollectionResetVersion = FATE_CHALLENGER_CARD_RESET_VERSION;
+  profile.cardCollectionResetAt = Date.now();
+  profile._clientUpdatedAt = Date.now();
+  return true;
+}
+window.fateApplyGlobalChallengerCardReset = applyGlobalChallengerCardReset;
 window.FATE_BACKGROUND_URL = FATE_BACKGROUND_URL;
 const TITLE_BG_PATH = n => FATE_BACKGROUND_URL(`optimized/backgrounds/titlscreenbackgrounds_bg${n}.jpg`);
-const INGAME_BG_PATH = n => FATE_BACKGROUND_URL(Number(n) === 1 ? 'ingamebackgrouds/igb1.png?v=bg20260705' : (Number(n) === 15 ? 'optimized/backgrounds/ingamebackgrouds_igb15.jpg?v=bg20260801a' : `optimized/backgrounds/ingamebackgrouds_igb${n}.jpg`));
+const INGAME_BG_PATH = n => FATE_BACKGROUND_URL(Number(n) === 1 ? 'ingamebackgrouds/igb1.png?v=bg20260705' : ([15,18,21,22,23,24].includes(Number(n)) ? `ingamebackgrouds/igb${n}.png` : `optimized/backgrounds/ingamebackgrouds_igb${n}.jpg`));
 const PFP_PATH = (n, shape='circle') => {
   const id = Math.max(1, parseInt(n, 10) || 1);
   return `pfp/pfp${id}.png`;
@@ -358,9 +401,11 @@ const SET_VOICELINE_EXTENSIONS = Object.freeze({
 const SET_VOICELINE_PATH = name => {
   const key = String(name || '');
   const ext = SET_VOICELINE_EXTENSIONS[key] || 'mp3';
-  return `setvoicelines/${key}.${ext}`;
+  const path = `setvoicelines/${key}.${ext}`;
+  return key === 'board22' ? path + '?v=audio20260831-mexico' : path;
 };
-const ALL_PFP_IDS = Array.from({length:100}, (_,i)=>i+1);
+const PFP_CATALOG_SIZE = 125;
+const ALL_PFP_IDS = Array.from({length:PFP_CATALOG_SIZE}, (_,i)=>i+1);
 const DEFAULT_PROFILE_IMG = 'blank.png';
 
 function getDefaultProfileImgSrc() {
@@ -369,7 +414,7 @@ function getDefaultProfileImgSrc() {
 
 function normalizeOwnedPfps() {
   const raw = Array.isArray(USER_PROFILE.ownedPfps) ? USER_PROFILE.ownedPfps : [];
-  USER_PROFILE.ownedPfps = [...new Set(raw.map(n=>parseInt(n,10)).filter(n=>n>=1 && n<=100))].sort((a,b)=>a-b);
+  USER_PROFILE.ownedPfps = [...new Set(raw.map(n=>parseInt(n,10)).filter(n=>n>=1 && n<=PFP_CATALOG_SIZE))].sort((a,b)=>a-b);
   return USER_PROFILE.ownedPfps;
 }
 
@@ -699,6 +744,9 @@ function loadPresetsFromStorage() {
     USER_PROFILE = createDefaultUserProfile();
     if(_fateActiveUid) USER_PROFILE._fateAccountUid = _fateActiveUid;
   }
+  if(applyGlobalChallengerCardReset(USER_PROFILE)){
+    try { localStorage.setItem(_fateStorageKey('fate_user_profile'), JSON.stringify(USER_PROFILE)); } catch(e){}
+  }
   if(normalizeLeaderboardStatsReset(USER_PROFILE)) didForceRankReset = true;
   if(resetProfileMatchRecord(USER_PROFILE)){
     didForceRankReset = true;
@@ -735,6 +783,7 @@ function loadPresetsFromStorage() {
     USER_PROFILE.unopenedProfilePacks = 0;
     USER_PROFILE.unopenedFavoredPacks = 0;
     USER_PROFILE.unopenedBooster2Packs = 0;
+    USER_PROFILE.unopenedBooster3Packs = 0;
     USER_PROFILE.challengerElo = 600;
     USER_PROFILE.challengerWins = 0;
     USER_PROFILE.challengerLosses = 0;
@@ -1101,6 +1150,9 @@ function handleFateChatCommand(text) {
   }
   if(cmd === '/logincheck'){
     showDailyLoginPanel();
+    return true;
+  }
+  if(typeof window.fateClanEventChatCommand === 'function' && window.fateClanEventChatCommand(cmd)){
     return true;
   }
   return false;

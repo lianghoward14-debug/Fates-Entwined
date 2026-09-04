@@ -385,7 +385,7 @@ export function canUseAsConsolidationTribute(state, entry, playerIndex, consolid
   return {ok:true, reinforcement:effectiveReinforcement(state, entry, playerIndex)};
 }
 
-export function effectiveConsolidationCost(state, card, playerIndex){
+export function effectiveConsolidationCost(state, card, playerIndex, destination = null){
   if(state?.testRules?.zeroReinforcementCost === true) return 0;
   let cost = effectiveCost(state, card);
   for(const status of state?.statuses || []){
@@ -394,15 +394,24 @@ export function effectiveConsolidationCost(state, card, playerIndex){
     if(Number(status.remaining || 0) <= 0) continue;
     cost += Number(status.value || 0) || 0;
   }
+  if(destination){
+    if(state?.landscapeId === 'igb22'
+      && Array.isArray(state.landscapeState?.targetZones)
+      && state.landscapeState.targetZones.map(Number).includes(Number(destination.z))) cost += 1;
+    const generatedSquare = (state?.geometry?.playableExtraSquares || []).find(square=>
+      Number(square.z) === Number(destination.z)
+      && Number(square.r) === Number(destination.r)
+      && Number(square.c) === Number(destination.c)
+      && Number(square.owner) === Number(playerIndex)
+      && String(findCard(state, square.sourceIid)?.card?.id || '') === '02'
+    );
+    if(generatedSquare) cost -= 2;
+  }
   return Math.max(0, cost);
 }
 
 export function isImmuneToOpponentEffects(card, state = null){
   if(!card) return false;
-  if(runtimeRuleId(card) === '20'){
-    if(state?.gameSettings?.pressureCardReworks === true) return false;
-    return state ? findCard(state, card.iid)?.zone === 'board' : true;
-  }
   if(['bh01', '76'].includes(String(card.id || ''))) return true;
   return (card.statuses || []).includes('IMMUNE_TO_OPPONENT_EFFECTS');
 }

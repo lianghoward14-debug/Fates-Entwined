@@ -1,6 +1,6 @@
 //  BUILT-IN STARTER PRESET DECKS
 // ═══════════════════════════════════════════════════════
-const RETIRED_CHALLENGER_CARD_IDS = new Set(['bh25']);
+const RETIRED_CHALLENGER_CARD_IDS = new Set();
 
 function isRetiredChallengerCard(cardOrId) {
   const id = typeof cardOrId === 'string' ? cardOrId : cardOrId?.id;
@@ -105,6 +105,7 @@ const STARLIGHT_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" style="d
 // We filter to existing cards only.
 function getPackCardPool() {
   return getChallengerCardPool().filter(card=>{
+    if(String(card?.set || '').toLowerCase() === 'brave_horizons') return false;
     const numericId = Number(card && card.id);
     return !Number.isInteger(numericId) || numericId < 80 || numericId > 100;
   });
@@ -115,7 +116,7 @@ function getPackCardPool() {
 // - 8 cards per pack
 // - Base composition: 3 supporters, 4 triangle, 1 square
 // - 33% chance of additional square (replaces one supporter)
-// - 5% chance of a star card (replaces one triangle)
+// - 4% chance of a star card (replaces one triangle)
 // - When rendered on client, rarest cards appear last.
 function generatePack() {
   const pool = getPackCardPool();
@@ -134,7 +135,7 @@ function generatePack() {
 
   const pick = [];
   // Determine composition
-  let numStar = Math.random()<0.05?1:0;
+  let numStar = Math.random()<0.04?1:0;
   let numSquare = (Math.random()<0.33?1:0) + 1; // 1 guaranteed, 33% extra
   // Start with base: 4 triangle, 3 supporter, 1 square
   let numTriangle = 4;
@@ -206,6 +207,31 @@ function generateBooster2Pack() {
   return cards.map(c=>c.id);
 }
 
+// Brave Horizons is exclusive to Booster 3. Each pack has two cards from the
+// Triangle/Circle pool and a Square, unless the shared 4% Star roll replaces it.
+function getBooster3CardPool() {
+  return getChallengerCardPool().filter(c=>/^bh(?:0[1-9]|1[0-9]|2[0-5])$/i.test(String(c?.id || '')));
+}
+
+function takeRandomBooster3Card(pool) {
+  if(!pool.length) return null;
+  return pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+}
+
+function generateBooster3Pack() {
+  const pool = getBooster3CardPool();
+  const common = pool.filter(c=>c.rarity === 'triangle' || c.rarity === 'circle');
+  const squares = pool.filter(c=>c.rarity === 'square');
+  const cards = [takeRandomBooster3Card(common), takeRandomBooster3Card(common)];
+  if(Math.random() < 0.04){
+    const starId = Math.random() < 0.25 ? 'bh01' : 'bh05';
+    cards.push(pool.find(c=>String(c.id).toLowerCase() === starId));
+  }else{
+    cards.push(takeRandomBooster3Card(squares));
+  }
+  return cards.filter(Boolean).map(c=>c.id);
+}
+
 // Add owned cards to profile (called when opening a pack). Returns list of {cardId, isNew}.
 function grantCardsToProfile(cardIds) {
   if(!USER_PROFILE.ownedCards) USER_PROFILE.ownedCards = {};
@@ -224,6 +250,7 @@ function grantCardsToProfile(cardIds) {
 // Pack cost and reward tuning.
 const PACK_COST_STARLIGHT = 100;
 const BOOSTER2_COST_STARLIGHT = 150;
+const BOOSTER3_COST_STARLIGHT = 150;
 
 // Starlight earned for winning a game. Human opponents give 3x vs AI of same ELO.
 // Base ~20 + scaled by opponent ELO. At equal ELO 1000, AI gives ~33, human gives 100 (enough for pack).
@@ -249,12 +276,23 @@ function profilePackChance() {
   return 0.15;
 }
 
+function booster2PackChance() { return 0.10; }
+function booster3PackChance() { return 0.10; }
+
 function awardVictoryDrops(didWin) {
   if(!didWin) return [];
   const drops = [];
   if(Math.random() < freePackChance()){
     USER_PROFILE.unopenedPacks = (USER_PROFILE.unopenedPacks||0) + 1;
     drops.push('Fates Entwined booster');
+  }
+  if(Math.random() < booster2PackChance()){
+    USER_PROFILE.unopenedBooster2Packs = (USER_PROFILE.unopenedBooster2Packs||0) + 1;
+    drops.push('Snow on the Carpathians Booster');
+  }
+  if(Math.random() < booster3PackChance()){
+    USER_PROFILE.unopenedBooster3Packs = (USER_PROFILE.unopenedBooster3Packs||0) + 1;
+    drops.push('Brave Horizons Booster');
   }
   if(Math.random() < profilePackChance()){
     USER_PROFILE.unopenedProfilePacks = (USER_PROFILE.unopenedProfilePacks||0) + 1;
@@ -303,6 +341,12 @@ function recordFreePlayResult(didWin, opponentElo=1000, opts={}) {
   const xpResult = (opts.forfeit || opts.skipXp) ? zeroXpResult() : awardXp(xpAmount);
   const drops = (opts.forfeit || opts.skipDrops) ? [] : awardVictoryDrops(didWin);
   USER_PROFILE.matchesPlayed = (Number(USER_PROFILE.matchesPlayed) || 0) + 1;
+  if(didWin) USER_PROFILE.freePlayWins = (Number(USER_PROFILE.freePlayWins) || 0) + 1;
+  else USER_PROFILE.freePlayLosses = (Number(USER_PROFILE.freePlayLosses) || 0) + 1;
+  if(opts.isHuman){
+    if(didWin) USER_PROFILE.freePlayHumanWins = (Number(USER_PROFILE.freePlayHumanWins) || 0) + 1;
+    else USER_PROFILE.freePlayHumanLosses = (Number(USER_PROFILE.freePlayHumanLosses) || 0) + 1;
+  }
   saveProfile();
   if(drops.length) showDropBar(drops);
   return {eloChange:0, xpGained:xpResult.xpGained, levelsGained:xpResult.levelsGained, newLevel:xpResult.newLevel};
@@ -316,6 +360,9 @@ function recordChallengerResult(didWin, opponentElo=1000, isAI=false, opts={}) {
     isAI = !!opts.isAI;
   }
   opts = normalizeResultOptions(opts);
+  const eloGainMultiplier = didWin ? Math.max(1, Math.min(3, Number(opts.eloGainMultiplier) || 1)) : 1;
+  const xpMultiplier = Math.max(1, Math.min(3, Number(opts.xpMultiplier) || 1));
+  const dropMultiplier = Math.max(1, Math.min(3, Math.round(Number(opts.dropMultiplier) || 1)));
   if(isAI && !(opts && opts.forfeit) && typeof window.clearPendingAiChallengeForfeit === 'function') window.clearPendingAiChallengeForfeit();
   if(!USER_PROFILE.challengerElo) USER_PROFILE.challengerElo = 600;
   const myElo = USER_PROFILE.challengerElo;
@@ -324,6 +371,7 @@ function recordChallengerResult(didWin, opponentElo=1000, isAI=false, opts={}) {
   const actual = didWin ? 1 : 0;
   let change = K * (actual - expected);
   change = typeof applyMinimumEloDelta === 'function' ? applyMinimumEloDelta(change, didWin) : Math.round(change);
+  if(didWin) change = Math.max(1, Math.round(change * eloGainMultiplier));
   USER_PROFILE.challengerElo = Math.max(0, myElo + change);
   if(didWin) USER_PROFILE.challengerWins = (USER_PROFILE.challengerWins||0)+1;
   else USER_PROFILE.challengerLosses = (USER_PROFILE.challengerLosses||0)+1;
@@ -331,6 +379,11 @@ function recordChallengerResult(didWin, opponentElo=1000, isAI=false, opts={}) {
   if(!isAI) {
     if(didWin) USER_PROFILE.humanWins = (Number(USER_PROFILE.humanWins) || 0) + 1;
     else USER_PROFILE.humanLosses = (Number(USER_PROFILE.humanLosses) || 0) + 1;
+    if(didWin) USER_PROFILE.challengerHumanWins = (Number(USER_PROFILE.challengerHumanWins) || 0) + 1;
+    else USER_PROFILE.challengerHumanLosses = (Number(USER_PROFILE.challengerHumanLosses) || 0) + 1;
+  } else {
+    if(didWin) USER_PROFILE.challengerAIWins = (Number(USER_PROFILE.challengerAIWins) || 0) + 1;
+    else USER_PROFILE.challengerAILosses = (Number(USER_PROFILE.challengerAILosses) || 0) + 1;
   }
   // Check for new division reward
   if(typeof checkDivisionReward === 'function') checkDivisionReward(USER_PROFILE.challengerElo);
@@ -338,12 +391,15 @@ function recordChallengerResult(didWin, opponentElo=1000, isAI=false, opts={}) {
   const oppName = G._selectedAI ? G._selectedAI.name : 'Opponent';
   if(typeof logMatch === 'function') logMatch(USER_PROFILE.username, oppName, didWin?USER_PROFILE.username:oppName, change, -change, USER_PROFILE.challengerElo, opponentElo + (didWin?-Math.abs(change):Math.abs(change)), false);
   // XP still awarded unless this match ended by forfeit.
-  const xpAmount = calculateXpReward(didWin, opponentElo);
+  const xpAmount = Math.round(calculateXpReward(didWin, opponentElo) * xpMultiplier);
   const xpResult = (opts.forfeit || opts.skipXp) ? zeroXpResult() : awardXp(xpAmount);
-  const drops = (opts.forfeit || opts.skipDrops) ? [] : awardVictoryDrops(didWin);
+  const drops = [];
+  if(!(opts.forfeit || opts.skipDrops)){
+    for(let roll = 0; roll < dropMultiplier; roll += 1) drops.push(...awardVictoryDrops(didWin));
+  }
   saveProfile();
   if(drops.length) showDropBar(drops);
-  return {eloChange:change, xpGained:xpResult.xpGained, levelsGained:xpResult.levelsGained, newLevel:xpResult.newLevel};
+  return {eloChange:change, xpGained:xpResult.xpGained, levelsGained:xpResult.levelsGained, newLevel:xpResult.newLevel, drops, eloGainMultiplier, xpMultiplier, dropMultiplier};
 }
 
 const FATE_PENDING_AI_CHALLENGE_FORFEIT_KEY = 'fate.pendingAiChallengeForfeit.v1';
@@ -434,13 +490,13 @@ const STARTER_DECKS = [
     id: 'starter_maelstrom',
     name: 'Relentless Maelstrom',
     description: 'Consolidate Alondra in a stocked formation, recycle supporters through Crossroads and Ledger-keepers, and compound Fate with Isaac and long-game specters.',
-    theme: 'Recycling Fate Engine',
+    theme: 'Concentrated Fate',
     faceCardId: '14',
-    displayCardIds: ['14','05','47','58','75','95','92'],
+    displayCardIds: ['14','05','73','58','75','95','92'],
     ids: [
-      '14','14','14','05','05','05','47','47','47','32','32','32',
+      '14','14','14','05','05','05','73','73','73','32','32','32',
       '58','58','58','60','60','60','75','75','75','95','95','95',
-      '63','63','63','76','76','76','27','27','27','94','94','06',
+      '63','63','63','76','76','76','27','27','27','44','44','06',
       '06','22','22','22'
     ]
   },
@@ -448,7 +504,7 @@ const STARTER_DECKS = [
     id: 'starter_freeworld',
     name: 'The Free World',
     description: 'Assemble a concentrated Third Great War formation, chain searches into its coordinators, and convert supporter Fate into a decisive Alexander and Duncan finish.',
-    theme: 'Third Great War Formation',
+    theme: 'Affiliation',
     faceCardId: '29',
     displayCardIds: ['29','77','34','35','01','59','25'],
     ids: [
@@ -476,7 +532,7 @@ const STARTER_DECKS = [
     id: 'starter_assault',
     name: 'Mass Assault Doctrine',
     description: 'Build an expanded safe-row formation around Anne Stone, stack supporter auras, and turn repeated draw effects into a sustained mass deployment.',
-    theme: 'Safe-Row Supporter Formation',
+    theme: 'Supporters',
     faceCardId: '11',
     displayCardIds: ['11','43','68','59','63','40','22'],
     ids: [
@@ -493,7 +549,7 @@ const AI_ONLY_RANDOM_DECKS = [
     id: 'ai_last_mohicans_ledger',
     baseStrategy: 'ai_last_mohicans_ledger',
     name: "The Last Mohican's Ledger",
-    description: 'Pays Morale to deploy Chingachlook, restores it with West Caribbea Infantry, then turns the surviving threat into a finisher with Howard.',
+    description: 'Prepares Chingachlook with West Caribbea Infantry, protects the Morale investment with South Wind Spearman, then doubles the finished threat with Howard.',
     theme: 'AI Only - Morale Investment',
     faceCardId: '45',
     displayCardIds: ['45','03','33','20','75','47','64'],
@@ -514,17 +570,16 @@ const AI_ONLY_RANDOM_DECKS = [
     displayCardIds: ['35','03','05','22','47','64','75'],
     ids: [
       '03','35','35','35','05','05','05','22','22','22',
-      '47','47','47','64','64','64','33','33','33','20',
-      '20','20','27','27','27','32','32','32','42','42',
+      '47','47','47','64','64','64','33','33','33','44',
+      '44','44','27','27','27','32','32','32','42','42',
       '42','58','58','58','60','60','60','75','75','75'
     ]
   },
   {
     id: 'ai_hungarian_war_dance',
-    enabled: false,
     baseStrategy: 'ai_hungarian_war_dance',
     name: 'Hungarian War Dance',
-    description: 'Uses Rozsi, Mark Menz and Duncan to create a unified Third Great War zone that inflicts Morale damage every calculation.',
+    description: 'Concentrates Third Great War cards around Rozsi, Mark Menz and Duncan, then converts the unified formation into recurring Morale damage.',
     theme: 'AI Only - Affiliation Pressure',
     faceCardId: '34',
     displayCardIds: ['34','66','77','19','25','44','07'],
@@ -542,12 +597,12 @@ const AI_ONLY_RANDOM_DECKS = [
     description: 'Recycles Great Oak Infantry to reinforce Alexander and Jamie while chaining direct Morale damage, recovery and calculation denial.',
     theme: 'AI Only - Recursive Morale Damage',
     faceCardId: '47',
-    displayCardIds: ['47','35','bh22','65','64','20','33'],
+    displayCardIds: ['47','35','bh22','65','64','05','33'],
     ids: [
       '07','47','47','47','64','64','64','75','75','75',
       '58','58','58','60','60','60','13','13','13','32',
-      '32','32','69','69','69','33','33','33','20','20',
-      '20','65','65','65','35','35','35','bh22','bh22','bh22'
+      '32','32','69','69','69','33','33','33','05','05',
+      '05','65','65','65','35','35','35','bh22','bh22','bh22'
     ]
   },
   {
@@ -573,13 +628,13 @@ const AI_ONLY_RANDOM_DECKS = [
     description: 'Builds extra safe squares, marks one as Jamie\'s sanctuary, and compounds Louis, Cathy and formation bonuses behind the contested row.',
     theme: 'AI Only - Safe-Row Fortress',
     faceCardId: 'bh22',
-    displayCardIds: ['bh22','02','43','bh12','23','24','59'],
-    reinforcementCost: 23,
+    displayCardIds: ['bh22','02','43','bh12','23','74','59'],
+    reinforcementCost: 24,
     ids: [
       '02','43','43','43','bh12','bh12','bh12','bh22','bh22','bh22',
       '23','23','23','24','24','24','47','47','47','59',
       '59','59','60','60','60','58','58','58','32','32',
-      '32','33','33','33','65','65','65','20','20','20'
+      '32','33','33','33','65','65','65','74','74','74'
     ]
   },
   {
@@ -601,17 +656,33 @@ const AI_ONLY_RANDOM_DECKS = [
   {
     id: 'ai_alpine_furnace',
     baseStrategy: 'ai_alpine_furnace',
-    name: 'ALPINE Furnace',
-    description: 'Loads one zone with low-cost Initiators and Improvisors, then feeds their Fate into a huge mobile ALPINE Expeditionary.',
-    theme: 'AI Only - Character Sacrifice',
+    name: 'ALPINE Consolidation Engine',
+    description: 'Prepares permanent Fate engines, starts Květka\'s ballad, then spends ALPINE Expeditionary and Great Oak Infantry on a chain of empowered consolidations.',
+    theme: 'AI Only - Permanent Consolidation',
     faceCardId: '73',
-    displayCardIds: ['73','56','22','40','48','87','bh13'],
-    reinforcementCost: 23,
+    displayCardIds: ['87','73','47','14','22','bh13','bh15'],
+    reinforcementCost: 32,
     ids: [
-      '56','22','22','22','40','40','40','48','48','48',
-      '87','87','87','bh13','bh13','bh13','73','73','73','47',
-      '47','47','54','54','54','60','60','60','58','58',
-      '58','74','74','74','76','76','76','33','33','33'
+      '03','14','14','14','22','22','22','87','87','87',
+      'bh13','bh13','bh13','bh15','bh15','bh15','05','05','05','33',
+      '33','33','47','47','47','58','58','58','60','60',
+      '60','73','73','73','75','75','75','32','32','32'
+    ]
+  },
+  {
+    id: 'ai_alpine_iron_line',
+    baseStrategy: 'ai_alpine_iron_line',
+    name: 'ALPINE Iron Line',
+    description: 'Spreads immutable ALPINE Infantry across contested fronts, protects the lead with denial, and anchors recovery squares with Jamie.',
+    theme: 'AI Only - Immutable Zone Tempo',
+    faceCardId: '76',
+    displayCardIds: ['76','20','50','71','14','22','bh22'],
+    reinforcementCost: 25,
+    ids: [
+      '07','14','14','14','22','22','22','27','27','27',
+      'bh22','bh22','bh22','20','20','20','32','32','32','42',
+      '42','42','50','50','50','58','58','58','60','60',
+      '60','65','65','65','71','71','71','76','76','76'
     ]
   },
   {
@@ -622,7 +693,7 @@ const AI_ONLY_RANDOM_DECKS = [
     theme: 'AI Only - Lane Denial',
     faceCardId: '45',
     displayCardIds: ['45','14','11','51','52','53','64'],
-    reinforcementCost: 28,
+    reinforcementCost: 29,
     ids: [
       '02','45','11','11','11','51','51','51','14','14',
       '14','31','31','31','33','33','33','52','52','52',
@@ -657,7 +728,7 @@ const AI_ONLY_RANDOM_DECKS = [
       '03','bh02','bh02','bh02','bh19','bh19','bh19','27','27','27',
       '32','32','32','42','42','42','40','40','40','bh10',
       'bh10','bh10','bh13','bh13','bh13','bh15','bh15','bh15','05','05',
-      '05','47','47','47','64','64','64','58','58','58'
+      '05','60','60','60','64','64','64','58','58','58'
     ]
   },
   {
@@ -672,7 +743,7 @@ const AI_ONLY_RANDOM_DECKS = [
       '56','bh08','bh08','bh08','67','67','67','18','18','18',
       '79','79','79','21','21','21','17','17','17','04',
       '04','04','50','50','50','71','71','71','60','60',
-      '60','58','58','58','32','32','32','47','47','47'
+      '60','58','58','58','32','32','32','75','75','75'
     ]
   },
   {
@@ -682,11 +753,11 @@ const AI_ONLY_RANDOM_DECKS = [
     description: 'Assembles an Eventide zone, uses Selva Anicka for mass Fate loss, then follows with Li-Hua and timed Morale pressure.',
     theme: 'AI Only - Eventide Tempo',
     faceCardId: 'bh04',
-    displayCardIds: ['bh04','06','51','77','bh16','47','64'],
+    displayCardIds: ['bh04','06','51','77','bh16','79','64'],
     ids: [
       '02','bh04','bh04','bh04','33','33','33','06','06','06',
       '51','51','51','77','77','77','30','30','30','bh16',
-      'bh16','bh16','47','47','47','64','64','64','65','65',
+      'bh16','bh16','79','79','79','64','64','64','65','65',
       '65','74','74','74','75','75','75','58','58','58'
     ]
   },
@@ -823,7 +894,7 @@ const FREE_PLAY_DEFAULT_GAME_SETTINGS = Object.freeze({
 function normalizeFreePlayGameSettings(value) {
   const source = value && typeof value === 'object' ? value : {};
   const landscapeMode = source.landscapeMode === 'selected' ? 'selected' : 'random';
-  const match = String(source.landscapeId || '').match(/^igb([1-9]|1\d|20)$/);
+  const match = String(source.landscapeId || '').match(/^igb([1-9]|1\d|2[0-4])$/);
   const landscapeId = match ? 'igb' + Number(match[1]) : FREE_PLAY_DEFAULT_GAME_SETTINGS.landscapeId;
   const turnTimerMinutes = Math.max(1, Math.min(10, Math.round(Number(source.turnTimerMinutes) || FREE_PLAY_DEFAULT_GAME_SETTINGS.turnTimerMinutes)));
   return {
@@ -852,7 +923,7 @@ function saveFreePlayGameSettings(settings) {
 }
 
 function freePlayLandscapeNumber(id) {
-  return Math.max(1, Math.min(20, Number(String(id || '').replace('igb', '')) || 1));
+  return Math.max(1, Math.min(24, Number(String(id || '').replace('igb', '')) || 1));
 }
 
 function freePlayLandscapeForId(id) {
@@ -928,7 +999,7 @@ function freePlaySettingsModalHtml(settings) {
       <button type="button" class="freeplay-landscape-arrow" data-freeplay-landscape-step="-1" aria-label="Previous landscape">&#10094;</button>
       <article class="freeplay-landscape-card">
         <div class="freeplay-landscape-art"><img src="${bg}" alt="${escapeHtml(landscape.name || '')}" draggable="false"></div>
-        <div class="freeplay-landscape-count">${n} / 20</div>
+    <div class="freeplay-landscape-count">${n} / 24</div>
         <h3>${escapeHtml(landscape.name || '')}</h3>
         <p>${escapeHtml(landscape.description || '')}</p>
         ${normalized.landscapeMode === 'random' ? '<div class="freeplay-random-banner">The displayed card is only a preview. The room will roll from all landscapes.</div>' : ''}
@@ -975,7 +1046,7 @@ function bindFreePlaySettingsModal() {
       else if(typeof playSfx === 'function') playSfx('button');
       const current = freePlayLandscapeNumber(_freePlaySettingsDraft.landscapeId);
       const step = Number(button.dataset.freeplayLandscapeStep) < 0 ? -1 : 1;
-      const next = ((current - 1 + step + 20) % 20) + 1;
+      const next = ((current - 1 + step + 24) % 24) + 1;
       _freePlaySettingsDraft.landscapeMode = 'selected';
       _freePlaySettingsDraft.landscapeId = 'igb' + next;
       refreshFreePlaySettingsModal();
@@ -1386,6 +1457,7 @@ function getChTabPane(tab, create=true) {
 function getChRendererForTab(tab) {
   return {
     play:renderChPlayTab,
+    war:window.renderChWarEventTab,
     campaign:window.renderChCampaignTab,
     lore:window.renderChLoreTab,
     store:renderChStoreTab,
@@ -1475,6 +1547,8 @@ function restoreChTabScroll(tab, pane) {
 function switchChTab(tab, opts) {
   const options = opts || {};
   const previousTab = _currentChTab;
+  if(tab === 'war' && typeof window.refreshFateWarfrontState === 'function') window.refreshFateWarfrontState();
+  if(typeof window.setWarfrontMusicActive === 'function') window.setWarfrontMusicActive(tab === 'war');
   if(typeof window.closeLoreWindow === 'function') window.closeLoreWindow();
   if(typeof window.dismissCardInfoOverlay === 'function') window.dismissCardInfoOverlay();
   if(!options.warmup) {
@@ -1501,7 +1575,7 @@ function switchChTab(tab, opts) {
   // Set tab-specific background
   const bgEl = document.querySelector('#s-challenger .screen-bg img');
   if(bgEl){
-  const tabBg = {play:TITLE_BG_PATH(2), campaign:TITLE_BG_PATH(4), lore:INGAME_BG_PATH(15), store:TITLE_BG_PATH(3), collection:TITLE_BG_PATH(4), deckbuilder:TITLE_BG_PATH(5)};
+  const tabBg = {play:TITLE_BG_PATH(2), war:TITLE_BG_PATH(4), campaign:TITLE_BG_PATH(4), lore:INGAME_BG_PATH(15), store:TITLE_BG_PATH(3), collection:TITLE_BG_PATH(4), deckbuilder:TITLE_BG_PATH(5)};
   bgEl.src = tabBg[tab] || TITLE_BG_PATH(2);
   }
   const content = document.getElementById('ch-content');
@@ -1893,7 +1967,12 @@ function buildDeckSlateRow(pid, preset, presentation, index, options={}) {
     });
   } else {
     row.querySelector('[data-preview]')?.addEventListener('click', e=>{ e.stopPropagation(); viewChallengerDeckContents(pid); });
-    row.querySelector('[data-play]')?.addEventListener('click', e=>{ e.stopPropagation(); if(presentation.ok) chPickDeckAndStart(pid); });
+    row.querySelector('[data-play]')?.addEventListener('click', e=>{
+      e.stopPropagation();
+      if(!presentation.ok) return;
+      if(typeof options.onPlay === 'function') return options.onPlay(pid, preset, presentation);
+      chPickDeckAndStart(pid);
+    });
   }
   row.addEventListener('click', ()=>{
     if(typeof options.onRowClick === 'function') return options.onRowClick(pid, preset, presentation);
@@ -2061,9 +2140,11 @@ function renderChStoreTab(content) {
   const favoredPacks = USER_PROFILE.unopenedFavoredPacks || 0;
   const profilePacks = USER_PROFILE.unopenedProfilePacks || 0;
   const booster2Packs = USER_PROFILE.unopenedBooster2Packs || 0;
+  const booster3Packs = USER_PROFILE.unopenedBooster3Packs || 0;
   const starlight = USER_PROFILE.starlight || 0;
   const canBuy = starlight >= PACK_COST_STARLIGHT;
   const canBuyBooster2 = starlight >= BOOSTER2_COST_STARLIGHT;
+  const canBuyBooster3 = starlight >= BOOSTER3_COST_STARLIGHT;
   const canBuyFavored = starlight >= 500;
   const canBuyProfile = starlight >= 50;
   content.innerHTML = `
@@ -2163,6 +2244,51 @@ function openNextBooster2Pack() {
   showPackOpening(results, 'booster2');
 }
 
+window.openWarfrontDeckPicker = function openWarfrontDeckPicker(options={}){
+  CURRENT_MODE = 'challenger';
+  const presets = USER_PROFILE.challengerPresets || {};
+  const keys = getOrderedDeckPickKeysForCurrentMode().filter(key=>presets[key]);
+  return renderUnifiedChooseDeckModal(0, {
+    freeMode:false,
+    presets,
+    keys,
+    title:options.title || 'Choose a Warfront Deck',
+    modeLabel:options.modeLabel || 'WARFRONT DEPLOYMENT',
+    subcopy:options.subcopy || 'Choose a complete Challenger deck before entering this front.',
+    extraClasses:['warfront-deck-picker'],
+    emptyText:'No Challenger decks are ready. Build a 40-card deck before deploying.',
+    onPlay(pid,preset,presentation){
+      if(typeof options.onSelect === 'function') options.onSelect({
+        selectedDeckKey:pid,
+        selectedDeckName:preset.name || 'Challenger Deck',
+        deckIds:[...presentation.ids]
+      });
+    }
+  });
+};
+
+function buyBooster3Pack() {
+  if((USER_PROFILE.starlight||0) < BOOSTER3_COST_STARLIGHT){toast('Not enough Starlight');return;}
+  USER_PROFILE.starlight -= BOOSTER3_COST_STARLIGHT;
+  USER_PROFILE.unopenedBooster3Packs = (USER_PROFILE.unopenedBooster3Packs||0) + 1;
+  saveProfile();
+  toast('Brave Horizons Booster purchased!');
+  updateChTopbar();
+  switchChTab('store');
+}
+
+function openNextBooster3Pack() {
+  if((USER_PROFILE.unopenedBooster3Packs||0) <= 0){toast('No Brave Horizons Boosters to open');return;}
+  const ids = generateBooster3Pack();
+  if(ids.length !== 3){toast('Brave Horizons Booster is temporarily unavailable');return;}
+  USER_PROFILE.unopenedBooster3Packs--;
+  if(typeof updateDailyChallengeProgress === 'function') updateDailyChallengeProgress('packsOpened', 1, 'add');
+  const results = grantCardsToProfile(ids);
+  saveProfile();
+  playSfx('packOpen');
+  showPackOpening(results, 'booster3');
+}
+
 function buyFavoredPack() {
   if((USER_PROFILE.starlight||0) < 500){toast('Not enough Starlight');return;}
   USER_PROFILE.starlight -= 500;
@@ -2187,7 +2313,7 @@ function openNextFavoredPack() {
 }
 
 function generateFavoredPack() {
-  const pool = getChallengerCardPool().filter(c=>c.id!=='76');
+  const pool = getChallengerCardPool().filter(c=>c.id!=='76' && String(c?.set || '').toLowerCase() !== 'brave_horizons');
   const tri = pool.filter(c=>c.rarity==='triangle');
   const sq = pool.filter(c=>c.rarity==='square');
   const st = pool.filter(c=>c.rarity==='star');
@@ -2523,7 +2649,7 @@ function openSellPfpModal(){
 }
 
 function listPfpForSale(pfpId){
-  pfpId = Math.max(1, Math.min(80, parseInt(pfpId, 10) || 0));
+  pfpId = Math.max(1, Math.min(125, parseInt(pfpId, 10) || 0));
   if(!pfpId) return;
   closeModal();
   showModal('Set Price',`
@@ -2589,9 +2715,11 @@ function renderChStoreTab(content) {
   const favoredPacks = USER_PROFILE.unopenedFavoredPacks || 0;
   const profilePacks = USER_PROFILE.unopenedProfilePacks || 0;
   const booster2Packs = USER_PROFILE.unopenedBooster2Packs || 0;
+  const booster3Packs = USER_PROFILE.unopenedBooster3Packs || 0;
   const starlight = USER_PROFILE.starlight || 0;
   const canBuy = starlight >= PACK_COST_STARLIGHT;
   const canBuyBooster2 = starlight >= BOOSTER2_COST_STARLIGHT;
+  const canBuyBooster3 = starlight >= BOOSTER3_COST_STARLIGHT;
   const canBuyFavored = starlight >= 500;
   const canBuyProfile = starlight >= 50;
   content.innerHTML = `
@@ -2610,7 +2738,10 @@ function renderChStoreTab(content) {
       </div>
       <div class="ch-store-layout">
         <div class="ch-store-products">
-          <div class="store-grid">
+          <div class="ch-store-carousel">
+          <button class="ch-store-page-arrow ch-store-page-arrow-left" type="button" onclick="scrollChStoreBoosters(-1)" aria-label="Show profile booster"></button>
+          <div class="ch-store-track-viewport">
+          <div class="store-grid" id="ch-store-booster-track">
             <div class="booster-tile standard-booster ch-store-product ch-store-product-standard">
               <div class="booster-art standard-booster-art ch-store-product-art">
                 <img src="Illustration3.png" alt="Fates Entwined Booster" loading="eager" decoding="async" draggable="false" onerror="this.style.display='none';this.parentElement.innerHTML='<div class=\\'ch-store-pack-fallback\\'>PACK</div>'">
@@ -2647,13 +2778,29 @@ function renderChStoreTab(content) {
                 <div class="ch-store-product-kicker">Profile</div>
                 <div class="booster-name">Profile Picture Booster</div>
                 <div class="booster-desc"><em>Unlock two profile pictures for your account, sourced from every card art in the game</em></div>
-                <div class="booster-contents">2 profile pictures - guaranteed no duplicates - selling removes them from your collection</div>
                 <div class="booster-price-row">
                   <div class="booster-price">${STARLIGHT_ICON} 50</div>
                   <button class="btn-buy" onclick="buyProfilePack()" ${canBuyProfile?'':'disabled'}>${canBuyProfile?'Buy Pack':'Need 50'}</button>
                 </div>
               </div>
             </div>
+            <div class="booster-tile ch-store-product ch-store-product-booster3">
+              <div class="booster-art ch-store-product-art">
+                <img src="booster3.png?v=2026090102" alt="Brave Horizons Booster" loading="eager" decoding="async" draggable="false" onerror="this.style.display='none';this.parentElement.innerHTML='<div class=\'ch-store-pack-fallback\'>BRAVE HORIZONS</div>'">
+              </div>
+              <div class="booster-info ch-store-product-info">
+                <div class="ch-store-product-kicker">Second Expansion</div>
+                <div class="booster-name">Brave Horizons Booster</div>
+                <div class="booster-desc">Beyond familiar shores, characters with boundless ambition look towards a brighter tomorrow, shaped by their own will. Voyagers, Tacticians, Warriors, Artists, Dreamers, Scientists- who will conquer that pale blue horizon first?</div>
+                <div class="booster-price-row">
+                  <div class="booster-price">${STARLIGHT_ICON} ${BOOSTER3_COST_STARLIGHT}</div>
+                  <button class="btn-buy" onclick="buyBooster3Pack()" ${canBuyBooster3?'':'disabled'}>${canBuyBooster3?'Buy Pack':'Need '+BOOSTER3_COST_STARLIGHT}</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          </div>
+          <button class="ch-store-page-arrow ch-store-page-arrow-right" type="button" onclick="scrollChStoreBoosters(1)" aria-label="Show card boosters"></button>
           </div>
         </div>
         <div class="ch-store-market-column">
@@ -2673,26 +2820,57 @@ function renderChStoreTab(content) {
               <button class="btn sm" onclick="showMarketplaceTransactions()">Transactions</button>
             </div>
           </aside>
-          ${(packs+booster2Packs+profilePacks)>0 ? `<div class="ch-store-unopened ch-store-unopened-market">
-            <div>
-              <div class="ch-store-unopened-kicker">Ready to Open</div>
-              <div class="ch-store-unopened-title">
-                ${packs>0?`<span><strong>${packs}</strong> Standard</span>`:''}
-                ${booster2Packs>0?`<span><strong>${booster2Packs}</strong> Snow on the Carpathians Booster</span>`:''}
-                ${profilePacks>0?`<span><strong>${profilePacks}</strong> Profile Booster</span>`:''}
+          ${(packs+booster2Packs+booster3Packs+profilePacks)>0 ? `<div class="ch-store-unopened ch-store-unopened-market">
+            <div class="ch-store-unopened-head">
+              <div class="ch-store-unopened-emblem" aria-hidden="true">
+                <svg viewBox="0 0 64 64" focusable="false"><path d="M16 20.5 32 12l16 8.5v23L32 52l-16-8.5z"/><path d="m16 20.5 16 9 16-9M32 29.5V52"/><path d="m25 16 16 8.7v7.8"/></svg>
               </div>
+              <div class="ch-store-unopened-copy">
+                <div class="ch-store-unopened-kicker">Ready to Open</div>
+                <div class="ch-store-unopened-heading">You have booster packs to open</div>
+              </div>
+              <div class="ch-store-unopened-total"><strong>${packs+booster2Packs+booster3Packs+profilePacks}</strong> ${(packs+booster2Packs+booster3Packs+profilePacks)===1?'pack':'packs'}</div>
             </div>
-            <div class="ch-store-unopened-actions">
-              ${packs>0?'<button class="btn pri" onclick="openNextPack()">Open Standard</button>':''}
-              ${booster2Packs>0?'<button class="btn pri" onclick="openNextBooster2Pack()">Open Snow on the Carpathians Booster</button>':''}
-              ${profilePacks>0?'<button class="btn pri" onclick="openNextProfilePack()">Open Profile Booster</button>':''}
+            <div class="ch-store-unopened-title" aria-label="Unopened booster packs">
+              ${packs>0?`<button type="button" onclick="openNextPack()"><strong>${packs}</strong><i>Standard Booster</i><em>Open</em></button>`:''}
+              ${booster2Packs>0?`<button type="button" onclick="openNextBooster2Pack()"><strong>${booster2Packs}</strong><i>Snow on the Carpathians Booster</i><em>Open</em></button>`:''}
+              ${booster3Packs>0?`<button type="button" onclick="openNextBooster3Pack()"><strong>${booster3Packs}</strong><i>Brave Horizons Booster</i><em>Open</em></button>`:''}
+              ${profilePacks>0?`<button type="button" onclick="openNextProfilePack()"><strong>${profilePacks}</strong><i>Profile Booster</i><em>Open</em></button>`:''}
             </div>
           </div>`:''}
         </div>
       </div>
     </section>`;
   renderMarketplaceListings();
+  requestAnimationFrame(()=>{
+    const track = document.getElementById('ch-store-booster-track');
+    const profile = track?.querySelector('.ch-store-product-profile');
+    if(track && profile) track.prepend(profile);
+    const carousel = track?.closest('.ch-store-carousel');
+    const left = carousel?.querySelector('.ch-store-page-arrow-left');
+    const right = carousel?.querySelector('.ch-store-page-arrow-right');
+    if(left) left.onclick = ()=>scrollChStoreBoosters(-1);
+    if(right) right.onclick = ()=>scrollChStoreBoosters(1);
+    setChStoreBoosterPage(1, false);
+  });
 }
+
+let _chStoreBoosterPage = 1;
+function setChStoreBoosterPage(page, smooth = true){
+  const track = document.getElementById('ch-store-booster-track');
+  if(!track) return;
+  _chStoreBoosterPage = Math.max(0, Math.min(1, Number(page) || 0));
+  track.style.transition = 'none';
+  track.style.transform = 'none';
+  track.closest('.ch-store-carousel')?.classList.toggle('showing-profile', _chStoreBoosterPage === 0);
+}
+function scrollChStoreBoosters(direction){
+  if(typeof playMenuSfx === 'function') playMenuSfx();
+  setChStoreBoosterPage(_chStoreBoosterPage + (Number(direction) || 0));
+}
+window.addEventListener('resize', ()=>{
+  if(document.getElementById('ch-store-booster-track')) setChStoreBoosterPage(_chStoreBoosterPage, false);
+});
 
 function openNextPack(){
   playSfx('packOpen');
@@ -2715,6 +2893,7 @@ function showPackOpening(results, packType) {
   const sparkleLayer = document.getElementById('pack-sparkle-layer');
   const isFavored = packType === 'favored';
   const isBooster2 = packType === 'booster2';
+  const isBooster3 = packType === 'booster3';
   overlay.classList.add('on');
   if(isFavored) overlay.classList.add('favored-opening');
   else overlay.classList.remove('favored-opening');
@@ -2722,9 +2901,9 @@ function showPackOpening(results, packType) {
   // Stage 1: show the pack, prompt to click
   const packBorder = isFavored
     ? 'border-color:rgba(255,215,0,.8);box-shadow:0 16px 34px rgba(0,0,0,.58);'
-    : (isBooster2 ? 'border-color:rgba(155,220,255,.85);box-shadow:0 16px 34px rgba(0,0,0,.58),0 0 44px rgba(118,196,242,.3);' : '');
-  const packArtSrc = isBooster2 ? 'booster2.png' : 'Illustration3.png';
-  const packAlt = isBooster2 ? 'Snow on the Carpathians Booster' : 'Fates Entwined Booster';
+    : (isBooster2 ? 'border-color:rgba(155,220,255,.85);box-shadow:0 16px 34px rgba(0,0,0,.58),0 0 44px rgba(118,196,242,.3);' : (isBooster3 ? 'border-color:rgba(255,151,92,.88);box-shadow:0 16px 34px rgba(0,0,0,.58),0 0 44px rgba(255,104,64,.28);' : ''));
+  const packArtSrc = isBooster3 ? 'booster3.png' : (isBooster2 ? 'booster2.png' : 'Illustration3.png');
+  const packAlt = isBooster3 ? 'Brave Horizons Booster' : (isBooster2 ? 'Snow on the Carpathians Booster' : 'Fates Entwined Booster');
   stage.innerHTML = `
     <div class="pack-stage">
       <div class="pack-art-container">
@@ -2915,6 +3094,7 @@ function renderChCollectionTab(content) {
       align:'center',
       virtualize:false,
       lowScroll:true,
+      starSheen:true,
       maxDpr:1,
       hoverRedraw:false,
       suppressLockedGlyph:true,
@@ -3432,6 +3612,7 @@ function renderCdbCollection() {
       align:'left',
       virtualize:true,
       lowScroll:true,
+      starSheen:true,
       maxDpr:1,
       hoverRedraw:false,
       onClick:(card)=>openChallengerDeckBuilderCardDetail(card),
@@ -4042,6 +4223,13 @@ function applyAIBalanceOverrideToLeaderboardEntry(entry){
   if(!balanced.username && (entry.username || balanced.name)) balanced.username = entry.username || balanced.name;
   return balanced;
 }
+function getLeaderboardDisplayName(entry){
+  if(!entry) return 'Player';
+  const currentUid = window.FATE_ONLINE?.user?.uid || '';
+  if(currentUid && entry.uid === currentUid && USER_PROFILE?.username) return USER_PROFILE.username;
+  if(window.FateOnline?.profileName) return window.FateOnline.profileName(entry);
+  return String(entry.username || entry.chosenUsername || entry.displayName || entry.name || 'Player').trim() || 'Player';
+}
 function isInternalLeaderboardEntry(entry){
   const candidate = entry || {};
   const identity = [
@@ -4123,10 +4311,14 @@ function getMergedChallengerLeaderboardEntries() {
     const localLosses = getLeaderboardRecordLosses(local);
     const wins = entryIsAI(entry) ? onlineWins : Math.max(onlineWins, localWins);
     const losses = entryIsAI(entry) ? onlineLosses : Math.max(onlineLosses, localLosses);
+    const displayName = getLeaderboardDisplayName(entry);
     merged.set(key, {
       ...local,
       uid:entry.uid || local.uid || key,
-      username:entry.name || entry.username || local.username || 'Player',
+      username:displayName || local.username || 'Player',
+      name:displayName || local.name || local.username || 'Player',
+      chosenUsername:entry.chosenUsername || displayName,
+      displayName:entry.displayName || displayName,
       aiId:entry.aiId || local.aiId || '',
       elo:Number(entry.elo ?? local.elo ?? 600),
       wins,
@@ -4206,7 +4398,8 @@ showLeaderboard = async function(page=0, opts={}) {
         </div>`;
         continue;
       }
-      const isMe = entry.username===USER_PROFILE.username;
+      const viewerUid = window.FATE_ONLINE?.user?.uid || '';
+      const isMe = (!!viewerUid && entry.uid===viewerUid) || entry.username===USER_PROFILE.username;
       const rankSym = overallIndex===0?'&#129351;':overallIndex===1?'&#129352;':overallIndex===2?'&#129353;':`#${overallIndex+1}`;
       const rankCls = overallIndex===0?' top1':overallIndex===1?' top2':overallIndex===2?' top3':'';
       const imgSrc = resolveProfileImgSrc(entry.profileImg || entry.photoURL, 'square') || (typeof getDefaultProfileImgSrc === 'function' ? getDefaultProfileImgSrc() : 'blank.png');

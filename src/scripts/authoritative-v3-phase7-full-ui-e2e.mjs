@@ -103,7 +103,7 @@ const requestedFocusedScenario = String(params.get('e2eFocusedScenario') || '').
 const requestedLandscapeId = String(params.get('e2eLandscapeId') || '').trim().toLowerCase();
 const oracleCatalogAudit = validateRuleOracleCatalog(
   eligibleCardIds,
-  Array.from({length:20}, (_value, index)=>`igb${index + 1}`)
+  Array.from({length:24}, (_value, index)=>`igb${index + 1}`)
 );
 if(!oracleCatalogAudit.ok){
   throw new Error(`Rule oracle catalog is incomplete: ${oracleCatalogAudit.errors.join('; ')}`);
@@ -152,7 +152,7 @@ if(requestedFocusedScenario && !FOCUSED_SHIPPING_SCENARIOS[requestedFocusedScena
 if(requestedFocusedScenario && !organicCardCampaign){
   throw new Error('e2eFocusedScenario requires the strict organic card campaign flags');
 }
-if(requestedLandscapeId && !/^igb(?:[1-9]|1\d|20)$/.test(requestedLandscapeId)){
+if(requestedLandscapeId && !/^igb(?:[1-9]|1\d|2[0-4])$/.test(requestedLandscapeId)){
   throw new Error(`Unknown landscape requested: ${requestedLandscapeId}`);
 }
 // The user explicitly allowed only the two basic deck-search cards to skip the
@@ -214,7 +214,7 @@ const REQUIRED_SOURCE_OVERLAY_KINDS = Object.freeze({
   'bh04':'bh04_selva_paradise',
   'bh07':'bh07_overclock',
   'bh08':'bh08_mischief',
-  'bh25':'jimmy_wrath'
+  'bh25':'alpine_engineer_proc'
 });
 function requiredOverlayKindsForCard(cardId){
   const configured = REQUIRED_SOURCE_OVERLAY_KINDS[String(cardId || '')];
@@ -572,7 +572,7 @@ const EFFECT_FAMILY_FOCUS_GROUPS = Object.freeze({
   1:Object.freeze({family:'DRAW_AND_SEARCH', cardIds:Object.freeze(['06','07','08','13','27','29','32','40','42','46','48','60','68','71','74','80','84','86','90','bh01','bh02','bh10'])}),
   2:Object.freeze({family:'FATE_MODIFICATION', cardIds:Object.freeze(['01','02','03','05','07','10','11','14','15','19','22','23','31','33','34','35','36','38','40','41','44','46','47','51','55','57','59','61','63','64','65','66','70','76','77','83','85','86','87','88','89','90','93','95','100','bh02','bh07','bh08','bh09','bh11','bh12','bh13'])}),
   3:Object.freeze({family:'MOVEMENT', cardIds:Object.freeze(['34','39','54','62','69','70','73','bh01'])}),
-  4:Object.freeze({family:'DISCARD_REMOVAL_AND_TRANSFER', cardIds:Object.freeze(['08','16','29','30','38','42','48','52','58','62','70','71','72','73','80','96','bh10','bh13','bh25'])}),
+  4:Object.freeze({family:'DISCARD_REMOVAL_AND_TRANSFER', cardIds:Object.freeze(['08','16','29','30','38','42','48','52','58','62','70','71','72','73','80','96','bh10','bh13'])}),
   5:Object.freeze({family:'STATUS_AND_IMMUNITY', cardIds:Object.freeze(['06','07','12','14','17','18','20','21','51','53','56','67','69','70','76','79','81','91','99','bh01','bh03','bh06','bh08'])}),
   6:Object.freeze({family:'CONTROL_CHANGES', cardIds:Object.freeze(['70','72','bh03'])}),
   7:Object.freeze({
@@ -596,7 +596,7 @@ const EFFECT_FAMILY_FOCUS_GROUPS = Object.freeze({
   10:Object.freeze({
     family:'LANDSCAPES',
     cardIds:Object.freeze(['82','91']),
-    landscapeIds:Object.freeze(Array.from({length:20}, (_, index)=>`igb${index + 1}`))
+    landscapeIds:Object.freeze(Array.from({length:24}, (_, index)=>`igb${index + 1}`))
   }),
   11:Object.freeze({family:'UNUSUAL_CUSTOM_EFFECTS', cardIds:Object.freeze(['04','09','28','45','78','82','98','bh04'])})
 });
@@ -1789,10 +1789,10 @@ function effectBranchKey(event){
 
 function eventLandscapeId(event){
   const direct = String(event?.landscapeId || event?.sourceCardId || '');
-  if(/^igb(?:[1-9]|1[0-9]|20)$/.test(direct)) return direct;
-  const sourceMatch = String(event?.sourceIid || '').match(/^landscape:(igb(?:[1-9]|1[0-9]|20))$/);
+  if(/^igb(?:[1-9]|1[0-9]|2[0-4])$/.test(direct)) return direct;
+  const sourceMatch = String(event?.sourceIid || '').match(/^landscape:(igb(?:[1-9]|1[0-9]|2[0-4]))$/);
   if(sourceMatch) return sourceMatch[1];
-  const reasonMatch = String(event?.reason || '').match(/LANDSCAPE_(IGB(?:[1-9]|1[0-9]|20))/i);
+  const reasonMatch = String(event?.reason || '').match(/LANDSCAPE_(IGB(?:[1-9]|1[0-9]|2[0-4]))/i);
   return reasonMatch ? reasonMatch[1].toLowerCase() : '';
 }
 

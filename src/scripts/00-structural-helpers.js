@@ -196,7 +196,9 @@ function addBottomSafeSquareForPlayer(z, player, c = 1) {
     if (!Array.isArray(G.extraRowOwners[z])) G.extraRowOwners[z] = [];
     G.extraRowOwners[z][G.extraRows[z] - 1] = null;
   }
-  if (!G.board[z][row]) G.board[z][row] = Array(3).fill(null);
+  const columnCount = Math.max(3, Number(opts.columns) || 3);
+  if (!G.board[z][row]) G.board[z][row] = Array(columnCount).fill(null);
+  while (G.board[z][row].length < columnCount) G.board[z][row].push(null);
   const squares = ensureMarkSafeSquareState();
   if (G.board[z][row][col]) return null;
   if (squares.some(s => s.z === z && s.r === row && s.c === col)) return null;
@@ -250,7 +252,7 @@ function initLandscapeForSong(song) {
     if (typeof renderLandscapePanel === 'function') renderLandscapePanel();
     return null;
   }
-  const bgNum = Math.max(1, Math.min(20, parseInt(String(song || 'board1').replace('board', ''), 10) || 1));
+  const bgNum = Math.max(1, Math.min(24, parseInt(String(song || 'board1').replace('board', ''), 10) || 1));
   const id = 'igb' + bgNum;
   const landscape = (typeof LANDSCAPES !== 'undefined' && LANDSCAPES) ? LANDSCAPES[id] : null;
   G.landscapeId = id;
@@ -261,6 +263,7 @@ function initLandscapeForSong(song) {
     G._landscapeState = {
       id,
       targetZone: (landscape && landscape.needsTargetZone) ? Math.floor(rng() * 3) : null,
+      targetZones: id === 'igb22' ? (function(){ const first=Math.floor(rng()*3); return [first, (first + 1 + Math.floor(rng()*2)) % 3].sort(); })() : null,
       consolidations: [0, 0],
       zoneFateBonuses: [[0, 0, 0], [0, 0, 0]],
       resolvedTurns: {},
@@ -275,7 +278,8 @@ function initLandscapeForSong(song) {
       igb20Winner: null,
       igb20ChoiceResolved: false,
       igb20Declined: false,
-      igb20DiscardedIid: null
+      igb20DiscardedIid: null,
+      igb21CatalogUses: [0, 0]
     };
     if (id === 'igb19' && Array.isArray(G.players)) {
       G.players.forEach(function(player, playerIndex){
@@ -291,8 +295,8 @@ function initLandscapeForSong(song) {
 
 function getCurrentLandscape() {
   if (typeof G === 'undefined' || !G) return null;
-  if (G.landscape) return G.landscape;
   const id = G.landscapeId || null;
+  if (G.landscape && (!id || String(G.landscape.id || '') === String(id))) return G.landscape;
   return id && typeof LANDSCAPES !== 'undefined' ? LANDSCAPES[id] : null;
 }
 
@@ -303,6 +307,7 @@ function isLandscapeActive(id) {
 
 function getLandscapeState() {
   if (typeof G === 'undefined' || !G) return null;
+  const landscape = getCurrentLandscape();
   if (!G._landscapeState) G._landscapeState = { id:G.landscapeId || '', consolidations:[0,0], zoneFateBonuses:[[0,0,0],[0,0,0]], resolvedTurns:{}, eventideMovedIids:{}, drawPhaseCounts:[0,0], supporterEffectsThisTurn:[0,0] };
   if (!Array.isArray(G._landscapeState.consolidations)) G._landscapeState.consolidations = [0,0];
   if (!Array.isArray(G._landscapeState.zoneFateBonuses)) G._landscapeState.zoneFateBonuses = [[0,0,0],[0,0,0]];
@@ -316,7 +321,12 @@ function getLandscapeState() {
   if (typeof G._landscapeState.igb20PendingFateThreshold === 'undefined') G._landscapeState.igb20PendingFateThreshold = null;
   if (typeof G._landscapeState.igb20ChoiceResolved !== 'boolean') G._landscapeState.igb20ChoiceResolved = false;
   if (typeof G._landscapeState.igb20Declined !== 'boolean') G._landscapeState.igb20Declined = false;
-  const landscape = getCurrentLandscape();
+  if (!Array.isArray(G._landscapeState.igb21CatalogUses)) G._landscapeState.igb21CatalogUses = [0,0];
+  if (landscape && landscape.id === 'igb22' && (!Array.isArray(G._landscapeState.targetZones) || G._landscapeState.targetZones.length !== 2)) {
+    const rng = getFateRng();
+    const first = Math.floor(rng() * 3);
+    G._landscapeState.targetZones = [first, (first + 1 + Math.floor(rng() * 2)) % 3].sort();
+  }
   if (landscape && landscape.id === 'igb17' && !Number.isFinite(Number(G._landscapeState.rotationStartedAt))) {
     G._landscapeState.rotationStartedAt = Date.now();
   }
@@ -551,7 +561,7 @@ function isCardEffectImmutable(card) {
 }
 
 function isOpponentEffectOnlyImmuneCard(card) {
-  return isSouthWindSpearmanCard(card) && isCardCurrentlyOnField(card);
+  return !!(card && card._igb24OpponentEffectImmune === true);
 }
 
 function isTargetImmuneToEffectOwner(card, effectOwner) {
@@ -816,6 +826,9 @@ function getFelicitaLandscapeChangeBlockReason(targetId) {
   const nextId = String(targetId || '');
   const state = typeof getLandscapeState === 'function' ? getLandscapeState() : G._landscapeState;
   const resolvedTurns = state && state.resolvedTurns ? state.resolvedTurns : {};
+  if(currentId === 'igb24' && turn >= 16 && (!nextId || nextId !== currentId)) {
+    return 'The Moscow Protest cannot be changed away from once Turn 16 begins.';
+  }
   const currentResolutionTurn = getTimedLandscapeResolutionTurn(currentId);
   if(currentResolutionTurn && !resolvedTurns[currentId] && turn >= currentResolutionTurn - 4 && (!nextId || nextId !== currentId)) {
     const currentName = currentId === 'igb2' ? 'ALPINE Headquarters' : 'Qingdao';
@@ -1366,6 +1379,9 @@ function cleanupTransientGameTimers() {
     if (typeof window.clearConsolidationCinematicQueues === 'function') {
       try { window.clearConsolidationCinematicQueues(); } catch (e) {}
     }
+    if (typeof window.clearDeferredCardEffectFlashes === 'function') {
+      try { window.clearDeferredCardEffectFlashes(); } catch (e) {}
+    }
   }
   G._handLimitDiscard = null;
   G._cardDetailModalLockUntil = 0;
@@ -1503,6 +1519,9 @@ function cleanupFloatingGameArtifacts() {
 }
 
 function cleanupLeavingGameScreenArtifacts() {
+  if(typeof window.clearSpecialLandscapePresentation === 'function') {
+    try { window.clearSpecialLandscapePresentation(); } catch (e) {}
+  }
   hidePassTurnOverlay();
   cleanupTutorialAndDialogueArtifacts({dismissTutorial:true, resetAIDialogue:true});
   cleanupFloatingGameArtifacts();

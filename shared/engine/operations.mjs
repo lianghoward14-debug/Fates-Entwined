@@ -25,6 +25,7 @@ import {collectTriggeredOperations} from './triggers.mjs';
 import {
   recordLandscapeRuleEvent,
   queueLandscapeRuleEventFrame,
+  landscapeChangeBlockReason,
   replaceLandscapeState,
   stampCaliforniqueHandCard
 } from './landscapes/runtime.mjs';
@@ -180,6 +181,7 @@ function drawCards(ctx, operation){
   if(!player) throw operationError('PLAYER_NOT_FOUND', 'draw player is invalid');
   const count = Math.max(0, Number(operation.count || 1) || 0);
   const drawn = [];
+  let outsideDrawLandscapeTriggered = false;
   if(operation.activatedEffect === true){
     emit(ctx, {
       type:RULE_EVENT_TYPES.DRAW_EFFECT_ACTIVATED,
@@ -255,6 +257,7 @@ function drawCards(ctx, operation){
           amount:6,
           sourceIid:source.card.iid,
           sourceController:playerIndex,
+          permanentFateGain:true,
           reason:'CHRISTOPHER_ERBS_NEXT_DRAW'
         }, false);
       }
@@ -265,8 +268,13 @@ function drawCards(ctx, operation){
       cardIid:card.iid,
       sourceIid:operation.sourceIid || null,
       semanticSourceCardId:operation.semanticSourceCardId || undefined,
-      activatedEffect:operation.activatedEffect === true
+      effectActivationId:operation.effectActivationId || undefined,
+      // West Coast Dreaming is once per draw effect, not once per card in a
+      // multi-card draw. Attach it to the first card that actually reaches the
+      // hand, rather than index zero, because that attempt may be redirected.
+      activatedEffect:operation.activatedEffect === true && !outsideDrawLandscapeTriggered
     });
+    if(operation.activatedEffect === true) outsideDrawLandscapeTriggered = true;
   }
   return {drawnIids:drawn};
 }
@@ -288,6 +296,13 @@ function setCard(ctx, operation){
   }
   const settingPrintedSupporter = structuralCardType(ctx.state, player.hand[handIndex]) === 'Supporter'
     && operation.consolidated !== true;
+  const defenseInDepthStatus = settingPrintedSupporter
+    ? ctx.state.statuses.find(status=>
+        status?.type === 'NEXT_SUPPORTER_SET_EXEMPT'
+        && Number(status.playerIndex) === playerIndex
+        && Number(status.remaining || 0) > 0
+      )
+    : null;
   if(settingPrintedSupporter
     && Number(ctx.state.supportersSetForCapThisTurn[playerIndex] || 0) >= MAX_SUPPORTERS_SET_PER_TURN){
     throw operationError(
@@ -325,6 +340,8 @@ function setCard(ctx, operation){
   const card = player.hand.splice(handIndex, 1)[0];
   card.controller = playerIndex;
   card.faceDown = operation.faceDown === true;
+  if(!card.counters || typeof card.counters !== 'object') card.counters = {};
+  card.counters.fieldEnteredTurn = Number(ctx.state.turn) || 0;
   ctx.state.board[z][r][c] = card;
   if(String(card.type || '') === 'Supporter'){
     ctx.state.supportersSetTotal[playerIndex] += 1;
@@ -348,7 +365,7 @@ function setCard(ctx, operation){
       });
     }
   }
-  if(operation.countTowardSupporterLimit === true){
+  if(operation.countTowardSupporterLimit === true && !defenseInDepthStatus){
     ctx.state.supportersSetThisTurn[playerIndex] += 1;
   }
   emit(ctx, {
@@ -359,6 +376,22 @@ function setCard(ctx, operation){
     playedFromHand:operation.playedFromHand === true,
     consolidated:operation.consolidated === true
   });
+  if(defenseInDepthStatus){
+    const fateBonus = Math.max(0, Number(defenseInDepthStatus.fateBonus) || 4);
+    ctx.state.statuses = ctx.state.statuses.filter(status=>status !== defenseInDepthStatus);
+    ctx.events.push({type:'STATUS_REMOVED',statusId:defenseInDepthStatus.statusId,reason:'DEFENSE_IN_DEPTH_CONSUMED'});
+    if(fateBonus > 0){
+      changeFate(ctx, {
+        type:OPERATION_TYPES.MODIFY_FATE,
+        targetIid:card.iid,
+        amount:fateBonus,
+        sourceIid:defenseInDepthStatus.sourceIid,
+        sourceController:playerIndex,
+        reason:'DEFENSE_IN_DEPTH_FATE_BONUS',
+        bypassReaction:true
+      }, false);
+    }
+  }
   return {cardIid:card.iid, destination:{z, r, c}};
 }
 
@@ -374,7 +407,23 @@ function consolidateCard(ctx, operation){
     throw operationError('INVALID_CONSOLIDATION_CARD', 'only Character cards can be consolidated');
   }
   const tributeIids = Array.isArray(operation.tributeIids) ? operation.tributeIids.map(String) : [];
-  if(!tributeIids.length) throw operationError('TRIBUTES_REQUIRED', 'consolidation requires at least one tribute');
+  const requestedDestination = operation.destination && typeof operation.destination === 'object'
+    ? {z:Number(operation.destination.z), r:Number(operation.destination.r), c:Number(operation.destination.c)}
+    : null;
+  const zeroCostAnickaDestination = requestedDestination && (ctx.state.geometry?.playableExtraSquares || []).some(square=>
+    Number(square.z) === requestedDestination.z
+    && Number(square.r) === requestedDestination.r
+    && Number(square.c) === requestedDestination.c
+    && Number(square.owner) === playerIndex
+    && String(findBoardCard(ctx.state, square.sourceIid)?.card?.id || '') === '02'
+  );
+  const zeroCostOpenDestination = zeroCostAnickaDestination
+    && isBoardCoordinate(ctx.state, requestedDestination)
+    && !boardCardAt(ctx.state, requestedDestination)
+    && effectiveConsolidationCost(ctx.state, handEntry.card, playerIndex, requestedDestination) === 0;
+  if(!tributeIids.length && !zeroCostOpenDestination){
+    throw operationError('TRIBUTES_REQUIRED', 'consolidation requires at least one tribute unless its destination cost is zero');
+  }
   if(new Set(tributeIids).size !== tributeIids.length){
     throw operationError('DUPLICATE_TRIBUTE', 'a tribute cannot be selected twice');
   }
@@ -388,7 +437,7 @@ function consolidateCard(ctx, operation){
     }
     reinforcement += eligibility.reinforcement;
   }
-  const cost = effectiveConsolidationCost(ctx.state, handEntry.card, playerIndex);
+  const cost = effectiveConsolidationCost(ctx.state, handEntry.card, playerIndex, operation.destination);
   if(reinforcement < cost){
     throw operationError('INSUFFICIENT_REINFORCEMENT', `consolidation requires ${cost} reinforcement`, {cost, reinforcement});
   }
@@ -396,13 +445,13 @@ function consolidateCard(ctx, operation){
     entry.z === Number(operation.destination?.z)
     && entry.r === Number(operation.destination?.r)
     && entry.c === Number(operation.destination?.c)
-  );
+  ) || (zeroCostOpenDestination ? {...requestedDestination, card:null} : null);
   if(!destinationEntry){
     throw operationError('INVALID_DESTINATION', 'the consolidated card must occupy a selected tribute square');
   }
   const blockedSquare = [destinationEntry, ...tributes].find(entry=>
     squareStatuses(ctx.state, entry, 'CONSOLIDATION_BLOCKED').some(status=>Number(status.blockedPlayer)===playerIndex)
-    || !!zoeFieldLeaveLock(ctx.state,entry)
+    || (entry.card && !!zoeFieldLeaveLock(ctx.state,entry))
   );
   if(blockedSquare){
     throw operationError('CONSOLIDATION_SQUARE_BLOCKED', 'Zoe prevents consolidation on or from this square');
@@ -441,9 +490,9 @@ function consolidateCard(ctx, operation){
     throw operationError('CROSS_ZONE_TRIBUTE_PREVENTED', 'Colombo Thug requires all tributes to come from the destination zone');
   }
   const pressureReworks = ctx.state.gameSettings?.pressureCardReworks === true;
-  const consolidationBonusCardId = pressureReworks ? '73' : '47';
+  const consolidationBonusCardId = '73';
   const greatOakCount = tributes.reduce((sum, entry)=>sum + (String(entry.card.id || '') === consolidationBonusCardId && !isEffectSourceSuppressed(ctx.state, entry) ? 1 : 0), 0);
-  const greatOakBonus = greatOakCount * (pressureReworks ? 4 : 3);
+  const greatOakBonus = greatOakCount * 4;
   const reservedIndex = player.hand.findIndex(card=>String(card.iid) === String(handEntry.card.iid));
   const reservedCard = player.hand.splice(reservedIndex, 1)[0];
   for(const entry of tributes){
@@ -478,7 +527,8 @@ function consolidateCard(ctx, operation){
       amount:greatOakBonus,
       sourceIid:tributes.find(entry=>String(entry.card.id || '') === consolidationBonusCardId)?.card.iid,
       sourceController:playerIndex,
-      reason:pressureReworks ? 'ALPINE_GLOBAL_MISSIONS_CONSOLIDATION' : 'GREAT_OAK_CONSOLIDATION'
+      permanentFateGain:true,
+      reason:'ALPINE_GLOBAL_MISSIONS_CONSOLIDATION'
     }, false);
   }
   emit(ctx, {
@@ -721,7 +771,7 @@ function changeFate(ctx, operation, absolute){
     const highTPlayer = Number.isInteger(Number(operation.sourceController))
       ? Number(operation.sourceController)
       : controllerOf(entry.card);
-    const highTSources = !absolute && baseTransformed > beforeStored
+    const highTSources = operation.permanentFateGain === true && !absolute && baseTransformed > beforeStored
       ? ctx.state.statuses.filter(status=>
           status?.type === 'PERMANENT_FATE_GAIN_POTENCY'
           && Number(status.playerIndex) === highTPlayer
@@ -761,6 +811,7 @@ function changeFate(ctx, operation, absolute){
       sourceIid:operation.sourceIid || null,
       semanticSourceCardId:operation.semanticSourceCardId || undefined,
       reason:operation.reason || '',
+      presentationDelayMs:Math.max(0, Number(operation.presentationDelayMs) || 0),
       highTBonus,
       highTSourceIids:highTSources.map(status=>String(status.sourceIid || '')),
       bh15Bonus:chineseMacArthurBonus,
@@ -1298,7 +1349,7 @@ function ensureExtraRow(ctx, zone, owner){
   );
   if(r < 0){
     r = ctx.state.board[z].length;
-    ctx.state.board[z].push([null, null, null]);
+    ctx.state.board[z].push([null, null, null, null]);
     ctx.state.geometry.rowOwners[z].push(playerIndex);
   }
   return r;
@@ -1310,10 +1361,11 @@ function addSafeRow(ctx, operation){
     ? Number(operation.zone)
     : findBoardCard(ctx.state, operation.sourceIid)?.z;
   const r = ensureExtraRow(ctx, z, owner);
-  for(let c = 0; c < 3; c += 1){
+  while(ctx.state.board[z][r].length < 4) ctx.state.board[z][r].push(null);
+  for(let c = 0; c < 4; c += 1){
     const key = squareKey({z, r, c});
     if(!ctx.state.geometry.playableExtraSquares.some(square=>squareKey(square) === key)){
-      ctx.state.geometry.playableExtraSquares.push({z, r, c, owner});
+      ctx.state.geometry.playableExtraSquares.push({z, r, c, owner, sourceIid:operation.sourceIid || null});
     }
   }
   ctx.state.geometry.playableExtraSquares.sort((a, b)=>
@@ -1972,9 +2024,11 @@ function splitFateLossByType(ctx, operation){
 
 function changeLandscape(ctx, operation){
   const landscapeId = String(operation.landscapeId || '');
-  if(!/^igb(?:[1-9]|1[0-9]|20)$/.test(landscapeId)){
+  if(!/^igb(?:[1-9]|1[0-9]|2[0-4])$/.test(landscapeId)){
     throw operationError('INVALID_LANDSCAPE', 'landscape change target is invalid');
   }
+  const blockReason = landscapeChangeBlockReason(ctx.state, landscapeId);
+  if(blockReason) throw operationError('LANDSCAPE_CHANGE_BLOCKED', blockReason);
   const result = replaceLandscapeState(ctx.state, landscapeId);
   ctx.events.push({
     type:'LANDSCAPE_CHANGED',

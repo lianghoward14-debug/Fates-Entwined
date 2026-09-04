@@ -12,7 +12,7 @@ const DEFINITIONS = [
   {id:'19', name:'Kvetka Svoboda', type:'Coordinator', aff:'third_great_war', fate:4, cost:2},
   {id:'23', name:'Cathy', type:'Coordinator', aff:'reality', fate:3, cost:2},
   {id:'32', name:'Temecula Resident', type:'Supporter', aff:'reality', fate:1, cost:0},
-  {id:'35', name:'Alexander the Magnificent', type:'Dauntless', aff:'third_great_war', fate:0, cost:4},
+  {id:'35', name:'Alexander the Magnificient', type:'Dauntless', aff:'third_great_war', fate:12, cost:3},
   {id:'41', name:'Jimmy', type:'Dauntless', aff:'reality', fate:0, cost:3},
   {id:'44', name:'Soviet Grenadiers', type:'Supporter', aff:'third_great_war', fate:1, cost:0},
   {id:'55', name:'Bobby Jones', type:'Dauntless', aff:'expanded_worlds', fate:5, cost:1},
@@ -81,13 +81,13 @@ function put(state, playerIndex, cardId, z, r, c){
 {
   const state = scenario(['35', '32', '76']);
   const alexander = put(state, 0, '35', 0, 2, 0);
-  assert.equal(effectiveFate(state, alexander), 0, 'Alexander must be zero with no Supporters');
+  assert.equal(effectiveFate(state, alexander), 12, 'Alexander must retain its printed Fate with no Supporters');
   put(state, 0, '32', 0, 2, 1);
-  assert.equal(effectiveFate(state, alexander), 1, 'Alexander must include an ordinary Supporter');
+  assert.equal(effectiveFate(state, alexander), 12, 'Alexander must not derive Fate from ordinary Supporters');
   alexander.currentFate += 3;
-  assert.equal(effectiveFate(state, alexander), 4, 'Alexander must retain permanent Fate on top of its derived Supporter total');
+  assert.equal(effectiveFate(state, alexander), 15, 'Alexander must retain permanent Fate on top of its printed Fate');
   put(state, 0, '76', 0, 2, 2);
-  assert.equal(effectiveFate(state, alexander), 5, 'Alexander must include an effect-immune Supporter while retaining permanent Fate');
+  assert.equal(effectiveFate(state, alexander), 15, 'Alexander must ignore Supporters while retaining permanent Fate');
 }
 
 {

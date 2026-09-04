@@ -114,7 +114,8 @@ const recklessAttack = AI.scoreMoralePositionDelta({
 assert(cautiousDefense > recklessDefense, 'cautious personalities should value preventing morale damage more highly');
 assert(recklessAttack > cautiousAttack, 'aggressive personalities should value dealing morale damage more highly');
 assert(cautiousDefense > cautiousAttack, 'a cautious AI near a threshold should stabilize before padding a won zone');
-assert(AI.moraleThresholdBurden(20,100).burden > AI.moraleThresholdBurden(21,100).burden, 'crossing 20% must carry a nonlinear random-hand-discard penalty');
+assert(AI.moraleThresholdBurden(40,100).burden > AI.moraleThresholdBurden(41,100).burden, 'crossing 40% must carry a nonlinear random-hand-discard penalty');
+assert(AI.moraleThresholdBurden(20,100).burden > AI.moraleThresholdBurden(21,100).burden, 'crossing 20% must carry a nonlinear Supporter-expiry penalty');
 const moraleCard = AI.profileCard({id:'33',type:'Supporter',fate:1,effect:'When set, recover 16 Morale'});
 assert.strictEqual(moraleCard.moraleHeal, 16, 'AI card profiles must recognize direct morale recovery');
 assert(

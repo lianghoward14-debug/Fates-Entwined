@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import {
   applyOperation,
+  createMoralePressureState,
   createInitialState,
-  reduceCommand
+  reduceCommand,
+  resolveMoralePressureCycle
 } from '../../shared/engine/index.mjs';
 import {collectTriggeredOperations} from '../../shared/engine/triggers.mjs';
 
@@ -90,22 +92,23 @@ applyOperation(highTCtx, {
 assert.equal(consolidated.currentFate, beforeHighT + 12, 'two BH19 copies must add two original +4 gains, not compound');
 
 state = stateFor('BH18');
+state.gameSettings = {healthPressureSeals:true};
+state.moralePressure = createMoralePressureState(0);
+state.turn = 4;
 const jimmy = board(state, 1, 'bh18', {z:0,r:0,c:0});
-const deckBefore = state.players[0].deck.length;
-const endResult = reduceCommand(state, {
-  commandId:'p0:end:1',
-  matchId:state.matchId,
-  expectedRevision:state.revision,
-  type:'END_TURN',
-  payload:{}
-}, {playerId:'p0'});
-assert.equal(endResult.ok, true);
-assert.equal(endResult.state.players[0].deck.length, deckBefore - 1);
-const discardedEvent = endResult.events.find(event=>
-  event.type === 'CARD_DISCARDED' && event.reason === 'GENESIS_OF_ALL_INCELDOM'
-);
-assert(discardedEvent, 'BH18 must publicly report its random deck discard');
-assert.equal(discardedEvent.sourceIid, jimmy.iid);
-assert(discardedEvent.cardName, 'BH18 discard event must reveal the discarded card name');
+const attacker = board(state, 0, 's2', {z:0,r:2,c:0});
+attacker.currentFate = 20;
+const moraleBefore = state.moralePressure.morale[1];
+const moraleCtx = {state, events:[], ruleEvents:[]};
+resolveMoralePressureCycle(moraleCtx);
+assert(state.moralePressure.morale[1] < moraleBefore, 'BH18 controller must take Morale Calculation damage for the effect to trigger');
+const reduction = state.statuses.find(status=>status.reason === 'GENESIS_OF_ALL_INCELDOM');
+assert(reduction, 'BH18 must create a Zone Fate reduction after its controller takes calculation damage');
+assert.equal(reduction.sourceIid, jimmy.iid);
+assert.equal(reduction.playerIndex, 0);
+assert.equal(reduction.zone, 0);
+assert.equal(reduction.value, -3);
+const cycleEvent = moraleCtx.events.find(event=>event.type === 'MORALE_CYCLE_RESOLVED');
+assert.equal(cycleEvent.bh18ZoneFateReductions[0].sourceIid, jimmy.iid, 'BH18 overlay source must be carried by the Morale Calculation event');
 
 console.log('authoritative-v3 BH17-BH19 smoke test passed');

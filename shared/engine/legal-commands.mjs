@@ -223,6 +223,11 @@ export function legalCommandTemplates(state, playerIndex){
     return commands;
   }
   if(state.outcome || state.activePlayer !== player) return commands;
+  const defenseInDepthReady = state.statuses.some(status=>
+    status?.type === 'NEXT_SUPPORTER_SET_EXEMPT'
+    && Number(status.playerIndex) === player
+    && Number(status.remaining || 0) > 0
+  );
   for(const card of state.players[player].deck){
     if(!['07', '28'].includes(String(card.id || ''))) continue;
     if(String(card.type || '') === 'Supporter'
@@ -286,10 +291,11 @@ export function legalCommandTemplates(state, playerIndex){
   const setDestinations = openBoardDestinations(state, destination=>ownSetDestination(state, player, destination));
   for(const card of state.players[player].hand){
     if(card.counters?.adaptiveToken === true) continue;
-    if(Number(state.supportersSetForCapThisTurn?.[player] || 0) >= MAX_SUPPORTERS_SET_PER_TURN) break;
-    if(state.supportersSetThisTurn[player]
-      >= Math.min(MAX_SUPPORTERS_SET_PER_TURN, state.baseSupportersPerTurn + Number(state.extraSupportersThisTurn[player] || 0))) break;
     if(String(card.type || '') !== 'Supporter' || Number(card.cost || 0) !== 0) continue;
+    if(Number(state.supportersSetForCapThisTurn?.[player] || 0) >= MAX_SUPPORTERS_SET_PER_TURN) break;
+    if(!defenseInDepthReady
+      && state.supportersSetThisTurn[player]
+        >= Math.min(MAX_SUPPORTERS_SET_PER_TURN, state.baseSupportersPerTurn + Number(state.extraSupportersThisTurn[player] || 0))) break;
     if(String(card.id || '') === '70' && card.statuses?.includes('GUERILLA_INFILTRATING')) continue;
     for(const destination of setDestinations){
       if(zoneActionBlock(state, player, destination.z)) continue;
@@ -309,7 +315,23 @@ export function legalCommandTemplates(state, playerIndex){
       .map(entry=>({entry, eligibility:canUseAsConsolidationTribute(state, entry, player, card)}))
       .filter(item=>item.eligibility.ok)
       .map(item=>({...item.entry, reinforcement:item.eligibility.reinforcement}));
-    const cost = effectiveConsolidationCost(state, card, player);
+    for(const destination of setDestinations){
+      const generatedByAnicka = (state.geometry?.playableExtraSquares || []).some(square=>
+        Number(square.z) === Number(destination.z)
+        && Number(square.r) === Number(destination.r)
+        && Number(square.c) === Number(destination.c)
+        && Number(square.owner) === player
+        && String(findBoardCard(state, square.sourceIid)?.card?.id || '') === '02'
+      );
+      if(!generatedByAnicka || effectiveConsolidationCost(state, card, player, destination) !== 0) continue;
+      if(zoneActionBlock(state, player, destination.z)) continue;
+      commands.push({
+        type:'CONSOLIDATE_CARD',
+        payload:{cardIid:card.iid, tributeIids:[], destination:{...destination}}
+      });
+    }
+    const possibleCosts = tributeCandidates.map(entry=>effectiveConsolidationCost(state, card, player, entry));
+    const cost = possibleCosts.length ? Math.min(...possibleCosts) : effectiveConsolidationCost(state, card, player);
     const combinations = [];
     function collect(start, selected, reinforcement){
       // A zero reinforcement amount still uses a real tribute square. The
@@ -331,6 +353,7 @@ export function legalCommandTemplates(state, playerIndex){
     collect(0, [], 0);
     for(const tributes of combinations){
       for(const destination of tributes){
+        if(tributes.reduce((sum, entry)=>sum + Number(entry.reinforcement || 0), 0) < effectiveConsolidationCost(state, card, player, destination)) continue;
         if(zoneActionBlock(state, player, destination.z)) continue;
         if(!ownSetDestination(state, player, destination)) continue;
         if(squareStatuses(state, destination, 'CONSOLIDATION_BLOCKED').some(status=>

@@ -1640,6 +1640,11 @@ html body #s-game .bc.effect-flash-anicka_voyager_boat::after{
   --effect-flash-tint:rgba(148,29,29,.20);--effect-flash-inset:rgba(255,103,94,.14);
   --effect-flash-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath stroke-width='4.2' d='M10 14L19 6H45L54 14L58 33L50 53L40 64H24L13 53L6 33Z'/%3E%3Cpath stroke-width='4.2' d='M13 24L27 29M55 24L40 29M16 34H26M38 34H48M17 48H46L41 55H23Z'/%3E%3Cpath stroke-width='2.9' d='M27 48V55M37 48V55'/%3E%3C/g%3E%3C/svg%3E");
 }
+.bc.effect-flash-alpine_engineer_proc{
+  --effect-flash-color:rgba(154,222,255,.99);--effect-flash-glow:rgba(48,156,255,.72);
+  --effect-flash-tint:rgba(24,88,168,.20);--effect-flash-inset:rgba(91,183,255,.16);
+  --effect-flash-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='4.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M32 6l5 8 9-1 2 9 8 5-4 5 4 5-8 5-2 9-9-1-5 8-5-8-9 1-2-9-8-5 4-5-4-5 8-5 2-9 9 1z'/%3E%3Ccircle cx='32' cy='32' r='10'/%3E%3C/g%3E%3C/svg%3E");
+}
 .bc.effect-flash-bh17_crushing_momentum{
   --effect-flash-color:rgba(255,240,189,.99);--effect-flash-glow:rgba(239,189,88,.70);
   --effect-flash-tint:rgba(151,98,28,.18);--effect-flash-inset:rgba(255,214,126,.13);
@@ -1659,6 +1664,11 @@ html body #s-game .bc.effect-flash-anicka_voyager_boat::after{
   --effect-flash-color:rgba(255,231,166,.99);--effect-flash-glow:rgba(220,174,85,.70);
   --effect-flash-tint:rgba(137,96,28,.18);--effect-flash-inset:rgba(255,207,112,.13);
   --effect-flash-mask:url("../../artifacts/bh19-overlay-vo3.svg");
+}
+.bc.effect-flash-bh24_winter_star{
+  --effect-flash-color:rgba(229,244,255,.99);--effect-flash-glow:rgba(112,190,224,.72);
+  --effect-flash-tint:rgba(49,116,151,.18);--effect-flash-inset:rgba(159,220,246,.14);
+  --effect-flash-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M32 7l6 17 18 1-14 11 5 18-15-10-15 10 5-18L8 25l18-1z' fill='none' stroke='black' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 .bc.effect-flash-bh07_overclock{
   --effect-flash-color:rgba(146,232,255,.99);--effect-flash-glow:rgba(58,190,255,.66);
@@ -7687,12 +7697,19 @@ html:not(.fate-canvas-board-mode) body #s-game #board .bc.opponent-card::after{
 #s-game .landscape-note{
   margin-top:.08rem;
   padding:.22rem .6rem 0;
-  border-top:1px solid rgba(218,185,82,.16);
+  border-top:0;
   font-family:'Cinzel',serif;
   font-size:.62rem;
   letter-spacing:.1em;
   color:rgba(255,232,154,.88);
   text-align:center;
+}
+
+/* Landscape copy is continuous text; status notes must never introduce a divider. */
+html body #s-game .landscape-panel .landscape-note,
+html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .landscape-panel .landscape-note{
+  border-top:0!important;
+  box-shadow:none!important;
 }
 
 #s-game .game-left::before{
@@ -20883,6 +20900,127 @@ html body #pack-opening-overlay .pack-art.profile-pack-art{
   aspect-ratio:5/7!important;
 }
 
+/* Unopened packs use one action per inventory row; the right column owns its
+   viewport height so a long inventory can never escape below the screen. */
+@media (min-width:1181px) and (min-height:720px){
+  html body #s-challenger .ch-store-market-column{
+    height:calc(100vh - 286px)!important;min-height:0!important;overflow:hidden!important;
+  }
+  html body #s-challenger .ch-store-market{
+    flex:1 1 auto!important;min-height:250px!important;overflow:hidden!important;
+  }
+  html body #s-challenger .ch-store-unopened-market{
+    flex:0 1 auto!important;max-height:min(310px,42%)!important;min-height:0!important;overflow:hidden!important;
+  }
+}
+html body #s-challenger .ch-store-unopened-market .ch-store-unopened-title{
+  min-height:0!important;overflow-x:hidden!important;overflow-y:auto!important;padding-right:3px!important;
+  scrollbar-width:thin;scrollbar-color:#b88d2d #070b10;
+}
+html body #s-challenger .ch-store-unopened-market .ch-store-unopened-title>button{
+  appearance:none!important;width:100%!important;min-height:45px!important;display:grid!important;
+  grid-template-columns:34px minmax(0,1fr) 66px!important;align-items:center!important;gap:.6rem!important;
+  padding:.35rem .48rem!important;border:1px solid rgba(232,196,82,.28)!important;border-radius:6px!important;
+  background:linear-gradient(90deg,rgba(237,198,66,.1),rgba(3,7,13,.52))!important;color:#eee2b9!important;
+  text-align:left!important;cursor:pointer!important;font-family:'Cinzel',serif!important;
+}
+html body #s-challenger .ch-store-unopened-market .ch-store-unopened-title>button:hover,
+html body #s-challenger .ch-store-unopened-market .ch-store-unopened-title>button:focus-visible{
+  border-color:#dfb94f!important;background:linear-gradient(90deg,rgba(237,198,66,.2),rgba(18,20,19,.72))!important;
+  box-shadow:inset 0 0 18px #e9ba3430!important;outline:none!important;
+}
+html body #s-challenger .ch-store-unopened-market .ch-store-unopened-title>button strong{
+  display:grid!important;place-items:center!important;width:32px!important;height:30px!important;
+  border-right:1px solid rgba(232,196,82,.35)!important;color:#ffe57e!important;font-size:1.05rem!important;
+}
+html body #s-challenger .ch-store-unopened-market .ch-store-unopened-title>button i{
+  min-width:0!important;color:#eee2b9!important;font-style:normal!important;font-size:.7rem!important;
+  line-height:1.2!important;letter-spacing:.035em!important;
+}
+html body #s-challenger .ch-store-unopened-market .ch-store-unopened-title>button em{
+  justify-self:stretch!important;padding:7px 5px!important;border:1px solid #c99d34!important;border-radius:4px!important;
+  background:#5a4217!important;color:#fff0ad!important;font:800 .58rem/1 Cinzel,serif!important;
+  font-style:normal!important;letter-spacing:.1em!important;text-align:center!important;text-transform:uppercase!important;
+}
+html body #s-challenger .ch-store-unopened-market .ch-store-unopened-actions{display:none!important}
+
+/* Correction: do not stretch the marketplace column. Its natural height keeps
+   the unopened-pack inventory above the viewport edge. */
+@media (min-width:1181px) and (min-height:720px){
+  html body #s-challenger .ch-store-market-column{
+    height:auto!important;max-height:none!important;overflow:visible!important;
+  }
+  html body #s-challenger .ch-store-market{
+    flex:0 0 auto!important;min-height:0!important;height:auto!important;
+  }
+  html body #s-challenger .ch-store-unopened-market{
+    flex:0 0 auto!important;width:100%!important;max-height:300px!important;
+  }
+}
+html body #s-challenger .ch-store-unopened-market{
+  display:grid!important;grid-template-rows:auto minmax(0,1fr)!important;
+  box-sizing:border-box!important;overflow:hidden!important;
+}
+html body #s-challenger .ch-store-unopened-market .ch-store-unopened-head{
+  flex:none!important;
+}
+@media (max-height:900px){
+  html body #s-challenger .ch-store-unopened-market{max-height:260px!important;padding:.7rem!important;gap:.5rem!important}
+  html body #s-challenger .ch-store-unopened-market .ch-store-unopened-title>button{min-height:40px!important}
+}
+
+/* Keep a large unopened-pack inventory inside the visible store column. */
+html body #s-challenger .ch-store-market-column{
+  min-height:0!important;
+}
+html body #s-challenger .ch-store-unopened-market{
+  flex:0 1 auto!important;
+  max-height:min(360px,calc(100vh - 690px))!important;
+  min-height:210px!important;
+  overflow:hidden!important;
+  box-sizing:border-box!important;
+}
+html body #s-challenger .ch-store-unopened-market .ch-store-unopened-head{
+  flex:0 0 auto!important;
+}
+html body #s-challenger .ch-store-unopened-market .ch-store-unopened-title{
+  flex:1 1 auto!important;
+  min-height:46px!important;
+  overflow-x:hidden!important;
+  overflow-y:auto!important;
+  padding-right:5px!important;
+  overscroll-behavior:contain!important;
+  scrollbar-width:thin!important;
+  scrollbar-color:#c99f3c66 #050a10aa!important;
+}
+html body #s-challenger .ch-store-unopened-market .ch-store-unopened-actions{
+  flex:0 0 auto!important;
+  display:grid!important;
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  width:100%!important;
+  gap:.45rem!important;
+  padding-top:.55rem!important;
+  border-top:1px solid rgba(232,196,82,.24)!important;
+  background:linear-gradient(180deg,transparent,#070b11 35%)!important;
+}
+html body #s-challenger .ch-store-unopened-market .ch-store-unopened-actions .btn{
+  min-width:0!important;
+  min-height:42px!important;
+  padding:.42rem .55rem!important;
+  white-space:normal!important;
+  line-height:1.15!important;
+}
+@media (max-height:900px){
+  html body #s-challenger .ch-store-unopened-market{
+    max-height:270px!important;
+    min-height:190px!important;
+    padding:.65rem!important;
+    gap:.45rem!important;
+  }
+  html body #s-challenger .ch-store-unopened-market .ch-store-unopened-title span{min-height:34px!important}
+  html body #s-challenger .ch-store-unopened-market .ch-store-unopened-actions .btn{min-height:36px!important;font-size:.62rem!important}
+}
+
 html body #pack-opening-overlay .pack-art.profile-pack-art img{
   width:100%!important;
   height:100%!important;
@@ -27511,11 +27649,8 @@ html body #modal .board-target-picker.is-multi-zone:not(.allows-board-scroll) .b
   flex-direction:column!important;
   justify-content:flex-start!important;
   align-content:flex-start!important;
-  align-self:start!important;
   gap:0!important;
-  height:auto!important;
   min-height:0!important;
-  max-height:none!important;
 }
 html body #modal .board-target-picker.is-multi-zone:not(.allows-board-scroll) .board-target-zone.no-extra-board-space .board-target-zone-title{
   flex:0 0 auto!important;
@@ -28303,6 +28438,55 @@ html body .status-overflow-dropdown .effect-pill.effect-pill-oktai-conceal .effe
   .bc .bc-jamie-healing-square { animation: none; opacity: .68; }
 }
 
+/* Moscow tenure marker. It shares the low-Morale icon position, shifting left
+   only when the low-Morale warning is also present. */
+.bc .bc-moscow-tenure{
+  position:absolute;left:50%;top:50%;z-index:5;width:48px;height:48px;
+  display:grid;place-items:center;border:2px solid #f0c75e;border-radius:50%;
+  color:#f5d76e;background:radial-gradient(circle,#8f1018 0 58%,#43070b 72%,rgba(20,1,3,.92));
+  box-shadow:0 0 0 2px rgba(72,4,8,.75),0 0 12px rgba(231,45,52,.72);
+  transform:translate(-50%,-50%);pointer-events:none;text-shadow:0 1px 2px #270000;
+}
+.bc .bc-moscow-tenure.is-beside-low-morale{transform:translate(-108%,-50%)}
+.bc .bc-moscow-symbol{font:900 29px/1 Georgia,serif;transform:translateY(-2px)}
+.bc .bc-moscow-tenure b{position:absolute;right:-5px;bottom:-5px;min-width:18px;height:18px;padding:0 2px;display:grid;place-items:center;border:1px solid #f5d76e;border-radius:10px;color:#fff8d0;background:#54070c;font:900 10px/1 Cinzel,serif}
+
+/* Move only landscape status/note copy; Shizuku and Moffitt use action controls. */
+html body #s-game .landscape-panel .landscape-note{
+  position:relative!important;
+  top:4px!important;
+}
+
+/* Long late-set landscape rules need a little more breathing room without
+   changing their established line spacing or panel layout. */
+html body #s-game.landscape-id-igb22 .landscape-panel .landscape-desc,
+html body #s-game.landscape-id-igb23 .landscape-panel .landscape-desc,
+html body #s-game.landscape-id-igb24 .landscape-panel .landscape-desc{
+  font-size:.76rem!important;
+}
+
+/* Compact card-contained Moscow and low-Morale status badges. */
+.bc .bc-low-morale-expiry{
+  inset:auto!important;left:50%!important;top:50%!important;width:30px!important;height:30px!important;
+  border:2px solid rgba(255,155,159,.9)!important;border-radius:50%!important;
+  transform:translate(-50%,-50%)!important;background:rgba(92,8,19,.9)!important;
+}
+.bc .bc-low-morale-heart{font-size:21px!important;line-height:1!important}
+.bc .bc-moscow-tenure{
+  width:30px!important;height:30px!important;border-width:2px!important;
+}
+.bc .bc-moscow-tenure.is-beside-low-morale{transform:translate(-112%,-50%)!important}
+.bc .bc-moscow-symbol{font-size:23px!important;line-height:1!important;transform:translateY(-1px)!important}
+.bc .bc-moscow-tenure b{right:-5px!important;bottom:-5px!important;min-width:14px!important;height:14px!important;padding:1px 1px 0 2px!important;box-sizing:border-box!important;font-size:8px!important;text-indent:1px!important}
+.cd-moscow-tenure{position:relative;display:inline-grid;place-items:center;flex:0 0 auto;width:28px;height:28px;margin-left:6px;border:2px solid #f0c75e;border-radius:50%;color:#f5d76e;background:#730b12;cursor:help;box-shadow:0 0 7px rgba(231,45,52,.55)}
+.cd-moscow-symbol{font:900 22px/1 Georgia,serif;transform:translateY(-1px)}
+.cd-moscow-tenure>b{position:absolute;right:-5px;bottom:-5px;min-width:14px;height:14px;padding:1px 1px 0 2px;box-sizing:border-box;display:grid;place-items:center;border:1px solid #f5d76e;border-radius:8px;color:#fff8d0;background:#54070c;font:900 8px/1 Cinzel,serif;text-indent:1px}
+.cd-status-badges{display:inline-flex;align-items:center;justify-content:flex-end;gap:7px;margin-left:auto;overflow:visible;flex:0 0 auto}
+.cd-status-badges .cd-moscow-tenure,.cd-status-badges .cd-low-morale-expiry{margin-left:0}
+.cd-moscow-tooltip{position:absolute;right:0;top:calc(100% + 9px);left:auto;bottom:auto;z-index:300;width:max-content;max-width:240px;padding:6px 9px;border:1px solid rgba(240,199,94,.55);border-radius:5px;color:#fff4cf;background:rgba(18,7,8,.97);font:600 11px/1.3 Georgia,serif;opacity:0;visibility:hidden;transform:translateY(-3px);pointer-events:none;transition:.14s ease;white-space:normal}
+.cd-moscow-tenure:hover .cd-moscow-tooltip,.cd-moscow-tenure:focus .cd-moscow-tooltip{opacity:1;visibility:visible;transform:translateY(0)}
+.card-detail-modal .cd-info,.card-detail-modal .cd-name,.cio-modal .cd-info,.cio-modal .cd-name{overflow:visible!important}
+
 /* Abed's active High-T source card moves on a steady 128 BPM pulse. */
 html body #s-game .bc.fate-high-t-beat{
   transform-origin:50% 72%!important;
@@ -28317,6 +28501,170 @@ html body #s-game .bc.fate-high-t-beat{
 }
 @media (prefers-reduced-motion:reduce){
   html body #s-game .bc.fate-high-t-beat{animation:none!important;filter:drop-shadow(0 0 7px rgba(255,211,112,.46))!important;}
+}
+
+/* Star finish v3: jeweled frame, sparse constellation twinkles and a curved foil flare. */
+html body #s-deck #db-collection .canvas-card-grid-sheen,
+html body #s-challenger #cdb-collection .canvas-card-grid-sheen,
+html body #s-challenger #coll-grid .canvas-card-grid-sheen{
+  box-shadow:
+    inset 0 0 0 1px rgba(255,244,183,.9),
+    inset 0 0 0 3px rgba(152,91,5,.22),
+    inset 0 0 8px rgba(255,199,50,.08),
+    0 0 5px rgba(255,199,50,.22),
+    0 0 14px rgba(255,174,20,.1)!important;
+  animation:fateJeweledFrame 3.8s ease-in-out infinite!important;
+}
+
+html body #s-deck #db-collection .canvas-card-grid-sheen::after,
+html body #s-challenger #cdb-collection .canvas-card-grid-sheen::after,
+html body #s-challenger #coll-grid .canvas-card-grid-sheen::after{
+  content:''!important;
+  display:block!important;
+  position:absolute!important;
+  inset:0!important;
+  pointer-events:none!important;
+  border-radius:inherit!important;
+  mix-blend-mode:screen!important;
+  background:
+    radial-gradient(circle at 14% 18%,rgba(255,255,238,.95) 0 1px,rgba(255,213,69,.5) 1.4px 2px,transparent 3.2px),
+    radial-gradient(circle at 83% 23%,rgba(255,250,211,.9) 0 1px,rgba(255,191,31,.42) 1.5px 2.2px,transparent 3.4px),
+    radial-gradient(circle at 72% 69%,rgba(255,255,238,.92) 0 .9px,rgba(255,210,62,.45) 1.4px 2px,transparent 3px),
+    radial-gradient(circle at 22% 81%,rgba(255,246,196,.86) 0 .8px,rgba(255,184,20,.4) 1.3px 1.9px,transparent 3px)!important;
+  opacity:.2!important;
+  transform:scale(.985)!important;
+  animation:fateConstellationTwinkle 4.6s steps(1,end) infinite!important;
+}
+
+html body #s-deck #db-collection .canvas-card-grid-sheen-sweep,
+html body #s-challenger #cdb-collection .canvas-card-grid-sheen-sweep,
+html body #s-challenger #coll-grid .canvas-card-grid-sheen-sweep{
+  inset:-42% -55%!important;
+  width:210%!important;
+  height:184%!important;
+  background:
+    radial-gradient(ellipse at 50% 118%,transparent 55%,rgba(255,203,57,.12) 57%,rgba(255,255,225,.66) 59%,rgba(255,210,72,.18) 61%,transparent 64%)!important;
+  transform:translate3d(-72%,-8%,0) rotate(-14deg)!important;
+  animation:fateCurvedFoilFlare 7.2s cubic-bezier(.2,.65,.3,1) infinite!important;
+}
+
+@keyframes fateJeweledFrame{
+  0%,100%{filter:none;opacity:.82}
+  48%{filter:drop-shadow(0 0 2px rgba(255,210,72,.25));opacity:1}
+}
+@keyframes fateConstellationTwinkle{
+  0%,100%{opacity:.18;filter:brightness(.9)}
+  18%{opacity:.72;filter:brightness(1.35)}
+  19%,48%{opacity:.24;filter:brightness(1)}
+  49%{opacity:.78;filter:brightness(1.45)}
+  50%,76%{opacity:.2;filter:brightness(.95)}
+  77%{opacity:.62;filter:brightness(1.3)}
+  78%{opacity:.2;filter:brightness(1)}
+}
+@keyframes fateCurvedFoilFlare{
+  0%,58%{opacity:0;transform:translate3d(-72%,-8%,0) rotate(-14deg)}
+  64%{opacity:.12}
+  74%{opacity:.72}
+  84%{opacity:.18}
+  90%,100%{opacity:0;transform:translate3d(48%,5%,0) rotate(-14deg)}
+}
+
+/* Match the richer treatment in the DOM fallbacks without tinting the art. */
+html body #s-deck #db-collection .db-mc.star-card-db::after,
+html body #s-challenger #cdb-collection .db-mc.star-card-db::after,
+html body #s-challenger #coll-grid .coll-card.rarity-star::after{
+  background:
+    linear-gradient(112deg,transparent 42%,rgba(255,213,72,.08) 46%,rgba(255,255,230,.58) 49%,rgba(255,195,36,.14) 52%,transparent 57%),
+    radial-gradient(circle at 14% 18%,rgba(255,255,238,.95) 0 1px,rgba(255,213,69,.5) 1.5px 2px,transparent 3px),
+    radial-gradient(circle at 83% 23%,rgba(255,250,211,.9) 0 1px,rgba(255,191,31,.42) 1.5px 2px,transparent 3px),
+    radial-gradient(circle at 72% 69%,rgba(255,255,238,.92) 0 1px,rgba(255,210,62,.45) 1.5px 2px,transparent 3px),
+    radial-gradient(circle at 22% 81%,rgba(255,246,196,.86) 0 1px,rgba(255,184,20,.4) 1.5px 2px,transparent 3px)!important;
+  background-size:280% 100%,100% 100%,100% 100%,100% 100%,100% 100%!important;
+  box-shadow:inset 0 0 0 1px rgba(255,244,183,.9),inset 0 0 0 3px rgba(152,91,5,.22),inset 0 0 8px rgba(255,199,50,.08)!important;
+  animation:fateJeweledDom 7.2s ease-in-out infinite!important;
+}
+
+/* The Star rarity treatment is part of card presentation, so keep it visible
+   when optional ambient animations are disabled. Motion becomes a static foil. */
+html.fate-animations-off body #s-deck #db-collection .canvas-card-grid-sheen-layer,
+html.fate-animations-off body #s-challenger :is(#cdb-collection,#coll-grid) .canvas-card-grid-sheen-layer,
+html.fate-animations-off body #s-deck #db-collection .canvas-card-grid-sheen,
+html.fate-animations-off body #s-challenger :is(#cdb-collection,#coll-grid) .canvas-card-grid-sheen{
+  display:block!important;
+}
+html.fate-animations-off body #s-deck #db-collection .canvas-card-grid-sheen,
+html.fate-animations-off body #s-challenger :is(#cdb-collection,#coll-grid) .canvas-card-grid-sheen{
+  animation:none!important;
+  box-shadow:inset 0 0 0 1px rgba(255,244,183,.92),inset 0 0 0 3px rgba(152,91,5,.3),inset 0 0 9px rgba(255,199,50,.12),0 0 8px rgba(255,199,50,.26)!important;
+}
+html.fate-animations-off body #s-deck #db-collection .canvas-card-grid-sheen::after,
+html.fate-animations-off body #s-challenger :is(#cdb-collection,#coll-grid) .canvas-card-grid-sheen::after{
+  display:block!important;
+  animation:none!important;
+  opacity:.78!important;
+}
+html.fate-animations-off body #s-deck #db-collection .canvas-card-grid-sheen-sweep,
+html.fate-animations-off body #s-challenger :is(#cdb-collection,#coll-grid) .canvas-card-grid-sheen-sweep{
+  display:block!important;
+  animation:none!important;
+  opacity:.34!important;
+  transform:translate3d(-8%,0,0) rotate(-14deg)!important;
+}
+
+@keyframes fateJeweledDom{
+  0%,58%{background-position:150% 0,0 0,0 0,0 0,0 0;opacity:.62}
+  72%{background-position:58% 0,0 0,0 0,0 0,0 0;opacity:.94}
+  90%,100%{background-position:-48% 0,0 0,0 0,0 0,0 0;opacity:.66}
+}
+
+@media (prefers-reduced-motion:reduce){
+  html body #s-deck #db-collection .canvas-card-grid-sheen,
+  html body #s-challenger :is(#cdb-collection,#coll-grid) .canvas-card-grid-sheen,
+  html body #s-deck #db-collection .db-mc.star-card-db::after,
+  html body #s-challenger #cdb-collection .db-mc.star-card-db::after,
+  html body #s-challenger #coll-grid .coll-card.rarity-star::after{animation:none!important}
+  html body #s-deck #db-collection .canvas-card-grid-sheen-sweep,
+  html body #s-challenger :is(#cdb-collection,#coll-grid) .canvas-card-grid-sheen-sweep{display:none!important}
+}
+
+/* Final cascade authority for the jeweled Star finish. */
+html body #s-deck #db-collection .canvas-card-grid-sheen,
+html body #s-challenger #cdb-collection .canvas-card-grid-sheen,
+html body #s-challenger #coll-grid .canvas-card-grid-sheen{
+  background:transparent!important;
+  box-shadow:inset 0 0 0 1px rgba(255,244,183,.9),inset 0 0 0 3px rgba(152,91,5,.22),inset 0 0 8px rgba(255,199,50,.08),0 0 5px rgba(255,199,50,.22),0 0 14px rgba(255,174,20,.1)!important;
+  animation:fateJeweledFrame 3.8s ease-in-out infinite!important;
+}
+html body #s-deck #db-collection .canvas-card-grid-sheen::after,
+html body #s-challenger #cdb-collection .canvas-card-grid-sheen::after,
+html body #s-challenger #coll-grid .canvas-card-grid-sheen::after{
+  content:''!important;display:block!important;position:absolute!important;inset:0!important;pointer-events:none!important;border-radius:inherit!important;mix-blend-mode:screen!important;
+  background:radial-gradient(circle at 14% 18%,rgba(255,255,238,.95) 0 1px,rgba(255,213,69,.5) 1.4px 2px,transparent 3.2px),radial-gradient(circle at 83% 23%,rgba(255,250,211,.9) 0 1px,rgba(255,191,31,.42) 1.5px 2.2px,transparent 3.4px),radial-gradient(circle at 72% 69%,rgba(255,255,238,.92) 0 .9px,rgba(255,210,62,.45) 1.4px 2px,transparent 3px),radial-gradient(circle at 22% 81%,rgba(255,246,196,.86) 0 .8px,rgba(255,184,20,.4) 1.3px 1.9px,transparent 3px)!important;
+  opacity:.2!important;transform:scale(.985)!important;animation:fateConstellationTwinkle 4.6s steps(1,end) infinite!important;
+}
+html body #s-deck #db-collection .canvas-card-grid-sheen-sweep,
+html body #s-challenger #cdb-collection .canvas-card-grid-sheen-sweep,
+html body #s-challenger #coll-grid .canvas-card-grid-sheen-sweep{
+  inset:-42% -55%!important;width:210%!important;height:184%!important;filter:none!important;mix-blend-mode:screen!important;
+  background:radial-gradient(ellipse at 50% 118%,transparent 55%,rgba(255,203,57,.12) 57%,rgba(255,255,225,.66) 59%,rgba(255,210,72,.18) 61%,transparent 64%)!important;
+  transform:translate3d(-72%,-8%,0) rotate(-14deg)!important;animation:fateCurvedFoilFlare 7.2s cubic-bezier(.2,.65,.3,1) infinite!important;
+}
+html body #s-deck #db-collection .db-mc.star-card-db::after,
+html body #s-challenger #cdb-collection .db-mc.star-card-db::after,
+html body #s-challenger #coll-grid .coll-card.rarity-star::after{
+  background:linear-gradient(112deg,transparent 42%,rgba(255,213,72,.08) 46%,rgba(255,255,230,.58) 49%,rgba(255,195,36,.14) 52%,transparent 57%),radial-gradient(circle at 14% 18%,rgba(255,255,238,.95) 0 1px,rgba(255,213,69,.5) 1.5px 2px,transparent 3px),radial-gradient(circle at 83% 23%,rgba(255,250,211,.9) 0 1px,rgba(255,191,31,.42) 1.5px 2px,transparent 3px),radial-gradient(circle at 72% 69%,rgba(255,255,238,.92) 0 1px,rgba(255,210,62,.45) 1.5px 2px,transparent 3px),radial-gradient(circle at 22% 81%,rgba(255,246,196,.86) 0 1px,rgba(255,184,20,.4) 1.5px 2px,transparent 3px)!important;
+  background-size:280% 100%,100% 100%,100% 100%,100% 100%,100% 100%!important;
+  box-shadow:inset 0 0 0 1px rgba(255,244,183,.9),inset 0 0 0 3px rgba(152,91,5,.22),inset 0 0 8px rgba(255,199,50,.08)!important;
+  animation:fateJeweledDom 7.2s ease-in-out infinite!important;
+}
+@media (prefers-reduced-motion:reduce){
+  html body #s-deck #db-collection .canvas-card-grid-sheen,
+  html body #s-challenger :is(#cdb-collection,#coll-grid) .canvas-card-grid-sheen,
+  html body #s-deck #db-collection .db-mc.star-card-db::after,
+  html body #s-challenger #cdb-collection .db-mc.star-card-db::after,
+  html body #s-challenger #coll-grid .coll-card.rarity-star::after{animation:none!important}
+  html body #s-deck #db-collection .canvas-card-grid-sheen-sweep,
+  html body #s-challenger :is(#cdb-collection,#coll-grid) .canvas-card-grid-sheen-sweep{display:none!important}
 }
 
 /* End-match confirmation uses the same cyan/gold/pink material language as the live board. */
@@ -28347,11 +28695,8 @@ html body #modal .board-target-picker.is-multi-zone:not(.allows-board-scroll) .b
   flex-direction:column!important;
   justify-content:flex-start!important;
   align-content:flex-start!important;
-  align-self:start!important;
   gap:0!important;
-  height:auto!important;
   min-height:0!important;
-  max-height:none!important;
 }
 html body #modal .board-target-picker.is-multi-zone:not(.allows-board-scroll) .board-target-zone.no-extra-board-space .board-target-zone-title{
   flex:0 0 auto!important;
@@ -28416,4 +28761,122 @@ html body #supporter-hard-cap-banner strong{
 html body #supporter-hard-cap-banner span{
   font:600 .72rem/1.25 'Inter',sans-serif;
   color:rgba(255,248,222,.9);
+}
+
+/* Star-card gold accent: preserve the original artwork, with no full-card tint. */
+html body #s-deck #db-collection.canvas-card-grid-low-scroll .canvas-card-grid-sheen-layer,
+html body #s-challenger #cdb-collection.canvas-card-grid-low-scroll .canvas-card-grid-sheen-layer,
+html body #s-challenger #coll-grid.canvas-card-grid-low-scroll .canvas-card-grid-sheen-layer{
+  display:block!important;
+  opacity:1!important;
+}
+
+html body #s-deck #db-collection .canvas-card-grid-sheen,
+html body #s-challenger #cdb-collection .canvas-card-grid-sheen,
+html body #s-challenger #coll-grid .canvas-card-grid-sheen{
+  isolation:isolate!important;
+  mix-blend-mode:normal!important;
+  background:transparent!important;
+  box-shadow:inset 0 0 0 1px rgba(255,231,137,.72),inset 0 0 0 2px rgba(126,72,4,.28),0 0 7px rgba(255,194,40,.2)!important;
+  animation:fateGoldEdgePulse 4.8s ease-in-out infinite!important;
+}
+
+html body #s-deck #db-collection .canvas-card-grid-sheen-sweep,
+html body #s-challenger #cdb-collection .canvas-card-grid-sheen-sweep,
+html body #s-challenger #coll-grid .canvas-card-grid-sheen-sweep{
+  inset:-20%!important;
+  width:140%!important;
+  height:140%!important;
+  opacity:0!important;
+  mix-blend-mode:screen!important;
+  background:linear-gradient(112deg,transparent 45%,rgba(255,220,98,.08) 47.5%,rgba(255,255,240,.58) 49.5%,rgba(255,214,74,.14) 52%,transparent 54%)!important;
+  filter:none!important;
+  transform:translate3d(-92%,-12%,0) rotate(-2deg)!important;
+  animation:fateCleanGoldGlint 6.4s cubic-bezier(.22,.61,.36,1) infinite!important;
+}
+
+@keyframes fateGoldEdgePulse{
+  0%,100%{box-shadow:inset 0 0 0 1px rgba(255,231,137,.58),inset 0 0 0 2px rgba(126,72,4,.24),0 0 5px rgba(255,194,40,.12)}
+  50%{box-shadow:inset 0 0 0 1px rgba(255,239,166,.82),inset 0 0 0 2px rgba(126,72,4,.32),0 0 9px rgba(255,194,40,.28)}
+}
+
+@keyframes fateCleanGoldGlint{
+  0%,66%{opacity:0;transform:translate3d(-92%,-12%,0) rotate(-2deg)}
+  70%{opacity:.18}
+  78%{opacity:.68}
+  87%{opacity:.12}
+  91%,100%{opacity:0;transform:translate3d(76%,12%,0) rotate(-2deg)}
+}
+
+/* DOM-renderer fallback for older/unsupported canvas environments. */
+html body #s-challenger #coll-grid .coll-card.rarity-star{
+  position:relative!important;
+  overflow:hidden!important;
+  box-shadow:0 0 0 1px rgba(255,231,137,.72),0 0 7px rgba(255,194,40,.2),0 8px 20px rgba(0,0,0,.5)!important;
+}
+
+html body #s-challenger #coll-grid .coll-card.rarity-star::after{
+  content:''!important;
+  position:absolute!important;
+  inset:0!important;
+  z-index:3!important;
+  pointer-events:none!important;
+  border-radius:inherit!important;
+  mix-blend-mode:screen!important;
+  background:linear-gradient(112deg,transparent 45%,rgba(255,220,98,.08) 47.5%,rgba(255,255,240,.58) 49.5%,rgba(255,214,74,.14) 52%,transparent 54%)!important;
+  background-size:260% 100%!important;
+  animation:fateCleanGoldDom 6.4s ease-in-out infinite!important;
+}
+
+/* The DOM deck-builder fallback receives the same newly designed finish. */
+html body #s-deck #db-collection .db-mc.star-card-db::after,
+html body #s-challenger #cdb-collection .db-mc.star-card-db::after{
+  background:linear-gradient(112deg,transparent 45%,rgba(255,220,98,.08) 47.5%,rgba(255,255,240,.58) 49.5%,rgba(255,214,74,.14) 52%,transparent 54%)!important;
+  background-size:260% 100%!important;
+  box-shadow:inset 0 0 0 1px rgba(255,231,137,.72),inset 0 0 0 2px rgba(126,72,4,.28)!important;
+  animation:fateCleanGoldDom 6.4s ease-in-out infinite!important;
+}
+
+@keyframes fateCleanGoldDom{
+  0%,66%{background-position:145% 0;opacity:.18}
+  78%{background-position:50% 0;opacity:.72}
+  91%,100%{background-position:-45% 0;opacity:.18}
+}
+
+@media (prefers-reduced-motion:reduce){
+  html body #s-deck #db-collection .canvas-card-grid-sheen,
+  html body #s-challenger :is(#cdb-collection,#coll-grid) .canvas-card-grid-sheen,
+  html body #s-deck #db-collection .db-mc.star-card-db::after,
+  html body #s-challenger #cdb-collection .db-mc.star-card-db::after,
+  html body #s-challenger #coll-grid .coll-card.rarity-star::after{animation:none!important}
+  html body #s-deck #db-collection .canvas-card-grid-sheen-sweep,
+  html body #s-challenger :is(#cdb-collection,#coll-grid) .canvas-card-grid-sheen-sweep{display:none!important}
+}
+
+/* Jeweled treatment wins over the superseded clean-edge experiment above. */
+html body #s-deck #db-collection .canvas-card-grid-sheen,
+html body #s-challenger :is(#cdb-collection,#coll-grid) .canvas-card-grid-sheen{
+  background:transparent!important;
+  box-shadow:inset 0 0 0 1px rgba(255,244,183,.9),inset 0 0 0 3px rgba(152,91,5,.22),inset 0 0 8px rgba(255,199,50,.08),0 0 5px rgba(255,199,50,.22),0 0 14px rgba(255,174,20,.1)!important;
+  animation:fateJeweledFrame 3.8s ease-in-out infinite!important;
+}
+html body #s-deck #db-collection .canvas-card-grid-sheen::after,
+html body #s-challenger :is(#cdb-collection,#coll-grid) .canvas-card-grid-sheen::after{
+  content:''!important;display:block!important;position:absolute!important;inset:0!important;pointer-events:none!important;border-radius:inherit!important;mix-blend-mode:screen!important;
+  background:radial-gradient(circle at 14% 18%,#fffdeb 0 1px,#ffd54580 1.4px 2px,transparent 3.2px),radial-gradient(circle at 83% 23%,#fffad3e6 0 1px,#ffbf1f70 1.5px 2.2px,transparent 3.4px),radial-gradient(circle at 72% 69%,#fffdebea 0 1px,#ffd23e73 1.5px 2px,transparent 3px),radial-gradient(circle at 22% 81%,#fff6c4dc 0 1px,#ffb81466 1.5px 2px,transparent 3px)!important;
+  opacity:.2!important;transform:scale(.985)!important;animation:fateConstellationTwinkle 4.6s steps(1,end) infinite!important;
+}
+html body #s-deck #db-collection .canvas-card-grid-sheen-sweep,
+html body #s-challenger :is(#cdb-collection,#coll-grid) .canvas-card-grid-sheen-sweep{
+  inset:-42% -55%!important;width:210%!important;height:184%!important;filter:none!important;
+  background:radial-gradient(ellipse at 50% 118%,transparent 55%,rgba(255,203,57,.12) 57%,rgba(255,255,225,.66) 59%,rgba(255,210,72,.18) 61%,transparent 64%)!important;
+  animation:fateCurvedFoilFlare 7.2s cubic-bezier(.2,.65,.3,1) infinite!important;
+}
+html body #s-deck #db-collection .db-mc.star-card-db::after,
+html body #s-challenger #cdb-collection .db-mc.star-card-db::after,
+html body #s-challenger #coll-grid .coll-card.rarity-star::after{
+  background:linear-gradient(112deg,transparent 42%,rgba(255,213,72,.08) 46%,rgba(255,255,230,.58) 49%,rgba(255,195,36,.14) 52%,transparent 57%),radial-gradient(circle at 14% 18%,#fffdeb 0 1px,#ffd54580 1.5px 2px,transparent 3px),radial-gradient(circle at 83% 23%,#fffad3e6 0 1px,#ffbf1f70 1.5px 2px,transparent 3px),radial-gradient(circle at 72% 69%,#fffdebea 0 1px,#ffd23e73 1.5px 2px,transparent 3px),radial-gradient(circle at 22% 81%,#fff6c4dc 0 1px,#ffb81466 1.5px 2px,transparent 3px)!important;
+  background-size:280% 100%,100% 100%,100% 100%,100% 100%,100% 100%!important;
+  box-shadow:inset 0 0 0 1px rgba(255,244,183,.9),inset 0 0 0 3px rgba(152,91,5,.22),inset 0 0 8px rgba(255,199,50,.08)!important;
+  animation:fateJeweledDom 7.2s ease-in-out infinite!important;
 }

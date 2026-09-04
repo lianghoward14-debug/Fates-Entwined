@@ -495,6 +495,9 @@ export class FateAuthoritativeV3SinglePlayerScreen {
     if(!card) return null;
     const definition = this.cardDefinitions.get(String(card.id)) || {};
     const presented = {...definition, ...card, iid:String(card.iid || ''), owner:Number(card.owner)};
+    if(String(card.id || '') === 'bh02'){
+      presented._joieProcCount = Math.max(0, Math.floor(Number(card?.counters?.joieProcCount) || 0));
+    }
     const copiedId = String(card?.counters?.copiedEffectId || card?.counters?.copiedPassiveId || '');
     if(String(card.id || '') === 'bh05' && copiedId){
       const copied = this.cardDefinitions.get(copiedId) || {};
@@ -627,7 +630,7 @@ export class FateAuthoritativeV3SinglePlayerScreen {
       const type = String(event?.type || '').toUpperCase();
       if(type === 'EFFECT_ACTIVATED' || type === 'EFFECT_REACTED'){
         const source = this.findCard(type === 'EFFECT_REACTED' ? event.reactionIid : event.sourceIid);
-        if(source && String(source.id || '') !== '66' && typeof this.window.showEffectActivationCinematic === 'function'){
+        if(source && event?.suppressActivationCinematic !== true && String(source.id || '') !== '66' && typeof this.window.showEffectActivationCinematic === 'function'){
           try{ this.window.showEffectActivationCinematic(this.presentationCard(source), {remote:Number(event.playerIndex) !== Number(this.view?.playerIndex), source:'authoritative-v3-single-player-event', broadcast:false}); }catch(_error){}
         }
       }
@@ -646,10 +649,18 @@ export class FateAuthoritativeV3SinglePlayerScreen {
         }
       }
       if(!['FATE_CHANGED','CARD_MOVED','EFFECT_ACTIVATED'].includes(type)) continue;
-      const target = this.findCard(event.cardIid || event.targetIid || event.sourceIid);
+      if(type === 'EFFECT_ACTIVATED' && Number(event?.deferEffectOverlayMs) > 0) continue;
+      const target = this.findCard(event.overlayTargetIid || event.cardIid || event.targetIid || event.sourceIid);
       const source = this.findCard(event.sourceIid);
       const descriptor = this.window.getAuthoritativeEffectOverlayDescriptor?.(event, source, target);
       if(!descriptor || !target) continue;
+      if(type === 'FATE_CHANGED' && Number(event?.presentationDelayMs) > 0){
+        this.window.setTimeout?.(()=>{
+          const delayedTarget=this.findCard(event.cardIid || event.targetIid || event.sourceIid) || target;
+          if(delayedTarget && typeof this.window.flashCardEffect === 'function') this.window.flashCardEffect(delayedTarget,descriptor.kind,{label:descriptor.label,onlineRemote:true});
+        },Math.max(0,Number(event.presentationDelayMs)||0));
+        continue;
+      }
       if(descriptor.kind === 'snowball' && typeof this.window.markSnowballFightHit === 'function'){
         this.window.markSnowballFightHit(target);
       }else if(typeof this.window.flashCardEffect === 'function'){
@@ -672,7 +683,7 @@ export class FateAuthoritativeV3SinglePlayerScreen {
       LANDSCAPE_CHANGE_BLOCKED:['91','village_lock','A Snowy Village','The affected player cannot change the current landscape.','effect-pill-house'],
       NEXT_CHARACTER_HAND_ARRIVAL:['33','wci_bonus','The West Caribbea Infantry','The next Character added to hand costs 1 less Reinforcement and gains 2 Fate.','effect-pill-wci'],
       RIVERA_AFFILIATION_BONUS:['51','rivera_aff',"Jorge's Right Hand Man",`Characters set with ${String(status?.affiliation || 'the declared affiliation').replaceAll('_', ' ')} gain ${Number(status?.value) || 4} Fate for ${remaining} more owner turn${remaining === 1 ? '' : 's'}.`,`effect-pill-rivera aff-${String(status?.affiliation || '').replace(/[^a-z0-9_-]/gi, '')}`],
-      CONSOLIDATION_FATE_BONUS:['87','ballad','A Noble Effort at a Ballad','Your consolidations gain 3 Fate until you set a Supporter.','effect-pill-music'],
+      CONSOLIDATION_FATE_BONUS:['87','ballad','A Noble Effort at a Ballad','Your consolidations gain 3 Fate permanently until you set a Supporter.','effect-pill-music'],
       CONSOLIDATION_COST_MODIFIER:['97','administrative_bloat','Administrative Bloat',`The opponent's next ${remaining || 1} consolidation${remaining === 1 ? '' : 's'} cost 1 extra Reinforcement.`,'effect-pill-administrative-bloat'],
       DELAYED_HAND_DELIVERY:['94','mail_delivery','Mail Delivery',`A scheduled card arrives after ${remaining || 1} owner turn${remaining === 1 ? '' : 's'}.`,'effect-pill-mail'],
       WINE_COUNTRY_GUERILLA_INFILTRATION:['70','guerilla','A Gun Behind Every Grapevine',`Reduces a random eligible opposing hand card by 2 Fate at turn start for ${remaining} more turn${remaining === 1 ? '' : 's'}.`,'effect-pill-guerilla'],
@@ -821,6 +832,12 @@ export class FateAuthoritativeV3SinglePlayerScreen {
     for(const card of cards){
       const element = this.cardElement(card, 'fate-v3-hand-card');
       element.dataset.fateV3HandIid = card.iid;
+      element.draggable = true;
+      element.addEventListener('dragstart', event=>{
+        this.selectedCardIid = String(card.iid || '');
+        event.dataTransfer?.setData('text/fate-card-iid', this.selectedCardIid);
+        if(event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+      });
       element.addEventListener('click', event=>{
         event.preventDefault();
         event.stopImmediatePropagation();
@@ -928,6 +945,25 @@ export class FateAuthoritativeV3SinglePlayerScreen {
             cell.dataset.cardIid = card.iid;
             cell.appendChild(this.cardElement(card, 'fate-v3-board-card', false));
           }
+          cell.addEventListener('dragover', event=>{
+            if(card || !playable) return;
+            const iid = String(event.dataTransfer?.getData('text/fate-card-iid') || this.selectedCardIid || '');
+            const direct = fateV3CommandsForCard(this.view?.legalCommands || [], iid).some(command=>
+              DIRECT_DESTINATION_COMMANDS.has(command.type)
+              && coordinateKey(command.payload?.destination) === key
+            );
+            if(direct){ event.preventDefault(); if(event.dataTransfer) event.dataTransfer.dropEffect = 'move'; }
+          });
+          cell.addEventListener('drop', event=>{
+            event.preventDefault();
+            const iid = String(event.dataTransfer?.getData('text/fate-card-iid') || this.selectedCardIid || '');
+            const matches = fateV3CommandsForCard(this.view?.legalCommands || [], iid).filter(command=>
+              DIRECT_DESTINATION_COMMANDS.has(command.type)
+              && coordinateKey(command.payload?.destination) === key
+            );
+            if(matches.length === 1) this.submit(matches[0]);
+            else if(matches.length > 1){ this.selectedCardIid = iid; this.selectedDestinationKey = key; this.render(this.view); }
+          });
           cell.addEventListener('click', event=>{
             event.preventDefault();
             event.stopImmediatePropagation();

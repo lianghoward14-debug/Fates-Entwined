@@ -31,8 +31,8 @@ for(const [label, source] of [['primary store', challengerSource], ['alternate s
   assert(basePool.length > 0, `${label} base booster pool must not be empty`);
   assert(basePool.every(card => {
     const id = Number(card && card.id);
-    return !Number.isInteger(id) || id < 80 || id > 100;
-  }), `${label} Fates Entwined Booster must exclude cards 80-100`);
+    return (!Number.isInteger(id) || id < 80 || id > 100) && card.set !== 'brave_horizons';
+  }), `${label} Fates Entwined Booster must exclude cards 80-100 and Brave Horizons`);
 }
 
 const boosterBlockMatch = challengerSource.match(/function getBooster2CardPool\(\)[\s\S]*?(?=\r?\n\/\/ Add owned cards)/);
@@ -79,7 +79,7 @@ for(const [label, source] of [['primary store', challengerSource], ['alternate s
   assert.match(source, /const BOOSTER2_COST_STARLIGHT = 150;/, `${label} must price Booster 2 at 150 Starlight`);
   assert(source.includes(baseDescription), `${label} must use the supplied base booster description`);
   assert.match(source, /<img src="Illustration3\.png" alt="Fates Entwined Booster"/, `${label} must use Illustration3.png for the base booster`);
-  assert.match(source, /const packArtSrc = isBooster2 \? 'booster2\.png' : 'Illustration3\.png'/, `${label} pack opening must use Illustration3.png for the base booster`);
+  assert.match(source, /const packArtSrc = [^;]*'booster2\.png'[^;]*'Illustration3\.png'/, `${label} pack opening must use Illustration3.png for the base booster`);
   assert.doesNotMatch(source, /8 cards from the Fates Entwined base set\./, `${label} must omit the obsolete base-pack contents section`);
   assert(source.includes(exactDescription), `${label} must use the supplied Booster 2 description`);
   assert.match(source, /<div class="ch-store-product-kicker">First Expansion<\/div>/, `${label} must label Snow on the Carpathians as the first expansion`);
@@ -100,8 +100,8 @@ assert.strictEqual(booster1Png.readUInt32BE(20), 1400, 'booster1.png must match 
 assert(fs.existsSync(path.join(root, 'Illustration3.png')), 'Illustration3.png base booster art must exist');
 assert.match(profileSource, /unopenedBooster2Packs:\s*0/, 'new profiles must initialize the Booster 2 counter');
 assert.match(profileSource, /USER_PROFILE\.unopenedBooster2Packs\s*=\s*0/, 'profile reset must clear the Booster 2 counter');
-assert.match(indexSource, /99-ui-final\.css\?v=1784660001/, 'full-art booster store CSS must be cache-busted');
+assert.match(indexSource, /99-ui-final\.css\?v=2026090108/, 'full-art booster store CSS must be cache-busted');
 assert.match(finalUiCss, /ch-store-product \.booster-desc::first-line\{[\s\S]*line-height:1\.24!important;/, 'booster descriptions must optically tighten the first-to-second line gap');
-assert.match(indexSource, /09-challenger-mode\.js\?v=1785021020/, 'booster art mapping, profile reveals, card-pool restrictions, and Brave Horizons availability must be cache-busted');
+assert.match(indexSource, /09-challenger-mode\.js\?v=2026090109/, 'booster art mapping, profile reveals, card-pool restrictions, and Brave Horizons availability must be cache-busted');
 
 console.log('fate Booster 2 smoke passed (cards 80-100, 75/25 composition, store purchase/open flow)');

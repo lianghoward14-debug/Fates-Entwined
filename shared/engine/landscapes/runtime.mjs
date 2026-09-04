@@ -7,15 +7,22 @@ const RANDOM_ZONE_LANDSCAPES = new Set(['igb3', 'igb8']);
 
 export function createLandscapeState(landscapeId, rngState){
   const id = String(landscapeId || '');
+  let targetZones = null;
+  if(id === 'igb22'){
+    const first = nextInt(rngState, 3);
+    targetZones = [first, (first + 1 + nextInt(rngState, 2)) % 3].sort();
+  }
   return {
     id,
     targetZone:RANDOM_ZONE_LANDSCAPES.has(id) ? nextInt(rngState, 3) : null,
+    targetZones,
     consolidations:[0, 0],
     resolvedTurns:{},
     drawPhaseCounts:[0, 0],
     supporterEffectsThisTurn:[0, 0],
     handTurnCounts:[0, 0],
     fateThresholdClaims:{},
+    outsideDrawEffectClaims:{},
     oncePerGameUses:[0, 0]
   };
 }
@@ -203,6 +210,17 @@ export function queueLandscapeRuleEventFrame(state, event){
     && event.activatedEffect === true
     && event.redirectedToDeckBottom !== true
     && boardEntries(state).some(entry=>entry.card.faceDown !== true && !isEffectImmutable(entry.card))){
+    if(!state.landscapeState.outsideDrawEffectClaims || typeof state.landscapeState.outsideDrawEffectClaims !== 'object'){
+      state.landscapeState.outsideDrawEffectClaims = {};
+    }
+    // Split/copy draw programs may use a different frame id for each drawn
+    // card. The source card + player + turn remains stable for the activation.
+    const effectActivationId = String(event.effectActivationId || event.sourceIid || event.semanticSourceCardId || '');
+    const effectClaimKey = effectActivationId
+      ? [effectActivationId, String(event.playerIndex), String(state.turn)].join(':')
+      : '';
+    if(effectClaimKey && state.landscapeState.outsideDrawEffectClaims[effectClaimKey]) return;
+    if(effectClaimKey) state.landscapeState.outsideDrawEffectClaims[effectClaimKey] = true;
     state.effectStack.push(landscapeFrame(state, 'igb9', Number(event.playerIndex), 'OUTSIDE_DRAW_PHASE', [
       {
         kind:'SELECT_BOARD',
@@ -239,6 +257,9 @@ export function landscapeChangeBlockReason(state, targetLandscapeId){
   const currentId = String(state.landscapeId || '');
   const targetId = String(targetLandscapeId || '');
   if(currentId === targetId) return '';
+  if(currentId === 'igb24' && Number(state.turn) >= 16){
+    return 'igb24 cannot be changed once turn 16 begins';
+  }
   const currentTurn = Number(TIMED_LANDSCAPE_TURNS[currentId] || 0);
   if(currentTurn
     && state.landscapeState.resolvedTurns[currentId] !== true

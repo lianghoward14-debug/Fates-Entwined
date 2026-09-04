@@ -70,7 +70,7 @@
 }
 
 #modal .modal.profile-view-modal-v2:not(.profile-edit-modal-v2) .modal-acts .btn:last-child{
-  transform:translateY(3px)!important;
+  transform:translateY(5px)!important;
 }
 
 #modal .profile-view-main{
@@ -85,7 +85,7 @@
 
 #modal .profile-view-hero{
   display:grid;
-  grid-template-columns:190px minmax(0,1fr);
+  grid-template-columns:190px minmax(250px,1fr) minmax(250px,290px);
   grid-template-rows:minmax(0,1fr) auto;
   align-items:start;
   column-gap:1.5rem;
@@ -416,3 +416,42 @@
   #modal .profile-edit-section-head{align-items:flex-start;flex-direction:column;gap:.25rem;}
   #modal .profile-edit-field textarea{min-height:104px;}
 }
+
+/* Displayed medals live beside the identity, leaving the overview balanced below. */
+#modal .profile-view-lower-grid{grid-template-columns:minmax(0,1.35fr) minmax(250px,.65fr);max-width:760px;margin-left:auto;margin-right:auto}
+#modal .profile-view-medals-section{grid-column:3;grid-row:1;align-self:start;min-height:0;padding:.78rem .9rem;border-radius:5px;background:rgba(12,15,22,.58)}
+#modal .profile-view-medals-head{display:flex;align-items:flex-start;justify-content:space-between;gap:.7rem}
+#modal .profile-view-medals-head .profile-view-section-label{margin-bottom:.16rem}
+#modal .profile-view-medals-head small{color:#727d8a;font-size:.58rem}
+#modal .profile-view-medals-head button{min-height:28px;padding:0 .62rem;border:1px solid rgba(201,168,76,.3);border-radius:4px;background:rgba(201,168,76,.08);color:#dfc878;font:700 .56rem 'Cinzel',serif;cursor:pointer}
+#modal .profile-view-medals-head button:hover{border-color:rgba(221,190,101,.58);background:rgba(201,168,76,.15)}
+#modal .profile-view-medal-slots{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.42rem;margin-top:.62rem}
+#modal .profile-view-medal-slot{min-width:0;display:flex;flex-direction:column;align-items:center;gap:.26rem}
+#modal .profile-view-medal-slot>span{width:100%;overflow:hidden;color:#aeb7c1;font-size:.52rem;line-height:1.15;text-align:center;text-overflow:ellipsis;white-space:nowrap}
+#modal .profile-view-medal-slot.is-empty{height:72px;justify-content:center;border:1px dashed rgba(255,255,255,.11)}
+#modal .profile-view-medal-slot.is-empty i{color:#59636f;font-size:1rem;font-style:normal}
+#modal .profile-medal-icon{display:block;width:52px;height:62px;flex:0 0 auto;background-image:url("../../assets/medals/concepts/warfront-medals-contact-sheet-v3-modern.png");background-repeat:no-repeat;background-size:500% 1000%;background-position:var(--medal-x) var(--medal-y);border-radius:3px;box-shadow:0 5px 12px rgba(0,0,0,.35)}
+#modal .profile-medal-icon.is-selected{outline:2px solid #d8b75d;outline-offset:2px;box-shadow:0 0 16px rgba(216,183,93,.35)}
+#modal .profile-medal-picker{height:100%;min-height:0;display:flex;flex-direction:column;padding:1rem 1.15rem .8rem;box-sizing:border-box}
+#modal .profile-medal-picker>header{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:0 .2rem .85rem;border-bottom:1px solid rgba(255,255,255,.1)}
+#modal .profile-medal-picker>header span{color:#d6b75e;font:700 .62rem 'Cinzel',serif;letter-spacing:.13em}
+#modal .profile-medal-picker>header h2{margin:.25rem 0;color:#f7f2e7;font:700 1.35rem 'Cinzel',serif}
+#modal .profile-medal-picker>header p{margin:0;color:#8994a1;font-size:.68rem}
+#modal .profile-medal-picker>header strong{min-width:62px;padding:.5rem;border:1px solid rgba(201,168,76,.28);color:#e6cd85;font:700 .9rem 'Cinzel',serif;text-align:center}
+#modal .profile-medal-picker-grid{flex:1;min-height:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));align-content:start;gap:.55rem;padding:.85rem .15rem;overflow:auto}
+#modal .profile-medal-picker-grid>button{min-height:112px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.35rem;padding:.55rem;border:1px solid rgba(255,255,255,.1);border-radius:5px;background:rgba(12,15,22,.72);color:#d7dce0;cursor:pointer}
+#modal .profile-medal-picker-grid>button:hover{border-color:rgba(201,168,76,.38);background:rgba(201,168,76,.06)}
+#modal .profile-medal-picker-grid>button.is-selected{border-color:#d5b65f;background:rgba(201,168,76,.12)}
+#modal .profile-medal-picker-grid b{max-width:100%;overflow:hidden;font:700 .6rem 'Cinzel',serif;text-overflow:ellipsis;white-space:nowrap}
+#modal .profile-medal-picker-grid small{color:#6f7a86;font:400 .52rem ui-monospace,Consolas,monospace}
+#modal .profile-medal-picker-grid .profile-medal-icon{width:58px;height:68px}
+#modal .profile-medal-empty{grid-column:1/-1;min-height:220px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#737e8a;text-align:center}
+#modal .profile-medal-empty b{color:#c8ced3;font:700 1rem 'Cinzel',serif}
+#modal .profile-medal-empty span{margin-top:.45rem;font-size:.7rem}
+#modal .profile-medal-picker>footer{display:flex;justify-content:flex-end;gap:.55rem;padding-top:.7rem;border-top:1px solid rgba(255,255,255,.1)}
+#modal .profile-medal-picker>footer button{min-width:110px;min-height:34px;border:1px solid rgba(255,255,255,.14);border-radius:4px;background:#171c24;color:#bbc3cb;font:700 .62rem 'Cinzel',serif;cursor:pointer}
+#modal .profile-medal-picker>footer button.primary{border-color:#b8953e;background:#b8953e;color:#11151b}
+#modal .profile-medal-picker>footer button:disabled{opacity:.35;cursor:not-allowed}
+@media (max-width:900px){#modal .profile-view-hero{grid-template-columns:170px minmax(220px,1fr) minmax(230px,260px);column-gap:1rem}#modal .profile-view-portrait{width:170px;height:170px}#modal .profile-view-lower-grid{grid-template-columns:1fr 1fr}#modal .profile-medal-picker-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:760px){#modal .profile-view-hero{grid-template-columns:112px minmax(0,1fr)}#modal .profile-view-medals-section{grid-column:1/-1;grid-row:3}#modal .profile-view-actions{grid-row:4}}
+@media (max-width:560px){#modal .profile-view-lower-grid{grid-template-columns:1fr}#modal .profile-medal-picker-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}

@@ -196,7 +196,7 @@ assert.doesNotMatch(styles, /board-target-zone\.no-extra-board-space\{[\s\S]{0,1
 // Card presentation routing is verified by its real authority event family.
 // Mapping the image name alone previously allowed these regressions through.
 assert.match(online, /sourceId === '93' \|\| sourceId === '31'/, 'Oathbound must not flash its target-only overlay on the source activation');
-assert.match(online, /type === 'STATUS_CREATED'[\s\S]{0,300}MARIE_DETERRANCE[\s\S]{0,360}semanticSourceCardId:'36'/, 'Marie must route its status-created event into the production overlay');
+assert.match(online, /type === 'STATUS_CREATED'[\s\S]{0,2200}MARIE_DETERRANCE[\s\S]{0,360}semanticSourceCardId:'36'/, 'Marie must route its status-created event into the production overlay');
 assert.match(online, /function phase7PresentJimmyCounterGain[\s\S]{0,900}fateReductionEffectUses[\s\S]{0,900}jimmy_wrath/, 'Jimmy must route passive counter growth into the production overlay');
 assert.match(online, /function phase7PresentCardSetAuraOverlays[\s\S]{0,900}scheduleCoordinatorPlacementFlash[\s\S]{0,600}flashIncomingCoordinatorEffects/, 'authoritative card sets must reuse both production coordinator-aura overlay directions');
 assert.match(online, /applied = phase7CommitCurrentView\(view, reason\);[\s\S]{0,100}phase7PresentCardSetAuraOverlays\(events\)/, 'coordinator aura overlays must start from the committed authoritative board');

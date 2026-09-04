@@ -42,7 +42,7 @@
     "smoke:booster2": "node server/fate-booster2-smoke-test.js",
     "smoke:profile-pictures": "node server/fate-profile-picture-booster-smoke-test.js",
     "smoke:lore": "node server/fate-lore-card-information-5-smoke-test.js",
-    "smoke:ai-intelligence": "node server/fate-ai-intelligence-smoke-test.js && node server/authoritative-v3/morale-ai-policy-smoke-test.mjs",
+    "smoke:ai-intelligence": "node server/fate-ai-intelligence-smoke-test.js && node server/authoritative-v3/morale-ai-policy-smoke-test.mjs && node server/authoritative-v3/turn-planner-smoke-test.mjs",
     "smoke:ai-deck-pool": "node server/fate-ai-deck-pool-smoke-test.js",
     "train:ai-full-game": "node server/fate-full-game-self-play-cli.js",
     "inventory:authority-v3": "node tools/generate-authority-v3-card-inventory.mjs",

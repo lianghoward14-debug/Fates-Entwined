@@ -2,7 +2,7 @@
   'use strict';
 
   const REWORKS = Object.freeze({
-    '20':{fate:1,cost:0,type:'Supporter',effect:"When set, during your opponent's next turn, they inflict 0 Morale Damage."},
+    '20':{fate:1,cost:0,type:'Supporter',effect:'At any time, you can activate this effect. For one turn and the next Morale Calculation, you take no Morale Damage. (2 uses)'},
     '25':{fate:1,cost:0,type:'Supporter',effect:'While this card is on the field, any card adjacent to another card of the same affiliation you control gains 1 Fate (max 1 Fate)'},
     '33':{fate:1,cost:0,type:'Supporter',effect:'When set, recover 16 Morale'},
     '34':{fate:2,cost:2,type:'Coordinator',effect:"Declare an affiliation. All cards you control in this zone with that affiliation inflict 2 Morale Damage every Morale Calculation."},
@@ -12,7 +12,7 @@
     '47':{fate:1,cost:0,type:'Supporter',effect:'When set, inflict 10 Morale Damage to your opponent'},
     '64':{fate:1,cost:0,type:'Supporter',effectClass:null,effect:'When set, on the next Morale Damage Calculation, double the amount of Morale Damage you inflict.'},
     '65':{fate:1,cost:0,type:'Supporter',contestedOnly:false,effect:'While this card is on the field, inflict 2 Morale Damage at the start of each of your turns'},
-    '73':{fate:1,cost:0,type:'Supporter',effect:'When this card would be used in the consolidation of a Character, that card gains 4 Fate.'}
+    '73':{fate:1,cost:0,type:'Supporter',effect:'When this card would be used in the consolidation of a Character, that card gains 4 Fate Permanently.'}
   });
 
   const REWORK_IDS = Object.freeze(Object.keys(REWORKS));
@@ -96,7 +96,7 @@
       if(!replacement) return;
       if(enabled === true){
         Object.assign(card, replacement, {
-          img:cardId === '20' ? '20.png?v=20260829b' : ('assets/morale-card-reworks/' + cardId + '.png?v=' + (cardId === '25' ? '20260829a' : (cardId === '35' || cardId === '44' ? '20260828c' : (cardId === '34' ? '20260828b' : '20260826b')))),
+          img:cardId === '20' ? '20.png?v=20260830a' : ('assets/morale-card-reworks/' + cardId + '.png?v=' + (cardId === '25' ? '20260829a' : (cardId === '35' || cardId === '44' ? '20260828c' : (cardId === '34' ? '20260828b' : '20260826b')))),
           moraleRework:true
         });
       }else if(originals[cardId]){

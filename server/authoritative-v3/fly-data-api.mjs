@@ -18,6 +18,7 @@ export function createFlyDataApi({readBody, writeJson}){
     if(error?.code !== 'ENOENT') console.warn('Fly data snapshot could not be read:', error.message);
   }
   const profiles = mapBy(snapshot.playerStats, 'uid');
+  const challengerResultReceipts = mapBy(snapshot.challengerResultReceipts, 'receiptId');
   const aiRecords = mapBy(snapshot.aiRecords, 'aiId');
   let aiMatches = Array.isArray(snapshot.aiMatches) ? snapshot.aiMatches.map(clone) : [];
   let aiSimulationSchedule = snapshot.aiSimulationSchedule && typeof snapshot.aiSimulationSchedule === 'object'
@@ -40,6 +41,7 @@ export function createFlyDataApi({readBody, writeJson}){
   let marketplaceTransactions = Array.isArray(snapshot.marketplaceTransactions)
     ? snapshot.marketplaceTransactions.map(clone)
     : [...listings.values()].filter(row=>row.status && row.status !== 'active').map(clone);
+  let warfrontEvent = sanitizeWarfrontState(snapshot.warfrontEvent);
   let worldSeq = Number(snapshot.worldChatSeq || 0) || 0;
   let dmSeq = Number(snapshot.privateMessageSeq || 0) || 0;
   let saveTimer = null;
@@ -49,12 +51,14 @@ export function createFlyDataApi({readBody, writeJson}){
 
   function serialize(){
     return Object.assign({}, snapshot, {
-      playerStats:[...profiles.values()], aiRecords:[...aiRecords.values()], playerSaves:[...saves.values()], publicDecks:[...decks.values()],
+      playerStats:[...profiles.values()], challengerResultReceipts:[...challengerResultReceipts.values()].sort((a,b)=>Number(a.createdAt||0)-Number(b.createdAt||0)).slice(-2000),
+      aiRecords:[...aiRecords.values()], playerSaves:[...saves.values()], publicDecks:[...decks.values()],
       aiMatches:aiMatches.slice(-500), aiSimulationSchedule:clone(aiSimulationSchedule),
       marketplaceListings:[...listings.values()], marketplaceTransactions:marketplaceTransactions.slice(-500),
       friends:[...friends.entries()].map(([uid,set])=>({uid,friends:[...set]})), friendRequests:requests,
       parties:[...parties.values()], partyInvites, worldChatSeq:worldSeq, worldChat:worldChat.slice(-200),
       privateMessageSeq:dmSeq,
+      warfrontEvent:clone(warfrontEvent),
       privateMessages:[...privateMessages.slice(-1000).reduce((groups,message)=>{
         const key=[cleanId(message.fromUid,128),cleanId(message.toUid,128)].sort().join(':');
         if(!groups.has(key)) groups.set(key,[]);
@@ -70,6 +74,70 @@ export function createFlyDataApi({readBody, writeJson}){
     fs.renameSync(temp, SNAPSHOT_PATH);
   }
   function persist(){ if(!saveTimer) saveTimer = setTimeout(()=>{ try{ flush(); }catch(error){ console.error('Fly data snapshot write failed:', error); } }, 80); }
+  function sanitizeWarfrontState(value){
+    if(!value || typeof value !== 'object') return null;
+    let next;
+    try{ next=clone(value); }catch(_){ return null; }
+    if(!Array.isArray(next.zones) || next.zones.length !== 5) return null;
+    next.version=2;
+    next.sequence=Math.max(1,Math.floor(Number(next.sequence)||1));
+    next.mapCode=cleanId(next.mapCode,40);
+    if(!next.mapCode) return null;
+    next.status=['enrollment','active'].includes(String(next.status))?String(next.status):'enrollment';
+    next.archives=(Array.isArray(next.archives)?next.archives:[]).slice(0,30);
+    const sanitizeReplayMatch=match=>{
+      if(!match||typeof match!=='object')return match;
+      const replay=match.replay;
+      if(!replay||typeof replay!=='object'||!Array.isArray(replay.actions)){delete match.replay;return match;}
+      replay.version=Math.max(1,Math.floor(Number(replay.version)||1));
+      replay.hands=replay.hands&&typeof replay.hands==='object'?replay.hands:{a:[],b:[]};
+      replay.actions=replay.actions.slice(0,500).map(action=>{const clean=action&&typeof action==='object'?action:{};delete clean.view;return clean;});
+      const bytes=Buffer.byteLength(JSON.stringify(replay),'utf8');
+      if(bytes>1500000)delete match.replay;
+      return match;
+    };
+    const stripReward=report=>{if(report&&typeof report==='object'){delete report.localReward;(report.zones||[]).forEach(zone=>(zone.matches||[]).forEach(sanitizeReplayMatch));}return report;};
+    next.lastResult=stripReward(next.lastResult||null);
+    next.archives.forEach(stripReward);
+    next.zones=next.zones.map(zone=>{
+      const clean=zone&&typeof zone==='object'?zone:{};
+      clean.id=cleanId(clean.id,40);
+      clean.matches=(Array.isArray(clean.matches)?clean.matches:[]).filter(Boolean).slice(0,5).map(sanitizeReplayMatch);
+      clean.bans=clean.bans&&typeof clean.bans==='object'?clean.bans:{a:[],b:[]};
+      clean.bansLocked=clean.bansLocked&&typeof clean.bansLocked==='object'?clean.bansLocked:{a:false,b:false};
+      return clean;
+    });
+    return next;
+  }
+  function mergeWarfrontState(current,incoming){
+    if(!current) return incoming;
+    if(incoming.mapCode!==current.mapCode){
+      return Number(incoming.sequence)>Number(current.sequence)?incoming:current;
+    }
+    const merged=clone(current),statusRank={enrollment:0,active:1};
+    if(statusRank[incoming.status]>statusRank[merged.status])merged.status=incoming.status;
+    merged.startedAt=Number(merged.startedAt||incoming.startedAt||0);
+    merged.endsAt=Math.max(Number(merged.endsAt||0),Number(incoming.endsAt||0));
+    merged.nextTeam=incoming.nextTeam||merged.nextTeam||null;
+    merged.teams=Object.assign({},merged.teams||{},incoming.teams||{});
+    const incomingZones=new Map(incoming.zones.map(zone=>[zone.id,zone]));
+    merged.zones=merged.zones.map(zone=>{
+      const other=incomingZones.get(zone.id);if(!other)return zone;
+      const out=clone(zone);out.a=out.a||clone(other.a)||null;out.b=out.b||clone(other.b)||null;
+      const byId=new Map((out.matches||[]).map(match=>[cleanId(match?.id,160),match]));
+      for(const match of other.matches||[]){const id=cleanId(match?.id,160);if(!id)continue;if(!byId.has(id))byId.set(id,clone(match));else if(!byId.get(id)?.replay&&match?.replay)byId.get(id).replay=clone(match.replay);}
+      const oldCount=(out.matches||[]).length;out.matches=[...byId.values()].sort((a,b)=>Number(a.completedAt||0)-Number(b.completedAt||0)).slice(0,5);
+      if(out.matches.length>oldCount){out.bans=clone(other.bans);out.bansLocked=clone(other.bansLocked);}
+      else for(const team of ['a','b'])if(other.bansLocked?.[team]){out.bansLocked[team]=true;out.bans[team]=clone(other.bans?.[team]||[]);}
+      return out;
+    });
+    const reports=[...(incoming.archives||[]),...(merged.archives||[])],seen=new Set();
+    merged.archives=reports.filter(report=>{const id=cleanId(report?.mapCode,40);if(!id||seen.has(id))return false;seen.add(id);return true;}).slice(0,30);
+    merged.lastResult=incoming.lastResult||merged.lastResult||null;
+    merged._syncRevision=Math.max(Number(current._syncRevision||0),Number(incoming._syncRevision||0))+1;
+    merged._updatedAt=Date.now();
+    return sanitizeWarfrontState(merged);
+  }
   function profile(uid){
     const key = cleanId(uid, 128);
     const value = profiles.get(key) || {uid:key, displayName:'Player', chosenUsername:'Player', username:'Player', challengerElo:600, rank:'Footman'};
@@ -85,6 +153,53 @@ export function createFlyDataApi({readBody, writeJson}){
     current.rank = current.rank || 'Footman';
     current.updatedAt = Date.now();
     profiles.set(key, current); persist(); return clone(current);
+  }
+  function challengerReceiptId(uid, body = {}){
+    const roomCode=cleanId(body.roomCode,200);
+    if(!roomCode) return '';
+    const source=cleanId(body.source||'client',40)||'client';
+    return crypto.createHash('sha256').update(`${cleanId(uid,128)}\n${source}\n${roomCode}`).digest('hex');
+  }
+  function applyChallengerResult(uid, body = {}){
+    if(body.profile) mergeProfile(uid,body.profile);
+    const receiptId=challengerReceiptId(uid,body),prior=receiptId&&challengerResultReceipts.get(receiptId);
+    if(prior) return {ok:true,profile:profile(uid),result:clone(prior.result),idempotent:true};
+    const current=profile(uid),didWin=body.didWin===true,isDraw=body.isDraw===true,didLose=!isDraw&&!didWin;
+    const oldElo=Math.max(0,Number(current.challengerElo??current.elo??600)||600),opponentElo=Math.max(0,Number(body.opponentElo)||1000);
+    const eloGainMultiplier=didWin&&String(body.source||'')==='warfront'?Math.max(1,Math.min(3,Number(body.eloGainMultiplier)||1)):1;
+    let delta=0;
+    if(!isDraw){
+      const expected=1/(1+Math.pow(10,(opponentElo-oldElo)/400));
+      delta=Math.round((didWin?32:40)*((didWin?1:0)-expected));
+      if(didWin) delta=Math.max(1,Math.round(delta*eloGainMultiplier));
+      if(didLose&&delta>=0) delta=-1;
+    }
+    const newElo=Math.max(0,oldElo+delta);
+    current.challengerElo=newElo;current.elo=newElo;
+    current.challengerWins=Number(current.challengerWins??current.wins??0)+(didWin?1:0);
+    current.challengerLosses=Number(current.challengerLosses??current.losses??0)+(didLose?1:0);
+    current.wins=current.challengerWins;current.losses=current.challengerLosses;
+    current.matchesPlayed=Number(current.matchesPlayed||0)+1;
+    if(String(body.source||'client')!=='ai'){
+      current.humanWins=Number(current.humanWins||0)+(didWin?1:0);
+      current.humanLosses=Number(current.humanLosses||0)+(didLose?1:0);
+      current.challengerHumanWins=Number(current.challengerHumanWins??current.humanWins-(didWin?1:0))+(didWin?1:0);
+      current.challengerHumanLosses=Number(current.challengerHumanLosses??current.humanLosses-(didLose?1:0))+(didLose?1:0);
+    }else{
+      current.challengerAIWins=Number(current.challengerAIWins||0)+(didWin?1:0);
+      current.challengerAILosses=Number(current.challengerAILosses||0)+(didLose?1:0);
+    }
+    current.updatedAt=Date.now();profiles.set(uid,current);
+    const result={oldElo,newElo,delta,didWin,didLose,isDraw,eloGainMultiplier};
+    if(receiptId){
+      challengerResultReceipts.set(receiptId,{receiptId,uid:cleanId(uid,128),source:cleanId(body.source||'client',40),roomCode:cleanId(body.roomCode,200),result:clone(result),createdAt:Date.now()});
+      if(challengerResultReceipts.size>2200){
+        const oldest=[...challengerResultReceipts.values()].sort((a,b)=>Number(a.createdAt||0)-Number(b.createdAt||0)).slice(0,challengerResultReceipts.size-2000);
+        oldest.forEach(row=>challengerResultReceipts.delete(row.receiptId));
+      }
+    }
+    persist();
+    return {ok:true,profile:clone(current),result,idempotent:false};
   }
   function authHeader(req){ return String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim(); }
   function decodePart(value){
@@ -248,15 +363,8 @@ export function createFlyDataApi({readBody, writeJson}){
         writeJson(res,200,{ok:true,leaderboard}); return true;
       }
       if(req.method==='POST' && url.pathname==='/api/challenger-results'){
-        const body=await readBody(req),uid=await requireSelf(req,body.uid);if(body.profile)mergeProfile(uid,body.profile);const current=profile(uid);
-        const didWin=body.didWin===true,isDraw=body.isDraw===true,didLose=!isDraw&&!didWin;
-        const oldElo=Math.max(0,Number(current.challengerElo??current.elo??600)||600),opponentElo=Math.max(0,Number(body.opponentElo)||1000);
-        let delta=0;if(!isDraw){const expected=1/(1+Math.pow(10,(opponentElo-oldElo)/400));delta=Math.round((didWin?32:40)*((didWin?1:0)-expected));if(didWin&&delta<=0)delta=1;if(didLose&&delta>=0)delta=-1;}
-        const newElo=Math.max(0,oldElo+delta);current.challengerElo=newElo;current.elo=newElo;
-        current.challengerWins=Number(current.challengerWins??current.wins??0)+(didWin?1:0);current.challengerLosses=Number(current.challengerLosses??current.losses??0)+(didLose?1:0);
-        current.wins=current.challengerWins;current.losses=current.challengerLosses;current.matchesPlayed=Number(current.matchesPlayed||0)+1;
-        if(String(body.source||'client')!=='ai'){current.humanWins=Number(current.humanWins||0)+(didWin?1:0);current.humanLosses=Number(current.humanLosses||0)+(didLose?1:0);}
-        current.updatedAt=Date.now();profiles.set(uid,current);persist();writeJson(res,200,{ok:true,profile:clone(current),result:{oldElo,newElo,delta,didWin,didLose,isDraw}});return true;
+        const body=await readBody(req),uid=await requireSelf(req,body.uid);
+        writeJson(res,200,applyChallengerResult(uid,body));return true;
       }
       if(req.method==='POST' && p[1]==='challenger-ai' && ['seed','simulate'].includes(p[2])){
         const body=await readBody(req);const uid=await requireSelf(req,body.uid);
@@ -270,6 +378,13 @@ export function createFlyDataApi({readBody, writeJson}){
         }
         persist();writeJson(res,200,{ok:true,ran:0,roster:[...aiRecords.values()].map(clone),matches:[]});return true;
       }
+      if(req.method==='GET' && url.pathname==='/api/challenger-ai/matches'){
+        await verifiedUid(req);
+        const limit=Math.min(75,Math.max(1,Number(url.searchParams.get('limit')||25)));
+        const monthKey=cleanId(url.searchParams.get('monthKey'),24);
+        const matches=aiMatches.filter(match=>!monthKey || String(match?.matchId||'').includes(`ai_${monthKey}_`)).slice(-limit).map(clone);
+        writeJson(res,200,{ok:true,matches});return true;
+      }
       if(req.method==='GET' && url.pathname==='/api/social/state'){
         const uid=await requireSelf(req,url.searchParams.get('uid'));writeJson(res,200,Object.assign({ok:true},stateFor(uid)));return true;
       }
@@ -277,6 +392,12 @@ export function createFlyDataApi({readBody, writeJson}){
         await verifiedUid(req);const term=cleanId(url.searchParams.get('term')).toLowerCase();
         const found=[...profiles.values()].filter(x=>[x.uid,x.baseCode,x.username,x.chosenUsername,x.displayName].some(v=>String(v||'').toLowerCase()===term)).slice(0,5).map(clone);
         writeJson(res,200,{ok:true,profiles:found});return true;
+      }
+      if(p[1]==='warfront'&&p[2]==='state'){
+        if(req.method==='GET'){await verifiedUid(req);writeJson(res,200,{ok:true,state:clone(warfrontEvent)});return true;}
+        const body=await readBody(req);await requireSelf(req,body.uid);const incoming=sanitizeWarfrontState(body.state);
+        if(!incoming)throw new Error('invalid Warfront event state');
+        warfrontEvent=mergeWarfrontState(warfrontEvent,incoming);persist();writeJson(res,200,{ok:true,state:clone(warfrontEvent)});return true;
       }
       if(req.method==='POST' && p[1]==='friends'){
         const body=await readBody(req),uid=await requireSelf(req,body.uid),action=p[2];
@@ -333,5 +454,12 @@ export function createFlyDataApi({readBody, writeJson}){
       return false;
     }catch(error){ writeJson(res,Number(error?.status)||400,{ok:false,error:String(error?.message||error)});return true; }
   }
-  return {handle,flush,counts:()=>({profiles:profiles.size,saves:saves.size,decks:decks.size,listings:listings.size})};
+  return {
+    handle,
+    flush,
+    counts:()=>({profiles:profiles.size,challengerResultReceipts:challengerResultReceipts.size,saves:saves.size,decks:decks.size,listings:listings.size,warfrontEvent:!!warfrontEvent}),
+    testSanitizeWarfrontState:value=>sanitizeWarfrontState(value),
+    testMergeWarfrontState:(current,incoming)=>mergeWarfrontState(sanitizeWarfrontState(current),sanitizeWarfrontState(incoming)),
+    testApplyChallengerResult:(uid,body)=>applyChallengerResult(cleanId(uid,128),clone(body||{}))
+  };
 }

@@ -184,8 +184,8 @@
 #s-game.svg-board-v20-live .codex-v19-popover[data-kind="status"] .mp-status-entry>span:last-child>span{display:block!important;color:#e7ddc4!important;font:600 12px/1.28 'Crimson Pro',Georgia,serif!important}
 #s-game.svg-board-v20-live .codex-v19-popover[data-kind="status"] .mp-status-entry small{margin-bottom:3px!important;color:#86c9ef!important;font:600 7px/1 'Cinzel',serif!important;letter-spacing:.1em!important;text-transform:uppercase!important}
 #s-game.svg-board-v20-live .codex-v19-popover[data-kind="status"] .mp-status-entry.opponent small{color:#ef8d98!important}
- #s-game.svg-board-v20-live .codex-v19-popover[data-kind="morale"]{width:390px!important;max-height:324px!important;padding:15px 17px!important;border-color:#d7aa4f!important;background:linear-gradient(145deg,#071722f7,#090a12f7)!important}
-#s-game.svg-board-v20-live .codex-v19-popover[data-kind="morale"] .mp-morale-tip{display:block!important;position:static!important;width:auto!important;padding:0 0 18px!important;border:0!important;background:none!important;box-shadow:none!important}
+ #s-game.svg-board-v20-live .codex-v19-popover[data-kind="morale"]{width:390px!important;max-height:337px!important;padding:15px 17px 13px!important;border-color:#d7aa4f!important;background:linear-gradient(145deg,#071722f7,#090a12f7)!important}
+#s-game.svg-board-v20-live .codex-v19-popover[data-kind="morale"] .mp-morale-tip{display:block!important;position:static!important;width:auto!important;padding:0!important;border:0!important;background:none!important;box-shadow:none!important}
 #s-game.svg-board-v20-live .codex-v19-popover[data-kind="morale"] header{display:flex!important;justify-content:space-between!important;padding:0 0 9px!important;border-bottom:1px solid rgba(215,170,79,.5)!important;color:#fff0cf!important;font:700 11px/1 'Cinzel',serif!important;letter-spacing:.12em!important}
 #s-game.svg-board-v20-live .codex-v19-popover[data-kind="morale"] .mp-morale-rule{position:relative!important;display:grid!important;grid-template-columns:104px 1fr!important;gap:12px!important;padding:8px 8px!important;border-bottom:1px solid rgba(255,255,255,.07)!important;color:#93a5aa!important;font:500 10px/1.35 Georgia,serif!important;overflow:hidden!important}
 #s-game.svg-board-v20-live .codex-v19-popover[data-kind="morale"] .mp-morale-rule b{color:#a99361!important;font:700 9px/1.3 'Cinzel',serif!important}
@@ -193,7 +193,6 @@
 #s-game.svg-board-v20-live .codex-v19-popover[data-kind="morale"] .mp-morale-rule.active:before{display:none!important;content:none!important}
  #s-game.svg-board-v20-live .codex-v19-popover[data-kind="morale"] .mp-morale-rule.active b{color:#5ee8ee!important}
  #s-game.svg-board-v20-live .codex-v19-popover[data-kind="morale"] .mp-morale-rule:last-of-type{padding-bottom:12px!important}
- #s-game.svg-board-v20-live .codex-v19-popover[data-kind="morale"] .mp-morale-tip:after{content:''!important;display:block!important;height:10px!important;min-height:10px!important}
 
 /* Board surface */
 #s-game.svg-board-v20-live .codex-v19-field{position:absolute!important;z-index:2!important;inset:136px 18px 174px!important;margin:0!important;padding:0!important;overflow:visible!important;background:none}
@@ -244,9 +243,9 @@
 #s-game.svg-board-v20-live .codex-v19-command{position:absolute!important;right:20px!important;bottom:21px!important;width:420px!important;height:148px!important;display:grid!important;grid-template-columns:minmax(0,172px) 214px!important;grid-template-rows:130px!important;gap:8px!important;padding:9px 10px 9px 14px!important;box-sizing:border-box!important;background:linear-gradient(118deg,#2cdce2 0%,#d7aa4f 52%,#ff416d 100%)!important;border-radius:0!important;clip-path:polygon(12px 0,calc(100% - 12px) 0,100% 12px,100% calc(100% - 12px),calc(100% - 12px) 100%,12px 100%,0 calc(100% - 12px),0 12px)!important;color:#eef6f3!important;filter:drop-shadow(0 12px 20px #000b)!important;pointer-events:auto}
 #s-game.svg-board-v20-live .codex-v19-command:before{content:""!important;position:absolute!important;inset:3px!important;z-index:0!important;background:linear-gradient(112deg,#071a23 0%,#07121b 40%,#100d18 72%,#1b0a16 100%)!important;border-radius:0!important;clip-path:polygon(10px 0,calc(100% - 10px) 0,100% 10px,100% calc(100% - 10px),calc(100% - 10px) 100%,10px 100%,0 calc(100% - 10px),0 10px)!important;box-shadow:inset 6px 0 #2cdce2!important}
 #s-game.svg-board-v20-live .codex-v19-command>*{position:relative!important;z-index:1!important}
-#s-game.svg-board-v20-live .codex-v19-landscape-banner{position:relative!important;display:grid!important;grid-template-rows:minmax(0,1fr)!important;padding:0!important;border:0!important;background:transparent!important;clip-path:none!important}
+#s-game.svg-board-v20-live .codex-v19-landscape-banner{position:relative!important;display:grid!important;grid-template-rows:minmax(0,1fr)!important;height:calc(100% + 9px)!important;margin-top:-9px!important;padding:9px 0 0!important;box-sizing:border-box!important;border:0!important;background:radial-gradient(ellipse at 50% 34%,rgba(22,57,66,.6) 0%,rgba(10,28,38,.38) 48%,rgba(7,13,21,.08) 100%)!important;clip-path:none!important}
 #s-game.svg-board-v20-live .codex-v19-landscape-banner>span{display:flex!important;align-items:center!important;justify-content:center!important;padding:0 8px!important;border:0!important;background:transparent!important;color:#77e3e7!important;font:700 10px/1 'Cinzel',serif!important;letter-spacing:.14em!important;text-align:center!important}
-#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land{box-sizing:border-box!important;height:100%!important;min-height:0!important;padding:10px 9px!important;border:0!important;background:radial-gradient(ellipse at 50% 34%,rgba(22,57,66,.6) 0%,rgba(10,28,38,.38) 48%,rgba(7,13,21,.08) 100%)!important;flex-direction:column!important;justify-content:center!important;text-align:center!important}
+#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land{box-sizing:border-box!important;height:100%!important;min-height:0!important;padding:10px 9px!important;border:0!important;background:transparent!important;flex-direction:column!important;justify-content:center!important;text-align:center!important}
 #s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-kicker{display:none!important}
 #s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-name{display:block!important;width:100%!important;max-width:100%!important;margin:0 0 3px!important;overflow:visible!important;overflow-wrap:anywhere!important;font:700 11.5px/1.1 'Cinzel',serif!important;letter-spacing:.03em!important;text-align:center!important;-webkit-line-clamp:unset!important}
 #s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-desc{display:block!important;width:100%!important;max-width:100%!important;min-width:0!important;margin:0!important;padding:0!important;overflow:visible!important;overflow-wrap:anywhere!important;border:0!important;box-shadow:none!important;background:none!important;font:italic 10px/1.22 Georgia,serif!important;letter-spacing:0!important;-webkit-line-clamp:unset!important;text-align:center!important}
@@ -276,14 +275,14 @@
 #s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-supporter-limit{
   margin-top:4px!important;
   font-family:Georgia,"Times New Roman",serif!important;
-  font-size:9.5px!important;
+  font-size:10px!important;
   font-style:normal!important;
   font-weight:650!important;
   line-height:1.2!important;
   letter-spacing:.01em!important;
 }
 #s-game.svg-board-v20-live .codex-v19-command .codex-v19-landscape-banner,#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land,#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-panel,#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-panel:before,#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-panel:after{border:0!important;box-shadow:none!important}
-#s-game.svg-board-v20-live .codex-v19-command-console{display:grid!important;grid-template-columns:76px minmax(0,1fr)!important;align-items:center!important;gap:9px!important;padding:0 0 0 8px!important;border:0!important;box-shadow:none!important;background:radial-gradient(circle at 35px 63px,rgba(42,220,226,.08),transparent 56%)!important}
+#s-game.svg-board-v20-live .codex-v19-command-console{display:grid!important;grid-template-columns:76px minmax(0,1fr)!important;align-items:center!important;gap:9px!important;height:calc(100% + 9px)!important;margin-top:-9px!important;padding:9px 0 0 8px!important;box-sizing:border-box!important;border:0!important;box-shadow:none!important;background:radial-gradient(circle at 35px 63px,rgba(42,220,226,.08),transparent 56%)!important}
 #s-game.svg-board-v20-live .codex-v19-end{position:relative!important;align-self:center!important;width:64px!important;height:64px!important;display:grid!important;place-items:center!important;padding:3px!important;border:0!important;border-radius:50%!important;background:conic-gradient(from 25deg,#d7aa4f,#2cdce2 44%,#ff416d 78%,#d7aa4f)!important;color:#fff4d5!important;box-shadow:0 0 0 3px #071018,0 8px 16px #0009!important;clip-path:none!important;transform:translate(5px,6px)!important}
 #s-game.svg-board-v20-live .codex-v19-end:before{content:""!important;position:absolute!important;inset:3px!important;border-radius:50%!important;background:radial-gradient(circle at 38% 32%,#1d4851,#10131c 52%,#310d20)!important;box-shadow:inset 0 0 18px #000b!important}
 #s-game.svg-board-v20-live .codex-v19-end em{position:absolute!important;z-index:2!important;left:50%!important;bottom:calc(100% + 5px)!important;transform:translateX(-50%)!important;color:#e7c56d!important;font:700 12px/1 'Cinzel',serif!important;font-style:normal!important;letter-spacing:.16em!important;white-space:nowrap!important}
@@ -751,8 +750,8 @@ html body .card-info-overlay .cd-name{
   font:700 24px/1.12 'Cinzel',serif!important;
   letter-spacing:.025em!important;
 }
-html body #modal .modal.card-detail-modal .cd-name.cd-name-with-audio,html body .card-info-overlay .cd-name.cd-name-with-audio{display:flex!important;align-items:flex-start!important;flex-wrap:wrap!important;gap:7px!important;overflow:visible!important}
-html body :is(#modal .modal.card-detail-modal,.card-info-overlay) .cd-name.cd-name-with-audio>span:first-child{min-width:0!important;flex:1 1 240px!important;overflow-wrap:anywhere!important}
+html body #modal .modal.card-detail-modal .cd-name.cd-name-with-audio,html body .card-info-overlay .cd-name.cd-name-with-audio{display:flex!important;align-items:center!important;justify-content:flex-start!important;flex-wrap:wrap!important;gap:7px!important;overflow:visible!important}
+html body :is(#modal .modal.card-detail-modal,.card-info-overlay) .cd-name.cd-name-with-audio>span:first-child{min-width:0!important;flex:0 1 auto!important;overflow-wrap:anywhere!important}
 html body :is(#modal .modal.card-detail-modal,.card-info-overlay) .cd-low-morale-expiry{position:relative!important;display:inline-grid!important;place-items:center!important;flex:0 0 34px!important;width:34px!important;height:34px!important;margin:0 0 0 auto!important;padding:0!important;overflow:visible!important;border:1px solid rgba(255,87,105,.72)!important;border-radius:50%!important;background:rgba(78,8,19,.72)!important;cursor:help!important}
 html body :is(#modal .modal.card-detail-modal,.card-info-overlay) .cd-low-morale-heart{position:relative!important;color:#ff7180!important;font:900 25px/1 Georgia,serif!important;text-shadow:0 0 9px rgba(255,52,78,.82)!important}
 html body :is(#modal .modal.card-detail-modal,.card-info-overlay) .cd-low-morale-heart::after{content:""!important;position:absolute!important;left:50%!important;top:0!important;width:2px!important;height:100%!important;background:#ffe3df!important;clip-path:polygon(25% 0,100% 0,55% 35%,100% 52%,45% 100%,0 100%,38% 56%,0 36%)!important;transform:translateX(-50%) rotate(8deg)!important}
@@ -1033,6 +1032,44 @@ html body.in-game #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-c
 #s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-note{margin:3px 0 0!important;font:700 9.5px/1.15 'Cinzel',serif!important;letter-spacing:.015em!important;}
 
 /* Landscape-specific compact-panel fitting. */
+#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-panel.landscape-id-igb22{
+  position:relative!important;
+  top:4px!important;
+}
+#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-panel.landscape-id-igb22 .landscape-name{
+  margin-bottom:5px!important;
+  font-size:9.5px!important;
+  line-height:1.16!important;
+}
+#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-panel.landscape-id-igb22 .landscape-desc{
+  font-size:8.5px!important;
+  line-height:1.32!important;
+}
+#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-panel.landscape-id-igb22 .landscape-note{
+  margin-top:7px!important;
+  font-size:8.5px!important;
+  line-height:1.2!important;
+}
+/* The active match shell copies the landscape contents into [data-land]. Keep
+   a game-state fallback so the Mexican Civil War fit applies immediately. */
+#s-game.svg-board-v20-live.landscape-id-igb22 .codex-v19-command .codex-v19-land{
+  position:relative!important;
+  top:4px!important;
+}
+#s-game.svg-board-v20-live.landscape-id-igb22 .codex-v19-command .codex-v19-land .landscape-name{
+  margin-bottom:5px!important;
+  font-size:10px!important;
+  line-height:1.16!important;
+}
+#s-game.svg-board-v20-live.landscape-id-igb22 .codex-v19-command .codex-v19-land .landscape-desc{
+  font-size:8.5px!important;
+  line-height:1.32!important;
+}
+#s-game.svg-board-v20-live.landscape-id-igb22 .codex-v19-command .codex-v19-land .landscape-note{
+  margin-top:7px!important;
+  font-size:8.5px!important;
+  line-height:1.2!important;
+}
 #s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-panel.landscape-id-igb2{
   padding-bottom:2px!important;
 }

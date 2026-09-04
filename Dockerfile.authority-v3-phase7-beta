@@ -9,6 +9,7 @@ COPY server/authoritative-v3 ./server/authoritative-v3
 COPY server/fate-card-catalog.js ./server/fate-card-catalog.js
 COPY shared ./shared
 COPY src/scripts/01-data-and-state.js ./src/scripts/01-data-and-state.js
+COPY src/scripts/authoritative-v3-ai-policy.mjs ./src/scripts/authoritative-v3-ai-policy.mjs
 
 EXPOSE 8787
 

@@ -44,6 +44,7 @@
   let deferredPlacementFatePulseByIid = new Map();
   let completedPlacementFateRevealAtByIid = new Map();
   let lastCardRectByIid = new Map();
+  let lastBoardSlotByIid = new Map();
   let pendingPlacementRectByIid = new Map();
   let vfxHiddenBoardCardUntilByIid = new Map();
   let vfxHiddenBoardCellUntilByKey = new Map();
@@ -547,6 +548,10 @@
     });
     deferredPlacementFatePulseByIid.clear();
     completedPlacementFateRevealAtByIid.clear();
+    lastCardRectByIid.clear();
+    lastBoardSlotByIid.clear();
+    pendingPlacementRectByIid.clear();
+    suppressedInitialPlacementUntilByIid.clear();
     clearFateNumberPresentations();
     if(input && typeof input.detach === 'function') input.detach();
     hoverHit = null;
@@ -1365,6 +1370,7 @@
     const key = String(iid == null ? '' : iid);
     if(!key) return;
     lastCardRectByIid.delete(key);
+    lastBoardSlotByIid.delete(key);
     pendingPlacementRectByIid.delete(key);
     suppressedInitialPlacementUntilByIid.delete(key);
     vfxHiddenBoardCardUntilByIid.delete(key);
@@ -1842,10 +1848,13 @@
           return sum + (possible ? Math.max(0, Number(possible.reinforcement) || 0) : 0);
         }, 0)
         : 0;
+      const requiredCost = typeof window !== 'undefined' && typeof window.getSelectedConsolidationRequiredCost === 'function'
+        ? window.getSelectedConsolidationRequiredCost(con)
+        : Number(con.cost || 0);
       const requirementsMet = con.phase === 'select_placement'
         || (con._phase7Authoritative === true
           ? con._phase7VisualReady === true
-          : (running >= Number(con.cost || 0) && con.phase === 'select_tributes'));
+          : (running >= requiredCost && con.phase === 'select_tributes'));
       if(chosen && con.phase === 'select_placement') return 'placement';
       if(chosen && requirementsMet) return 'ready';
       if(chosen) return 'selected';
@@ -2455,8 +2464,9 @@
     return true;
   }
 
-  function observeCardForMove(card, r, snapshotChanged, boardIidCounts){
+  function observeCardForMove(entry, r, snapshotChanged, boardIidCounts){
     const timeline = getTimeline();
+    const card = entry && entry.card;
     const iid = getCardIid(card);
     if(!timeline || !iid || !r) return null;
     if(!canTrackBoardMotionIid(iid, boardIidCounts)){
@@ -2465,7 +2475,10 @@
     }
     const nextRect = cloneRect(r);
     const prevRect = lastCardRectByIid.get(iid);
+    const nextSlot = String(entry.z) + ':' + String(entry.r) + ':' + String(entry.c);
+    const prevSlot = lastBoardSlotByIid.get(iid);
     lastCardRectByIid.set(iid, nextRect);
+    lastBoardSlotByIid.set(iid, nextSlot);
     if(animationsOff()){
       pendingPlacementRectByIid.delete(iid);
       if(typeof timeline.clearForCardKind === 'function') timeline.clearForCardKind(iid, 'card-move');
@@ -2488,6 +2501,15 @@
       }
     }
     if(!prevRect || sameRect(prevRect, nextRect)) return timeline.getForCard && timeline.getForCard(iid, 'card-move');
+    // A card that is still in the same logical board cell has only moved because
+    // the row/layout was remeasured.  This is common when a delayed placement
+    // snapshot arrives in stages and used to look like a stray horizontal set
+    // animation.  Snap layout reflows; reserve motion for actual cell changes.
+    if(prevSlot === nextSlot){
+      if(typeof timeline.clearForCardKind === 'function') timeline.clearForCardKind(iid, 'card-move');
+      else if(typeof timeline.clearForCard === 'function') timeline.clearForCard(iid, 'card-move');
+      return null;
+    }
     if(!snapshotChanged) return timeline.getForCard && timeline.getForCard(iid, 'card-move');
     if(window.FateVfxEventBridge && typeof window.FateVfxEventBridge.onAcceptedGameEvent === 'function'){
       const vfxId = window.FateVfxEventBridge.onAcceptedGameEvent({
@@ -3109,6 +3131,7 @@
     joie_thousand_reel:{color:'rgba(255,183,232,.99)',glow:'rgba(255,78,190,.66)',tint:'rgba(177,38,126,.18)'},
     boleslaw_exclaim:{color:'rgba(255,226,130,.99)',glow:'rgba(255,150,54,.68)',tint:'rgba(175,86,24,.17)'},
     jimmy_wrath:{color:'rgba(255,92,82,.99)',glow:'rgba(244,67,58,.68)',tint:'rgba(148,29,29,.20)'},
+    alpine_engineer_proc:{color:'rgba(154,222,255,.99)',glow:'rgba(48,156,255,.72)',tint:'rgba(24,88,168,.20)'},
     bh07_overclock:{color:'rgba(146,232,255,.99)',glow:'rgba(58,190,255,.66)',tint:'rgba(24,122,176,.17)'},
     bh08_mischief:{color:'rgba(255,174,229,.99)',glow:'rgba(255,70,190,.66)',tint:'rgba(144,37,136,.18)'},
     bh15_chinese_macarthur:{color:'rgba(225,239,255,.99)',glow:'rgba(105,159,235,.66)',tint:'rgba(48,82,142,.18)'},
@@ -3758,6 +3781,11 @@
     } else if(kind === 'maria_target') {
       circle(32,32,16); circle(32,32,6);
       line([[32,8],[32,19]],false); line([[32,45],[32,56]],false); line([[8,32],[19,32]],false); line([[45,32],[56,32]],false);
+    } else if(kind === 'alpine_engineer_proc') {
+      // G-01: a clean, centered engineer's gear with no secondary markings.
+      ctx.lineWidth = 4.2;
+      line([[32,6],[37,14],[46,13],[48,22],[56,27],[52,32],[56,37],[48,42],[46,51],[37,50],[32,58],[27,50],[18,51],[16,42],[8,37],[12,32],[8,27],[16,22],[18,13],[27,14],[32,6]],true);
+      circle(32,32,10);
     } else if(kind === 'rivera_crest') {
       circle(32,32,20); line([[32,14],[32,50]],false); line([[14,32],[50,32]],false);
       line([[21,21],[43,43]],false); line([[43,21],[21,43]],false);
@@ -4477,6 +4505,7 @@
     if(!interaction.supporterLimitReached) return false;
     if(interaction.currentPlayer !== snapshot.viewer) return false;
     if((interaction.phase || '') !== 'main') return false;
+    if(interaction.supporterHardCapReached) return true;
     const iid = card.iid != null ? String(card.iid) : '';
     return freeSetIids(snapshot).indexOf(iid) < 0;
   }
@@ -5214,7 +5243,7 @@
       }
       observeCardForAnimations(entry.card, visual, r);
       const tributeState = getTributeState(entry);
-      const move = observeCardForMove(entry.card, r, snapshotChangedForMove, boardIidCountsForMotion);
+      const move = observeCardForMove(entry, r, snapshotChangedForMove, boardIidCountsForMotion);
       if(move && move.kind === 'card-move' && !move.done){
         movingCards.push({entry, visual, rect:r, move, tributeState});
       } else {

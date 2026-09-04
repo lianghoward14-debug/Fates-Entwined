@@ -55,11 +55,11 @@ result = reduceCommand(
 assert.equal(result.ok, true);
 assert.equal(result.state.turn, 15);
 assert.equal(result.state.activePlayer, 1);
-assert.equal(zoneScore(result.state, 2, 0), 12);
+assert.equal(zoneScore(result.state, 2, 0), 16);
 assert(result.state.statuses.some(status=>
   status.statusId === 'landscape:igb2:reward:p0'
   && status.zone === 2
-  && status.value === 12
+  && status.value === 16
 ));
 assert.equal(result.state.effectStack.length, 0);
 assert.equal(result.state.pendingPrompt, null);

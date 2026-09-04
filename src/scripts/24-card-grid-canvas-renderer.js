@@ -98,6 +98,7 @@
   }
 
   function drawStarSheenFallback(ctx, rect) {
+    // The animated DOM foil layer owns the Star treatment.
     return;
   }
 
@@ -181,6 +182,12 @@
   function renderCanvasDeckCollection(container, entries, opts) {
     if(!container || !window.HTMLCanvasElement) return false;
     opts = opts || {};
+    if(opts.starSheen === true && !document.getElementById('fate-star-sheen-live-only-style')) {
+      const liveStyle = document.createElement('style');
+      liveStyle.id = 'fate-star-sheen-live-only-style';
+      liveStyle.textContent = '.canvas-card-grid-sheen.canvas-card-grid-live-only{background:transparent!important;box-shadow:none!important;animation:none!important;filter:none!important}.canvas-card-grid-sheen.canvas-card-grid-live-only::before,.canvas-card-grid-sheen.canvas-card-grid-live-only::after{display:none!important;content:none!important}.canvas-card-grid-sheen.canvas-card-grid-live-only>.canvas-card-grid-sheen-sweep{display:none!important}';
+      document.head.appendChild(liveStyle);
+    }
     entries = Array.isArray(entries) ? entries : [];
     if(!entries.length) return false;
 
@@ -207,6 +214,7 @@
     canvas.className = 'canvas-card-grid-surface';
     const sheenLayer = document.createElement('div');
     sheenLayer.className = 'canvas-card-grid-sheen-layer';
+    if(opts.starSheen === true) sheenLayer.style.setProperty('display', 'block', 'important');
     const hitLayer = document.createElement('div');
     hitLayer.className = 'canvas-card-grid-hit-layer';
     wrap.appendChild(canvas);
@@ -220,7 +228,9 @@
     let resizeTimer = 0;
     let scrollRaf = 0;
     let lastVirtualKey = '';
-    const useStarSheen = !lowScroll && isEnhancedVisualFxOn() && entries.some(function(entry){
+    // Collection/deck-builder callers opt in explicitly. Keep the rarity treatment
+    // independent from the global enhanced-FX and scrolling-performance switches.
+    const useStarSheen = opts.starSheen === true && entries.some(function(entry){
       return entry && entry.card && entry.card.rarity === 'star';
     });
 
@@ -269,15 +279,39 @@
         const entry = entries[i];
         if(useStarSheen && entry && entry.card && entry.card.rarity === 'star') {
           const sheen = document.createElement('span');
-          sheen.className = 'canvas-card-grid-sheen';
+          sheen.className = 'canvas-card-grid-sheen canvas-card-grid-live-only';
           const sweep = document.createElement('span');
           sweep.className = 'canvas-card-grid-sheen-sweep';
+          const glint = document.createElement('span');
+          glint.className = 'canvas-card-grid-live-glint';
+          glint.style.cssText = 'position:absolute;inset:-20% -55%;width:210%;height:140%;display:block;pointer-events:none;opacity:0;mix-blend-mode:screen;background:linear-gradient(112deg,transparent 43%,rgba(255,202,45,.08) 46%,rgba(255,244,174,.46) 49%,rgba(255,255,239,.78) 50%,rgba(255,211,65,.18) 52%,transparent 56%);will-change:transform,opacity;';
+          sheen.style.setProperty('display', 'block', 'important');
+          sheen.style.setProperty('background', 'transparent', 'important');
+          sheen.style.setProperty('box-shadow', 'none', 'important');
+          sweep.style.setProperty('display', 'block', 'important');
+          sweep.style.setProperty('display', 'none', 'important');
           sheen.appendChild(sweep);
+          sheen.appendChild(glint);
           sheen.style.left = rect.x + 'px';
           sheen.style.top = rect.y + 'px';
           sheen.style.width = rect.w + 'px';
           sheen.style.height = rect.h + 'px';
           sheenLayer.appendChild(sheen);
+          const reducedMotion = typeof window.matchMedia === 'function'
+            && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+          if(!reducedMotion && typeof glint.animate === 'function') {
+            // Web Animations keeps this rarity cue moving even when the game's
+            // optional ambient CSS animations are disabled.
+            glint.animate([
+              { opacity:0, transform:'translate3d(-58%,0,0)', offset:0 },
+              { opacity:0, transform:'translate3d(-58%,0,0)', offset:.44 },
+              { opacity:.2, transform:'translate3d(-48%,0,0)', offset:.5 },
+              { opacity:.9, transform:'translate3d(-2%,0,0)', offset:.66 },
+              { opacity:.22, transform:'translate3d(40%,0,0)', offset:.82 },
+              { opacity:0, transform:'translate3d(52%,0,0)', offset:.88 },
+              { opacity:0, transform:'translate3d(52%,0,0)', offset:1 }
+            ], { duration:3200, iterations:Infinity, easing:'ease-in-out' });
+          }
         }
         const btn = document.createElement('button');
         btn.type = 'button';

@@ -211,6 +211,12 @@ export function collectTriggeredOperations(state, event){
         && !isEffectSourceSuppressed(state, entry)
       )){
         const amount = 1 + coordinatorAuraPotencyBoost(state, source);
+        operations.push({
+          type:'SET_CARD_COUNTER', targetIid:source.card.iid,
+          counterKey:'triggeredFateHistoryTotal',
+          value:Math.max(0, Number(source.card.counters?.triggeredFateHistoryTotal) || 0) + amount,
+          sourceIid:source.card.iid, sourceController:playerIndex
+        });
         for(const target of boardEntries(state).filter(entry=>
           (entry.z === source.z || source.card.counters?.whisperLandscapeToken === true)
           && controllerOf(entry.card) === playerIndex
@@ -231,6 +237,8 @@ export function collectTriggeredOperations(state, event){
   }
   if(event.type === 'EFFECT_REACTED' && ['NEGATE', 'SUPPRESS'].includes(String(event.mode || ''))){
     const reactingPlayer = Number(event.playerIndex);
+    const reactedSource = findCard(state, event.sourceIid)?.card;
+    if(!reactedSource || controllerOf(reactedSource) === reactingPlayer) return operations;
     for(const source of boardEntries(state).filter(entry=>
       runtimeRuleId(entry.card) === 'bh08'
       && controllerOf(entry.card) === reactingPlayer
@@ -238,6 +246,12 @@ export function collectTriggeredOperations(state, event){
       && !isEffectSourceSuppressed(state, entry)
     )){
       const amount = 2 + coordinatorAuraPotencyBoost(state, source);
+      operations.push({
+        type:'SET_CARD_COUNTER', targetIid:source.card.iid,
+        counterKey:'triggeredFateHistoryTotal',
+        value:Math.max(0, Number(source.card.counters?.triggeredFateHistoryTotal) || 0) + amount,
+        sourceIid:source.card.iid, sourceController:reactingPlayer
+      });
       for(const target of boardEntries(state).filter(entry=>
         (entry.z === source.z || source.card.counters?.whisperLandscapeToken === true)
         && controllerOf(entry.card) === reactingPlayer
@@ -259,7 +273,8 @@ export function collectTriggeredOperations(state, event){
     const destinationZone = Number(event.to?.z);
     const moved = findCard(state, event.cardIid)?.card;
     for(const entry of boardEntries(state)){
-      if(entry.z !== destinationZone || String(entry.card.id || '') !== '34') continue;
+      if(runtimeRuleId(entry.card) !== '34') continue;
+      if(entry.card.counters?.whisperLandscapeToken !== true && entry.z !== destinationZone) continue;
       const targetCheck = canTarget(state, entry.card, moved, {
         type:'MODIFY_FATE',
         sourceIid:entry.card.iid,
@@ -283,6 +298,21 @@ export function collectTriggeredOperations(state, event){
     for(const joie of boardEntries(state).filter(entry=>
       runtimeRuleId(entry.card) === 'bh02' && controllerOf(entry.card) === Number(event.playerIndex)
     )){
+      const amount = 1 + coordinatorAuraPotencyBoost(state, joie);
+      operations.push({
+        type:'SET_CARD_COUNTER', targetIid:joie.card.iid,
+        counterKey:'triggeredFateHistoryTotal',
+        value:Math.max(0, Number(joie.card.counters?.triggeredFateHistoryTotal) || 0) + amount,
+        sourceIid:joie.card.iid, sourceController:Number(event.playerIndex),
+        semanticSourceCardId:'bh02'
+      });
+      operations.push({
+        type:'SET_CARD_COUNTER', targetIid:joie.card.iid,
+        counterKey:'joieProcCount',
+        value:Math.max(0, Number(joie.card.counters?.joieProcCount) || 0) + 1,
+        sourceIid:joie.card.iid, sourceController:Number(event.playerIndex),
+        semanticSourceCardId:'bh02'
+      });
       for(const target of boardEntries(state).filter(entry=>
         (entry.z === joie.z || joie.card.counters?.whisperLandscapeToken === true)
         && controllerOf(entry.card) === Number(event.playerIndex)
@@ -297,9 +327,10 @@ export function collectTriggeredOperations(state, event){
         operations.push({
           type:'MODIFY_FATE',
           targetIid:target.card.iid,
-          amount:1,
+          amount,
           sourceIid:joie.card.iid,
           sourceController:Number(event.playerIndex),
+          semanticSourceCardId:'bh02',
           reason:'JOIE_DRAW_EFFECT_BONUS',
           bypassReaction:true
         });
@@ -330,6 +361,7 @@ export function collectTriggeredOperations(state, event){
             sourceIid:sourceEntry.card.iid,
             semanticSourceCardId:'bh17',
             sourceController:playerIndex,
+            permanentFateGain:true,
             reason:'CRUSHING_MOMENTUM',
             bypassReaction:true
           });
@@ -355,16 +387,27 @@ export function collectTriggeredOperations(state, event){
           bypassReaction:true
         });
       }
+      if(runtimeRuleId(consolidated.card) === '87'){
+        operations.push({
+          type:'MODIFY_FATE', targetIid:event.cardIid, amount:3,
+          sourceIid:event.cardIid, sourceController:Number(event.playerIndex),
+          permanentFateGain:true, reason:'KVETKA_BALLAD_CONSOLIDATION', bypassReaction:true
+        });
+      }
       for(const status of state.statuses.filter(item=>
         item?.type === 'CONSOLIDATION_FATE_BONUS'
         && Number(item.playerIndex) === Number(event.playerIndex)
       )){
+        const affectedIids = Array.isArray(status.affectedIids) ? status.affectedIids : (status.affectedIids = []);
+        const affectedIid = String(event.cardIid || '');
+        if(affectedIid && !affectedIids.some(iid=>String(iid) === affectedIid)) affectedIids.push(affectedIid);
         operations.push({
           type:'MODIFY_FATE',
           targetIid:event.cardIid,
           amount:Number(status.value || 0) || 0,
           sourceIid:status.sourceIid,
           sourceController:Number(event.playerIndex),
+          permanentFateGain:true,
           reason:'KVETKA_BALLAD_CONSOLIDATION',
           bypassReaction:true
         });
@@ -446,7 +489,7 @@ export function collectTriggeredOperations(state, event){
         counterKey:'specterTurnsOnField',
         triggerCounterKey:'specterFateGains',
         threshold:2,
-        maxTriggers:6,
+        maxTriggers:8,
         amount:1,
         sourceIid:entry.card.iid,
         sourceController:controllerOf(entry.card),

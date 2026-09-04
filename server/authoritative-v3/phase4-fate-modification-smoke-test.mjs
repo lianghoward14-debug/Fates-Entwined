@@ -242,7 +242,7 @@ result = reduceCommand(
   {playerId:'p0'}
 );
 assert.equal(result.ok, true);
-assert.equal(result.state.board[0][2][1].currentFate, 5);
+assert.equal(result.state.board[0][2][1].currentFate, 6);
 assert(result.state.board[0][2][1].statuses.includes('IMMUNE_TO_OPPONENT_EFFECTS'));
 state = result.state;
 result = reduceCommand(
@@ -406,5 +406,12 @@ result = reduceCommand(
 assert.equal(result.ok, true);
 assert.equal(result.state.board[0][2][0].currentFate, joieBefore + 1);
 assert.equal(result.state.board[0][2][1].currentFate, anickaBefore);
+assert.equal(result.state.board[0][2][0].counters.joieProcCount, 1, 'Joie must track one activation for her match tracker');
+const joieFateEvent = result.events.find(event=>
+  event.type === 'FATE_CHANGED'
+    && String(event.cardIid || event.targetIid || '') === String(joie.iid)
+    && event.reason === 'JOIE_DRAW_EFFECT_BONUS'
+);
+assert.equal(joieFateEvent?.semanticSourceCardId, 'bh02', 'Joie must own her Fate-change overlay even when the target has its own overlay');
 
 console.log('authoritative-v3 Phase 4 Fate-modification family smoke test passed');

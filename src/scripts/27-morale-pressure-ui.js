@@ -396,12 +396,20 @@
   function resolveLegacyMoraleSupporterExpiry(player){
     const state = legacyGameState();
     if(!state?._moralePressure) return [];
-    const active = legacyMoralePenaltyActive(player, 40);
+    const active = legacyMoralePenaltyActive(player, 20);
     const expired = [];
     legacyBoardEntries(state).filter(function(entry){
       return Number(entry.card?.owner) === Number(player) && legacyEffectType(entry.card) === 'Supporter';
-    }).forEach(function(entry){
-      const card = entry.card;
+      }).forEach(function(entry){
+        const card = entry.card;
+        const immune = typeof isFullyEffectImmuneCard === 'function'
+          ? isFullyEffectImmuneCard(card)
+          : (typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(card));
+        if(immune){
+          delete card._moraleSupporterExpiryTurns;
+          delete card._moraleSupporterExpiryStartedTurn;
+          return;
+        }
       if(!active){
         delete card._moraleSupporterExpiryTurns;
         delete card._moraleSupporterExpiryStartedTurn;
@@ -623,17 +631,8 @@
     // negate it.
     const resolveWhenSetEffects = options?.resolveWhenSetEffects === true
       || !(card._onlineSetResolutionPending || card._onlineSetResolutionInFlight);
+    if(resolveWhenSetEffects&&String(card.id||'')==='64')card._doubleNextMoraleDamage=true;
     if(pressureReworks && resolveWhenSetEffects){
-      if(String(card.id||'')==='20'){
-        state._southWindMoraleBlock = {
-          sourcePlayer:player,
-          targetPlayer:1-player,
-          activeFromTurn:Number(state.turn || 0) + 1,
-          remainingTargetTurns:1,
-          sourceIid:String(card.iid || '')
-        };
-      }
-      if(String(card.id||'')==='64') card._doubleNextMoraleDamage=true;
       if(String(card.id||'')==='33'){
         const before=Number(system.morale[player]||0);system.morale[player]=Math.min(Number(system.maxMorale||200),before+16);
         if(system.morale[player]>before) events.push({type:'MORALE_HEALED',playerIndex:player,amount:system.morale[player]-before,before:before,after:system.morale[player],sourceIid:String(card.iid||'')});
@@ -800,8 +799,9 @@
         const id=String(source.id||'');
         let sourceDamage=0;
         let affectedIids=[];
-        if(pressureReworks&&id==='34'&&source._moraleAffiliation){
-          const affected=entries.filter(function(target){return Number(target.card.owner)===owner&&Number(target.z)===Number(entry.z)&&String(target.card.aff||target.card.affiliation||'')===String(source._moraleAffiliation);});
+        const whisperRozsi=String(source._whisperCopiedEffectId||'')==='34';
+        if(pressureReworks&&(id==='34'||whisperRozsi)&&source._moraleAffiliation){
+          const affected=entries.filter(function(target){return Number(target.card.owner)===owner&&(whisperRozsi||Number(target.z)===Number(entry.z))&&String(target.card.aff||target.card.affiliation||'')===String(source._moraleAffiliation);});
           sourceDamage=affected.length*2;
           affectedIids=affected.map(function(target){return String(target.card&&target.card.iid||'');}).filter(Boolean);
         }else if(id==='35'){
@@ -813,9 +813,10 @@
           outgoingSources[owner].push({card:source,amount:sourceDamage,affectedIids:affectedIids});
         }
       });
-      if(pressureReworks)for(let owner=0;owner<2;owner+=1){
+      for(let owner=0;owner<2;owner+=1){
         const doublers=entries.filter(function(entry){return Number(entry.card.owner)===owner&&String(entry.card.id||'')==='64'&&entry.card._doubleNextMoraleDamage===true;});
-        if(doublers.length){const multiplier=Math.pow(2,doublers.length);outgoing[owner]*=multiplier;outgoingSources[owner].forEach(function(source){source.amount*=multiplier;});doublers.forEach(function(entry){entry.card._doubleNextMoraleDamage=false;});}
+        if(doublers.length){const multiplier=Math.pow(2,doublers.length);damage[1-owner]*=multiplier;outgoing[owner]*=multiplier;outgoingSources[owner].forEach(function(source){source.amount*=multiplier;});doublers.forEach(function(entry){entry.card._doubleNextMoraleDamage=false;});}
+        if(!pressureReworks)continue;
         const block=state._southWindMoraleBlock;
         if(block&&Number(block.targetPlayer)===owner&&Number(block.activeFromTurn)<=Number(state.turn)&&Number(block.remainingTargetTurns)>0){
           damage[1-owner]=0;
@@ -825,10 +826,21 @@
       }
       for(let owner=0;owner<2;owner+=1)damage[1-owner]+=outgoing[owner];
     }
+    const bh18ZoneFateReductions=[];
+    for(let player=0;player<2;player+=1){
+      if(Math.max(0,Number(damage[player])||0)<=0)continue;
+      entries.filter(function(entry){return Number(entry.card.owner)===player&&String(entry.card.id||'')==='bh18';}).forEach(function(entry){
+        const key=['bh18',String(entry.card.iid||entry.card.id),String(system.cycle||0),'p'+String(1-player),'z'+String(entry.z)].join('_');
+        if(!state.fateModifiers||typeof state.fateModifiers!=='object')state.fateModifiers={};
+        state.fateModifiers[key]=Number(state.fateModifiers[key]||0)-3;
+        bh18ZoneFateReductions.push({sourceIid:String(entry.card.iid||''),sourceCardId:'bh18',sourceController:player,playerIndex:1-player,zone:Number(entry.z),value:-3,reason:'GENESIS_OF_ALL_INCELDOM'});
+      });
+    }
     events.push({
       type:'MORALE_CYCLE_RESOLVED',
       zoneResults:zoneResults,
       damage:damage.slice(),
+      bh18ZoneFateReductions:bh18ZoneFateReductions,
       moraleDamageSources:outgoingSources.map(function(sources){return sources.map(function(source){return {
         sourceIid:String(source.card&&source.card.iid||''),
         sourceCardId:String(source.card&&source.card.id||''),
@@ -866,6 +878,16 @@
       });
       if(before>0&&system.morale[player]===0)events.push({type:'MORALE_BROKEN',playerIndex:player,sourcePlayerIndex:1-player});
     }
+    if(String(state.landscapeId||'')==='igb23'){
+      for(let player=0;player<2;player+=1){
+        const before=Math.max(0,Number(system.morale[player])||0);
+        const requested=Math.max(0,Number(state.players?.[player]?.hand?.length||0)*2);
+        const after=Math.min(Number(system.maxMorale||200),before+requested);
+        const amount=after-before;
+        system.morale[player]=after;
+        if(amount)events.push({type:'MORALE_HEALED',playerIndex:player,amount:amount,before:before,after:after,sourceIid:'landscape:igb23',semanticSourceCardId:'igb23',reason:'SHORES_OF_LA_HELENA'});
+      }
+    }
     (state.blockedCells||[]).filter(function(block){return block&&block.type==='jamie';}).forEach(function(block){
       const player=Number(block.owner);
       const card=state.board?.[Number(block.z)]?.[Number(block.r)]?.[Number(block.c)]||null;
@@ -893,7 +915,7 @@
     const system = state?._moralePressure;
     const morale = Math.max(0, Number(system?.morale?.[seat] || 0));
     const hand = state?.players?.[seat]?.hand;
-    if(!system || morale <= 0 || !legacyMoralePenaltyActive(seat,20) || !Array.isArray(hand) || !hand.length) return null;
+    if(!system || morale <= 0 || !legacyMoralePenaltyActive(seat,40) || !Array.isArray(hand) || !hand.length) return null;
     const index = Math.floor(Math.random()*hand.length);
     const card = hand.splice(Math.max(0,Math.min(hand.length-1,index)),1)[0];
     if(!card) return null;
@@ -901,13 +923,13 @@
     else if(typeof fatePushDiscard === 'function') fatePushDiscard(seat,card,{sound:false});
     if(typeof playDiscardSfx === 'function') playDiscardSfx();
     return {
-      type:'MORALE_20_HAND_DISCARDED',
+      type:'MORALE_40_HAND_DISCARDED',
       playerIndex:seat,
       cardIid:String(card.iid || ''),
       cardId:String(card.id || ''),
       cardName:String(card.name || 'Card'),
-      threshold:20,
-      reason:'MORALE_20_RANDOM_HAND_DISCARD'
+      threshold:40,
+      reason:'MORALE_40_RANDOM_HAND_DISCARD'
     };
   }
 
@@ -1147,8 +1169,8 @@
       '<div class="mp-morale-rule active"><b>Every 2 turns, starting Turn 4</b><span>In each zone you do not control, half the Fate difference is dealt as Morale damage (rounded down).</span></div>' +
       '<div class="mp-morale-rule ' + (morale <= max * .8 ? 'active' : '') + '"><b>80% Morale</b><span>Maximum 2 consolidations per turn.</span></div>' +
       '<div class="mp-morale-rule ' + (morale <= max * .6 ? 'active' : '') + '"><b>60% Morale</b><span>Your normal draw phase occurs every other personal turn.</span></div>' +
-      '<div class="mp-morale-rule ' + (morale <= max * .4 ? 'active' : '') + '"><b>40% Morale</b><span>Your Supporters discard themselves after 2 completed turns.</span></div>' +
-      '<div class="mp-morale-rule ' + (morale <= max * .2 ? 'active' : '') + '"><b>20% Morale</b><span>At the end of each of your turns, discard 1 random card from your hand.</span></div>' +
+      '<div class="mp-morale-rule ' + (morale <= max * .4 ? 'active' : '') + '"><b>40% Morale</b><span>At the end of each of your turns, discard 1 random card from your hand.</span></div>' +
+      '<div class="mp-morale-rule ' + (morale <= max * .2 ? 'active' : '') + '"><b>20% Morale</b><span>Your Supporters discard themselves after 2 completed turns.</span></div>' +
       '<div class="mp-morale-rule ' + (morale <= 0 ? 'active' : '') + '"><b>0 Morale</b><span>You immediately lose the match.</span></div>' +
       '<div class="mp-morale-rule"><b>Turn 24</b><span>A player with Morale remaining wins by controlling at least 2 of 3 zones.</span></div>';
   }
@@ -1375,6 +1397,15 @@
     const contributingIids=new Set(recordedSources.map(function(source){return String(source.sourceIid||'');}).filter(Boolean));
     const hasSourceLedger=Array.isArray(cycleEvent&&cycleEvent.moraleDamageSources);
     let shown=false;
+    (Array.isArray(cycleEvent&&cycleEvent.bh18ZoneFateReductions)?cycleEvent.bh18ZoneFateReductions:[]).forEach(function(reduction){
+      const source=findMoraleOverlaySource(reduction&&reduction.sourceIid);
+      if(!source||source.faceDown===true)return;
+      if(typeof isCardVisuallySuppressed==='function'&&isCardVisuallySuppressed(source))return;
+      shown=window.flashCardEffect(source,'bh18_genesis_inceldom',{
+        label:'The Genesis of all Inceldom',
+        soundKey:['morale-calculation','bh18_genesis_inceldom',String(reduction.sourceIid||'bh18'),String(G&&G.turn||0)].join(':')
+      })||shown;
+    });
     recordedSources.filter(function(source){return String(source.sourceCardId||'')==='34';}).forEach(function(source){
       (Array.isArray(source.affectedIids)?source.affectedIids:[]).forEach(function(iid){
         const target=findMoraleOverlaySource(iid);
@@ -1491,7 +1522,7 @@
       if(type === 'MORALE_SUPPORTER_EXPIRED' && typeof window.toast === 'function'){
         window.toast((event.cardName || 'Supporter') + ' discarded itself after two turns at low Morale.');
       }
-      if(type === 'MORALE_20_HAND_DISCARDED'){
+      if(type === 'MORALE_40_HAND_DISCARDED'){
         showMoraleLowHandDiscardBanner(event);
       }
       if(type === 'DRAW_PHASE_SKIPPED' && event.reason === 'MORALE_60_ALTERNATING_DRAW' && typeof window.toast === 'function'){

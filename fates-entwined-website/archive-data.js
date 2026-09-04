@@ -30,7 +30,7 @@ window.FATES_ARCHIVE_DATA = {
       "set": "core",
       "token": false,
       "retired": false,
-      "effect": "Create an extra safe row for yourself in this zone. Any card placed in this zone gains 4 Fate.",
+      "effect": "Create an extra safe row for yourself in this zone. Any card placed in this zone gains 4 Fate and 2 less Reinforcement cost.",
       "flavor": "\"These Seas were not always feared - Once, they were called Pacifique\"",
       "img": "../2.png"
     },
@@ -104,7 +104,7 @@ window.FATES_ARCHIVE_DATA = {
       "ability": "Oblique Order",
       "type": "Initiator",
       "aff": "third_great_war",
-      "fate": 3,
+      "fate": 2,
       "cost": 1,
       "rarity": "star",
       "set": "core",
@@ -318,7 +318,7 @@ window.FATES_ARCHIVE_DATA = {
       "set": "core",
       "token": false,
       "retired": false,
-      "effect": "This card is immune to all of your opponent's effects.",
+      "effect": "At any time, you can activate this effect. For one turn and the next Morale Calculation, you take no Morale Damage. (2 uses)",
       "flavor": "\"In Pacifica, the South Wind Spearmen are the textbook definition of a disciplined and well organized army\"",
       "img": "../20.png"
     },
@@ -536,13 +536,13 @@ window.FATES_ARCHIVE_DATA = {
       "ability": "Hungarian Dance",
       "type": "Coordinator",
       "aff": "third_great_war",
-      "fate": 3,
+      "fate": 2,
       "cost": 2,
       "rarity": "triangle",
       "set": "core",
       "token": false,
       "retired": false,
-      "effect": "Whenever a card would move into this card's zone by any effect, it permanently gains 3 Fate. Setting a card does not count.",
+      "effect": "Declare an affiliation—all cards you control in this zone with that affiliation inflict 2 Morale Damage every Morale Calculation.",
       "flavor": "\"Rozsi's charisma counterparts his sister's administrative abilities. Together, the Twin Monarchs are a capable duo\"",
       "img": "../34.png"
     },
@@ -638,7 +638,7 @@ window.FATES_ARCHIVE_DATA = {
       "set": "core",
       "token": false,
       "retired": false,
-      "effect": "At any time during your turn, you can activate this effect; the next card you draw gains 4 Fate (2 uses).",
+      "effect": "At any time during your turn, you can activate this effect; The next card you draw gains 6 Fate Permanently (2 uses).",
       "flavor": "\"Leader of an elite mercenary group who patrols the wastes of Temecula, purging it of zombie hordes\"",
       "img": "../40.png"
     },
@@ -1150,7 +1150,7 @@ window.FATES_ARCHIVE_DATA = {
       "set": "core",
       "token": false,
       "retired": false,
-      "effect": "When set, discard all Initiators and Improvisors you control in this zone. This card gains Fate equal to the total Fate of cards discarded, and once a turn this card can move to an open square on your side of the field.",
+      "effect": "When this card would be used in the consolidation of a Character, that card gains 4 Fate Permanently.",
       "flavor": "\"Superior technology and equipment allows for these individuals to be dropped anywhere on earth and easily survive for years\"",
       "img": "../73.png"
     },
@@ -1342,7 +1342,7 @@ window.FATES_ARCHIVE_DATA = {
       "set": "core",
       "token": false,
       "retired": false,
-      "effect": "Starting now, when you would consolidate a card, it gains 3 Fate, and this bonus continues until you set a Supporter.",
+      "effect": "Starting now, when you would consolidate a card, it gains 3 Fate permanently, and this bonus continues until you set a Supporter.",
       "flavor": "\"Let me sing you a song! It goes like... em... ughhh... something... wow!\"",
       "img": "../87.png"
     },
@@ -1460,7 +1460,7 @@ window.FATES_ARCHIVE_DATA = {
     },
     {
       "id": "95",
-      "name": "Carpathian Specter",
+      "name": "Carpathian Specters",
       "ability": "Thousand Year Sorrow",
       "type": "Supporter",
       "aff": "expanded_worlds",
@@ -1470,7 +1470,7 @@ window.FATES_ARCHIVE_DATA = {
       "set": "core",
       "token": false,
       "retired": false,
-      "effect": "This card gains 1 Fate for every two turns it is on the field, maximum of six times.",
+      "effect": "This card gains 1 Fate for every two turns it is on the field (maximum of eight times).",
       "flavor": "\"The shadows of those who fell in forgotten battles, condemned to an eternity of lamentation\"",
       "img": "../95.png"
     },
@@ -1598,7 +1598,7 @@ window.FATES_ARCHIVE_DATA = {
       "set": "core",
       "token": false,
       "retired": false,
-      "effect": "When set, this card gains 4 Fate. However this card cannot count for any bonuses, is immune to all effects and cannot be used for Consolidation.",
+      "effect": "When set, this card gains 5 Fate. However this card cannot be used for Consolidation, it cannot be discarded, it cannot be counted for any bonuses, and is immune to all effects.",
       "flavor": "\"A mere company of these futuristic soldiers could overthrow a small country\"",
       "img": "../76.png"
     },
@@ -1726,7 +1726,7 @@ window.FATES_ARCHIVE_DATA = {
       "set": "brave_horizons",
       "token": false,
       "retired": false,
-      "effect": "Each time you would negate or suppress an effect, all cards you control in this zone gain 2 Fate.",
+      "effect": "Each time you would negate or suppress an opponent's card, all cards you control in this card's zone gain 2 Fate.",
       "flavor": "\"We shall draw silly faces on the Palace of Science and Culture\"",
       "img": "../bh8.png"
     },

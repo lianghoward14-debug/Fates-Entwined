@@ -29,7 +29,6 @@ function activeCardDefinitions(){
     : [];
   return cards.filter(card=>card
     && !card.retired
-    && card.id !== 'bh25'
     && !card.token
     && !card.pierogiCounter
     && !card.whisperLandscapeToken);

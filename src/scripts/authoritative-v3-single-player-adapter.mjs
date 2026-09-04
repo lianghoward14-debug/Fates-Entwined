@@ -6,7 +6,7 @@ import {
 } from '../../shared/engine/index.mjs';
 import {FateAuthoritativeV3LocalSession} from './authoritative-v3-local-session.mjs';
 import {chooseStrategicV3AiCommand} from './authoritative-v3-ai-policy.mjs';
-import {FateAuthoritativeV3SinglePlayerScreen} from './authoritative-v3-single-player-screen.mjs?v=1788368101';
+import {FateAuthoritativeV3SinglePlayerScreen} from './authoritative-v3-single-player-screen.mjs?v=2026083101';
 
 export const FATE_V3_SINGLE_PLAYER_QUERY_FLAG = 'fateV3SinglePlayer';
 const RECORDER_QUERY_FLAG = 'fateV3Recorder';
@@ -66,6 +66,7 @@ export class FateAuthoritativeV3SinglePlayerAdapter {
     render,
     onEvents,
     aiStyle = '',
+    aiDifficulty = 'medium',
     aiPolicy = chooseStrategicV3AiCommand
   }){
     this.humanPlayerId = String(humanPlayerId || '');
@@ -83,7 +84,9 @@ export class FateAuthoritativeV3SinglePlayerAdapter {
     this.render = typeof render === 'function' ? render : ()=>{};
     this.onEvents = typeof onEvents === 'function' ? onEvents : ()=>{};
     this.aiStyle = String(aiStyle || '');
+    this.aiDifficulty = String(aiDifficulty || 'medium').toLowerCase();
     this.aiPolicy = aiPolicy;
+    this.aiPlanCache = {sequence:[]};
     this.aiRunning = false;
     this.lastView = null;
     this.session.subscribe(change=>{
@@ -140,6 +143,16 @@ export class FateAuthoritativeV3SinglePlayerAdapter {
           this.humanPlayerId,
           'DISCARD_TO_HAND_LIMIT',
           {discardedIids:payload.discardedIids.map(String)},
+          commandId
+        );
+      }
+      if(String(type || '') === 'ACTIVATE_LANDSCAPE'
+        && String(this.lastView?.state?.landscapeId || '') === 'igb21'
+        && Array.isArray(payload?.cardIds)){
+        return this.session.dispatchForPlayer(
+          this.humanPlayerId,
+          'ACTIVATE_LANDSCAPE',
+          {cardIds:payload.cardIds.map(String)},
           commandId
         );
       }
@@ -223,7 +236,10 @@ export class FateAuthoritativeV3SinglePlayerAdapter {
             playerIndex:aiIndex,
             humanPlayerId:this.humanPlayerId,
             humanPlayerIndex:this.session.playerIndex(this.humanPlayerId),
-            style:this.aiStyle
+            style:this.aiStyle,
+            difficulty:this.aiDifficulty,
+            canonicalState:canonical,
+            planCache:this.aiPlanCache
           }
         );
         if(!selected){
@@ -267,6 +283,7 @@ export class FateAuthoritativeV3SinglePlayerAdapter {
     render,
     onEvents,
     aiStyle,
+    aiDifficulty,
     aiPolicy
   }){
     const session = FateAuthoritativeV3LocalSession.recover({
@@ -281,6 +298,7 @@ export class FateAuthoritativeV3SinglePlayerAdapter {
       render,
       onEvents,
       aiStyle,
+      aiDifficulty,
       aiPolicy
     });
   }
@@ -391,6 +409,7 @@ export function installFateV3SinglePlayerBrowserAdapter(windowRef = globalThis.w
         render:callbacks.render || eventCallback('fate-authority-v3-single-player-state'),
         onEvents:callbacks.onEvents || eventCallback('fate-authority-v3-single-player-events'),
         aiStyle:String(input.aiStyle || ''),
+        aiDifficulty:String(input.aiDifficulty || 'medium'),
         aiPolicy:callbacks.aiPolicy
       });
       return activeAdapter;
@@ -404,6 +423,7 @@ export function installFateV3SinglePlayerBrowserAdapter(windowRef = globalThis.w
         render:callbacks.render || eventCallback('fate-authority-v3-single-player-state'),
         onEvents:callbacks.onEvents || eventCallback('fate-authority-v3-single-player-events'),
         aiStyle:String(input.aiStyle || ''),
+        aiDifficulty:String(input.aiDifficulty || 'medium'),
         aiPolicy:callbacks.aiPolicy
       });
       return activeAdapter;
@@ -433,6 +453,7 @@ export function installFateV3SinglePlayerBrowserAdapter(windowRef = globalThis.w
           && windowRef.FATE_EXPANDED_CONTESTED_ROW_ENABLED !== false
           && windowRef.FATE_ZONE_444_LAYOUT_ENABLED !== false,
         aiStyle:String(options.aiStyle || game._selectedAI?.style || ''),
+        aiDifficulty:String(options.aiDifficulty || game.aiDifficulty || 'medium'),
         cardDefinitions:definitions,
         players:[
           {

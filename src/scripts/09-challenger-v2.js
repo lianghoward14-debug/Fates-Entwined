@@ -1,6 +1,6 @@
 //  BUILT-IN STARTER PRESET DECKS
 // ═══════════════════════════════════════════════════════
-const RETIRED_CHALLENGER_CARD_IDS = new Set(['bh25']);
+const RETIRED_CHALLENGER_CARD_IDS = new Set();
 
 function isRetiredChallengerCard(cardOrId) {
   const id = typeof cardOrId === 'string' ? cardOrId : cardOrId?.id;
@@ -97,6 +97,7 @@ const STARLIGHT_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" style="d
 // We filter to existing cards only.
 function getPackCardPool() {
   return getChallengerCardPool().filter(card=>{
+    if(String(card?.set || '').toLowerCase() === 'brave_horizons') return false;
     const numericId = Number(card && card.id);
     return !Number.isInteger(numericId) || numericId < 80 || numericId > 100;
   });
@@ -107,7 +108,7 @@ function getPackCardPool() {
 // - 8 cards per pack
 // - Base composition: 3 supporters, 4 triangle, 1 square
 // - 33% chance of additional square (replaces one supporter)
-// - 5% chance of a star card (replaces one triangle)
+// - 4% chance of a star card (replaces one triangle)
 // - When rendered on client, rarest cards appear last.
 function generatePack() {
   const pool = getPackCardPool();
@@ -126,7 +127,7 @@ function generatePack() {
 
   const pick = [];
   // Determine composition
-  let numStar = Math.random()<0.05?1:0;
+  let numStar = Math.random()<0.04?1:0;
   let numSquare = (Math.random()<0.33?1:0) + 1; // 1 guaranteed, 33% extra
   // Start with base: 4 triangle, 3 supporter, 1 square
   let numTriangle = 4;
@@ -1444,7 +1445,7 @@ function openNextFavoredPack() {
 }
 
 function generateFavoredPack() {
-  const pool = getChallengerCardPool().filter(c=>c.id!=='76');
+  const pool = getChallengerCardPool().filter(c=>c.id!=='76' && String(c?.set || '').toLowerCase() !== 'brave_horizons');
   const tri = pool.filter(c=>c.rarity==='triangle');
   const sq = pool.filter(c=>c.rarity==='square');
   const st = pool.filter(c=>c.rarity==='star');

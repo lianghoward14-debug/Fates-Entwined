@@ -1,0 +1,1091 @@
+/* WARFRONT V3 — campaign table. Large type, tactile map, floating controls. */
+#s-challenger{--wf-red:#d94b52;--wf-red-deep:#832b32;--wf-blue:#397dcc;--wf-blue-deep:#204d87;--wf-cream:#f5ecd5;--wf-paper:#c9b98f;--wf-gold:#dba834;--wf-ink:#182126}
+#s-challenger .ch-content:has(.ch-tab-pane[data-tab="war"].active){overflow:hidden!important;padding:0!important;background:#171a19!important}
+#s-challenger .ch-tab-pane[data-tab="war"]{height:100%!important;min-height:0!important;overflow:hidden!important;padding:0!important}
+#s-challenger .challenger-war2{position:relative;height:100%;min-height:0;overflow:hidden;color:var(--wf-cream);font-family:Inter,Arial,sans-serif;background:#292a25}
+
+/* The map is the entire screen, like a command table beneath the interface. */
+#s-challenger .war2-map{position:absolute;inset:0;overflow:hidden;isolation:isolate;background:linear-gradient(rgba(221,207,169,.12),rgba(59,57,47,.18)),url('../../assets/ui/challenger-war-map-v3.png') center/cover no-repeat;filter:saturate(.8) sepia(.15)}
+#s-challenger .war2-map:before{content:"";position:absolute;inset:0;z-index:-1;background:radial-gradient(ellipse at center,transparent 25%,rgba(14,17,16,.18) 68%,rgba(9,11,11,.78) 100%),linear-gradient(180deg,rgba(8,10,10,.55),transparent 22%,transparent 72%,rgba(8,10,10,.72));pointer-events:none}
+#s-challenger .war2-map:after{content:"";position:absolute;inset:0;z-index:-1;opacity:.18;background-image:radial-gradient(rgba(255,255,255,.5) .6px,transparent .7px);background-size:5px 5px;mix-blend-mode:soft-light}
+#s-challenger .war2-grid{position:absolute;inset:11% 8% 14%;border:1px solid rgba(243,232,199,.14);background-image:linear-gradient(rgba(244,230,192,.12) 1px,transparent 1px),linear-gradient(90deg,rgba(244,230,192,.12) 1px,transparent 1px);background-size:8.33% 12.5%;mask-image:radial-gradient(ellipse,#000 40%,transparent 85%)}
+#s-challenger .war2-front{position:absolute;top:0;bottom:0;width:36%;pointer-events:none;opacity:.55}
+#s-challenger .war2-front:before{content:"";position:absolute;top:10%;bottom:13%;width:4px;border-radius:4px;background:currentColor;box-shadow:0 0 0 3px rgba(24,31,32,.48),0 0 24px currentColor}
+#s-challenger .war2-front:after{content:"";position:absolute;top:10%;bottom:13%;width:50px;opacity:.35;background:repeating-linear-gradient(145deg,currentColor 0 3px,transparent 3px 13px)}
+#s-challenger .front-a{left:-7%;color:var(--wf-red);background:linear-gradient(90deg,rgba(177,43,51,.26),transparent)}.war2-front.front-a:before{right:0;transform:rotate(-4deg)}.war2-front.front-a:after{right:0;transform:rotate(-4deg);transform-origin:right}
+#s-challenger .front-b{right:-7%;color:#4f94df;background:linear-gradient(270deg,rgba(43,100,172,.27),transparent)}.war2-front.front-b:before{left:0;transform:rotate(4deg)}.war2-front.front-b:after{left:0;transform:rotate(4deg);transform-origin:left}
+
+/* Floating campaign masthead. */
+#s-challenger .war2-topbar{position:absolute;z-index:8;left:22px;right:22px;top:16px;height:82px;display:grid;grid-template-columns:215px minmax(170px,1fr) 210px minmax(170px,1fr) 190px;align-items:center;border:1px solid rgba(246,234,201,.22);border-radius:20px;background:linear-gradient(180deg,rgba(24,31,32,.95),rgba(13,19,20,.94));box-shadow:0 18px 45px rgba(0,0,0,.34),inset 0 1px rgba(255,255,255,.1);backdrop-filter:blur(18px)}
+#s-challenger .war2-title{height:100%;display:flex;flex-direction:column;justify-content:center;padding:0 22px;border-right:1px solid rgba(246,234,201,.14)}
+#s-challenger .war2-title span{font:700 11px Cinzel,serif;letter-spacing:.12em;color:#c4b991}
+#s-challenger .war2-title h1{margin:4px 0 0;font:900 25px Cinzel,serif;letter-spacing:.09em;color:#fff6dc}
+#s-challenger .war2-score{height:100%;display:grid;grid-template-columns:1fr auto;grid-template-rows:1fr 1fr;align-items:center;padding:0 22px;box-sizing:border-box}
+#s-challenger .war2-score span{align-self:end;font:800 15px Cinzel,serif;letter-spacing:.03em}.war2-score b{grid-column:2;grid-row:1/3;font:900 42px Cinzel,serif;line-height:1;text-shadow:0 3px 18px currentColor}.war2-score em{align-self:start;margin-top:3px;font-style:normal;font-size:12px;color:#b6c0bd}
+#s-challenger .war2-score.team-a{color:#ff8387;background:linear-gradient(90deg,rgba(208,62,70,.18),transparent)}
+#s-challenger .war2-score.team-b{grid-template-columns:auto 1fr;text-align:right;color:#77b8ff;background:linear-gradient(270deg,rgba(55,120,201,.2),transparent)}.war2-score.team-b b{grid-column:1}.war2-score.team-b span,.war2-score.team-b em{grid-column:2}
+#s-challenger .war2-center{height:58px;display:flex;flex-direction:column;align-items:center;justify-content:center;border-left:1px solid rgba(246,234,201,.15);border-right:1px solid rgba(246,234,201,.15);background:rgba(0,0,0,.16);clip-path:polygon(10px 0,calc(100% - 10px) 0,100% 50%,calc(100% - 10px) 100%,10px 100%,0 50%)}
+#s-challenger .war2-center span{font:800 11px Cinzel,serif;letter-spacing:.16em;color:#e7c65f}.war2-center b{margin:4px 0 2px;font:900 18px "Courier New",monospace;color:#fff7de}.war2-center em{font:700 10px Cinzel,serif;font-style:normal;color:#aab5b2;letter-spacing:.06em}
+#s-challenger .war2-topbar nav{height:100%;display:grid;grid-template-columns:1fr 1fr;border-left:1px solid rgba(246,234,201,.14)}
+#s-challenger .war2-topbar nav button{position:relative;border:0;background:transparent;color:#d8dfdc;cursor:pointer;font:700 11px Cinzel,serif}.war2-topbar nav button+button{border-left:1px solid rgba(246,234,201,.12)}.war2-topbar nav button:hover{background:rgba(219,168,52,.12);color:#ffe59b}.war2-topbar nav i{display:block;margin-bottom:5px;font-size:22px;font-style:normal;color:#e0b449}.war2-topbar nav b{position:absolute;top:10px;right:11px;min-width:20px;height:20px;display:grid;place-items:center;border-radius:10px;background:#e7b844;color:#161d1e;font-size:11px}
+
+/* Large shield markers, dispersed on the battlefield. */
+#s-challenger .war2-objective{position:absolute;z-index:4;left:var(--x);top:var(--y);width:148px;height:142px;transform:translate(-50%,-50%);border:0;background:none;color:#fff6dd;cursor:pointer}
+#s-challenger .war2-objective-ring{position:absolute;left:50%;top:48%;width:78px;height:86px;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;justify-content:center;clip-path:polygon(50% 0,91% 17%,86% 73%,50% 100%,14% 73%,9% 17%);background:linear-gradient(145deg,#364248,#131b1e);box-shadow:0 15px 30px rgba(0,0,0,.55);transition:transform .18s ease,filter .18s ease}
+#s-challenger .war2-objective-ring:before{content:"";position:absolute;inset:5px;clip-path:inherit;border:2px solid rgba(247,230,184,.55);background:linear-gradient(160deg,rgba(255,255,255,.08),transparent)}
+#s-challenger .war2-objective-ring b{position:relative;font:900 23px Cinzel,serif;line-height:1}.war2-objective-ring i{position:relative;margin-top:7px;font:800 13px "Courier New",monospace;color:#eac75e}
+#s-challenger .war2-objective-name{position:absolute;left:50%;bottom:3px;transform:translateX(-50%);min-width:128px;padding:8px 12px;border-radius:14px;background:rgba(17,24,25,.92);border:1px solid rgba(245,230,190,.24);box-shadow:0 8px 18px rgba(0,0,0,.32);font:800 12px Cinzel,serif;white-space:nowrap;text-align:center}
+#s-challenger .war2-objective:hover .war2-objective-ring,.war2-objective.selected .war2-objective-ring{transform:translate(-50%,-50%) scale(1.13);filter:drop-shadow(0 0 15px rgba(238,190,67,.75));background:linear-gradient(145deg,#755b24,#202725)}
+#s-challenger .war2-objective.selected .war2-objective-name{border-color:#e7ba48;color:#ffe39a;background:#20251e}.war2-objective.complete{filter:saturate(.55);opacity:.8}
+#s-challenger .war2-map-key{position:absolute;z-index:4;right:28px;bottom:130px;display:flex;flex-direction:column;gap:9px;padding:13px 15px;border-radius:14px;background:rgba(22,28,28,.86);border:1px solid rgba(247,232,194,.2);box-shadow:0 10px 30px rgba(0,0,0,.32);font-size:12px;color:#d0d8d4}.war2-map-key span{display:flex;align-items:center;gap:9px}.war2-map-key i{width:22px;height:5px;border-radius:3px}.war2-map-key i.a{background:var(--wf-red)}.war2-map-key i.b{background:#5099e6}.war2-map-key i.land{height:13px;border:2px solid #dbae3f;background:transparent;border-radius:50%}
+
+/* Floating bottom command dock. */
+#s-challenger .war2-bottom{position:absolute;z-index:8;left:22px;right:22px;bottom:16px;height:96px;display:grid;grid-template-columns:minmax(300px,1.15fr) minmax(330px,1.35fr) minmax(280px,1fr);border:1px solid rgba(246,234,201,.22);border-radius:20px;background:linear-gradient(180deg,rgba(24,31,32,.96),rgba(12,18,19,.97));box-shadow:0 -12px 40px rgba(0,0,0,.3),inset 0 1px rgba(255,255,255,.09);backdrop-filter:blur(18px)}
+#s-challenger .war2-selected,.war2-enlist,.war2-assignment,.war2-rewards{position:relative;min-width:0;padding:15px 20px;border-right:1px solid rgba(246,234,201,.13);box-sizing:border-box}
+#s-challenger .war2-selected>span,.war2-enlist>span,.war2-assignment>span,.war2-rewards>span{display:block;font:800 11px Cinzel,serif;letter-spacing:.13em;color:#b3aa88}.war2-selected b,.war2-enlist b,.war2-assignment b{display:block;margin-top:6px;font:800 17px Cinzel,serif;color:#fff4d4}.war2-selected em,.war2-enlist em,.war2-assignment em{display:block;margin-top:4px;font-size:12px;font-style:normal;color:#aeb9b6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#s-challenger .war2-selected button,.war2-assignment button{position:absolute;right:18px;top:31px;height:38px;padding:0 16px;border:1px solid #c99e37;border-radius:10px;background:linear-gradient(#e0b549,#b78222);color:#192020;font:900 11px Cinzel,serif;cursor:pointer;box-shadow:0 5px 15px rgba(0,0,0,.3)}.war2-selected button:hover,.war2-assignment button:hover{filter:brightness(1.12)}
+#s-challenger .war2-enlist{display:grid;grid-template-columns:1fr 44px 44px;grid-template-rows:auto 42px auto;gap:2px 8px}.war2-enlist>span,.war2-enlist>em{grid-column:1/-1}.war2-enlist>b{grid-column:1}.war2-enlist button{width:42px;height:42px;border-radius:12px;border:1px solid rgba(255,255,255,.18);background:#263032;color:#dce4e1;font:900 16px Cinzel,serif;cursor:pointer}.war2-enlist button.active.team-a{border-color:#f36970;background:#6c2930;color:#fff}.war2-enlist button.active.team-b{border-color:#68aef4;background:#244d7c;color:#fff}.war2-enlist button:disabled{opacity:.28}.war2-enlist em{font-size:11px}
+#s-challenger .war2-rewards{border:0;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:auto 1fr auto;align-items:center;gap:2px 12px}.war2-rewards>span,.war2-rewards>small{grid-column:1/-1}.war2-rewards b{font:900 18px Cinzel,serif;color:#e8bd50}.war2-rewards b em{display:block;font:600 11px Inter,sans-serif;color:#c0cac7}.war2-rewards small{font-size:11px;color:#8f9d99}
+
+/* Full centered dossier instead of a sidebar. */
+#s-challenger .war2-drawer-shade{position:absolute;inset:0;z-index:19;background:rgba(7,11,11,.78);backdrop-filter:blur(8px)}
+#s-challenger .war2-drawer{position:absolute;z-index:20;left:50%;top:50%;width:min(940px,calc(100% - 70px));height:min(680px,calc(100% - 70px));transform:translate(-50%,-50%);overflow:hidden;border:1px solid rgba(244,224,169,.35);border-radius:26px;background:linear-gradient(145deg,#1d2729,#0f1719 68%);box-shadow:0 35px 100px rgba(0,0,0,.72),inset 0 1px rgba(255,255,255,.11);animation:wf-pop .2s ease-out}
+@keyframes wf-pop{from{opacity:0;transform:translate(-50%,-47%) scale(.97)}}
+#s-challenger .war2-drawer section{height:100%;display:flex;flex-direction:column;box-sizing:border-box}.war2-drawer header{height:88px;flex:0 0 88px;display:flex;align-items:center;padding:0 30px;border-bottom:1px solid rgba(244,224,169,.17);background:rgba(255,255,255,.025)}.war2-drawer header>div{flex:1}.war2-drawer header span{display:block;font:800 12px Cinzel,serif;letter-spacing:.14em;color:#d2b85f}.war2-drawer header h2{margin:6px 0 0;font:900 27px Cinzel,serif;color:#fff5d8}.war2-drawer header>button{width:44px;height:44px;border:1px solid rgba(255,255,255,.13);border-radius:50%;background:rgba(255,255,255,.04);color:#dae2df;font-size:25px;cursor:pointer}.war2-drawer header>button.back{margin-right:14px}
+#s-challenger .war2-landscape{padding:18px 30px;border-bottom:1px solid rgba(244,224,169,.15);background:linear-gradient(90deg,rgba(210,163,48,.16),transparent 72%)}.war2-landscape span{font:800 11px Cinzel,serif;letter-spacing:.14em;color:#e0bd56}.war2-landscape h3{margin:8px 0 6px;font:800 20px Cinzel,serif;color:#fff0c9}.war2-landscape p{max-width:760px;margin:0;font-size:13px;line-height:1.5;color:#bdc7c4}
+#s-challenger .war2-duel{flex:1;min-height:0;display:grid;grid-template-columns:1fr 105px 1fr;gap:18px;padding:22px 30px}.war2-seat{display:flex;align-items:center;justify-content:center;gap:18px;border:1px solid rgba(255,255,255,.12);border-radius:20px;color:#edf3ef;text-align:left;background:rgba(255,255,255,.03)}.war2-seat.team-a{background:linear-gradient(140deg,rgba(190,52,61,.25),rgba(255,255,255,.02))}.war2-seat.team-b{background:linear-gradient(220deg,rgba(48,111,190,.27),rgba(255,255,255,.02))}.war2-seat.empty{font:inherit;cursor:pointer}.war2-seat.empty:disabled{opacity:.42;cursor:not-allowed}.war2-avatar{width:108px;height:108px;flex:0 0 108px;display:grid;place-items:center;overflow:hidden;border:3px solid rgba(245,229,185,.35);border-radius:32px;background:#11191b;box-shadow:0 16px 30px rgba(0,0,0,.38)}.war2-avatar img{width:100%;height:100%;object-fit:cover}.war2-avatar i{font-style:normal;font-size:30px}.war2-seat b{font:800 18px Cinzel,serif}.war2-seat b small{font-size:10px;color:#ebc755}.war2-seat em{display:block;margin-top:7px;font-size:13px;font-style:normal;color:#b1bdb9}.war2-pips{display:flex;gap:6px;margin-top:13px}.war2-pips i{width:25px;height:5px;border-radius:3px;background:rgba(255,255,255,.14)}.team-a .war2-pips i.won{background:#f0646b}.team-b .war2-pips i.won{background:#67adf1}.war2-pips i.lost{background:#65716e}.war2-versus{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px}.war2-versus b{font:900 33px Cinzel,serif}.war2-versus b:first-child{color:#ff7177}.war2-versus b:last-child{color:#72b6fc}.war2-versus span{font:900 12px Cinzel,serif;color:#aab5b1}
+#s-challenger .war2-ban-row{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid rgba(244,224,169,.14)}.war2-ban-row>div{padding:13px 26px;min-width:0}.war2-ban-row>div+div{border-left:1px solid rgba(244,224,169,.14);text-align:right}.war2-ban-row span{font:800 11px Cinzel,serif;letter-spacing:.1em;color:#d7bb61}.war2-ban-row p{margin:6px 0 0;font-size:12px;color:#d2dad7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.war2-zone-panel>footer{height:72px;display:flex;align-items:center;justify-content:flex-end;gap:11px;padding:0 28px;border-top:1px solid rgba(244,224,169,.14)}.war2-zone-panel footer button{height:42px;padding:0 20px;border-radius:11px;font:800 12px Cinzel,serif;cursor:pointer}.war2-primary{border:1px solid #c6972b;background:linear-gradient(#e0b448,#b47e1d);color:#162020}.war2-secondary{border:1px solid rgba(255,255,255,.18);background:#263133;color:#e1e7e4}.war2-zone-panel footer button:disabled{opacity:.35;cursor:not-allowed}.war2-spectator{margin-right:auto;font-size:13px;color:#aebbb7}
+
+/* Commendations */
+#s-challenger .war2-achievement-list{flex:1;min-height:0;display:grid;grid-template-columns:repeat(3,1fr);gap:16px;padding:24px 28px}.war2-achievement-list article{min-width:0;display:flex;flex-direction:column;align-items:center;text-align:center;padding:24px 18px;border:1px solid rgba(244,224,169,.16);border-radius:20px;background:rgba(255,255,255,.025)}.war2-achievement-list article>i{width:70px;height:70px;display:grid;place-items:center;border-radius:22px;background:rgba(218,169,50,.12);font-size:34px;font-style:normal;color:#e2b748}.war2-achievement-list article>div span{display:block;margin-top:16px;font:900 12px Cinzel,serif;letter-spacing:.12em;color:#e1b84e}.war2-achievement-list h3{margin:8px 0;font:800 18px Cinzel,serif;color:#fff2d1}.war2-achievement-list p{min-height:36px;margin:0;font-size:13px;line-height:1.4;color:#aebbb7}.war2-achievement-list aside{margin-top:auto;padding-top:18px;width:100%;border-top:1px solid rgba(255,255,255,.1)}.war2-achievement-list aside .war2-avatar{width:56px;height:56px;display:grid;margin:0 auto 8px;border-radius:18px}.war2-achievement-list aside strong,.war2-achievement-list aside em{display:block}.war2-achievement-list aside strong{font:800 14px Cinzel,serif}.war2-achievement-list aside em{margin-top:4px;font-size:12px;font-style:normal;color:#d7bc62}.war2-note{margin:0 28px 22px;padding:12px 16px;border-radius:12px;background:rgba(219,168,52,.08);font-size:12px;color:#c0cac7;text-align:center}
+
+/* Archive */
+#s-challenger .war2-archive-list{flex:1;min-height:0;padding:18px 28px;overflow:auto}.war2-archive-list>button{width:100%;min-height:76px;display:grid;grid-template-columns:120px 1fr 110px 160px 24px;align-items:center;border:0;border-bottom:1px solid rgba(255,255,255,.1);background:transparent;color:#edf1ee;text-align:left;cursor:pointer}.war2-archive-list>button:hover{background:rgba(255,255,255,.045)}.war2-archive-list span,.war2-archive-list em{font-size:13px;color:#9baaa6;font-style:normal}.war2-archive-list b{font:800 16px Cinzel,serif}.war2-archive-list strong{font:900 20px Cinzel,serif;color:#e4bc53}.war2-archive-list i{font-size:22px}.war2-empty{height:100%;display:grid;place-content:center;text-align:center}.war2-empty b{font:800 20px Cinzel,serif;color:#fff1cd}.war2-empty span{margin-top:10px;font-size:14px;color:#9facaa}.war2-record-score{height:120px;display:grid;grid-template-columns:1fr 80px 1fr;align-items:center;text-align:center;border-bottom:1px solid rgba(255,255,255,.1)}.war2-record-score div{display:flex;align-items:center;justify-content:center;gap:18px}.war2-record-score span{font:800 16px Cinzel,serif}.war2-record-score b{font:900 43px Cinzel,serif}.war2-record-score div:first-child b{color:#ff747b}.war2-record-score div:last-child b{color:#75b9ff}.war2-record-score>strong{font:800 12px Cinzel,serif;color:#a7b3b0}.war2-record-zones{padding:15px 28px;display:grid;grid-template-columns:1fr 1fr;gap:8px}.war2-record-zones article{height:58px;display:grid;grid-template-columns:40px 1fr 46px;align-items:center;padding:0 14px;border:1px solid rgba(255,255,255,.1);border-radius:12px}.war2-record-zones article>span{font:800 12px Cinzel,serif;color:#d5b858}.war2-record-zones b,.war2-record-zones em{display:block}.war2-record-zones b{font:800 13px Cinzel,serif}.war2-record-zones em{margin-top:3px;font-size:11px;font-style:normal;color:#92a19d}.war2-record-zones strong{font:900 17px Cinzel,serif}.war2-record-awards{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:4px 28px}.war2-record-awards span{padding:11px;border:1px solid rgba(255,255,255,.1);border-radius:12px;text-align:center}.war2-record-awards i,.war2-record-awards b,.war2-record-awards em{display:block}.war2-record-awards i{font-style:normal;font-size:20px;color:#dfb64e}.war2-record-awards b{margin:4px;font:800 12px Cinzel,serif}.war2-record-awards em{font-size:11px;font-style:normal;color:#9eaaa7}
+
+/* Ban selection */
+#s-challenger .war2-ban-editor>p{margin:18px 30px 10px;font-size:13px;line-height:1.45;color:#b9c4c0}.war2-ban-editor>input{height:44px;margin:0 30px 13px;padding:0 14px;border:1px solid rgba(255,255,255,.16);border-radius:11px;background:#111a1c;color:#eef3ef;font-size:14px}.war2-card-grid{flex:1;min-height:0;overflow:auto;padding:0 30px;display:grid;grid-template-columns:repeat(4,1fr);align-content:start;gap:9px}.war2-card-grid button{min-height:82px;padding:11px;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:rgba(255,255,255,.025);color:#d5dedb;text-align:left;cursor:pointer}.war2-card-grid button:hover{background:rgba(255,255,255,.065)}.war2-card-grid button.selected{border-color:#e1b442;background:rgba(225,180,66,.16);color:#ffe08b;box-shadow:inset 0 0 0 1px rgba(225,180,66,.25)}.war2-card-grid span,.war2-card-grid b,.war2-card-grid em{display:block}.war2-card-grid span{font-size:10px;color:#8d9b98}.war2-card-grid b{margin:6px 0;font:800 13px Cinzel,serif}.war2-card-grid em{font-size:11px;font-style:normal;color:#92a19d}.war2-ban-editor footer{height:72px;display:flex;align-items:center;justify-content:space-between;padding:0 30px;border-top:1px solid rgba(255,255,255,.1)}.war2-ban-editor footer span{font-size:13px;color:#aebbb7}.war2-ban-editor footer button{height:42px;padding:0 22px;border:1px solid #c69626;border-radius:11px;background:linear-gradient(#deb043,#b37d1d);color:#172021;font:900 12px Cinzel,serif}.war2-ban-editor footer button:disabled{opacity:.3}
+
+@media(max-width:1120px){#s-challenger .war2-topbar{grid-template-columns:170px 1fr 175px 1fr 130px}.war2-title{padding:0 15px}.war2-title h1{font-size:20px}.war2-score{padding:0 13px}.war2-score b{font-size:35px}.war2-score em{font-size:10px}.war2-topbar nav span{display:none}.war2-bottom{grid-template-columns:1.15fr 1fr}.war2-rewards{display:none}.war2-selected,.war2-enlist,.war2-assignment{padding-left:16px}.war2-drawer{width:calc(100% - 50px)}}
+@media(max-height:750px){#s-challenger .war2-topbar{top:10px;height:70px}.war2-title h1{font-size:21px}.war2-bottom{bottom:10px;height:82px}.war2-objective{transform:translate(-50%,-50%) scale(.86)}.war2-map-key{bottom:105px}.war2-drawer{height:calc(100% - 36px)}.war2-drawer header{height:70px;flex-basis:70px}.war2-drawer header h2{font-size:22px}.war2-landscape{padding:11px 26px}.war2-duel{padding:12px 26px}.war2-avatar{width:82px;height:82px;flex-basis:82px}.war2-achievement-list{padding:14px 24px}.war2-achievement-list article{padding:14px}.war2-achievement-list article>i{width:52px;height:52px;font-size:26px}}
+
+/* WARFRONT V4 — etched campaign dossier; deliberately avoids generic pill/button UI. */
+#s-challenger .war2-topbar{grid-template-columns:215px minmax(160px,1fr) 200px minmax(160px,1fr) 270px;border-radius:2px;border-color:rgba(229,185,82,.42);background:linear-gradient(180deg,rgba(13,21,28,.97),rgba(7,13,20,.98));box-shadow:0 18px 50px #0008,inset 0 0 0 3px rgba(220,175,69,.05)}
+#s-challenger .war2-topbar:before,#s-challenger .war2-bottom:before{content:"";position:absolute;inset:5px;pointer-events:none;border:1px solid rgba(222,179,74,.13)}
+#s-challenger .war2-topbar nav{grid-template-columns:repeat(3,1fr)}
+#s-challenger .war2-topbar nav{grid-template-columns:repeat(4,1fr)}
+#s-challenger .war2-zone-players{width:154px;top:-5px}
+#s-challenger .war2-avatar.compact{width:44px;height:44px;flex-basis:44px}
+#s-challenger .war2-zone-stars{bottom:2px;gap:4px}
+#s-challenger .war2-zone-stars i{font-size:19px}
+#s-challenger .war2-match-list{padding:20px;overflow:auto;display:grid;gap:10px}.war2-match-list>button{padding:14px 18px;text-align:left;color:#dbe7e7;border:1px solid #d9b64b33;background:#0b151ccc;cursor:pointer}.war2-match-list>button:hover{border-color:#d9b64b99;background:#14222c}.war2-match-list>button>span,.war2-match-list>button>em{display:block;font-size:10px;letter-spacing:.08em;color:#8fa2a9}.war2-match-list>button>div{display:grid;grid-template-columns:44px 1fr auto 1fr 44px;align-items:center;gap:12px;margin:8px 0}.war2-match-list strong{color:#efd170;font:800 12px Cinzel,serif}.war2-match-list b:last-of-type{text-align:right}
+#s-challenger .war2-match-detail{height:100%;display:flex;flex-direction:column}.war2-match-versus{flex:1;display:grid;grid-template-columns:1fr 180px 1fr;align-items:center;text-align:center;padding:28px}.war2-match-versus article .war2-avatar{margin:auto}.war2-match-versus h3{font:800 20px Cinzel,serif}.war2-match-versus article span,.war2-match-versus article b{display:block;margin-top:8px}.war2-match-versus>strong{color:#f1c85e;font:900 16px Cinzel,serif}.war2-match-meta{display:flex;justify-content:center;gap:30px;color:#93a3a7}.war2-replay-launch{margin:22px auto 30px;padding:14px 38px;border:1px solid #d8ae43;background:#d8ae43;color:#071117;font:900 13px Cinzel,serif;cursor:pointer}.war2-replay-launch:disabled{opacity:.35;cursor:not-allowed}
+#s-challenger .war2-replay{height:100%;display:flex;flex-direction:column;background:#071017}.war2-replay-toolbar{display:flex;align-items:center;gap:8px;padding:10px 18px;border-bottom:1px solid #d6ad4433}.war2-replay-toolbar button{padding:8px 13px;border:1px solid #ffffff22;background:#101d25;color:#dce7e7;cursor:pointer}.war2-replay-toolbar button.active{border-color:#e1b74e;color:#f4d477}.war2-replay-toolbar span{margin-right:auto;color:#91a4aa}.war2-replay-board{flex:1;min-height:0;display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:16px;background:linear-gradient(90deg,#8e28351c,#2463951c)}.war2-replay-zone{display:flex;align-content:flex-start;flex-wrap:wrap;gap:8px;padding:12px;border:1px solid #ffffff1c;background:#071018aa}.war2-replay-zone>span{flex-basis:100%;font:800 10px Cinzel,serif;color:#83969d}.war2-replay-card,.war2-replay-hand button{width:86px;height:112px;padding:8px;border:1px solid #ffffff33;background:#182732;color:#edf2ef;cursor:pointer}.war2-replay-card.team-a{border-color:#e95766}.war2-replay-card.team-b{border-color:#54a5ef}.war2-replay-card b,.war2-replay-card em,.war2-replay-hand b,.war2-replay-hand em{display:block;font-size:10px}.war2-replay-card em,.war2-replay-hand em{margin-top:8px;color:#e2bf62;font-style:normal}.war2-replay-hand{display:flex;gap:7px;align-items:center;overflow:auto;padding:10px 18px;border-top:1px solid #d6ad4433}.war2-replay-hand>span{width:70px;flex:0 0 70px;font:800 10px Cinzel,serif}.war2-replay-hand button{width:72px;height:90px;flex:0 0 72px}.war2-replay>small{padding:5px;text-align:center;color:#708188}
+#s-challenger .war2-topbar nav button{clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px);transition:color .16s,background .16s}
+#s-challenger .war2-topbar nav button:hover{background:linear-gradient(145deg,rgba(201,155,52,.22),rgba(36,110,134,.1))}
+#s-challenger .war2-map{background:radial-gradient(circle at 50% 46%,rgba(199,151,53,.13),transparent 19%),linear-gradient(rgba(5,13,18,.2),rgba(5,13,18,.55)),url("../../assets/ui/challenger-war-map-v3.png") center/cover}
+#s-challenger .war2-objective{width:176px;height:172px}
+#s-challenger .war2-objective-ring{width:82px;height:82px;top:44%;clip-path:polygon(50% 0,88% 18%,100% 58%,72% 100%,28% 100%,0 58%,12% 18%);border:0;background:radial-gradient(circle at 48% 35%,#4c5a5e,#111a20 70%);filter:drop-shadow(0 13px 12px #0009)}
+#s-challenger .war2-objective-ring:before{inset:5px;border:1px solid rgba(239,205,120,.68);background:radial-gradient(circle,rgba(240,198,88,.09),transparent 65%)}
+#s-challenger .war2-objective:hover .war2-objective-ring,#s-challenger .war2-objective.selected .war2-objective-ring{background:radial-gradient(circle at 50% 35%,#83672b,#17232a 72%);filter:drop-shadow(0 0 16px rgba(239,190,65,.85))}
+#s-challenger .war2-objective-name{bottom:23px;border-radius:1px;border-color:rgba(229,188,88,.4);clip-path:polygon(7px 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%,0 7px);background:linear-gradient(90deg,#101b23ee,#1f2b2cee)}
+#s-challenger .war2-zone-players{position:absolute;z-index:4;left:50%;top:-5px;width:154px;transform:translateX(-50%);display:flex;justify-content:space-between}
+#s-challenger .war2-zone-players>span{display:block;padding:2px;border:1px solid currentColor;background:#091117;filter:drop-shadow(0 4px 6px #000b)}
+#s-challenger .war2-zone-players .team-a{color:#ef6972}.war2-zone-players .team-b{color:#65adf5}
+#s-challenger .war2-avatar.compact{width:44px;height:44px;flex-basis:44px;border-width:1px;border-radius:0}
+#s-challenger .war2-zone-players .war2-avatar i{font-size:15px;opacity:.42}
+#s-challenger .war2-zone-stars{position:absolute;z-index:5;left:50%;bottom:2px;transform:translateX(-50%);display:flex;gap:4px;white-space:nowrap}
+#s-challenger .war2-zone-stars i{font-size:19px;font-style:normal;color:#596165;text-shadow:0 1px 3px #000}.war2-zone-stars i.team-a{color:#ff6671;text-shadow:0 0 8px #e73d4c}.war2-zone-stars i.team-b{color:#65b4ff;text-shadow:0 0 8px #388fde}
+#s-challenger .war2-seat .war2-zone-stars{position:static;transform:none;margin-top:13px;justify-content:flex-start}
+#s-challenger .war2-bottom{border-radius:1px;border-color:rgba(229,185,82,.35);grid-template-columns:minmax(330px,1.2fr) minmax(360px,1.3fr) minmax(280px,1fr);background:linear-gradient(180deg,rgba(13,22,28,.97),rgba(7,13,19,.99))}
+#s-challenger .war2-orders{position:relative;padding:17px 22px;border-right:1px solid rgba(229,185,82,.16)}
+#s-challenger .war2-orders>span{display:block;font:800 11px Cinzel,serif;letter-spacing:.14em;color:#c4a857}.war2-orders b{display:block;margin-top:8px;font:800 15px Cinzel,serif;color:#fff0c8}.war2-orders em{display:block;margin-top:6px;color:#91a4aa;font-size:11px;font-style:normal}
+#s-challenger .war2-landscape{display:grid;grid-template-columns:245px 1fr;gap:22px;padding:0;background:#09131a;min-height:142px}
+#s-challenger .war2-landscape img{width:245px;height:142px;object-fit:cover;filter:saturate(.8) contrast(1.08);border-right:1px solid rgba(230,185,72,.35)}
+#s-challenger .war2-landscape>div{align-self:center;padding-right:24px}
+#s-challenger .war2-drawer{border-radius:2px;border-color:rgba(229,185,82,.48);background:linear-gradient(145deg,#14232b,#081118 72%);box-shadow:0 35px 100px #000d,inset 0 0 0 4px rgba(225,177,66,.04)}
+#s-challenger .war2-seat,.war2-achievement-list article{border-radius:2px;clip-path:polygon(11px 0,100% 0,100% calc(100% - 11px),calc(100% - 11px) 100%,0 100%,0 11px)}
+#s-challenger .war2-achievement-list article>i{width:102px;height:102px;border-radius:0;font-size:48px;border:1px solid rgba(229,184,75,.3);clip-path:polygon(50% 0,90% 20%,100% 65%,70% 100%,30% 100%,0 65%,10% 20%)}
+#s-challenger .war2-achievement-list aside .war2-avatar{width:82px;height:82px;border-radius:2px}
+#s-challenger .war2-achievement-list aside small{display:block;margin-top:8px;color:#75878d;font-size:10px;text-transform:uppercase;letter-spacing:.08em}
+#s-challenger .war2-report-scroll{flex:1;min-height:0;overflow:auto;padding-bottom:22px}
+#s-challenger .war2-report-scroll>h3{margin:18px 28px 8px;color:#d9b85c;font:800 11px Cinzel,serif;letter-spacing:.16em}
+#s-challenger .war2-reward-banner{margin:16px 28px;padding:16px 22px;display:grid;grid-template-columns:180px 1fr;align-items:center;border:1px solid rgba(236,192,84,.52);background:linear-gradient(90deg,rgba(158,112,28,.26),rgba(34,101,123,.12));clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px)}
+#s-challenger .war2-reward-banner b{grid-row:1/3;font:900 17px Cinzel,serif;color:#ffe292}.war2-reward-banner span{font:800 16px Cinzel,serif;color:#fff}.war2-reward-banner em{margin-top:4px;color:#9dafb4;font-size:11px;font-style:normal}
+#s-challenger .war2-earned-medals{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid rgba(236,192,84,.2)}
+#s-challenger .war2-earned-medals>span{display:flex;align-items:center;gap:9px;min-width:190px;color:#f1d27c;font:800 11px Cinzel,serif}
+#s-challenger .war2-medal-icon{display:block;width:42px;height:50px;flex:0 0 42px;background-image:url("../../assets/medals/concepts/warfront-medals-contact-sheet-v3-modern.png");background-repeat:no-repeat;background-size:500% 1000%;background-position:var(--medal-x) var(--medal-y);filter:drop-shadow(0 5px 8px rgba(0,0,0,.45))}
+#s-challenger .war2-player-report{padding:4px 28px;display:grid;grid-template-columns:1fr 1fr;gap:8px;overflow:auto}
+#s-challenger .war2-player-report article{display:grid;grid-template-columns:42px 1fr auto;grid-template-rows:1fr 1fr;gap:2px 11px;align-items:center;min-height:62px;padding:8px 13px;border-left:3px solid;border-top:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.025)}
+#s-challenger .war2-player-report article.team-a{border-left-color:#e75d67}.war2-player-report article.team-b{border-left-color:#5aa9ef}
+#s-challenger .war2-player-report .war2-avatar{grid-row:1/3}.war2-player-report b,.war2-player-report span{display:block}.war2-player-report b{font:800 13px Cinzel,serif}.war2-player-report span,.war2-player-report em{font-size:10px;color:#91a0a5;font-style:normal}.war2-player-report strong{font:900 13px Cinzel,serif;color:#f1ca69}.war2-player-report em{grid-column:2/4}
+#s-challenger .war2-record-zones article{height:76px;grid-template-columns:38px 1fr 40px 90px}.war2-record-zones .war2-zone-stars{position:static;transform:none}
+#s-challenger .war2-record-ledger{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:24px 28px}.war2-record-ledger>div{padding:20px;border:1px solid rgba(228,184,77,.22);text-align:center;background:rgba(255,255,255,.025)}.war2-record-ledger b,.war2-record-ledger span{display:block}.war2-record-ledger b{font:900 28px Cinzel,serif;color:#f0cb70}.war2-record-ledger span{margin-top:6px;color:#8fa1a6;font-size:10px;text-transform:uppercase;letter-spacing:.12em}
+@media(max-width:1120px){#s-challenger .war2-topbar{grid-template-columns:155px 1fr 160px 1fr 180px}.war2-topbar nav span{display:none}.war2-bottom{grid-template-columns:1fr 1fr}.war2-orders{display:none}}
+
+/* WARFRONT V5 — large tactical zone nodes. The map positions remain unchanged. */
+#s-challenger .war2-objective{
+  width:232px;
+  height:196px;
+  isolation:isolate;
+  filter:drop-shadow(0 18px 18px rgba(0,0,0,.55));
+}
+#s-challenger .war2-objective:before,
+#s-challenger .war2-objective:after{
+  content:"";
+  position:absolute;
+  z-index:0;
+  top:74px;
+  width:70px;
+  height:9px;
+  border:1px solid currentColor;
+  opacity:.88;
+}
+#s-challenger .war2-objective:before{
+  left:25px;
+  color:#f15f69;
+  background:linear-gradient(90deg,rgba(241,95,105,.18),#f15f69);
+  box-shadow:0 0 14px rgba(241,95,105,.5);
+}
+#s-challenger .war2-objective:after{
+  right:25px;
+  color:#62b0f4;
+  background:linear-gradient(90deg,#62b0f4,rgba(98,176,244,.18));
+  box-shadow:0 0 14px rgba(98,176,244,.5);
+}
+#s-challenger .war2-objective-ring{
+  z-index:2;
+  top:43%;
+  width:104px;
+  height:104px;
+  border:1px solid rgba(239,205,120,.72);
+  border-radius:50%;
+  clip-path:none;
+  background:
+    radial-gradient(circle at 50% 42%,rgba(228,190,96,.18) 0 4%,transparent 5%),
+    repeating-conic-gradient(from 22.5deg,rgba(229,190,96,.13) 0 1deg,transparent 1deg 45deg),
+    radial-gradient(circle,#263740 0 48%,#0a141b 49% 62%,#b59140 63% 65%,#0b151c 66%);
+  box-shadow:0 0 0 5px rgba(7,15,20,.82),0 0 0 6px rgba(229,188,88,.3),0 16px 28px rgba(0,0,0,.6);
+}
+#s-challenger .war2-objective-ring:before{
+  inset:10px;
+  clip-path:none;
+  border:1px solid rgba(239,205,120,.34);
+  border-radius:50%;
+  background:linear-gradient(90deg,transparent 48%,rgba(228,192,102,.25) 49% 51%,transparent 52%),linear-gradient(transparent 48%,rgba(228,192,102,.25) 49% 51%,transparent 52%);
+}
+#s-challenger .war2-objective-ring:after{
+  content:"";
+  position:absolute;
+  inset:-8px;
+  border:1px solid rgba(237,201,111,.24);
+  border-radius:50%;
+}
+#s-challenger .war2-objective-ring b{
+  position:relative;
+  z-index:2;
+  font:900 28px Cinzel,serif;
+  letter-spacing:.04em;
+  color:#fff1c8;
+  text-shadow:0 2px 8px #000;
+}
+#s-challenger .war2-objective-ring i{
+  position:relative;
+  z-index:2;
+  margin-top:8px;
+  padding:3px 9px;
+  border:1px solid rgba(231,194,99,.32);
+  background:#081118;
+  font:900 14px "Courier New",monospace;
+  color:#f1ca68;
+}
+#s-challenger .war2-objective:hover .war2-objective-ring,
+#s-challenger .war2-objective.selected .war2-objective-ring{
+  transform:translate(-50%,-50%) scale(1.08);
+  border-color:#ffe08a;
+  background:
+    radial-gradient(circle at 50% 42%,rgba(255,222,130,.28) 0 5%,transparent 6%),
+    repeating-conic-gradient(from 22.5deg,rgba(239,196,84,.18) 0 1deg,transparent 1deg 45deg),
+    radial-gradient(circle,#42504a 0 48%,#101b1e 49% 62%,#d5aa44 63% 65%,#10191a 66%);
+  filter:drop-shadow(0 0 18px rgba(239,190,65,.8));
+}
+#s-challenger .war2-zone-players{
+  z-index:4;
+  top:42px;
+  width:218px;
+  align-items:center;
+}
+#s-challenger .war2-zone-players>span{
+  position:relative;
+  padding:4px;
+  border:1px solid currentColor;
+  background:#071118;
+  box-shadow:0 9px 20px rgba(0,0,0,.6),inset 0 0 0 2px rgba(255,255,255,.04);
+  clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px);
+}
+#s-challenger .war2-zone-players>span:after{
+  position:absolute;
+  left:50%;
+  bottom:-19px;
+  transform:translateX(-50%);
+  padding:2px 6px;
+  background:#081118;
+  border:1px solid currentColor;
+  font:900 9px Cinzel,serif;
+  letter-spacing:.1em;
+}
+#s-challenger .war2-zone-players .team-a:after{content:"I"}
+#s-challenger .war2-zone-players .team-b:after{content:"II"}
+#s-challenger .war2-avatar.compact{
+  width:68px;
+  height:68px;
+  flex-basis:68px;
+  border:0;
+  border-radius:0;
+}
+#s-challenger .war2-zone-players .war2-avatar i{font-size:23px}
+#s-challenger .war2-objective-name{
+  z-index:5;
+  bottom:31px;
+  min-width:164px;
+  padding:9px 17px 8px;
+  border:1px solid rgba(235,197,103,.55);
+  border-radius:0;
+  clip-path:polygon(9px 0,calc(100% - 9px) 0,100% 50%,calc(100% - 9px) 100%,9px 100%,0 50%);
+  background:linear-gradient(90deg,#081219f2,#1b2a30f2 50%,#081219f2);
+  box-shadow:0 8px 18px rgba(0,0,0,.55),inset 0 1px rgba(255,255,255,.07);
+  font:900 13px Cinzel,serif;
+  letter-spacing:.035em;
+}
+#s-challenger .war2-zone-stars{
+  z-index:6;
+  bottom:-2px;
+  gap:6px;
+  padding:2px 8px;
+  background:rgba(6,13,18,.8);
+}
+#s-challenger .war2-zone-stars i{font-size:24px;line-height:1}
+#s-challenger .war2-objective.selected .war2-objective-name{box-shadow:0 0 18px rgba(226,180,65,.45),inset 0 1px rgba(255,255,255,.08)}
+
+@media(max-height:750px){
+  #s-challenger .war2-objective{transform:translate(-50%,-50%) scale(.82)}
+}
+/* Full-match Warfront replay transport */
+body.war-replay-active #s-game .actbar{visibility:hidden!important;pointer-events:none!important;}
+body.war-replay-active #s-game .cell,body.war-replay-active #s-game .bc,body.war-replay-active #s-game .hc{cursor:zoom-in!important;}
+body.war-replay-active #s-game :is(.codex-v19-end,[data-end],[aria-label="End turn"],[aria-label="END MATCH"]){opacity:.25!important;pointer-events:none!important;filter:grayscale(1)!important;}
+.war-full-replay-controls{position:fixed;z-index:10040;left:50%;bottom:18px;transform:translateX(-50%);width:min(1180px,calc(100vw - 28px));min-height:68px;display:flex;align-items:center;gap:14px;padding:10px 12px;border:1px solid rgba(221,187,104,.5);border-radius:12px;background:linear-gradient(180deg,rgba(18,20,29,.97),rgba(5,6,11,.98));box-shadow:0 18px 55px rgba(0,0,0,.7),inset 0 1px rgba(255,255,255,.06);font-family:'Cinzel',serif;color:#f4ead0;backdrop-filter:blur(14px)}
+.war-full-replay-controls button{appearance:none;border:1px solid rgba(222,191,112,.28);border-radius:7px;background:rgba(255,255,255,.045);color:#eee3c8;min-height:32px;padding:6px 10px;font:700 .61rem/1 'Cinzel',serif;letter-spacing:.06em;cursor:pointer;white-space:nowrap}
+.war-full-replay-controls button:hover,.war-full-replay-controls button.active{border-color:#e0bd66;background:rgba(202,160,67,.19);color:#fff3bd;box-shadow:inset 0 0 12px rgba(226,185,88,.1)}
+.war-full-replay-controls .wfr-title{min-width:190px;display:grid;gap:4px}.war-full-replay-controls .wfr-title span,.war-full-replay-controls i{font-style:normal;font-size:.5rem;letter-spacing:.14em;color:#9e947c}.war-full-replay-controls .wfr-title b{font-size:.7rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.war-full-replay-controls .wfr-transport,.war-full-replay-controls .wfr-speeds,.war-full-replay-controls .wfr-perspective{display:flex;align-items:center;gap:5px}.war-full-replay-controls .wfr-transport span{min-width:58px;text-align:center;font:600 .6rem/1 'Crimson Pro',serif;color:#aaa18d}.war-full-replay-controls .wfr-play{min-width:64px}.war-full-replay-controls .wfr-speeds,.war-full-replay-controls .wfr-perspective{padding-left:11px;border-left:1px solid rgba(255,255,255,.1)}.war-full-replay-controls .wfr-perspective{min-width:0;flex:1}.war-full-replay-controls .wfr-perspective button{max-width:125px;overflow:hidden;text-overflow:ellipsis}.war-full-replay-controls .wfr-exit{border-color:rgba(213,89,76,.55);color:#ffb0a7}
+@media(max-width:900px){.war-full-replay-controls{flex-wrap:wrap;justify-content:center;bottom:8px}.war-full-replay-controls .wfr-title{width:100%;text-align:center}.war-full-replay-controls .wfr-perspective{flex:0 1 auto}.war-full-replay-controls i{display:none}}
+.war2-objective.has-live-match{filter:drop-shadow(0 0 14px rgba(255,72,64,.72))}.war2-objective.has-live-match .war2-objective-ring{animation:war2-live-ring 1.35s ease-in-out infinite}.war2-live-match-flag{position:absolute;left:50%;bottom:calc(100% + 9px);transform:translateX(-50%);display:flex;align-items:center;gap:5px;padding:4px 8px;border:1px solid rgba(255,105,90,.7);border-radius:999px;background:rgba(31,7,8,.94);color:#ffd2ca;font:800 .48rem/1 'Cinzel',serif;letter-spacing:.12em;white-space:nowrap;box-shadow:0 5px 18px rgba(0,0,0,.55)}.war2-live-match-flag i,.war2-live-match-callout>span i{width:7px;height:7px;border-radius:50%;background:#ff5148;box-shadow:0 0 10px #ff5148;animation:war2-live-dot 1s ease-in-out infinite}.war2-live-match-callout{margin:0 0 14px;padding:14px 16px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px 14px;align-items:center;border:1px solid rgba(255,93,79,.42);border-radius:10px;background:linear-gradient(110deg,rgba(86,17,18,.34),rgba(10,11,18,.76));box-shadow:inset 3px 0 #e45448}.war2-live-match-callout>span{display:flex;align-items:center;gap:7px;color:#ff8175;font:800 .55rem/1 'Cinzel',serif;letter-spacing:.15em}.war2-live-match-callout>b{grid-column:1;font:700 .95rem/1.2 'Cinzel',serif;color:#f6ead0}.war2-live-match-callout>em{grid-column:1;font:italic .7rem/1.3 'Crimson Pro',serif;color:#aaa18e}.war2-live-match-callout>button{grid-column:2;grid-row:1/4;align-self:stretch;padding:0 18px;border:1px solid rgba(255,122,105,.68);border-radius:7px;background:linear-gradient(180deg,#9b302c,#5e1718);color:#fff0e8;font:800 .61rem/1 'Cinzel',serif;letter-spacing:.09em;cursor:pointer}.war2-live-match-callout>button:hover{background:linear-gradient(180deg,#bd4037,#79201f);box-shadow:0 0 18px rgba(255,77,66,.24)}
+body:has(#s-game.warfront-team-spectator) #spectator-perspective-controls{display:none!important}#s-game.warfront-team-spectator [data-spectator-perspective]{pointer-events:none!important}
+@keyframes war2-live-dot{50%{opacity:.35;transform:scale(.7)}}@keyframes war2-live-ring{50%{box-shadow:0 0 0 7px rgba(255,78,65,.08),0 0 22px rgba(255,78,65,.55)}}
+
+/* Warfront command briefing + tactical-map polish */
+#s-challenger .challenger-war2{font-family:"Crimson Pro",Georgia,serif;color:#eee5cf}
+#s-challenger .challenger-war2 button,#s-challenger .challenger-war2 h1,#s-challenger .challenger-war2 h2,#s-challenger .challenger-war2 h3{font-family:Cinzel,Georgia,serif}
+#s-challenger .challenger-war2.page-briefing{background:linear-gradient(90deg,rgba(42,11,15,.86),rgba(5,13,18,.58) 42%,rgba(6,23,36,.83)),linear-gradient(rgba(5,10,13,.26),rgba(5,10,13,.8)),url('../../assets/ui/challenger-war-map-v3.png') center/cover no-repeat;overflow:auto}
+#s-challenger .war2-briefing{position:relative;z-index:2;min-height:100%;display:grid;grid-template-rows:auto auto 1fr auto;gap:18px;padding:26px clamp(24px,4vw,74px) 34px;background:radial-gradient(circle at 50% 40%,transparent,rgba(1,6,9,.28) 68%)}
+#s-challenger .war2-briefing>header{display:flex;align-items:flex-start;justify-content:space-between;gap:30px;padding-bottom:16px;border-bottom:1px solid rgba(223,191,108,.3)}
+#s-challenger .war2-briefing>header span,#s-challenger .war2-briefing footer span,#s-challenger .war2-brief-score span,#s-challenger .war2-brief-teams header span{display:block;color:#d5ae55;font:800 11px/1 Cinzel,serif;letter-spacing:.18em;text-transform:uppercase}
+#s-challenger .war2-briefing>header h1{margin:5px 0 1px;color:#fff3cd;font:900 clamp(34px,4vw,66px)/.95 Cinzel,serif;letter-spacing:.08em;text-shadow:0 4px 25px #000}
+#s-challenger .war2-briefing>header p{margin:8px 0 0;color:#b9b3a4;font:600 17px/1.25 "Crimson Pro",serif;letter-spacing:.025em}
+#s-challenger .war2-briefing>header nav{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:7px;max-width:560px}
+#s-challenger .war2-briefing>header nav button,#s-challenger .war2-brief-back{min-height:42px;padding:0 15px;border:1px solid rgba(221,188,105,.3);border-radius:3px;background:rgba(7,15,20,.78);color:#d9cba8;font:800 10px/1 Cinzel,serif;letter-spacing:.09em;text-transform:uppercase;cursor:pointer}
+#s-challenger .war2-briefing>header nav button:hover,#s-challenger .war2-brief-back:hover{border-color:#ddba63;color:#fff2bd;background:#18262b}
+#s-challenger .war2-brief-score{display:grid;grid-template-columns:1fr minmax(190px,270px) 1fr;align-items:stretch;min-height:142px;border-block:1px solid rgba(224,190,100,.28);background:linear-gradient(90deg,rgba(98,22,29,.3),rgba(5,13,18,.78) 45% 55%,rgba(14,57,89,.36));box-shadow:0 16px 45px rgba(0,0,0,.28)}
+#s-challenger .war2-brief-score article{display:grid;grid-template-columns:1fr auto;align-content:center;gap:7px 22px;padding:18px 34px}
+#s-challenger .war2-brief-score article.team-b{text-align:right;grid-template-columns:auto 1fr}.war2-brief-score article.team-b span,.war2-brief-score article.team-b em{grid-column:2}.war2-brief-score article.team-b>b{grid-column:1;grid-row:1/3}
+#s-challenger .war2-brief-score article>b{grid-column:2;grid-row:1/3;align-self:center;color:#ff747c;font:900 clamp(52px,6vw,92px)/.8 Cinzel,serif;text-shadow:0 0 22px rgba(255,79,91,.44)}
+#s-challenger .war2-brief-score article.team-b>b{color:#79bbff;text-shadow:0 0 22px rgba(65,155,244,.45)}
+#s-challenger .war2-brief-score article span{align-self:end;font-size:clamp(14px,1.25vw,21px);letter-spacing:.08em}
+#s-challenger .war2-brief-score article em{font:600 15px/1.2 "Crimson Pro",serif;color:#c2bba9}
+#s-challenger .war2-brief-score>div{display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;border-inline:1px solid rgba(229,199,119,.2);background:rgba(4,11,15,.55)}
+#s-challenger .war2-brief-score>div>b{margin:8px 0;color:#f6e6ba;font:900 24px/1 Cinzel,serif;letter-spacing:.09em}.war2-brief-score>div em{font:700 10px/1 Cinzel,serif;color:#7f9197;letter-spacing:.16em}
+#s-challenger .war2-brief-teams{display:grid;grid-template-columns:1fr 1fr;gap:22px;min-height:250px}
+#s-challenger .war2-brief-teams>section{padding:18px 20px 20px;border:1px solid rgba(232,195,104,.24);background:linear-gradient(145deg,rgba(34,15,18,.86),rgba(8,17,21,.88));box-shadow:inset 4px 0 rgba(214,73,83,.5),0 15px 34px rgba(0,0,0,.24)}
+#s-challenger .war2-brief-teams>section.team-b{background:linear-gradient(215deg,rgba(9,30,46,.9),rgba(8,17,21,.88));box-shadow:inset -4px 0 rgba(74,157,227,.6),0 15px 34px rgba(0,0,0,.24)}
+#s-challenger .war2-brief-teams>section>header{display:flex;align-items:center;justify-content:space-between;margin-bottom:15px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,.09)}
+#s-challenger .war2-brief-teams h2{margin:5px 0 0;color:#f3e9d0;font:900 clamp(18px,2vw,28px)/1 Cinzel,serif}.war2-brief-teams>section>header>b{font:900 18px/1 Cinzel,serif;color:#dcbd72}
+#s-challenger .war2-brief-roster{display:grid;grid-template-columns:repeat(5,minmax(82px,1fr));gap:10px}
+#s-challenger .war2-brief-roster article{min-width:0;display:flex;flex-direction:column;align-items:center;gap:7px;padding:10px 5px 9px;border:1px solid rgba(255,255,255,.1);background:rgba(3,9,13,.42);text-align:center}
+#s-challenger .war2-brief-roster .war2-avatar{width:58px;height:58px;flex:0 0 58px;border-radius:50%;border:2px solid rgba(232,102,111,.65);overflow:hidden}.war2-brief-teams .team-b .war2-avatar{border-color:rgba(99,174,240,.7)}
+#s-challenger .war2-brief-roster b{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#f2e8ce;font:800 11px/1.1 Cinzel,serif}.war2-brief-roster em{color:#859198;font:600 11px/1.1 "Crimson Pro",serif}
+#s-challenger .war2-briefing>footer{display:grid;grid-template-columns:minmax(260px,1fr) auto auto;align-items:center;gap:18px;min-height:92px;padding:18px 20px;border:1px solid rgba(222,190,105,.33);background:rgba(5,14,19,.94);box-shadow:0 -8px 30px rgba(0,0,0,.25)}
+#s-challenger .war2-briefing>footer>div>b{display:block;margin-top:8px;color:#eee3c8;font:700 15px/1.2 "Crimson Pro",serif}.war2-briefing>footer>strong{font:800 13px/1.2 Cinzel,serif;color:#d9caa4}
+#s-challenger .war2-brief-choose{display:flex;gap:7px}.war2-brief-choose button{height:44px;padding:0 15px;border:1px solid currentColor;background:#111820;color:#cc6870;font:800 9px/1 Cinzel,serif;letter-spacing:.07em;cursor:pointer}.war2-brief-choose button.team-b{color:#68aee8}.war2-brief-choose button.active{background:currentColor;box-shadow:0 0 16px color-mix(in srgb,currentColor 38%,transparent)}.war2-brief-choose button.active::first-line{color:#081016}.war2-brief-choose button:disabled{opacity:.3;cursor:not-allowed}
+#s-challenger .war2-enter-map{height:56px;padding:0 23px;border:1px solid #e2be63;border-radius:2px;background:linear-gradient(180deg,#b98a2e,#77531b);color:#fff3c9;font:900 11px/1 Cinzel,serif;letter-spacing:.1em;cursor:pointer;box-shadow:0 8px 28px rgba(0,0,0,.38),inset 0 1px rgba(255,255,255,.25)}.war2-enter-map i{margin-left:12px;font-size:20px;font-style:normal}.war2-enter-map:hover{filter:brightness(1.16)}
+#s-challenger .page-map .war2-topbar{grid-template-columns:110px 180px 1fr 190px 1fr 190px}
+#s-challenger .war2-brief-back{height:56px;padding:0 10px}
+#s-challenger .page-map .war2-bottom{bottom:18px;min-height:104px;height:auto}.page-map .war2-bottom h3{margin:8px 0 7px;font-size:16px;line-height:1.15}.page-map .war2-bottom p{margin:0;font:600 14px/1.3 "Crimson Pro",serif;color:#9aa7aa}
+
+/* complete borders, player labels, and bare victory stars */
+#s-challenger .war2-zone-players{top:39px;width:230px}
+#s-challenger .war2-zone-players>span{display:flex;flex-direction:column;align-items:center;padding:4px;border:1px solid currentColor;border-radius:4px;clip-path:none}
+#s-challenger .war2-zone-players>span:after{content:none!important}
+#s-challenger .war2-zone-players>span>b{position:absolute;left:50%;bottom:calc(100% + 5px);transform:translateX(-50%);width:104px;padding:4px 5px;border:1px solid currentColor;border-radius:3px;background:#071118;color:#e8dec5;font:800 9px/1 Cinzel,serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;box-shadow:0 4px 10px #0008}
+#s-challenger .war2-zone-players .war2-avatar.compact{width:74px;height:74px;flex-basis:74px;border-radius:2px;overflow:hidden}
+#s-challenger .war2-objective-name{min-width:168px;border-radius:4px;clip-path:none}
+#s-challenger .war2-zone-stars{bottom:-4px;padding:0;background:transparent;filter:drop-shadow(0 3px 2px #000) drop-shadow(0 0 7px #000)}
+#s-challenger .war2-zone-stars i{font-size:26px;text-shadow:none}
+
+/* richer commendation command board */
+#s-challenger .war2-achievements{width:min(1120px,calc(100vw - 42px));max-height:min(820px,calc(100vh - 52px));overflow:auto;border:1px solid rgba(229,190,93,.54);background:linear-gradient(145deg,#111e25,#071016);box-shadow:0 30px 90px #000}
+#s-challenger .war2-achievements>header{padding:20px 26px;background:linear-gradient(90deg,rgba(142,99,29,.16),transparent);border-bottom:1px solid rgba(228,190,95,.25)}
+#s-challenger .war2-achievements>header h2{margin:6px 0 0;font-size:30px;letter-spacing:.025em}
+#s-challenger .war2-achievement-intro{display:flex;justify-content:space-between;gap:25px;padding:15px 26px;border-bottom:1px solid rgba(255,255,255,.08);background:#0a151b}.war2-achievement-intro b{font:800 13px/1 Cinzel,serif;color:#e3bd5e}.war2-achievement-intro span{font:600 14px/1.2 "Crimson Pro",serif;color:#9ba7aa}
+#s-challenger .war2-achievement-list{display:grid;gap:10px;padding:16px}
+#s-challenger .war2-achievement-list article{position:relative;min-height:150px;display:grid;grid-template-columns:62px 104px minmax(220px,1fr) minmax(210px,310px);align-items:center;gap:18px;padding:18px 22px;border:1px solid rgba(218,187,108,.18);background:linear-gradient(90deg,rgba(203,164,66,.09),rgba(255,255,255,.018));box-shadow:inset 4px 0 #b8943c}
+#s-challenger .war2-award-number{align-self:start;color:#71664f;font:900 14px/1 Cinzel,serif;letter-spacing:.12em}
+#s-challenger .war2-achievement-list article>i{width:86px;height:86px;display:grid;place-items:center;border:1px solid rgba(226,187,89,.35);border-radius:50%;background:radial-gradient(circle,#3c3a2b,#171d1b 68%);color:#e9b941;box-shadow:0 0 0 7px rgba(220,181,80,.05),inset 0 0 20px #0008}
+#s-challenger .war2-achievement-list svg{width:50px;height:50px;fill:none;stroke:currentColor;stroke-width:5;stroke-linecap:round;stroke-linejoin:round}.war2-achievement-list article>div>span{font:900 10px/1 Cinzel,serif;letter-spacing:.14em;color:#d8ad42}.war2-achievement-list h3{margin:8px 0 6px;color:#f2e7c9;font-size:21px}.war2-achievement-list p{margin:0;color:#b9c1c0;font:600 15px/1.3 "Crimson Pro",serif}
+#s-challenger .war2-achievement-list aside{min-height:94px;display:grid;grid-template-columns:50px 1fr;align-content:center;gap:3px 10px;padding-left:18px;border-left:1px solid rgba(255,255,255,.1)}.war2-achievement-list aside .war2-avatar{grid-row:1/5;width:48px;height:48px;flex-basis:48px}.war2-achievement-list aside>b{grid-row:1/5;align-self:center;text-align:center;font-size:30px;color:#716a59}.war2-achievement-list aside strong{font:800 13px/1.1 Cinzel,serif;color:#eee4cb}.war2-achievement-list aside em{font:700 13px/1.1 "Crimson Pro",serif;color:#d6af53}.war2-achievement-list aside small{font:700 8px/1 Cinzel,serif;color:#75868c;letter-spacing:.1em;text-transform:uppercase}
+
+/* visual card bans */
+#s-challenger .war2-ban-row{min-height:98px}.war2-ban-cards{display:flex;gap:8px;overflow-x:auto;padding:4px 2px}.war2-ban-card{position:relative;width:54px;min-width:54px;height:76px;border:1px solid rgba(213,177,91,.42);border-radius:4px;overflow:hidden;background:#091015;box-shadow:0 5px 12px #0008}.war2-ban-card img{width:100%;height:100%;object-fit:cover}.war2-ban-card b{position:absolute;inset:auto 0 0;padding:12px 3px 3px;background:linear-gradient(transparent,#020507);font:800 7px/1 Cinzel,serif;color:#fff;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.war2-ban-card.missing{display:grid;place-items:center;color:#8a8069;font:800 7px/1 Cinzel,serif;text-align:center;padding:3px}
+
+/* one authoritative spectator surface, above the game UI */
+#warfront-spectator-panel{position:fixed;z-index:2147483000;right:18px;bottom:18px;width:min(360px,calc(100vw - 36px));display:grid;grid-template-columns:1fr auto;gap:5px 14px;padding:15px 16px;border:1px solid rgba(220,184,91,.55);border-radius:4px;background:linear-gradient(135deg,rgba(8,18,24,.98),rgba(14,24,33,.98));color:#eee5cd;box-shadow:0 20px 60px #000, inset 3px 0 #d2a741;font-family:Cinzel,serif;backdrop-filter:blur(12px)}
+#warfront-spectator-panel>span{display:flex;align-items:center;gap:7px;color:#efc25a;font:900 9px/1 Cinzel,serif;letter-spacing:.16em}#warfront-spectator-panel>span i{width:7px;height:7px;border-radius:50%;background:#f75b4f;box-shadow:0 0 10px #f75b4f;animation:war2-live-dot 1s infinite}#warfront-spectator-panel>b{font:800 15px/1.2 Cinzel,serif}#warfront-spectator-panel>em{color:#a5afb0;font:600 13px/1.2 "Crimson Pro",serif}#warfront-spectator-panel>button{grid-column:2;grid-row:1/4;padding:0 14px;border:1px solid rgba(226,190,98,.38);border-radius:2px;background:#17242a;color:#e9d6a8;font:800 9px/1 Cinzel,serif;letter-spacing:.09em;cursor:pointer}
+body:has(#s-game.warfront-team-spectator) :is(#spectator-badge,#spectator-perspective-controls,[data-spectator-controls]){display:none!important}
+
+@media(max-width:1100px){#s-challenger .war2-briefing{padding-inline:22px}.war2-brief-score article{padding-inline:18px!important}.war2-brief-roster{grid-template-columns:repeat(5,minmax(60px,1fr))!important}.war2-briefing>footer{grid-template-columns:1fr auto!important}.war2-brief-choose{grid-column:1}.war2-enter-map{grid-column:2;grid-row:1/3}.page-map .war2-topbar{grid-template-columns:82px 135px 1fr 140px 1fr 140px!important}.war2-achievement-list article{grid-template-columns:42px 78px 1fr minmax(180px,240px)!important}}
+@media(max-width:760px){#s-challenger .war2-briefing>header{display:block}.war2-briefing>header nav{justify-content:flex-start;margin-top:14px}.war2-brief-score{grid-template-columns:1fr 110px 1fr!important}.war2-brief-score article{display:flex!important;flex-direction:column;padding:12px!important}.war2-brief-score article>b{order:-1!important}.war2-brief-teams{grid-template-columns:1fr!important}.war2-briefing>footer{grid-template-columns:1fr!important}.war2-enter-map{grid-column:1;grid-row:auto}.war2-achievement-list article{grid-template-columns:55px 1fr!important}.war2-achievement-list article>aside{grid-column:1/3;border-left:0;border-top:1px solid #ffffff18;padding:12px 0 0}.war2-award-number{display:none}}
+
+/* WARFRONT V6 — bounded dossiers, legible command tabs, and aligned briefing ranks. */
+#s-challenger .page-map .war2-topbar{grid-template-columns:110px 150px minmax(250px,1fr) 180px minmax(250px,1fr) 250px}
+#s-challenger .page-map .war2-title{padding:0 18px;align-items:flex-start;overflow:hidden}
+#s-challenger .page-map .war2-title span{font-size:10px;line-height:1;letter-spacing:.2em;color:#c8a95d}
+#s-challenger .page-map .war2-title h1{margin:5px 0 0;font-size:24px;line-height:.92;white-space:normal}
+#s-challenger .page-map .war2-topbar nav{grid-template-columns:repeat(4,minmax(0,1fr))}
+#s-challenger .page-map .war2-topbar nav button{min-width:0;padding:0 4px}
+#s-challenger .page-map .war2-topbar nav button span{display:block;font-size:8px;line-height:1;white-space:nowrap}
+
+#s-challenger .war2-zone-stars i.empty{color:#596165!important;filter:none}
+#s-challenger .war2-zone-stars i.won.team-a{color:#ff6671!important;filter:drop-shadow(0 0 7px #e73d4c)}
+#s-challenger .war2-zone-stars i.won.team-b{color:#65b4ff!important;filter:drop-shadow(0 0 7px #388fde)}
+
+#s-challenger .war2-drawer{width:min(1080px,calc(100% - 64px));height:min(720px,calc(100% - 56px));overflow:hidden}
+#s-challenger .war2-drawer section{width:100%;max-width:100%;max-height:100%;overflow:hidden}
+#s-challenger .war2-drawer header{height:84px;flex:0 0 84px;padding:0 26px;box-sizing:border-box}
+#s-challenger .war2-drawer header>button{position:relative;z-index:3;flex:0 0 46px;width:46px;height:46px;border:1px solid rgba(231,194,101,.55);border-radius:2px;background:#152128;color:#f4dfab;font:400 28px/1 Arial,sans-serif;box-shadow:inset 0 0 0 3px #091219;visibility:visible;opacity:1}
+#s-challenger .war2-drawer header>button:hover{background:#28353a;color:#fff4ce;border-color:#f0ca6c}
+
+#s-challenger .war2-achievements{width:100%;max-height:100%;overflow:hidden;background:linear-gradient(145deg,#111e25,#071016)}
+#s-challenger .war2-achievements>header{padding:0 26px}
+#s-challenger .war2-achievement-intro{flex:0 0 auto;align-items:center;padding:12px 26px;box-sizing:border-box;overflow:hidden}
+#s-challenger .war2-achievement-intro span{min-width:0;text-align:right;white-space:normal}
+#s-challenger .war2-achievement-list{flex:1;min-height:0;display:grid;grid-template-columns:1fr;grid-auto-rows:minmax(132px,1fr);gap:9px;padding:12px 14px 14px;overflow-y:auto;overflow-x:hidden}
+#s-challenger .war2-achievement-list article{width:100%;min-width:0;min-height:132px;display:grid;grid-template-columns:48px 88px minmax(210px,1fr) minmax(230px,300px);align-items:center;gap:16px;padding:14px 18px;box-sizing:border-box;clip-path:none;border-left:4px solid #d3aa43;text-align:left}
+#s-challenger .war2-achievement-list article>i{width:76px;height:76px;border-radius:50%;clip-path:none}
+#s-challenger .war2-achievement-list svg{width:42px;height:46px}
+#s-challenger .war2-achievement-list article>div>span{margin:0}
+#s-challenger .war2-achievement-list h3{margin:7px 0 4px;font-size:20px}
+#s-challenger .war2-achievement-list p{min-height:0;font-size:14px}
+#s-challenger .war2-achievement-list aside{width:auto;min-width:0;min-height:76px;margin:0;padding:9px 0 9px 16px;display:grid;grid-template-columns:58px minmax(0,1fr);align-content:center;text-align:left;box-sizing:border-box}
+#s-challenger .war2-achievement-list aside .war2-avatar{grid-row:1/4;width:54px;height:54px;margin:0;border-radius:3px}
+#s-challenger .war2-achievement-list aside strong,#s-challenger .war2-achievement-list aside em,#s-challenger .war2-achievement-list aside small{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+#s-challenger .war2-matches,#s-challenger .war2-live-record,#s-challenger .war2-archive,#s-challenger .war2-record,#s-challenger .war2-match-detail{background:linear-gradient(145deg,#12212a,#071016 72%)}
+#s-challenger .war2-match-list{flex:1;min-height:0;padding:14px 18px 18px;overflow-y:auto;overflow-x:hidden;grid-template-columns:1fr 1fr;align-content:start}
+#s-challenger .war2-match-list>button{min-width:0;min-height:128px;padding:14px 16px;border-left:4px solid #c8a342;background:linear-gradient(110deg,rgba(205,164,60,.08),rgba(7,16,23,.85))}
+#s-challenger .war2-match-list>button>div{grid-template-columns:42px minmax(0,1fr) auto minmax(0,1fr) 42px}
+#s-challenger .war2-match-list>button b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#s-challenger .war2-match-list>button>em{line-height:1.35;white-space:normal}
+#s-challenger .war2-record-ledger{flex:0 0 auto;padding:18px 22px}
+#s-challenger .war2-record-ledger>div{padding:16px 12px;background:linear-gradient(180deg,rgba(213,172,68,.08),rgba(255,255,255,.02))}
+#s-challenger .war2-live-record>.war2-player-report{flex:1;min-height:0;padding:0 22px 20px;overflow-y:auto;overflow-x:hidden}
+#s-challenger .war2-archive-list{padding:12px 20px 20px}
+#s-challenger .war2-archive-list>button{min-height:88px;grid-template-columns:110px minmax(130px,1fr) 120px minmax(180px,1.4fr) 24px;padding:0 15px;border:1px solid rgba(217,180,82,.15);border-left:4px solid #b9953f;margin-top:8px;background:rgba(255,255,255,.018)}
+#s-challenger .war2-report-scroll{overflow-x:hidden}
+
+#s-challenger .war2-brief-roster article{grid-template-columns:38px 78px minmax(0,1fr);padding-right:12px}
+#s-challenger .war2-brief-teams .team-b .war2-brief-roster article{grid-template-columns:minmax(0,1fr) 78px 38px;padding-left:12px}
+#s-challenger .war2-brief-teams .team-b .war2-avatar{grid-column:2}
+#s-challenger .war2-brief-teams .team-b .war2-commander-number{grid-column:3}
+#s-challenger .war2-brief-teams .team-b .war2-commander-copy{grid-column:1}
+#s-challenger .war2-commander-heading{min-width:0;display:flex;align-items:center;gap:10px}
+#s-challenger .war2-commander-heading>b{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#s-challenger .war2-commander-rank{min-width:0;display:inline-flex;flex:0 0 auto;justify-content:flex-start}
+#s-challenger .war2-commander-rank .rank-badge{width:auto!important;max-width:130px;min-width:0!important;margin:0!important;transform:none!important}
+#s-challenger .war2-commander-rank .war2-rank-fallback{padding:6px 8px}
+#s-challenger .war2-brief-teams .team-b .war2-commander-heading{flex-direction:row-reverse;justify-content:flex-start}
+
+@media(max-width:1250px){
+  #s-challenger .page-map .war2-topbar{grid-template-columns:92px 112px minmax(190px,1fr) 145px minmax(190px,1fr) 205px}
+  #s-challenger .page-map .war2-title h1{font-size:21px}
+  #s-challenger .page-map .war2-topbar nav button span{font-size:7px}
+  #s-challenger .war2-achievement-list article{grid-template-columns:38px 74px minmax(190px,1fr) minmax(190px,250px)}
+}
+
+/* Briefing commander lineup: five full-width banners per alliance. */
+#s-challenger .war2-brief-teams{align-items:start}
+#s-challenger .war2-brief-roster{display:grid;grid-template-columns:1fr;gap:8px}
+#s-challenger .war2-brief-roster article{position:relative;min-height:88px;display:grid;grid-template-columns:38px 78px minmax(0,1fr) auto;align-items:center;gap:13px;padding:7px 13px 7px 8px;border:1px solid rgba(239,112,119,.27);background:linear-gradient(90deg,rgba(126,30,37,.27),rgba(5,13,18,.74));text-align:left;overflow:hidden}
+#s-challenger .war2-brief-teams .team-b .war2-brief-roster article{grid-template-columns:auto minmax(0,1fr) 78px 38px;border-color:rgba(99,177,242,.29);background:linear-gradient(270deg,rgba(23,85,132,.3),rgba(5,13,18,.74));text-align:right}
+#s-challenger .war2-brief-roster article:before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(110deg,rgba(255,255,255,.05),transparent 32%)}
+#s-challenger .war2-brief-roster .war2-avatar{position:relative;z-index:1;width:72px;height:72px;flex-basis:72px;border-radius:4px;border:2px solid #da5d67;box-shadow:0 0 0 3px #071016,0 8px 18px #0009;overflow:hidden}
+#s-challenger .war2-brief-teams .team-b .war2-avatar{grid-column:3;border-color:#5da8e8}
+#s-challenger .war2-commander-number{position:relative;z-index:1;color:rgba(245,214,158,.48);font:900 18px/1 Cinzel,serif;letter-spacing:.04em;text-align:center}
+#s-challenger .war2-brief-teams .team-b .war2-commander-number{grid-column:4;grid-row:1}
+#s-challenger .war2-commander-copy{position:relative;z-index:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:4px}
+#s-challenger .war2-brief-teams .team-b .war2-commander-copy{grid-column:2;grid-row:1;align-items:flex-end}
+#s-challenger .war2-commander-copy>span{color:#c79094;font:800 9px/1 Cinzel,serif;letter-spacing:.11em;text-transform:uppercase}
+#s-challenger .war2-brief-teams .team-b .war2-commander-copy>span{color:#86afd0}
+#s-challenger .war2-commander-copy>b{display:block;max-width:100%;color:#fff0d3;font:900 clamp(15px,1.25vw,21px)/1.05 Cinzel,serif;letter-spacing:.015em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#s-challenger .war2-commander-copy>em{color:#b5b5aa;font:600 13px/1.1 "Crimson Pro",serif}
+#s-challenger .war2-commander-rank{position:relative;z-index:1;min-width:116px;display:flex;justify-content:flex-end}
+#s-challenger .war2-brief-teams .team-b .war2-commander-rank{grid-column:1;grid-row:1;justify-content:flex-start}
+#s-challenger .war2-commander-rank .rank-badge{max-width:145px;transform:none!important;margin:0!important}
+#s-challenger .war2-rank-fallback{display:inline-flex;align-items:center;gap:7px;padding:7px 9px;border:1px solid rgba(220,185,96,.34);background:#111b20;color:#dfbd6a;font:800 9px/1 Cinzel,serif;letter-spacing:.07em;white-space:nowrap}.war2-rank-fallback i{font-style:normal}.war2-rank-fallback.vacant{opacity:.45}
+#s-challenger .war2-brief-roster article.empty{filter:saturate(.45);opacity:.62}
+#s-challenger .war2-briefing>footer{grid-template-columns:auto minmax(270px,1fr) auto auto}
+#s-challenger .war2-brief-modifiers{padding-right:20px;border-right:1px solid rgba(255,255,255,.1)}
+#s-challenger .war2-brief-modifiers>b{white-space:nowrap;letter-spacing:.06em}.war2-brief-modifiers b i{margin:0 4px 0 11px;color:#e7b94c;font:900 20px/1 Cinzel,serif;font-style:normal}.war2-brief-modifiers b i:first-child{margin-left:0}
+#s-challenger .page-map .war2-map-key{bottom:26px}
+@media(max-width:1100px){#s-challenger .war2-briefing>footer{grid-template-columns:1fr auto!important}.war2-brief-modifiers{border:0}.war2-allegiance{grid-column:1}.war2-brief-choose{grid-column:1}.war2-enter-map{grid-column:2;grid-row:1/4}.war2-brief-roster{grid-template-columns:1fr!important}.war2-commander-rank{min-width:90px!important}.war2-brief-roster article{grid-template-columns:30px 66px minmax(0,1fr) auto!important}.war2-brief-teams .team-b .war2-brief-roster article{grid-template-columns:auto minmax(0,1fr) 66px 30px!important}.war2-brief-roster .war2-avatar{width:62px!important;height:62px!important;flex-basis:62px!important}}
+
+/* Fixed-screen briefing correction pass. */
+#s-challenger .challenger-war2.page-briefing{overflow:hidden}
+#s-challenger .war2-briefing{height:100%;min-height:0;box-sizing:border-box;grid-template-rows:94px 118px minmax(0,1fr) 76px;gap:10px;padding:16px clamp(20px,3.8vw,72px) 18px;overflow:hidden}
+#s-challenger .war2-briefing>header{min-height:0;padding-bottom:10px;align-items:center}
+#s-challenger .war2-briefing>header h1{font-size:clamp(34px,3.3vw,54px)}
+#s-challenger .war2-briefing>header p{margin-top:5px;font-size:15px}
+#s-challenger .war2-briefing>header nav button{min-height:38px;padding:0 13px;font-size:9px}
+#s-challenger .war2-brief-score{min-height:0;height:118px;border:1px solid rgba(224,190,100,.42);box-sizing:border-box}
+#s-challenger .war2-brief-score article{height:100%;box-sizing:border-box}
+#s-challenger .war2-brief-score article.team-a{display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;grid-template-rows:1fr 1fr!important;text-align:left!important}
+#s-challenger .war2-brief-score article.team-a>span{grid-column:1!important;grid-row:1!important;align-self:end!important}.war2-brief-score article.team-a>em{grid-column:1!important;grid-row:2!important;align-self:start!important}.war2-brief-score article.team-a>b{grid-column:2!important;grid-row:1/3!important}
+#s-challenger .war2-brief-score article.team-b{display:grid!important;grid-template-columns:auto minmax(0,1fr)!important;grid-template-rows:1fr 1fr!important;text-align:right!important}
+#s-challenger .war2-brief-score article.team-b>b{grid-column:1!important;grid-row:1/3!important;align-self:center!important}.war2-brief-score article.team-b>span{grid-column:2!important;grid-row:1!important;align-self:end!important}.war2-brief-score article.team-b>em{grid-column:2!important;grid-row:2!important;align-self:start!important}
+#s-challenger .war2-brief-score article>b{font-size:70px!important}
+#s-challenger .war2-brief-teams{min-height:0;height:100%;gap:16px;overflow:hidden}
+#s-challenger .war2-brief-teams>section{height:100%;min-height:0;box-sizing:border-box;padding:12px 14px 14px;display:grid;grid-template-rows:51px minmax(0,1fr)}
+#s-challenger .war2-brief-teams>section>header{min-height:0;margin:0;padding:0 0 9px}
+#s-challenger .war2-brief-teams h2{font-size:21px}
+#s-challenger .war2-brief-roster{min-height:0;height:100%;grid-template-rows:repeat(5,minmax(0,1fr));gap:5px}
+#s-challenger .war2-brief-roster article{min-height:0;height:100%;box-sizing:border-box;grid-template-columns:30px 58px 142px minmax(0,1fr);gap:10px;padding:4px 11px 4px 6px}
+#s-challenger .war2-brief-teams .team-b .war2-brief-roster article{grid-template-columns:142px minmax(0,1fr) 58px 30px}
+#s-challenger .war2-brief-roster .war2-avatar{width:52px;height:52px;flex-basis:52px}
+#s-challenger .war2-commander-rank{grid-column:3;grid-row:1;min-width:0;justify-content:flex-start}
+#s-challenger .war2-commander-copy{grid-column:4;grid-row:1}
+#s-challenger .war2-brief-teams .team-b .war2-commander-rank{grid-column:1;grid-row:1;justify-content:flex-end}
+#s-challenger .war2-brief-teams .team-b .war2-commander-copy{grid-column:2;grid-row:1}
+#s-challenger .war2-commander-rank .rank-badge{width:138px!important;max-width:138px!important;min-height:36px!important;padding:4px 8px!important;box-sizing:border-box}
+#s-challenger .war2-commander-rank .rank-badge-icon{width:29px!important;height:29px!important;min-width:29px!important}
+#s-challenger .war2-commander-rank .rank-badge-label{font-size:10px!important;line-height:1!important}
+#s-challenger .war2-commander-copy>b{font-size:clamp(14px,1.08vw,18px)}
+#s-challenger .war2-commander-copy>em{font-size:11px}
+#s-challenger .war2-briefing>footer{min-height:0;height:76px;box-sizing:border-box;padding:10px 14px;grid-template-columns:auto minmax(220px,1fr) auto auto;gap:14px}
+#s-challenger .war2-briefing>footer>div>b{margin-top:5px;font-size:12px}.war2-brief-modifiers b i{font-size:16px}
+#s-challenger .war2-enter-map{height:48px}
+
+/* Tactical header uses a clean six-column command bar. */
+#s-challenger .page-map .war2-topbar{grid-template-columns:110px 170px minmax(190px,1fr) 180px minmax(190px,1fr) 330px;height:78px;border-radius:2px}
+#s-challenger .page-map .war2-brief-back{height:100%;border:0;border-right:1px solid rgba(225,190,99,.26)}
+#s-challenger .page-map .war2-title{height:100%;padding:0 18px;justify-content:center;box-sizing:border-box}
+#s-challenger .page-map .war2-title h1{margin:0;font-size:20px;line-height:1;white-space:nowrap}
+#s-challenger .page-map .war2-topbar nav{grid-template-columns:repeat(4,1fr)}
+#s-challenger .page-map .war2-topbar nav button{min-width:0;padding:0 4px;font-size:9px;letter-spacing:.035em}
+#s-challenger .page-map .war2-topbar nav i{font-size:18px;margin-bottom:4px}
+#s-challenger .page-map .war2-map-key{display:none!important}
+
+/* Zone matchup without the temporarily disabled ban surface. */
+#s-challenger .war2-zone-panel .war2-ban-row{display:none!important}
+#s-challenger .war2-zone-panel>footer{min-height:72px;gap:18px}.war2-deck-rule{max-width:480px;color:#cbbf9c;font:800 10px/1.4 Cinzel,serif;letter-spacing:.07em}
+
+/* Field Honors: one readable column, fixed close control, no horizontal crop. */
+#s-challenger .war2-achievements{width:min(1040px,calc(100vw - 48px));height:auto;max-height:calc(100vh - 54px);overflow:hidden}
+#s-challenger .war2-achievements>header{position:relative;min-height:88px;box-sizing:border-box;padding-right:78px}
+#s-challenger .war2-achievements>header>button{position:absolute!important;display:grid!important;place-items:center;right:22px!important;top:50%!important;transform:translateY(-50%)!important;width:42px!important;height:42px!important;min-width:42px!important;padding:0!important;border:1px solid rgba(228,194,108,.4)!important;border-radius:50%!important;background:#18242a!important;color:#f4e7c5!important;font-size:23px!important;z-index:4;cursor:pointer}
+#s-challenger .war2-achievement-intro{white-space:normal;overflow:hidden}
+#s-challenger .war2-achievement-intro span{max-width:55%;text-align:right}
+#s-challenger .war2-achievement-list{grid-template-columns:1fr!important;grid-auto-flow:row!important;max-height:calc(100vh - 220px);overflow-y:auto;overflow-x:hidden;padding:12px!important}
+#s-challenger .war2-achievement-list article{width:auto!important;min-width:0!important;min-height:128px!important;grid-template-columns:46px 88px minmax(0,1fr) minmax(190px,270px)!important;padding:14px 18px!important}
+#s-challenger .war2-achievement-list article>i{width:72px;height:72px}
+
+/* WARFRONT V7 — final cascade authority for the briefing and dossier surfaces. */
+#s-challenger .war2-brief-roster article{
+  min-height:0;
+  grid-template-columns:30px 70px minmax(0,1fr);
+  gap:11px;
+  padding:4px 10px 4px 6px;
+}
+#s-challenger .war2-brief-teams .team-b .war2-brief-roster article{
+  grid-template-columns:minmax(0,1fr) 70px 30px;
+  padding:4px 6px 4px 10px;
+}
+#s-challenger .war2-brief-roster .war2-avatar{
+  width:64px;
+  height:64px;
+  flex-basis:64px;
+}
+#s-challenger .war2-brief-teams .team-b .war2-avatar{grid-column:2;grid-row:1}
+#s-challenger .war2-brief-teams .team-b .war2-commander-number{grid-column:3;grid-row:1}
+#s-challenger .war2-commander-copy{grid-column:3;grid-row:1;gap:3px}
+#s-challenger .war2-brief-teams .team-b .war2-commander-copy{grid-column:1;grid-row:1}
+#s-challenger .war2-commander-heading{display:flex;align-items:center;gap:9px;min-width:0}
+#s-challenger .war2-brief-teams .team-b .war2-commander-heading{flex-direction:row-reverse;justify-content:flex-start}
+#s-challenger .war2-commander-heading>b{display:block;min-width:0;max-width:100%;color:#fff0d3;font:900 clamp(14px,1.08vw,18px)/1.05 Cinzel,serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#s-challenger .war2-commander-rank{position:static;min-width:0;display:inline-flex;flex:0 1 auto;justify-content:flex-start}
+#s-challenger .war2-commander-rank .rank-badge{width:auto!important;max-width:124px!important;min-width:0!important;min-height:32px!important;padding:3px 7px!important;margin:0!important;box-sizing:border-box}
+#s-challenger .war2-commander-rank .rank-badge-icon{width:25px!important;height:25px!important;min-width:25px!important}
+#s-challenger .war2-commander-rank .rank-badge-label{font-size:9px!important}
+
+#s-challenger .page-map .war2-title{align-items:flex-start}
+#s-challenger .page-map .war2-title span{display:block;font-size:9px;line-height:1;letter-spacing:.2em}
+#s-challenger .page-map .war2-title h1{margin:5px 0 0;font-size:22px;line-height:.9;white-space:normal}
+
+#s-challenger .war2-drawer>section,
+#s-challenger .war2-achievements{
+  width:100%!important;
+  height:100%!important;
+  max-width:100%!important;
+  max-height:100%!important;
+  box-sizing:border-box;
+}
+#s-challenger .war2-achievements>header{min-height:84px;height:84px;padding:0 82px 0 26px}
+#s-challenger .war2-achievement-list{max-height:none;grid-auto-rows:minmax(126px,1fr)}
+#s-challenger .war2-achievement-list article{width:100%!important;min-height:126px!important;box-sizing:border-box}
+#s-challenger .war2-achievement-list aside{overflow:hidden}
+
+@media(max-height:850px){
+  #s-challenger .war2-brief-roster .war2-avatar{width:58px;height:58px;flex-basis:58px}
+  #s-challenger .war2-brief-roster article{grid-template-columns:28px 64px minmax(0,1fr)}
+  #s-challenger .war2-brief-teams .team-b .war2-brief-roster article{grid-template-columns:minmax(0,1fr) 64px 28px}
+}
+
+/* WARFRONT V12 — restore map nodes; redesign only the screens behind them. */
+#s-challenger .war2-objective{width:232px!important;height:196px!important;filter:drop-shadow(0 18px 18px rgba(0,0,0,.55))!important}
+#s-challenger .war2-objective:before,#s-challenger .war2-objective:after{display:block!important}
+#s-challenger .war2-zone-players{position:absolute!important;z-index:4!important;left:50%!important;top:-5px!important;width:154px!important;transform:translateX(-50%)!important;display:flex!important;justify-content:space-between!important}
+#s-challenger .war2-zone-players>span{position:static!important;display:block!important;padding:2px!important;border:1px solid currentColor!important;background:#091117!important;filter:drop-shadow(0 4px 6px #000b)!important;box-shadow:0 0 0 3px #071118,0 10px 24px #000c!important}
+#s-challenger .war2-zone-players>span b{position:absolute!important;top:-23px!important;width:96px!important;padding:3px 4px!important;background:#071117!important;border:1px solid currentColor!important;color:#f0e6ca!important;font:800 8px/1 Cinzel,serif!important}
+#s-challenger .war2-zone-players>span.team-a b{left:0}.war2-zone-players>span.team-b b{right:0}
+#s-challenger .war2-zone-players .war2-avatar.compact{width:44px!important;height:44px!important;flex-basis:44px!important;border:1px solid currentColor!important;border-radius:0!important}
+#s-challenger .war2-objective-ring{position:absolute!important;left:50%!important;top:44%!important;width:82px!important;height:82px!important;transform:translate(-50%,-50%)!important;display:flex!important;flex-direction:column!important;grid-template:none!important;clip-path:polygon(50% 0,88% 18%,100% 58%,72% 100%,28% 100%,0 58%,12% 18%)!important;background:radial-gradient(circle at 48% 35%,#4c5a5e,#111a20 70%)!important;box-shadow:none!important}
+#s-challenger .war2-objective-ring:before{display:block!important}.war2-objective-ring b{font-size:23px!important}.war2-objective-ring i{margin-top:7px!important;font-size:13px!important}
+#s-challenger .war2-objective-name{position:absolute!important;left:50%!important;bottom:23px!important;transform:translateX(-50%)!important;min-width:128px!important;padding:8px 12px!important;border:1px solid rgba(229,188,88,.4)!important;border-block:1px solid rgba(229,188,88,.4)!important;clip-path:polygon(7px 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%,0 7px)!important;background:linear-gradient(90deg,#101b23ee,#1f2b2cee)!important;font-size:12px!important}
+#s-challenger .war2-zone-stars{position:absolute!important;z-index:5!important;left:50%!important;bottom:2px!important;transform:translateX(-50%)!important;display:flex!important;gap:4px!important}
+#s-challenger .war2-zone-stars i{font-size:19px!important}
+#s-challenger .war2-objective:hover .war2-objective-ring,#s-challenger .war2-objective.selected .war2-objective-ring{transform:translate(-50%,-50%) scale(1.13)!important}
+
+/* Both briefing rosters now read identically from left to right. */
+#s-challenger .war2-brief-teams .team-b .war2-brief-roster article{grid-template-columns:34px 84px minmax(0,1fr)!important;padding:5px 14px 5px 8px!important;text-align:left!important;background:linear-gradient(90deg,rgba(18,82,132,.3),rgba(8,15,19,.5) 72%,transparent)!important}
+#s-challenger .war2-brief-teams .team-b .war2-avatar{grid-column:2!important;grid-row:1!important}
+#s-challenger .war2-brief-teams .team-b .war2-commander-number{grid-column:1!important;grid-row:1!important}
+#s-challenger .war2-brief-teams .team-b .war2-commander-copy{grid-column:3!important;grid-row:1!important;display:flex!important;flex-direction:row!important;align-items:center!important;justify-content:flex-start!important;text-align:left!important}
+#s-challenger .war2-brief-teams .team-b .war2-commander-identity{grid-column:auto!important;align-items:flex-start!important;text-align:left!important}
+#s-challenger .war2-brief-teams .team-b .war2-commander-meta{grid-column:auto!important;align-items:flex-start!important;text-align:left!important}
+#s-challenger .war2-briefing>footer>strong{left:-13px!important}
+
+/* Commendations repair only: right-side close and fully closed card outlines. */
+#s-challenger .war2-achievements>header>button{position:absolute!important;left:auto!important;right:22px!important;top:50%!important;transform:translateY(-50%)!important;z-index:8!important}
+#s-challenger .war2-achievement-list article{border:2px solid #cba74588!important;border-top:4px solid #d3aa43!important;clip-path:none!important;box-sizing:border-box!important}
+
+/* Zone matchup: split intelligence photograph and stacked deployment manifest. */
+#s-challenger .war2-zone-command-screen{height:min(710px,calc(100vh - 44px))!important;display:grid!important;grid-template-rows:82px minmax(0,1fr) 72px!important;overflow:hidden!important;background:#071117!important}
+#s-challenger .war2-zone-command-screen>header{height:82px!important;min-height:82px!important;background:linear-gradient(90deg,#2b3c40,#101c22)!important;border-bottom:2px solid #c39c42!important}
+#s-challenger .war2-zone-brief-grid{min-height:0;display:grid;grid-template-columns:38% 62%;overflow:hidden}
+#s-challenger .war2-zone-theater{position:relative;min-width:0;overflow:hidden;border-right:1px solid #c19a4266;background:#0a151b}
+#s-challenger .war2-zone-theater:after{content:"THEATER\A INTELLIGENCE";white-space:pre;position:absolute;left:22px;top:20px;color:#fff2;font:900 36px/.88 Cinzel,serif;letter-spacing:.07em;text-align:left}
+#s-challenger .war2-zone-theater img{width:100%;height:100%;object-fit:cover;filter:saturate(.7) contrast(1.08) brightness(.72)}
+#s-challenger .war2-zone-theater>div{position:absolute;left:0;right:0;bottom:0;padding:74px 24px 24px;background:linear-gradient(transparent,#061016 70%);text-align:left}
+#s-challenger .war2-zone-theater span{color:#dcb852;font:900 10px/1 Cinzel,serif;letter-spacing:.14em}.war2-zone-theater h3{margin:9px 0 6px;color:#fff0ce;font:900 24px/1 Cinzel,serif}.war2-zone-theater p{margin:0;color:#bcc7c5;font-size:12px;line-height:1.4}
+#s-challenger .war2-zone-engagement{min-width:0;display:grid;grid-template-rows:112px minmax(0,1fr);background:repeating-linear-gradient(0deg,transparent 0 39px,#ffffff05 40px),linear-gradient(90deg,#8c283024,transparent 48%,#276c9c24)}
+#s-challenger .war2-series-banner{position:relative;display:grid;place-items:center;border-bottom:1px solid #c29b4355;background:#071218dd}
+#s-challenger .war2-series-banner>span{font:900 9px/1 Cinzel,serif;color:#a0afb1;letter-spacing:.17em}.war2-series-banner>div{display:flex;align-items:center;gap:28px}.war2-series-banner b{color:#f26c75;font:900 38px/1 Cinzel,serif}.war2-series-banner b:last-child{color:#65b1f5}.war2-series-banner i{font:900 11px/1 Cinzel,serif;font-style:normal;color:#dec269}.war2-series-banner .war2-zone-stars{position:static!important;transform:none!important;margin-top:3px}
+#s-challenger .war2-stacked-duel{min-height:0;display:grid;grid-template-rows:1fr 38px 1fr;gap:0;padding:16px 24px}
+#s-challenger .war2-stacked-duel .war2-seat{display:grid!important;grid-template-columns:104px minmax(0,1fr) auto!important;gap:18px!important;justify-content:stretch!important;padding:12px 22px!important;border:1px solid #ffffff18!important;border-left:6px solid #d85d67!important;clip-path:polygon(0 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%)!important;background:linear-gradient(90deg,#8e28312d,transparent)!important}
+#s-challenger .war2-stacked-duel .war2-seat.team-b{border-left-color:#4ba8ed!important;background:linear-gradient(90deg,#286e9f31,transparent)!important}
+#s-challenger .war2-stacked-duel .war2-avatar{width:88px!important;height:88px!important;flex-basis:88px!important;border-radius:2px!important;background:transparent!important}
+#s-challenger .war2-stacked-duel .war2-zone-stars{position:static!important;transform:none!important}
+#s-challenger .war2-clash-line{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:14px;color:#7f9298;font:800 8px/1 Cinzel,serif;letter-spacing:.12em}.war2-clash-line:before,.war2-clash-line:after{content:"";height:1px;background:#ffffff17}.war2-clash-line span{display:none}.war2-clash-line b{color:#d9bb68;font-size:10px}
+#s-challenger .war2-zone-command-screen>footer{height:72px!important;min-height:72px!important;background:#0a161c!important}
+
+/* Recent Battles: a clean operations chronology rather than cards. */
+#s-challenger .war2-matches{display:grid!important;grid-template-rows:92px minmax(0,1fr)!important;background:#071117!important}
+#s-challenger .war2-match-list{display:grid!important;grid-template-columns:1fr!important;grid-auto-rows:126px!important;align-content:start!important;gap:8px!important;padding:16px 22px!important;overflow:auto!important;background:linear-gradient(90deg,#b58f3510,transparent 30%),repeating-linear-gradient(0deg,transparent 0 31px,#ffffff05 32px)!important}
+#s-challenger .war2-match-card{min-height:126px!important;display:grid!important;grid-template-columns:170px minmax(0,1fr) 190px!important;grid-template-rows:1fr!important;border:1px solid #ffffff17!important;border-left:7px solid #c69e3c!important;border-top:1px solid #ffffff17!important;clip-path:none!important;background:#0d1a20!important}
+#s-challenger .war2-match-kicker{height:auto!important;align-items:flex-end!important;padding:16px!important;border:0!important;border-right:1px solid #ffffff13!important;background:#c19a4013!important;font-size:10px!important;line-height:1.45!important}
+#s-challenger .war2-match-commanders{padding:10px 18px!important;grid-template-columns:minmax(0,1fr) 120px minmax(0,1fr)!important}.war2-match-commanders .war2-avatar{width:52px!important;height:52px!important;flex-basis:52px!important}
+#s-challenger .war2-match-card>footer{height:auto!important;grid-template-columns:1fr!important;grid-template-rows:auto auto 1fr!important;align-content:center!important;padding:14px 18px!important;border:0!important;border-left:1px solid #ffffff13!important;text-align:right!important}
+
+/* Archive: chronological campaign ledger, not dossier cards. */
+#s-challenger .war2-archive-list{display:flex!important;flex-direction:column!important;gap:0!important;padding:18px 28px!important;overflow:auto!important;background:repeating-linear-gradient(0deg,transparent 0 47px,#ffffff05 48px)!important}
+#s-challenger .war2-archive-list>button{position:relative!important;width:100%!important;min-height:116px!important;display:grid!important;grid-template-columns:150px 1fr 150px minmax(230px,1.2fr) 38px!important;grid-template-rows:1fr!important;align-items:center!important;margin:0!important;padding:0 20px!important;border:0!important;border-bottom:1px solid #b7934355!important;border-left:5px solid transparent!important;border-top:0!important;background:linear-gradient(90deg,#c39a3d0d,transparent)!important;clip-path:none!important}
+#s-challenger .war2-archive-list>button:hover{border-left-color:#c7a142!important;background:linear-gradient(90deg,#c39a3d25,transparent)!important}.war2-archive-list>button:before{content:""!important}
+#s-challenger .war2-archive-list>button span,.war2-archive-list>button b,.war2-archive-list>button strong,.war2-archive-list>button em,.war2-archive-list>button i{position:static!important;grid-column:auto!important;grid-row:auto!important;align-self:center!important}
+#s-challenger .war2-archive-list>button b{font-size:22px!important}.war2-archive-list>button strong{font-size:28px!important}.war2-archive-list>button em{padding:0!important;border:0!important}
+
+@media(max-height:850px){#s-challenger .war2-objective{transform:translate(-50%,-50%) scale(.88)!important}.war2-stacked-duel .war2-avatar{width:70px!important;height:70px!important;flex-basis:70px!important}}
+
+/* WARFRONT V10 — operational board redesign, deliberately unlike the prior modal cards. */
+#s-challenger .war2-commander-copy{grid-template-columns:minmax(180px,.8fr) minmax(230px,1.2fr)!important;gap:28px!important}
+#s-challenger .war2-brief-teams .team-b .war2-commander-copy{grid-template-columns:minmax(230px,1.2fr) minmax(180px,.8fr)!important;gap:20px!important}
+#s-challenger .war2-commander-identity{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:6px;min-width:0}
+#s-challenger .war2-brief-teams .team-b .war2-commander-identity{grid-column:2;align-items:flex-end;text-align:right}
+#s-challenger .war2-commander-identity>b{max-width:100%;color:#fff4da;font:900 clamp(22px,1.55vw,29px)/.95 Cinzel,serif;letter-spacing:.025em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 2px 8px #000}
+#s-challenger .war2-commander-identity>em{color:#d0c7ad;font:800 11px/1 Cinzel,serif;font-style:normal;letter-spacing:.1em}
+#s-challenger .war2-commander-meta{display:flex!important;flex-direction:column;align-items:flex-start!important;justify-content:center;gap:7px!important}
+#s-challenger .war2-brief-teams .team-b .war2-commander-meta{grid-column:1!important;align-items:flex-end!important;text-align:right!important}
+#s-challenger .war2-commander-meta span{color:#dba3a7!important;font-size:13px!important;line-height:1!important;letter-spacing:.095em!important;overflow:visible!important}
+#s-challenger .war2-brief-teams .team-b .war2-commander-meta span{color:#8cc7f3!important}
+#s-challenger .war2-commander-meta i{font-size:11px!important;color:#e8c557!important}
+
+#s-challenger .page-map .war2-score{display:flex!important;align-items:center!important;justify-content:flex-end!important;gap:20px!important;padding:0 22px!important}
+#s-challenger .page-map .war2-score.team-b{justify-content:flex-start!important}
+#s-challenger .page-map .war2-score span{align-self:auto!important;font-size:clamp(20px,1.45vw,27px)!important;line-height:1!important;transform:translateY(2px)}
+#s-challenger .page-map .war2-score b{grid-column:auto!important;grid-row:auto!important;font-size:47px!important}
+
+/* Shared vertical command spine. */
+#s-challenger :is(.war2-matches,.war2-live-record,.war2-archive,.war2-achievements){display:grid!important;grid-template-columns:224px minmax(0,1fr)!important;grid-template-rows:auto minmax(0,1fr)!important;overflow:hidden!important;background:#071117!important}
+#s-challenger :is(.war2-matches,.war2-live-record,.war2-archive,.war2-achievements)>header{grid-column:1!important;grid-row:1/3!important;width:auto!important;height:auto!important;min-height:0!important;display:flex!important;flex-direction:column!important;align-items:flex-start!important;justify-content:flex-end!important;padding:34px 26px!important;border:0!important;border-right:1px solid #c59d3d!important;background:linear-gradient(180deg,#26383d 0,#101c22 58%,#1c2422 100%)!important;overflow:hidden}
+#s-challenger :is(.war2-matches,.war2-live-record,.war2-archive,.war2-achievements)>header:before{content:"WARFRONT";position:absolute;left:-13px;top:38px;writing-mode:vertical-rl;color:#ffffff0a;font:900 74px/.8 Cinzel,serif;letter-spacing:.02em}
+#s-challenger :is(.war2-matches,.war2-live-record,.war2-archive,.war2-achievements)>header>div{flex:none!important;position:relative;z-index:1}
+#s-challenger :is(.war2-matches,.war2-live-record,.war2-archive,.war2-achievements)>header span{font-size:10px!important;line-height:1.45!important}
+#s-challenger :is(.war2-matches,.war2-live-record,.war2-archive,.war2-achievements)>header h2{margin-top:12px!important;font-size:30px!important;line-height:.95!important}
+#s-challenger :is(.war2-matches,.war2-live-record,.war2-archive,.war2-achievements)>header>button{position:absolute!important;left:24px!important;top:24px!important;right:auto!important;width:44px!important;height:44px!important;border-radius:0!important;transform:none!important;background:#0b171d!important;border:1px solid #d3aa43!important}
+
+/* Recent Battles becomes a dispatch wall, one wide report per row. */
+#s-challenger .war2-match-list{grid-column:2!important;grid-row:1/3!important;display:grid!important;grid-template-columns:1fr!important;grid-auto-rows:154px!important;align-content:start!important;gap:12px!important;padding:22px!important;overflow-y:auto!important;background:linear-gradient(90deg,#c69d3510,transparent 32%),repeating-linear-gradient(0deg,transparent 0 47px,#ffffff06 48px)!important}
+#s-challenger .war2-match-card{min-height:154px!important;grid-template-columns:168px minmax(0,1fr) 190px!important;grid-template-rows:1fr!important;border:1px solid #a98b4666!important;border-left:8px solid #d0a640!important;clip-path:polygon(0 0,calc(100% - 22px) 0,100% 22px,100% 100%,0 100%)!important}
+#s-challenger .war2-match-kicker{display:flex!important;align-items:flex-end;padding:18px!important;border:0!important;border-right:1px solid #ffffff12!important;background:#c9a13d14!important;font-size:11px!important;line-height:1.45!important}
+#s-challenger .war2-match-commanders{padding:12px 20px!important;grid-template-columns:minmax(0,1fr) 150px minmax(0,1fr)!important}
+#s-challenger .war2-match-card>footer{height:100%;grid-template-columns:1fr!important;grid-template-rows:auto auto 1fr!important;align-content:center!important;padding:18px!important;border:0!important;border-left:1px solid #ffffff12!important;text-align:right}
+#s-challenger .war2-match-card>footer i{align-self:end;color:#e6c05a!important;font-size:11px}
+
+/* Live Record becomes an operations ledger with the summary down its left edge. */
+#s-challenger .war2-live-record>.war2-record-ledger{grid-column:2!important;grid-row:1!important;display:grid!important;grid-template-columns:repeat(4,1fr)!important;gap:0!important;padding:0!important;height:116px;border:0!important;border-bottom:1px solid #b89442!important}
+#s-challenger .war2-record-ledger>div{display:flex;align-items:baseline;justify-content:center;gap:10px;padding:0 16px!important;border:0!important;border-right:1px solid #ffffff12!important;background:linear-gradient(180deg,#23363d,#0b171d)!important}
+#s-challenger .war2-record-ledger b{font-size:36px!important}.war2-record-ledger span{font-size:9px!important}
+#s-challenger .war2-live-record>.war2-player-report{grid-column:2!important;grid-row:2!important;grid-template-columns:1fr 1fr!important;gap:0!important;padding:0!important;background:repeating-linear-gradient(0deg,#ffffff03 0 1px,transparent 1px 48px)!important}
+#s-challenger .war2-player-report article{min-height:0!important;height:auto!important;border:0!important;border-bottom:1px solid #ffffff12!important;border-left:5px solid #df5e68!important;padding:12px 18px!important;background:linear-gradient(90deg,#8d283022,transparent)!important}
+#s-challenger .war2-player-report article.team-b{border-left-color:#48a9f1!important;background:linear-gradient(90deg,#286a9c28,transparent)!important}
+
+/* Honors uses three vertical ribbons beside the command spine. */
+#s-challenger .war2-achievements>.war2-achievement-intro{grid-column:2!important;grid-row:1!important;height:64px!important;padding:0 24px!important;background:#101f26!important;border-bottom:1px solid #b28e3e!important}
+#s-challenger .war2-achievements>.war2-achievement-list{grid-column:2!important;grid-row:2!important;grid-template-columns:repeat(3,1fr)!important;grid-template-rows:1fr!important;padding:0!important;gap:0!important;overflow:hidden!important}
+#s-challenger .war2-achievement-list article{border:0!important;border-right:1px solid #8f773f!important;border-top:0!important;padding:18px!important;background:linear-gradient(180deg,#c7a04318,#0a161d 38%)!important;clip-path:none!important}
+#s-challenger .war2-achievement-list article:nth-child(2){transform:translateY(18px);height:calc(100% - 18px)}
+#s-challenger .war2-achievement-list article>i{width:104px!important;height:104px!important;background:#09141a!important;box-shadow:0 0 0 8px #c9a23d12,0 15px 28px #0008!important}
+#s-challenger .war2-achievement-list aside{justify-content:center!important}
+#s-challenger .war2-achievement-list aside .war2-avatar{width:126px!important;height:126px!important;flex-basis:126px!important}
+
+/* Archive is a campaign-file index rather than a list of plain rows. */
+#s-challenger .war2-archive-list{grid-column:2!important;grid-row:1/3!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:16px!important;padding:24px!important;background:linear-gradient(135deg,#ae8d3410,transparent 34%)!important}
+#s-challenger .war2-archive-list>button{min-height:190px!important;display:grid!important;grid-template-columns:1fr auto!important;grid-template-rows:auto 1fr auto!important;align-items:start!important;padding:24px!important;border-left:7px solid #c59d3d!important;background:linear-gradient(145deg,#1c2c32,#09151c)!important}
+#s-challenger .war2-archive-list>button span{grid-column:1;font:800 11px Cinzel,serif;letter-spacing:.12em}
+#s-challenger .war2-archive-list>button b{grid-column:1;align-self:center;font-size:28px!important}
+#s-challenger .war2-archive-list>button strong{grid-column:2;grid-row:1/3;font-size:36px!important}
+#s-challenger .war2-archive-list>button em{grid-column:1/3;border-top:1px solid #ffffff16;padding-top:13px}
+#s-challenger .war2-archive-list>button i{position:absolute;right:20px;bottom:18px}
+
+/* Match detail and matchup dossier become asymmetric after-action boards. */
+#s-challenger .war2-match-detail{display:grid!important;grid-template-columns:210px minmax(0,1fr)!important;grid-template-rows:1fr auto auto!important;background:#071117!important}
+#s-challenger .war2-match-detail>header{grid-column:1;grid-row:1/4;height:auto!important;display:flex!important;flex-direction:column!important;justify-content:flex-end!important;align-items:flex-start!important;padding:30px 24px!important;border:0!important;border-right:1px solid #c49b3c!important;background:linear-gradient(#24363d,#101c22)!important}
+#s-challenger .war2-match-detail>header>button{position:absolute;left:22px;top:22px;border-radius:0!important}
+#s-challenger .war2-match-versus{grid-column:2;grid-row:1;grid-template-columns:1fr 200px 1fr!important;padding:34px!important;background:linear-gradient(90deg,#8f26302d,transparent 47%,#24689a2d)!important}
+#s-challenger .war2-match-versus article{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;border-top:5px solid #d75d68;background:#ffffff04;clip-path:polygon(0 0,100% 0,100% calc(100% - 18px),calc(100% - 18px) 100%,0 100%)}
+#s-challenger .war2-match-versus article:last-child{border-top-color:#48a9ee}
+#s-challenger .war2-match-versus .war2-avatar{width:142px!important;height:142px!important;flex-basis:142px!important;border-radius:2px!important;background:transparent!important}
+#s-challenger .war2-match-meta{grid-column:2;grid-row:2;padding:16px;border-top:1px solid #ffffff16;background:#0d1a20}
+#s-challenger .war2-replay-launch{grid-column:2;grid-row:3;margin:0!important;height:58px;border:0!important}
+
+#s-challenger .war2-zone-history{display:grid!important;grid-template-columns:206px minmax(0,1fr)!important;grid-template-rows:148px 78px minmax(0,1fr)!important;background:#071117!important}
+#s-challenger .war2-zone-history>header{grid-column:1;grid-row:1/4;height:auto!important;display:flex!important;flex-direction:column!important;justify-content:flex-end!important;align-items:flex-start!important;padding:28px 22px!important;border:0!important;border-right:1px solid #c49c3e!important;background:linear-gradient(#26383e,#101c22)!important}
+#s-challenger .war2-zone-history>header .back{position:absolute!important;left:20px;top:20px}.war2-zone-history>header>button:last-child{position:absolute!important;right:auto!important;left:76px!important;top:20px!important}
+#s-challenger .war2-zone-history-score{grid-column:2;grid-row:1;min-height:0!important}
+#s-challenger .war2-zone-history-facts{grid-column:2;grid-row:2;padding:8px!important}
+#s-challenger .war2-zone-history-list{grid-column:2;grid-row:3;grid-template-columns:1fr!important;padding:10px!important}
+#s-challenger .war2-zone-history-list .war2-match-card{min-height:136px!important;height:136px!important}
+
+/* Warfront deck selection clearly advertises the dedicated front. */
+body .warfront-deck-picker .deck-slate-head{border-left:6px solid #c69e3d;background:linear-gradient(90deg,#c69e3d18,transparent)!important}
+body .warfront-deck-picker .deck-slate-head>div>span{color:#e5bf59!important;font-size:13px!important;letter-spacing:.14em!important}
+body .warfront-deck-picker .deck-slate-row{border-left:4px solid #c69e3d!important}
+
+@media(max-height:850px){
+  #s-challenger .war2-commander-copy{gap:18px!important}
+  #s-challenger .war2-commander-meta span{font-size:10px!important}
+  #s-challenger .war2-commander-identity>b{font-size:20px!important}
+  #s-challenger :is(.war2-matches,.war2-live-record,.war2-archive,.war2-achievements){grid-template-columns:190px minmax(0,1fr)!important}
+  #s-challenger .war2-achievement-list aside .war2-avatar{width:96px!important;height:96px!important;flex-basis:96px!important}
+}
+
+/* Briefing correction: portraits anchor each edge; rank belongs to the name, not its own column. */
+#s-challenger .war2-brief-roster article{
+  grid-template-columns:34px 82px minmax(0,1fr)!important;
+  gap:13px!important;
+  padding:5px 14px 5px 8px!important;
+}
+#s-challenger .war2-brief-teams .team-b .war2-brief-roster article{
+  grid-template-columns:minmax(0,1fr) 82px 34px!important;
+  padding:5px 8px 5px 14px!important;
+}
+#s-challenger .war2-brief-roster .war2-avatar{
+  width:76px!important;
+  height:76px!important;
+  flex-basis:76px!important;
+}
+#s-challenger .war2-commander-copy{
+  width:100%;
+  align-items:flex-start!important;
+  text-align:left!important;
+}
+#s-challenger .war2-brief-teams .team-b .war2-commander-copy{
+  align-items:flex-end!important;
+  text-align:right!important;
+}
+#s-challenger .war2-commander-heading{
+  width:100%;
+  justify-content:flex-start;
+  gap:8px;
+}
+#s-challenger .war2-brief-teams .team-b .war2-commander-heading{
+  flex-direction:row-reverse;
+  justify-content:flex-start;
+}
+#s-challenger .war2-commander-heading>b{
+  flex:0 1 auto;
+  color:#fff4da;
+  font-size:17px;
+  letter-spacing:.015em;
+}
+#s-challenger .war2-commander-rank{
+  flex:0 0 auto;
+  width:auto;
+}
+#s-challenger .war2-commander-rank .rank-badge{
+  width:auto!important;
+  max-width:112px!important;
+  min-width:0!important;
+  min-height:30px!important;
+  padding:2px 7px 2px 4px!important;
+  gap:5px!important;
+}
+#s-challenger .war2-commander-rank .rank-badge-icon{
+  width:27px!important;
+  height:27px!important;
+  min-width:27px!important;
+}
+#s-challenger .war2-commander-rank .rank-badge-label{font-size:9px!important}
+#s-challenger .war2-commander-copy>span{font-size:9px;line-height:1.1}
+#s-challenger .war2-commander-copy>em{font-size:11px;line-height:1.1}
+
+@media(max-height:850px){
+  #s-challenger .war2-brief-roster article{grid-template-columns:30px 72px minmax(0,1fr)!important}
+  #s-challenger .war2-brief-teams .team-b .war2-brief-roster article{grid-template-columns:minmax(0,1fr) 72px 30px!important}
+  #s-challenger .war2-brief-roster .war2-avatar{width:66px!important;height:66px!important;flex-basis:66px!important}
+}
+
+/* WARFRONT V8 — command cards, tall honors, zone dossiers, and final roster alignment. */
+#s-challenger .war2-commander-copy>b{display:block;max-width:100%;color:#fff4da;font:900 18px/1 Cinzel,serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#s-challenger .war2-commander-post{width:100%;min-width:0;display:flex;align-items:center;gap:10px}
+#s-challenger .war2-commander-post>span:not(.war2-commander-rank){min-width:0;color:#c79094;font:800 10px/1.1 Cinzel,serif;letter-spacing:.09em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#s-challenger .war2-brief-teams .team-b .war2-commander-post{justify-content:flex-end}
+#s-challenger .war2-brief-teams .team-b .war2-commander-post>span:not(.war2-commander-rank){color:#86afd0}
+#s-challenger .war2-commander-post .war2-commander-rank{flex:0 0 auto}
+#s-challenger .war2-commander-post .rank-badge{max-width:150px!important;min-height:38px!important;padding:4px 10px 4px 6px!important}
+#s-challenger .war2-commander-post .rank-badge-icon{width:32px!important;height:32px!important;min-width:32px!important}
+#s-challenger .war2-commander-post .rank-badge-label{font-size:10px!important}
+
+/* Honors are three tall command banners with large, distinct insignia and leader portraits. */
+#s-challenger .war2-achievement-list{grid-template-columns:repeat(3,minmax(0,1fr))!important;grid-template-rows:1fr!important;grid-auto-rows:auto!important;gap:12px!important;padding:14px!important;overflow-x:hidden!important}
+#s-challenger .war2-achievement-list article{min-height:0!important;height:100%;display:grid!important;grid-template-columns:1fr!important;grid-template-rows:28px 132px auto 1fr!important;align-items:start!important;justify-items:center;gap:8px!important;padding:16px 18px!important;text-align:center!important;border-left:1px solid rgba(218,187,108,.25)!important;border-top:4px solid #d3aa43!important;background:linear-gradient(180deg,rgba(205,164,66,.13),rgba(8,18,24,.76) 46%)!important}
+#s-challenger .war2-award-number{justify-self:start}
+#s-challenger .war2-achievement-list article>i{width:118px!important;height:118px!important;border-radius:50%!important;clip-path:none!important}
+#s-challenger .war2-achievement-list svg{width:72px!important;height:78px!important;stroke-width:3.5!important}
+#s-challenger .war2-achievement-list article>div{width:100%}
+#s-challenger .war2-achievement-list h3{margin:9px 0 6px;font-size:22px!important}
+#s-challenger .war2-achievement-list p{font-size:15px!important;line-height:1.25}
+#s-challenger .war2-achievement-list aside{align-self:end;width:100%!important;min-height:150px!important;display:grid!important;grid-template-columns:104px minmax(0,1fr)!important;grid-template-rows:auto auto auto!important;align-content:center!important;gap:5px 13px!important;padding:14px 0 0!important;border-left:0!important;border-top:1px solid rgba(255,255,255,.12)!important;text-align:left!important}
+#s-challenger .war2-achievement-list aside .war2-avatar{grid-row:1/4!important;width:96px!important;height:96px!important;flex-basis:96px!important;margin:0!important;border-radius:4px!important}
+#s-challenger .war2-achievement-list aside strong{font-size:17px!important}.war2-achievement-list aside em{font-size:15px!important}.war2-achievement-list aside small{font-size:8px!important}
+
+/* Recent battle cards use dedicated cells so portraits can never cover names. */
+#s-challenger .war2-match-list{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:12px!important;padding:16px!important}
+#s-challenger .war2-match-card{width:100%;min-width:0;min-height:196px!important;display:grid;grid-template-rows:auto 1fr auto;padding:0!important;overflow:hidden;text-align:left;border:1px solid rgba(219,181,83,.28)!important;border-left:4px solid #caa442!important;background:linear-gradient(145deg,rgba(26,42,50,.96),rgba(7,15,21,.98))!important;color:#eee3c9}
+#s-challenger .war2-match-kicker{padding:12px 15px 9px!important;border-bottom:1px solid rgba(255,255,255,.08);font:800 9px/1 Cinzel,serif!important;letter-spacing:.13em!important;color:#b8aa82!important}
+#s-challenger .war2-match-commanders{display:grid!important;grid-template-columns:minmax(0,1fr) 128px minmax(0,1fr)!important;align-items:center;gap:9px!important;margin:0!important;padding:13px 15px!important}
+#s-challenger .war2-match-commanders article{min-width:0;display:grid;grid-template-columns:58px minmax(0,1fr);grid-template-rows:auto auto;align-items:center;gap:4px 9px}
+#s-challenger .war2-match-commanders article.team-b{grid-template-columns:minmax(0,1fr) 58px;text-align:right}
+#s-challenger .war2-match-commanders article.team-b .war2-avatar{grid-column:2;grid-row:1/3}.war2-match-commanders article.team-b b,.war2-match-commanders article.team-b em{grid-column:1}
+#s-challenger .war2-match-commanders .war2-avatar{grid-row:1/3;width:56px;height:56px;flex-basis:56px}
+#s-challenger .war2-match-commanders article b{min-width:0;font:900 13px/1.1 Cinzel,serif;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.war2-match-commanders article em{font:800 8px/1 Cinzel,serif;color:#7e8f94;letter-spacing:.11em}.war2-match-commanders article:has(em:first-of-type){color:inherit}
+#s-challenger .war2-match-commanders>strong{display:flex;flex-direction:column;align-items:center;text-align:center;color:#f0c75f;font:900 12px/1.1 Cinzel,serif}.war2-match-commanders>strong i{font-size:25px;font-style:normal}.war2-match-commanders>strong small{margin-top:4px;font-size:8px;letter-spacing:.13em}
+#s-challenger .war2-match-card>footer{display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;padding:10px 15px;border-top:1px solid rgba(255,255,255,.08);color:#84959a;font:700 9px/1.2 Cinzel,serif}.war2-match-card>footer b{color:#d3ae51}.war2-match-card>footer i{font-style:normal;color:#e9dfc5}
+
+/* Live record gives portraits and text independent, readable columns. */
+#s-challenger .war2-player-report{gap:10px!important}
+#s-challenger .war2-player-report article{min-height:92px!important;grid-template-columns:70px minmax(0,1fr) auto!important;grid-template-rows:auto auto!important;gap:5px 13px!important;padding:10px 14px!important;box-sizing:border-box}
+#s-challenger .war2-player-report .war2-avatar{width:66px!important;height:66px!important;flex-basis:66px!important}.war2-player-report b{font-size:15px!important}.war2-player-report span,.war2-player-report em{font-size:11px!important;line-height:1.25}.war2-player-report strong{font-size:15px!important}
+
+/* Zone nodes gain a brighter command-instrument treatment without changing their positions. */
+#s-challenger .war2-objective-ring{background:radial-gradient(circle at 50% 36%,rgba(236,205,126,.22),transparent 26%),repeating-conic-gradient(from 22.5deg,rgba(229,190,96,.17) 0 1deg,transparent 1deg 45deg),radial-gradient(circle,#304650 0 46%,#071118 47% 60%,#cfaa55 61% 64%,#071118 65%)!important;box-shadow:0 0 0 5px rgba(7,15,20,.9),0 0 0 7px rgba(229,188,88,.38),0 18px 34px rgba(0,0,0,.72)!important}
+#s-challenger .war2-objective-name{border-width:2px!important;background:linear-gradient(90deg,#071118f5,#243941f5 50%,#071118f5)!important;text-shadow:0 2px 5px #000}
+#s-challenger .war2-zone-players>span{box-shadow:0 0 0 3px #071118,0 10px 24px #000c!important}
+
+/* Zone battle dossier. */
+#s-challenger .war2-details-button{margin-right:auto}
+#s-challenger .war2-zone-history{background:linear-gradient(145deg,#14242c,#071017 72%)}
+#s-challenger .war2-zone-history-score{display:grid;grid-template-columns:1fr 190px 1fr;align-items:stretch;min-height:132px;border-bottom:1px solid rgba(224,188,93,.24)}
+#s-challenger .war2-zone-history-score>article{display:grid;grid-template-columns:58px minmax(0,1fr) auto;align-items:center;gap:13px;padding:18px 24px;background:linear-gradient(90deg,rgba(163,43,53,.2),transparent)}.war2-zone-history-score>article.team-b{grid-template-columns:auto minmax(0,1fr) 58px;text-align:right;background:linear-gradient(270deg,rgba(44,111,172,.22),transparent)}
+#s-challenger .war2-zone-history-score .war2-avatar{width:56px;height:56px;flex-basis:56px}.war2-zone-history-score article span,.war2-zone-history-score article b,.war2-zone-history-score article em{display:block}.war2-zone-history-score article span{font:800 9px/1 Cinzel,serif;color:#a7b2b1;letter-spacing:.12em}.war2-zone-history-score article b{margin-top:6px;font:900 18px/1 Cinzel,serif}.war2-zone-history-score article em{margin-top:6px;color:#d1b45f;font:700 12px/1 Crimson Pro,serif}.war2-zone-history-score article>strong{font:900 40px/1 Cinzel,serif;color:#ff6e78}.war2-zone-history-score article.team-b>strong{color:#6cb5fb}
+#s-challenger .war2-zone-history-score>div{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;border-inline:1px solid rgba(255,255,255,.09);background:#071117}.war2-zone-history-score>div>b{font:900 24px/1 Cinzel,serif;color:#f0d384}.war2-zone-history-score>div>span{margin:7px 0 9px;font:800 8px/1 Cinzel,serif;color:#84969b;letter-spacing:.14em}.war2-zone-history-score>div .war2-zone-stars{position:static;transform:none}.war2-zone-history-score>div .war2-zone-stars i{font-size:18px}
+#s-challenger .war2-zone-history-facts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:12px 16px}.war2-zone-history-facts span{padding:10px 12px;border:1px solid rgba(225,187,92,.16);color:#84969b;font:700 9px/1.2 Cinzel,serif;text-align:center}.war2-zone-history-facts b{display:block;margin-bottom:5px;color:#f0dfb6;font-size:14px}
+#s-challenger .war2-zone-history-list{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;align-content:start;gap:10px;padding:0 16px 16px;overflow-y:auto}.war2-zone-history-list .war2-match-card{min-height:174px!important}
+
+@media(max-width:1050px){#s-challenger .war2-achievement-list{grid-template-columns:1fr!important;overflow-y:auto!important}.war2-achievement-list article{grid-template-columns:90px 1fr 230px!important;grid-template-rows:auto!important}.war2-achievement-list article>i{width:82px!important;height:82px!important}.war2-match-list,.war2-zone-history-list{grid-template-columns:1fr!important}}
+
+/* WARFRONT V9 — unified field-command presentation. */
+#s-challenger .war2-commander-rank{display:none!important}
+#s-challenger .war2-brief-roster article{grid-template-columns:34px 84px minmax(0,1fr)!important;gap:14px!important;background:linear-gradient(90deg,rgba(111,25,33,.28),rgba(8,15,19,.5) 72%,transparent)!important}
+#s-challenger .war2-brief-teams .team-b .war2-brief-roster article{grid-template-columns:minmax(0,1fr) 84px 34px!important;background:linear-gradient(270deg,rgba(18,82,132,.3),rgba(8,15,19,.5) 72%,transparent)!important}
+#s-challenger .war2-brief-roster .war2-avatar{width:80px!important;height:80px!important;flex-basis:80px!important;border-radius:2px!important;background:transparent!important;box-shadow:0 0 0 1px currentColor,0 9px 20px #0007!important}
+#s-challenger .war2-commander-copy{grid-column:3!important;display:grid!important;grid-template-columns:minmax(150px,.7fr) minmax(220px,1.3fr)!important;align-items:center!important;gap:18px!important}
+#s-challenger .war2-brief-teams .team-b .war2-commander-copy{grid-column:1!important;grid-template-columns:minmax(220px,1.3fr) minmax(150px,.7fr)!important}
+#s-challenger .war2-commander-copy>b{font-size:clamp(22px,1.55vw,29px)!important;line-height:.95!important;letter-spacing:.025em!important;text-shadow:0 2px 8px #000;overflow:visible!important}
+#s-challenger .war2-brief-teams .team-b .war2-commander-copy>b{grid-column:2;grid-row:1}
+#s-challenger .war2-commander-meta{display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center;min-width:0;text-transform:uppercase}
+#s-challenger .war2-brief-teams .team-b .war2-commander-meta{grid-column:1;grid-row:1;text-align:right}
+#s-challenger .war2-commander-meta span{grid-column:1/3;color:#d69ca0;font:800 10px/1.1 Cinzel,serif;letter-spacing:.11em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#s-challenger .war2-brief-teams .team-b .war2-commander-meta span{color:#83bee9}
+#s-challenger .war2-commander-meta i{color:#e2c170;font:800 9px/1 Cinzel,serif;font-style:normal;letter-spacing:.12em}
+#s-challenger .war2-commander-meta em{color:#aeb9b7;font:700 10px/1.1 "Crimson Pro",serif;font-style:normal;letter-spacing:.04em}
+
+#s-challenger .page-map .war2-team-score{grid-template-rows:1fr!important;align-items:center!important;padding:0 22px!important}
+#s-challenger .page-map .war2-team-score span{font-size:clamp(17px,1.3vw,24px)!important;line-height:1!important;letter-spacing:.035em!important}
+#s-challenger .page-map .war2-team-score em{display:none!important}
+#s-challenger .page-map .war2-team-score.team-b{border-color:#4299dd!important;box-shadow:inset -3px 0 #4299dd44}
+
+/* Honors: insignia, doctrine, then a large field leader portrait and result. */
+#s-challenger .war2-achievement-list article{grid-template-rows:24px 118px auto minmax(180px,1fr)!important;gap:6px!important}
+#s-challenger .war2-achievement-list article>i{width:108px!important;height:108px!important}
+#s-challenger .war2-achievement-list aside{align-self:stretch!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:flex-end!important;gap:7px!important;min-height:0!important;padding:8px 0 2px!important;border:0!important;text-align:center!important}
+#s-challenger .war2-achievement-list aside .war2-avatar{width:138px!important;height:138px!important;flex-basis:138px!important;margin:0 0 5px!important;border-radius:3px!important;background:transparent!important;box-shadow:0 0 0 1px #d1ad58,0 12px 25px #0009!important}
+#s-challenger .war2-achievement-list aside strong{font:900 22px/1 Cinzel,serif!important;color:#f5e9ca!important}
+#s-challenger .war2-achievement-list aside em{font:900 22px/1 Cinzel,serif!important;color:#e7bd4d!important}
+#s-challenger .war2-achievement-list aside small{display:none!important}
+
+/* Zone briefing: one fixed viewport, styled like an operational order. */
+#s-challenger .war2-zone-panel{height:min(720px,calc(100vh - 44px))!important;overflow:hidden!important;background:linear-gradient(145deg,#172832 0,#08131a 58%,#050d12 100%)!important;border:1px solid #9d833f!important;box-shadow:0 30px 90px #000d,inset 0 0 70px #02080b!important}
+#s-challenger .war2-zone-panel>header{height:76px!important;min-height:76px!important;background:repeating-linear-gradient(135deg,rgba(255,255,255,.025) 0 2px,transparent 2px 12px),#17252c!important;border-bottom:2px solid #b9943e!important}
+#s-challenger .war2-zone-panel>header h2{font-size:30px!important;letter-spacing:.035em}
+#s-challenger .war2-landscape{height:128px!important;min-height:128px!important;background:#0a151b!important;border-bottom:1px solid #7c6837!important}
+#s-challenger .war2-landscape img{width:34%!important;object-fit:cover!important;filter:saturate(.78) contrast(1.08)}
+#s-challenger .war2-landscape>div{position:relative;padding-left:30px!important}
+#s-challenger .war2-landscape>div:before{content:"THEATER INTELLIGENCE";position:absolute;right:28px;top:0;color:#ffffff17;font:900 25px/1 Cinzel,serif;letter-spacing:.12em}
+#s-challenger .war2-duel{flex:1!important;min-height:0!important;gap:56px!important;padding:20px 30px!important;background:linear-gradient(90deg,rgba(142,35,45,.16),transparent 43%,transparent 57%,rgba(33,104,161,.18)),repeating-linear-gradient(0deg,transparent 0 35px,#ffffff06 36px)!important}
+#s-challenger .war2-duel>article{position:relative;border-radius:0!important;border:1px solid #ffffff18!important;border-top:4px solid #d25b65!important;background:linear-gradient(160deg,rgba(112,32,41,.32),rgba(8,16,22,.78) 60%)!important;clip-path:polygon(0 0,100% 0,100% calc(100% - 16px),calc(100% - 16px) 100%,0 100%)}
+#s-challenger .war2-duel>article.team-b{border-top-color:#58a9ea!important;background:linear-gradient(200deg,rgba(29,92,144,.35),rgba(8,16,22,.78) 60%)!important}
+#s-challenger .war2-duel .war2-avatar{width:112px!important;height:112px!important;flex-basis:112px!important;border-radius:4px!important;background:transparent!important}
+#s-challenger .war2-duel article b{font-size:23px!important}
+#s-challenger .war2-versus{width:86px!important;height:134px!important;align-self:center;border-block:1px solid #b89545;background:#071117;box-shadow:0 0 0 8px #071117aa}
+#s-challenger .war2-zone-panel>footer{height:70px!important;min-height:70px!important;padding:0 26px!important;background:#071117!important;border-top:1px solid #9b813e!important}
+
+/* Recent Battles and dossiers use clipped dispatch cards, with protected text cells. */
+#s-challenger .war2-matches,#s-challenger .war2-live-record,#s-challenger .war2-archive,#s-challenger .war2-record,#s-challenger .war2-zone-history,#s-challenger .war2-match-detail{background:repeating-linear-gradient(135deg,#ffffff05 0 1px,transparent 1px 14px),linear-gradient(145deg,#172832,#061018 72%)!important}
+#s-challenger .war2-match-card{clip-path:polygon(0 0,calc(100% - 18px) 0,100% 18px,100% 100%,0 100%)!important;border-left-color:#d0a640!important;box-shadow:inset 0 0 0 1px #ffffff06!important}
+#s-challenger .war2-match-kicker{background:linear-gradient(90deg,#caa13a22,transparent)!important;color:#e2c166!important}
+#s-challenger .war2-match-commanders article{overflow:hidden}
+#s-challenger .war2-match-commanders article b{font-size:15px!important}
+#s-challenger .war2-match-card>footer{min-width:0!important}
+#s-challenger .war2-match-card>footer>*{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Live record: personnel ledger with explicit, wrapping statistics. */
+#s-challenger .war2-record-ledger{background:#071117!important;border-block:1px solid #a38946!important}
+#s-challenger .war2-record-ledger>div{position:relative;border-radius:0!important;background:linear-gradient(180deg,#24363d,#101e24)!important}
+#s-challenger .war2-player-report article{position:relative;min-height:94px!important;border-top:1px solid #ffffff12!important;background:linear-gradient(90deg,rgba(134,34,43,.18),rgba(8,17,23,.72))!important;overflow:hidden}
+#s-challenger .war2-player-report article.team-b{border-left-color:#4da8ed!important;background:linear-gradient(90deg,rgba(31,102,158,.2),rgba(8,17,23,.72))!important}
+#s-challenger .war2-player-report span,#s-challenger .war2-player-report em{white-space:normal!important;overflow:visible!important;text-overflow:clip!important;overflow-wrap:anywhere}
+#s-challenger .war2-player-report em{padding-right:8px;line-height:1.35!important}
+
+/* Archive entries read as stamped campaign files. */
+#s-challenger .war2-archive-list{display:grid;align-content:start;gap:10px;padding:18px 24px!important}
+#s-challenger .war2-archive-list>button{position:relative;min-height:104px!important;margin:0!important;grid-template-columns:126px 1fr 120px minmax(190px,1.25fr) 34px!important;padding:12px 18px!important;border:1px solid #b08f3d55!important;border-left:6px solid #c8a141!important;background:linear-gradient(90deg,#bd973518,transparent 38%),#0d1a20!important;clip-path:polygon(0 0,calc(100% - 16px) 0,100% 16px,100% 100%,0 100%)}
+#s-challenger .war2-archive-list>button:before{content:"AFTER-ACTION FILE";position:absolute;right:48px;top:12px;color:#ffffff12;font:900 18px/1 Cinzel,serif;letter-spacing:.14em}
+#s-challenger .war2-archive-list>button b{font-size:21px!important;color:#f5e7c3}
+
+/* The zone dossier is a fixed operational ledger; battle cards scroll only here when needed. */
+#s-challenger .war2-zone-history-score{background:linear-gradient(90deg,#7e252c22,transparent 45%,#27689522)!important;border-top:1px solid #9b813e}
+#s-challenger .war2-zone-history-score>article.team-b{border-left:3px solid #439de1!important}
+#s-challenger .war2-zone-history-facts span{background:#0a171d!important;border-top:3px solid #9f8441!important}
+#s-challenger .war2-zone-history-list{background:linear-gradient(#02060938,#02060970)!important}
+
+@media(max-height:850px){
+  #s-challenger .war2-brief-roster .war2-avatar{width:68px!important;height:68px!important;flex-basis:68px!important}
+  #s-challenger .war2-brief-roster article{grid-template-columns:30px 72px minmax(0,1fr)!important}
+  #s-challenger .war2-brief-teams .team-b .war2-brief-roster article{grid-template-columns:minmax(0,1fr) 72px 30px!important}
+  #s-challenger .war2-commander-copy>b{font-size:20px!important}
+  #s-challenger .war2-commander-meta span{font-size:8px}
+  #s-challenger .war2-commander-meta i,#s-challenger .war2-commander-meta em{font-size:8px}
+  #s-challenger .war2-achievement-list aside .war2-avatar{width:108px!important;height:108px!important;flex-basis:108px!important}
+}
+
+/* V10 cascade anchor — keep the operational-board composition authoritative. */
+#s-challenger .war2-commander-copy{grid-template-columns:minmax(180px,.8fr) minmax(230px,1.2fr)!important;gap:28px!important}
+#s-challenger .war2-brief-teams .team-b .war2-commander-copy{grid-template-columns:minmax(230px,1.2fr) minmax(180px,.8fr)!important;gap:20px!important}
+#s-challenger .war2-commander-identity{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:6px;min-width:0}
+#s-challenger .war2-brief-teams .team-b .war2-commander-identity{grid-column:2;align-items:flex-end;text-align:right}
+#s-challenger .war2-commander-identity>b{max-width:100%;color:#fff4da;font:900 clamp(22px,1.55vw,29px)/.95 Cinzel,serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#s-challenger .war2-commander-identity>em{color:#d0c7ad;font:800 11px/1 Cinzel,serif;font-style:normal;letter-spacing:.1em}
+#s-challenger .war2-commander-meta{display:flex!important;flex-direction:column;align-items:flex-start!important;justify-content:center;gap:7px!important}
+#s-challenger .war2-brief-teams .team-b .war2-commander-meta{grid-column:1!important;align-items:flex-end!important;text-align:right!important}
+#s-challenger .war2-commander-meta span{font-size:13px!important;line-height:1!important}.war2-commander-meta i{font-size:11px!important}
+#s-challenger .page-map .war2-score{display:flex!important;align-items:center!important;justify-content:flex-end!important;gap:20px!important}.page-map .war2-score.team-b{justify-content:flex-start!important}
+#s-challenger .page-map .war2-score span{align-self:auto!important;font-size:clamp(20px,1.45vw,27px)!important;transform:translateY(2px)}
+#s-challenger .page-map .war2-score b{grid-column:auto!important;grid-row:auto!important;font-size:47px!important}
+#s-challenger :is(.war2-matches,.war2-live-record,.war2-archive,.war2-achievements){display:grid!important;grid-template-columns:224px minmax(0,1fr)!important;grid-template-rows:auto minmax(0,1fr)!important;overflow:hidden!important}
+#s-challenger :is(.war2-matches,.war2-live-record,.war2-archive,.war2-achievements)>header{grid-column:1!important;grid-row:1/3!important;width:auto!important;height:auto!important;min-height:0!important;flex-direction:column!important;align-items:flex-start!important;justify-content:flex-end!important;padding:34px 26px!important}
+#s-challenger .war2-match-list{grid-column:2!important;grid-row:1/3!important;grid-template-columns:1fr!important;grid-auto-rows:154px!important;padding:22px!important}
+#s-challenger .war2-match-card{min-height:154px!important;grid-template-columns:168px minmax(0,1fr) 190px!important;grid-template-rows:1fr!important}
+#s-challenger .war2-match-card>footer{height:100%;grid-template-columns:1fr!important;grid-template-rows:auto auto 1fr!important;border-top:0!important;border-left:1px solid #ffffff12!important}
+#s-challenger .war2-achievements>.war2-achievement-list{grid-column:2!important;grid-row:2!important;grid-template-columns:repeat(3,1fr)!important;grid-template-rows:1fr!important;padding:0!important;gap:0!important;overflow:hidden!important}
+#s-challenger .war2-achievement-list article{grid-template-columns:1fr!important;grid-template-rows:24px 118px auto minmax(180px,1fr)!important;border:0!important;border-right:1px solid #8f773f!important;clip-path:none!important}
+#s-challenger .war2-achievement-list article:nth-child(2){transform:translateY(18px);height:calc(100% - 18px)}
+#s-challenger .war2-achievement-list aside{border:0!important;justify-content:center!important}
+#s-challenger .war2-live-record>.war2-record-ledger{grid-column:2!important;grid-row:1!important;height:116px;padding:0!important;gap:0!important}
+#s-challenger .war2-live-record>.war2-player-report{grid-column:2!important;grid-row:2!important;padding:0!important;gap:0!important}
+#s-challenger .war2-archive-list{grid-column:2!important;grid-row:1/3!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:16px!important;padding:24px!important}
+#s-challenger .war2-archive-list>button{min-height:190px!important;grid-template-columns:1fr auto!important;grid-template-rows:auto 1fr auto!important;padding:24px!important}
+#s-challenger .war2-zone-history-list{grid-template-columns:1fr!important;padding:10px!important}
+@media(max-height:850px){#s-challenger :is(.war2-matches,.war2-live-record,.war2-archive,.war2-achievements){grid-template-columns:190px minmax(0,1fr)!important}}
+
+/* WARFRONT V11 — component rebuild after field review. */
+#s-challenger .war2-commander-copy{display:flex!important;flex-direction:row!important;align-items:center!important;justify-content:flex-start!important;gap:16px!important}
+#s-challenger .war2-brief-teams .team-b .war2-commander-copy{display:flex!important;flex-direction:row-reverse!important;align-items:center!important;justify-content:flex-start!important;gap:16px!important}
+#s-challenger .war2-commander-identity{flex:0 1 245px}.war2-commander-meta{flex:0 1 220px!important}
+#s-challenger .war2-briefing>footer>strong{position:relative;left:-6px}
+
+/* New tactical node: a compact armored command placard, not the old ring-and-two-boxes. */
+#s-challenger .war2-objective{width:258px!important;height:218px!important;filter:drop-shadow(0 16px 18px #000a)!important}
+#s-challenger .war2-objective:before,#s-challenger .war2-objective:after{display:none!important}
+#s-challenger .war2-zone-command{position:absolute;inset:0;display:grid;grid-template-columns:82px 1fr 82px;grid-template-rows:28px 92px 38px 22px 30px;align-items:center;color:#eee3c3;background:linear-gradient(135deg,transparent 12px,#071218f2 12px calc(100% - 12px),transparent calc(100% - 12px));filter:drop-shadow(0 0 0 rgba(0,0,0,0))}
+#s-challenger .war2-zone-command:before{content:"";position:absolute;inset:5px 8px 8px;border:1px solid #d0aa4d88;clip-path:polygon(0 9px,9px 0,calc(100% - 9px) 0,100% 9px,100% calc(100% - 9px),calc(100% - 9px) 100%,9px 100%,0 calc(100% - 9px));pointer-events:none}
+#s-challenger .war2-zone-heading{grid-column:1/4;align-self:stretch;display:flex;align-items:center;padding:0 15px;border-bottom:1px solid #d0aa4d55;background:linear-gradient(90deg,#9c762833,transparent);color:#d8ba69;font:900 9px/1 Cinzel,serif;letter-spacing:.14em;text-align:left}
+#s-challenger .war2-zone-players{position:contents!important;display:contents!important;transform:none!important;width:auto!important}
+#s-challenger .war2-zone-players>span{position:relative!important;display:flex!important;flex-direction:column!important;align-items:center!important;gap:4px!important;padding:0!important;border:0!important;background:transparent!important;box-shadow:none!important;filter:none!important}
+#s-challenger .war2-zone-players>span.team-a{grid-column:1;grid-row:2}.war2-zone-players>span.team-b{grid-column:3;grid-row:2}
+#s-challenger .war2-zone-players>span b{position:absolute;top:-17px;width:96px;padding:3px 4px;background:#071117;border:1px solid currentColor;color:#f0e6ca;font:800 8px/1 Cinzel,serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#s-challenger .war2-zone-players .war2-avatar.compact{width:66px!important;height:66px!important;flex-basis:66px!important;border:2px solid currentColor!important;border-radius:2px!important;background:transparent!important;box-shadow:0 7px 14px #000b!important}
+#s-challenger .war2-objective-ring{position:relative!important;left:auto!important;top:auto!important;grid-column:2;grid-row:2;width:76px!important;height:76px!important;transform:none!important;display:grid!important;grid-template-columns:1fr!important;grid-template-rows:1fr auto 1fr!important;clip-path:polygon(50% 0,92% 24%,92% 76%,50% 100%,8% 76%,8% 24%)!important;background:radial-gradient(circle,#31444a,#091319 68%)!important;box-shadow:0 0 0 4px #071117,0 0 0 6px #c5a04e88!important}
+#s-challenger .war2-objective-ring:before{display:none!important}.war2-objective-ring b{font-size:20px!important;line-height:1!important}.war2-objective-ring b:first-child{color:#f16872;align-self:end}.war2-objective-ring b:last-child{color:#65b4f5;align-self:start}.war2-objective-ring i{margin:1px 0!important;color:#d8bd78!important;font-size:9px!important}
+#s-challenger .war2-objective-name{position:static!important;grid-column:1/4;grid-row:3;align-self:stretch;display:grid;place-items:center;transform:none!important;min-width:0!important;padding:0 12px!important;border:0!important;border-block:1px solid #cba64c66!important;clip-path:none!important;background:linear-gradient(90deg,transparent,#c9a23e1e,transparent)!important;font-size:13px!important;letter-spacing:.025em}
+#s-challenger .war2-zone-caption{grid-column:1/4;grid-row:4;color:#829196;font:800 8px/1 Cinzel,serif;letter-spacing:.16em}
+#s-challenger .war2-zone-stars{position:static!important;grid-column:1/4;grid-row:5;transform:none!important;justify-self:center!important;align-self:start!important;gap:7px!important}
+#s-challenger .war2-zone-stars i{font-size:22px!important}
+#s-challenger .war2-live-match-flag{grid-column:3;grid-row:1;position:absolute!important;right:11px!important;top:7px!important;transform:none!important;padding:0!important;border:0!important;background:none!important;font-size:8px!important}
+#s-challenger .war2-objective:hover .war2-objective-ring,#s-challenger .war2-objective.selected .war2-objective-ring{transform:scale(1.06)!important;filter:brightness(1.18)!important}
+
+/* Restore Commendations to the accepted pre-spine layout. */
+#s-challenger .war2-achievements{display:flex!important;flex-direction:column!important;grid-template:none!important;background:linear-gradient(145deg,#172832,#061018 72%)!important}
+#s-challenger .war2-achievements>header{position:relative!important;width:auto!important;height:84px!important;min-height:84px!important;display:flex!important;flex-direction:row!important;align-items:center!important;justify-content:flex-start!important;padding:0 82px 0 26px!important;border:0!important;border-bottom:1px solid #b28e3e66!important;background:#17262d!important}
+#s-challenger .war2-achievements>header:before{display:none!important}.war2-achievements>header>div{flex:1!important}.war2-achievements>header>button{left:auto!important;right:22px!important;top:50%!important;transform:translateY(-50%)!important;border-radius:50%!important}
+#s-challenger .war2-achievements>.war2-achievement-intro{height:48px!important;min-height:48px!important;padding:0 26px!important}
+#s-challenger .war2-achievements>.war2-achievement-list{flex:1!important;display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;grid-template-rows:1fr!important;gap:12px!important;padding:14px!important}
+#s-challenger .war2-achievement-list article{height:100%!important;transform:none!important;border:1px solid #d6af4c44!important;border-top:4px solid #d3aa43!important;background:linear-gradient(180deg,#caa23d1d,#081218 46%)!important}
+#s-challenger .war2-achievement-list article:nth-child(2){height:100%!important;transform:none!important}
+
+/* Recent Battles: two-column battle telegrams with a central result seal. */
+#s-challenger .war2-matches{display:flex!important;flex-direction:column!important;background:linear-gradient(135deg,#1c2c32,#071117 72%)!important}
+#s-challenger .war2-matches>header{position:relative!important;width:auto!important;height:92px!important;min-height:92px!important;display:flex!important;flex-direction:row!important;align-items:center!important;justify-content:flex-start!important;padding:0 82px 0 28px!important;border:0!important;border-bottom:1px solid #c49d4455!important;background:linear-gradient(90deg,#283b40,#101b21)!important}
+#s-challenger .war2-matches>header:before{content:"BATTLE TELEGRAMS"!important;position:absolute!important;left:auto!important;right:92px!important;top:27px!important;writing-mode:horizontal-tb!important;color:#ffffff0a!important;font-size:42px!important}
+#s-challenger .war2-matches>header>button{left:auto!important;right:22px!important;top:24px!important}
+#s-challenger .war2-match-list{flex:1!important;display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;grid-auto-rows:214px!important;gap:14px!important;padding:18px!important;overflow:auto!important;background:repeating-linear-gradient(0deg,transparent 0 39px,#ffffff05 40px)!important}
+#s-challenger .war2-match-card{min-height:214px!important;display:grid!important;grid-template-columns:1fr!important;grid-template-rows:40px 1fr 42px!important;border:1px solid #b7944266!important;border-top:6px solid #cba13c!important;border-left:1px solid #b7944266!important;clip-path:polygon(0 0,calc(100% - 17px) 0,100% 17px,100% 100%,0 100%)!important;background:linear-gradient(145deg,#15252c,#09151b)!important}
+#s-challenger .war2-match-kicker{display:flex!important;align-items:center!important;padding:0 15px!important;border:0!important;border-bottom:1px solid #ffffff12!important;background:#c89e3514!important}
+#s-challenger .war2-match-commanders{padding:12px 16px!important;grid-template-columns:minmax(0,1fr) 110px minmax(0,1fr)!important}
+#s-challenger .war2-match-card>footer{height:auto!important;display:grid!important;grid-template-columns:1fr auto auto!important;grid-template-rows:1fr!important;padding:0 15px!important;border:0!important;border-top:1px solid #ffffff12!important;text-align:left!important}
+
+/* War Record: full-width command ledger, red and blue personnel columns. */
+#s-challenger .war2-live-record{display:grid!important;grid-template-columns:1fr!important;grid-template-rows:88px 102px minmax(0,1fr)!important;background:#071117!important}
+#s-challenger .war2-live-record>header{position:relative!important;grid-column:1!important;grid-row:1!important;width:auto!important;height:88px!important;min-height:88px!important;display:flex!important;flex-direction:row!important;align-items:center!important;padding:0 82px 0 28px!important;border:0!important;border-bottom:1px solid #b58f3e!important;background:linear-gradient(90deg,#2a3c41,#101c22)!important}
+#s-challenger .war2-live-record>header:before{display:none!important}.war2-live-record>header>button{left:auto!important;right:22px!important;top:22px!important}
+#s-challenger .war2-live-record>.war2-record-ledger{grid-column:1!important;grid-row:2!important;height:102px!important;display:grid!important;grid-template-columns:repeat(4,1fr)!important;border-bottom:1px solid #ffffff16!important}
+#s-challenger .war2-live-record>.war2-player-report{grid-column:1!important;grid-row:3!important;display:grid!important;grid-template-columns:1fr 1fr!important;gap:8px 14px!important;padding:14px 18px 18px!important;overflow:auto!important;background:linear-gradient(90deg,#942c3218,transparent 49%,#276e9e18 51%,transparent)!important}
+#s-challenger .war2-player-report article{border:1px solid #ffffff12!important;border-left:6px solid #dc5d67!important;clip-path:polygon(0 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%)!important}.war2-player-report article.team-b{border-left-color:#4ba8ed!important}
+
+/* Archive: large physical dossier jackets. */
+#s-challenger .war2-archive{display:flex!important;flex-direction:column!important;background:#071117!important}
+#s-challenger .war2-archive>header{position:relative!important;width:auto!important;height:92px!important;min-height:92px!important;display:flex!important;flex-direction:row!important;align-items:center!important;padding:0 82px 0 28px!important;border:0!important;border-bottom:1px solid #b58f3e!important;background:linear-gradient(90deg,#293b40,#101c22)!important}
+#s-challenger .war2-archive>header:before{display:none!important}.war2-archive>header>button{left:auto!important;right:22px!important;top:24px!important}
+#s-challenger .war2-archive-list{flex:1!important;display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;grid-auto-rows:240px!important;align-content:start!important;gap:18px!important;padding:22px!important;overflow:auto!important}
+#s-challenger .war2-archive-list>button{min-height:240px!important;display:grid!important;grid-template-columns:1fr auto!important;grid-template-rows:34px 1fr auto!important;padding:24px 20px 20px!important;border:1px solid #b08d4055!important;border-top:12px solid #b58f3d!important;border-left:1px solid #b08d4055!important;background:linear-gradient(145deg,#26373b,#101c21 76%)!important;clip-path:polygon(0 0,74% 0,79% 12px,100% 12px,100% 100%,0 100%)!important}
+#s-challenger .war2-archive-list>button:before{content:"CLASSIFIED CAMPAIGN FILE"!important;right:18px!important;top:19px!important;font-size:9px!important;color:#dfbc67!important}
+#s-challenger .war2-archive-list>button b{align-self:center!important;font-size:27px!important}.war2-archive-list>button strong{align-self:center!important;font-size:34px!important}.war2-archive-list>button em{grid-column:1/3!important}
+
+@media(max-height:850px){
+  #s-challenger .war2-objective{transform:translate(-50%,-50%) scale(.88)!important}
+  #s-challenger .war2-match-list{grid-auto-rows:184px!important}
+  #s-challenger .war2-match-card{min-height:184px!important}
+}
+
+/* V12 FINAL CASCADE ANCHOR */
+/* WARFRONT V12 — restore map nodes; redesign only the screens behind them. */
+#s-challenger .war2-objective{width:232px!important;height:196px!important;filter:drop-shadow(0 18px 18px rgba(0,0,0,.55))!important}
+#s-challenger .war2-objective:before,#s-challenger .war2-objective:after{display:block!important}
+#s-challenger .war2-zone-players{position:absolute!important;z-index:4!important;left:50%!important;top:-5px!important;width:154px!important;transform:translateX(-50%)!important;display:flex!important;justify-content:space-between!important}
+#s-challenger .war2-zone-players>span{position:static!important;display:block!important;padding:2px!important;border:1px solid currentColor!important;background:#091117!important;filter:drop-shadow(0 4px 6px #000b)!important;box-shadow:0 0 0 3px #071118,0 10px 24px #000c!important}
+#s-challenger .war2-zone-players>span b{position:absolute!important;top:-23px!important;width:96px!important;padding:3px 4px!important;background:#071117!important;border:1px solid currentColor!important;color:#f0e6ca!important;font:800 8px/1 Cinzel,serif!important}
+#s-challenger .war2-zone-players>span.team-a b{left:0}.war2-zone-players>span.team-b b{right:0}
+#s-challenger .war2-zone-players .war2-avatar.compact{width:44px!important;height:44px!important;flex-basis:44px!important;border:1px solid currentColor!important;border-radius:0!important}
+#s-challenger .war2-objective-ring{position:absolute!important;left:50%!important;top:44%!important;width:82px!important;height:82px!important;transform:translate(-50%,-50%)!important;display:flex!important;flex-direction:column!important;grid-template:none!important;clip-path:polygon(50% 0,88% 18%,100% 58%,72% 100%,28% 100%,0 58%,12% 18%)!important;background:radial-gradient(circle at 48% 35%,#4c5a5e,#111a20 70%)!important;box-shadow:none!important}
+#s-challenger .war2-objective-ring:before{display:block!important}.war2-objective-ring b{font-size:23px!important}.war2-objective-ring i{margin-top:7px!important;font-size:13px!important}
+#s-challenger .war2-objective-name{position:absolute!important;left:50%!important;bottom:23px!important;transform:translateX(-50%)!important;min-width:128px!important;padding:8px 12px!important;border:1px solid rgba(229,188,88,.4)!important;border-block:1px solid rgba(229,188,88,.4)!important;clip-path:polygon(7px 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%,0 7px)!important;background:linear-gradient(90deg,#101b23ee,#1f2b2cee)!important;font-size:12px!important}
+#s-challenger .war2-zone-stars{position:absolute!important;z-index:5!important;left:50%!important;bottom:2px!important;transform:translateX(-50%)!important;display:flex!important;gap:4px!important}
+#s-challenger .war2-zone-stars i{font-size:19px!important}
+#s-challenger .war2-objective:hover .war2-objective-ring,#s-challenger .war2-objective.selected .war2-objective-ring{transform:translate(-50%,-50%) scale(1.13)!important}
+
+/* Both briefing rosters now read identically from left to right. */
+#s-challenger .war2-brief-teams .team-b .war2-brief-roster article{grid-template-columns:34px 84px minmax(0,1fr)!important;padding:5px 14px 5px 8px!important;text-align:left!important;background:linear-gradient(90deg,rgba(18,82,132,.3),rgba(8,15,19,.5) 72%,transparent)!important}
+#s-challenger .war2-brief-teams .team-b .war2-avatar{grid-column:2!important;grid-row:1!important}
+#s-challenger .war2-brief-teams .team-b .war2-commander-number{grid-column:1!important;grid-row:1!important}
+#s-challenger .war2-brief-teams .team-b .war2-commander-copy{grid-column:3!important;grid-row:1!important;display:flex!important;flex-direction:row!important;align-items:center!important;justify-content:flex-start!important;text-align:left!important}
+#s-challenger .war2-brief-teams .team-b .war2-commander-identity{grid-column:auto!important;align-items:flex-start!important;text-align:left!important}
+#s-challenger .war2-brief-teams .team-b .war2-commander-meta{grid-column:auto!important;align-items:flex-start!important;text-align:left!important}
+#s-challenger .war2-briefing>footer>strong{left:-13px!important}
+
+/* Commendations repair only: right-side close and fully closed card outlines. */
+#s-challenger .war2-achievements>header>button{position:absolute!important;left:auto!important;right:22px!important;top:50%!important;transform:translateY(-50%)!important;z-index:8!important}
+#s-challenger .war2-achievement-list article{border:2px solid #cba74588!important;border-top:4px solid #d3aa43!important;clip-path:none!important;box-sizing:border-box!important}
+
+/* Zone matchup: split intelligence photograph and stacked deployment manifest. */
+#s-challenger .war2-zone-command-screen{height:min(710px,calc(100vh - 44px))!important;display:grid!important;grid-template-rows:82px minmax(0,1fr) 72px!important;overflow:hidden!important;background:#071117!important}
+#s-challenger .war2-zone-command-screen>header{height:82px!important;min-height:82px!important;background:linear-gradient(90deg,#2b3c40,#101c22)!important;border-bottom:2px solid #c39c42!important}
+#s-challenger .war2-zone-brief-grid{min-height:0;display:grid;grid-template-columns:38% 62%;overflow:hidden}
+#s-challenger .war2-zone-theater{position:relative;min-width:0;overflow:hidden;border-right:1px solid #c19a4266;background:#0a151b}
+#s-challenger .war2-zone-theater:after{content:"THEATER\A INTELLIGENCE";white-space:pre;position:absolute;left:22px;top:20px;color:#fff2;font:900 36px/.88 Cinzel,serif;letter-spacing:.07em;text-align:left}
+#s-challenger .war2-zone-theater img{width:100%;height:100%;object-fit:cover;filter:saturate(.7) contrast(1.08) brightness(.72)}
+#s-challenger .war2-zone-theater>div{position:absolute;left:0;right:0;bottom:0;padding:74px 24px 24px;background:linear-gradient(transparent,#061016 70%);text-align:left}
+#s-challenger .war2-zone-theater span{color:#dcb852;font:900 10px/1 Cinzel,serif;letter-spacing:.14em}.war2-zone-theater h3{margin:9px 0 6px;color:#fff0ce;font:900 24px/1 Cinzel,serif}.war2-zone-theater p{margin:0;color:#bcc7c5;font-size:12px;line-height:1.4}
+#s-challenger .war2-zone-engagement{min-width:0;display:grid;grid-template-rows:112px minmax(0,1fr);background:repeating-linear-gradient(0deg,transparent 0 39px,#ffffff05 40px),linear-gradient(90deg,#8c283024,transparent 48%,#276c9c24)}
+#s-challenger .war2-series-banner{position:relative;display:grid;place-items:center;border-bottom:1px solid #c29b4355;background:#071218dd}
+#s-challenger .war2-series-banner>span{font:900 9px/1 Cinzel,serif;color:#a0afb1;letter-spacing:.17em}.war2-series-banner>div{display:flex;align-items:center;gap:28px}.war2-series-banner b{color:#f26c75;font:900 38px/1 Cinzel,serif}.war2-series-banner b:last-child{color:#65b1f5}.war2-series-banner i{font:900 11px/1 Cinzel,serif;font-style:normal;color:#dec269}.war2-series-banner .war2-zone-stars{position:static!important;transform:none!important;margin-top:3px}
+#s-challenger .war2-stacked-duel{min-height:0;display:grid;grid-template-rows:1fr 38px 1fr;gap:0;padding:16px 24px}
+#s-challenger .war2-stacked-duel .war2-seat{display:grid!important;grid-template-columns:104px minmax(0,1fr) auto!important;gap:18px!important;justify-content:stretch!important;padding:12px 22px!important;border:1px solid #ffffff18!important;border-left:6px solid #d85d67!important;clip-path:polygon(0 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%)!important;background:linear-gradient(90deg,#8e28312d,transparent)!important}
+#s-challenger .war2-stacked-duel .war2-seat.team-b{border-left-color:#4ba8ed!important;background:linear-gradient(90deg,#286e9f31,transparent)!important}
+#s-challenger .war2-stacked-duel .war2-avatar{width:88px!important;height:88px!important;flex-basis:88px!important;border-radius:2px!important;background:transparent!important}
+#s-challenger .war2-stacked-duel .war2-zone-stars{position:static!important;transform:none!important}
+#s-challenger .war2-clash-line{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:14px;color:#7f9298;font:800 8px/1 Cinzel,serif;letter-spacing:.12em}.war2-clash-line:before,.war2-clash-line:after{content:"";height:1px;background:#ffffff17}.war2-clash-line span{display:none}.war2-clash-line b{color:#d9bb68;font-size:10px}
+#s-challenger .war2-zone-command-screen>footer{height:72px!important;min-height:72px!important;background:#0a161c!important}
+
+/* Recent Battles: a clean operations chronology rather than cards. */
+#s-challenger .war2-matches{display:grid!important;grid-template-rows:92px minmax(0,1fr)!important;background:#071117!important}
+#s-challenger .war2-match-list{display:grid!important;grid-template-columns:1fr!important;grid-auto-rows:126px!important;align-content:start!important;gap:8px!important;padding:16px 22px!important;overflow:auto!important;background:linear-gradient(90deg,#b58f3510,transparent 30%),repeating-linear-gradient(0deg,transparent 0 31px,#ffffff05 32px)!important}
+#s-challenger .war2-match-card{min-height:126px!important;display:grid!important;grid-template-columns:170px minmax(0,1fr) 190px!important;grid-template-rows:1fr!important;border:1px solid #ffffff17!important;border-left:7px solid #c69e3c!important;border-top:1px solid #ffffff17!important;clip-path:none!important;background:#0d1a20!important}
+#s-challenger .war2-match-kicker{height:auto!important;align-items:flex-end!important;padding:16px!important;border:0!important;border-right:1px solid #ffffff13!important;background:#c19a4013!important;font-size:10px!important;line-height:1.45!important}
+#s-challenger .war2-match-commanders{padding:10px 18px!important;grid-template-columns:minmax(0,1fr) 120px minmax(0,1fr)!important}.war2-match-commanders .war2-avatar{width:52px!important;height:52px!important;flex-basis:52px!important}
+#s-challenger .war2-match-card>footer{height:auto!important;grid-template-columns:1fr!important;grid-template-rows:auto auto 1fr!important;align-content:center!important;padding:14px 18px!important;border:0!important;border-left:1px solid #ffffff13!important;text-align:right!important}
+
+/* Archive: chronological campaign ledger, not dossier cards. */
+#s-challenger .war2-archive-list{display:flex!important;flex-direction:column!important;gap:0!important;padding:18px 28px!important;overflow:auto!important;background:repeating-linear-gradient(0deg,transparent 0 47px,#ffffff05 48px)!important}
+#s-challenger .war2-archive-list>button{position:relative!important;width:100%!important;min-height:116px!important;display:grid!important;grid-template-columns:150px 1fr 150px minmax(230px,1.2fr) 38px!important;grid-template-rows:1fr!important;align-items:center!important;margin:0!important;padding:0 20px!important;border:0!important;border-bottom:1px solid #b7934355!important;border-left:5px solid transparent!important;border-top:0!important;background:linear-gradient(90deg,#c39a3d0d,transparent)!important;clip-path:none!important}
+#s-challenger .war2-archive-list>button:hover{border-left-color:#c7a142!important;background:linear-gradient(90deg,#c39a3d25,transparent)!important}.war2-archive-list>button:before{content:""!important}
+#s-challenger .war2-archive-list>button span,.war2-archive-list>button b,.war2-archive-list>button strong,.war2-archive-list>button em,.war2-archive-list>button i{position:static!important;grid-column:auto!important;grid-row:auto!important;align-self:center!important}
+#s-challenger .war2-archive-list>button b{font-size:22px!important}.war2-archive-list>button strong{font-size:28px!important}.war2-archive-list>button em{padding:0!important;border:0!important}
+
+@media(max-height:850px){#s-challenger .war2-objective{transform:translate(-50%,-50%) scale(.88)!important}.war2-stacked-duel .war2-avatar{width:70px!important;height:70px!important;flex-basis:70px!important}}
+

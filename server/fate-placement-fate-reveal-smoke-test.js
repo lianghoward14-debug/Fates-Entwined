@@ -103,9 +103,9 @@ const prepareRuntime = {
 };
 vm.createContext(prepareRuntime);
 vm.runInContext(core.slice(prepareStart, prepareEnd), prepareRuntime);
-const alpine = {id:'76', fate:1, currentFate:5};
+const alpine = {id:'76', fate:1, currentFate:6};
 prepareRuntime.preparePlacementFateReveal(alpine, {id:'76', fate:1, currentFate:1}, 'set');
-assert.strictEqual(alpine._placementFateReveal.fromValue, 1, 'ALPINE Infantry must first show 1 before its combined reveal reaches 5');
+assert.strictEqual(alpine._placementFateReveal.fromValue, 1, 'ALPINE Infantry must first show 1 before its combined reveal reaches 6');
 assert.strictEqual(alpine._placementFateReveal.genericSoundRequested, true, 'ALPINE Infantry must request the delayed Fate-gain sound');
 const greatOakResult = {id:'35', fate:8, currentFate:11};
 prepareRuntime.preparePlacementFateReveal(greatOakResult, {id:'35', fate:8, currentFate:8}, 'consolidation');

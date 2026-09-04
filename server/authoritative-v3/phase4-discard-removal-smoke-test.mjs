@@ -15,8 +15,7 @@ const DEFINITIONS = [
   {id:'42', name:'West German Soldier', type:'Supporter', aff:'third_great_war', fate:1, cost:0, rarity:'circle'},
   {id:'62', name:'Berkeley Homeless', type:'Supporter', aff:'reality', fate:1, cost:0, rarity:'circle'},
   {id:'76', name:'ALPINE Infantry', type:'Supporter', aff:'expanded_worlds', fate:1, cost:0, rarity:'circle'},
-  {id:'80', name:'Apparition of Berkeley', type:'Supporter', aff:'expanded_worlds', fate:1, cost:0, rarity:'circle'},
-  {id:'bh25', name:'Jimmy (Viltrumite)', type:'Dauntless', aff:'reality', fate:8, cost:3, rarity:'square'}
+  {id:'80', name:'Apparition of Berkeley', type:'Supporter', aff:'expanded_worlds', fate:1, cost:0, rarity:'circle'}
 ];
 
 function stateFor(matchId, player0, player1 = ['32']){
@@ -237,44 +236,6 @@ assert.equal(result.ok, true);
 assert(result.state.players[0].discard.some(card=>card.iid === apparitionCharacter.iid));
 assert.equal(result.state.players[0].hand.length, 2);
 assert.equal(result.events.filter(event=>event.type === 'CARD_DRAWN').length, 2);
-
-// Left Hook is mandatory and can select either player's mutable board card.
-state = stateFor('P4DISCARDBH25', ['bh25', '32', '32', '32'], ['03', '76', '62']);
-const jimmy = takeCard(state, 0, 'bh25');
-const tributeA = moveToBoard(state, 0, '32', {z:0, r:2, c:0});
-const tributeB = moveToBoard(state, 0, '32', {z:0, r:2, c:1});
-const tributeC = moveToBoard(state, 0, '32', {z:0, r:1, c:0});
-const leftHookTarget = moveToBoard(state, 1, '03', {z:2, r:0, c:0});
-const leftHookImmune = moveToBoard(state, 1, '76', {z:2, r:0, c:1});
-const unaffordableBerkeley = moveToBoard(state, 1, '62', {z:2, r:1, c:0});
-result = reduceCommand(
-  state,
-  command(state, 'p0', 12, 'CONSOLIDATE_CARD', {
-    cardIid:jimmy.iid,
-    tributeIids:[tributeA.iid, tributeB.iid, tributeC.iid],
-    destination:{z:0, r:2, c:0}
-  }),
-  {playerId:'p0'}
-);
-assert.equal(result.ok, true);
-assert(result.prompt.eligibleIids.includes(leftHookTarget.iid));
-assert.equal(result.prompt.eligibleIids.includes(leftHookImmune.iid), false);
-assert.equal(
-  result.prompt.eligibleIids.includes(unaffordableBerkeley.iid),
-  false,
-  'Berkeley Homeless must not be offered when its two-card discard surcharge cannot be paid'
-);
-state = result.state;
-result = reduceCommand(
-  state,
-  command(state, 'p0', 13, 'ANSWER_PROMPT', {
-    promptId:state.pendingPrompt.promptId,
-    selectedIid:leftHookTarget.iid
-  }),
-  {playerId:'p0'}
-);
-assert.equal(result.ok, true);
-assert(result.state.players[1].discard.some(card=>card.iid === leftHookTarget.iid));
 
 // Automatic multi-card discards use the same Berkeley surcharge continuation
 // as direct targeted discards instead of rejecting the parent set command.

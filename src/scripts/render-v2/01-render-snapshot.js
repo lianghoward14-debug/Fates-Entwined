@@ -361,7 +361,18 @@
   function buildInteractionSnapshot(g, viewer){
     const maxSupports = (Number(g.maxSupportsPerTurn) || 0) + (Number(g.extraSupportsThisTurn) || 0);
     const supportsPlaced = Number(g.supportsPlacedThisTurn) || 0;
+    const hardCap = typeof SUPPORTER_HARD_TURN_CAP === 'number' ? SUPPORTER_HARD_TURN_CAP : 5;
+    const hardCapCount = Math.max(0, Number(g.supportersSetForCapThisTurn?.[viewer]) || 0);
+    const hardCapReached = hardCapCount >= hardCap;
     const majaActive = !!g.majaEffectThisTurn;
+    const defenseInDepthReady = !!((Array.isArray(g._bh24DefenseInDepth)
+      && g._bh24DefenseInDepth[viewer]
+      && Number(g._bh24DefenseInDepth[viewer].remaining || 0) > 0)
+      || (Array.isArray(g._phase7Statuses) && g._phase7Statuses.some(function(status){
+        return status && status.type === 'NEXT_SUPPORTER_SET_EXEMPT'
+          && Number(status.playerIndex) === Number(viewer)
+          && Number(status.remaining || 0) > 0;
+      })));
     const localActionTurn = typeof isLocalPlayerActionTurn === 'function' ? isLocalPlayerActionTurn() : (g.currentPlayer === viewer);
     return {
       viewer,
@@ -379,7 +390,9 @@
       supportsPlacedThisTurn:supportsPlaced,
       maxSupportsThisTurn:maxSupports,
       majaEffectThisTurn:majaActive,
-      supporterLimitReached:!majaActive && (g.phase || '') === 'main' && supportsPlaced >= maxSupports,
+      supporterHardCapReached:hardCapReached,
+      supporterLimitReached:(g.phase || '') === 'main' && (hardCapReached
+        || (!majaActive && !defenseInDepthReady && supportsPlaced >= Math.min(hardCap, maxSupports))),
       freeSetIids:g._linaFreeIids && typeof g._linaFreeIids.forEach === 'function'
         ? Array.from(g._linaFreeIids).map(function(iid){ return String(iid); })
         : [],

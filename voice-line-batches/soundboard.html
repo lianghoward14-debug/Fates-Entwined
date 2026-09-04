@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Voice-Line Batch Soundboards</title>
+  <style>
+    :root{color-scheme:dark;font-family:Inter,system-ui,sans-serif}*{box-sizing:border-box}
+    body{margin:0;min-height:100vh;background:radial-gradient(circle at top,#293354,#090b12 58%);color:#f4f6ff}
+    main{max-width:1100px;margin:auto;padding:38px 22px}h1{margin:0 0 7px;font-size:clamp(28px,5vw,48px)}
+    .intro{margin:0 0 22px;color:#b8c0d9}.tabs{display:flex;flex-wrap:wrap;gap:9px;margin-bottom:18px}
+    .tabs button,.download{border:1px solid #52618d;border-radius:10px;background:#171d30;color:#eef1ff;padding:10px 14px;cursor:pointer;text-decoration:none}
+    .tabs button.active{background:#536bc5;border-color:#b5c3ff}.tools{display:flex;gap:12px;align-items:center;margin-bottom:20px}
+    input{width:min(280px,100%);padding:11px 13px;border:1px solid #52618d;border-radius:10px;background:#101522;color:white}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:12px}
+    .clip{min-height:100px;padding:16px;border:1px solid #3d486b;border-radius:14px;background:linear-gradient(145deg,#242c47,#151a2b);color:inherit;cursor:pointer;text-align:left;box-shadow:0 9px 23px #0005}
+    .clip:hover{transform:translateY(-2px);border-color:#849cff}.clip.playing{background:linear-gradient(145deg,#536bc5,#273875);border-color:#c1ccff}
+    .number{display:block;font-size:25px;font-weight:800}.duration{color:#b8c0d9;font-size:12px}
+    footer{margin-top:22px;color:#8e98b6;font-size:13px}
+  </style>
+</head>
+<body><main>
+  <h1>Voice-line batch soundboards</h1>
+  <p class="intro">Four newly separated source files. Select a set, then click a pad to play it.</p>
+  <nav class="tabs" id="tabs"></nav>
+  <div class="tools"><input id="search" inputmode="numeric" placeholder="Jump to clip number…"><a class="download" id="download">Download this set</a></div>
+  <section class="grid" id="board"></section>
+  <footer>Detected from short silence separators; neighboring sub-0.2-second artifacts are merged.</footer>
+</main><script>
+const sets=[{id:1,count:380},{id:2,count:93},{id:3,count:39},{id:4,count:93}];
+const tabs=document.querySelector('#tabs'),board=document.querySelector('#board'),download=document.querySelector('#download');
+let activeSet=1,currentAudio,currentButton;
+sets.forEach(set=>{const b=document.createElement('button');b.textContent=`Set ${set.id} · ${set.count} clips`;b.onclick=()=>render(set.id);b.dataset.set=set.id;tabs.append(b)});
+function render(id){activeSet=id;currentAudio?.pause();board.replaceChildren();tabs.querySelectorAll('button').forEach(b=>b.classList.toggle('active',Number(b.dataset.set)===id));const set=sets.find(s=>s.id===id);download.href=`set-${id}/voice-lines-set-${id}.zip`;for(let i=1;i<=set.count;i++){const n=String(i).padStart(3,'0'),button=document.createElement('button');button.className='clip';button.dataset.clip=i;button.innerHTML=`<span class="number">${n}</span><span class="duration">Loading duration…</span>`;const src=`set-${id}/clips/voice-line-${n}.mp3`,probe=new Audio(src);probe.preload='metadata';probe.onloadedmetadata=()=>button.querySelector('.duration').textContent=`${probe.duration.toFixed(3)} seconds`;button.onclick=()=>{currentAudio?.pause();currentButton?.classList.remove('playing');currentAudio=new Audio(src);currentButton=button;button.classList.add('playing');currentAudio.onended=()=>button.classList.remove('playing');currentAudio.play()};board.append(button)}}
+document.querySelector('#search').addEventListener('input',e=>{const target=board.querySelector(`[data-clip="${Number(e.target.value)}"]`);target?.scrollIntoView({behavior:'smooth',block:'center'})});render(1);
+</script></body></html>

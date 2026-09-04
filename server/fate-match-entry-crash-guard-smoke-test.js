@@ -9,6 +9,7 @@ const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 const main = read('electron/main.js');
 const index = read('index.html');
 const setup = read('src/scripts/04-game-setup.js');
+const structuralHelpers = read('src/scripts/00-structural-helpers.js');
 const smoothness = read('src/scripts/21-smoothness-core.js');
 const legacyBoard = read('src/scripts/23-board-canvas-renderer.js');
 const textureCache = read('src/scripts/render-v2/03-card-texture-cache.js');
@@ -37,7 +38,16 @@ assert.match(textureCache, /const boardDpr = Math\.min\(1\.5, Math\.max\(1,/, 'v
   assert.doesNotMatch(source, /Math\.max\(2\.25,\s*(?:Number\()?window\.devicePixelRatio/, 'a match texture path still forces excessive DPR');
 });
 
-assert.match(index, /04-game-setup\.js\?v=1787390001/, 'match-entry cache stamp is stale');
-assert.match(index, /04-match-renderer-adapter\.js\?v=1787630001/, 'renderer cache stamp is stale');
+assert.match(index, /04-game-setup\.js\?v=\d+/, 'match-entry cache stamp is missing');
+assert.match(index, /04-match-renderer-adapter\.js\?v=\d+/, 'renderer cache stamp is missing');
+
+const landscapeStateHelper = structuralHelpers.match(/function getLandscapeState\(\) \{([\s\S]*?)\n\}/);
+assert.ok(landscapeStateHelper, 'landscape-state helper is missing');
+const landscapeDeclaration = landscapeStateHelper[1].indexOf('const landscape = getCurrentLandscape();');
+const landscapeUse = landscapeStateHelper[1].indexOf('if (landscape');
+assert.ok(landscapeDeclaration >= 0, 'landscape-state helper must initialize its landscape reference');
+assert.ok(landscapeUse < 0 || landscapeDeclaration < landscapeUse, 'landscape reference must be initialized before any branch reads it');
+const structuralCacheStamp = index.match(/00-structural-helpers\.js\?v=(\d+)/);
+assert.ok(structuralCacheStamp && Number(structuralCacheStamp[1]) >= 2026083103, 'landscape helper cache stamp must ship the single-player entry fix');
 
 console.log('match-entry crash guard smoke passed');

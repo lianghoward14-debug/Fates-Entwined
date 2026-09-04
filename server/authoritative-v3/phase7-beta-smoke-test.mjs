@@ -234,7 +234,7 @@ try{
     body:JSON.stringify({
       name:'Phase 7 P0',
       deckIds:['32', '27', '54'],
-      gameSettings:{landscapeMode:'selected', landscapeId:'igb1', turnTimerMinutes:3}
+      gameSettings:{landscapeMode:'selected', landscapeId:'igb24', turnTimerMinutes:3}
     })
   });
   assert.equal(firstQueue.status, 202);
@@ -245,7 +245,9 @@ try{
     body:JSON.stringify({
       name:'Phase 7 P1',
       deckIds:['79', '56', '32'],
-      gameSettings:{landscapeMode:'selected', landscapeId:'igb1', turnTimerMinutes:3}
+      // The first player owns room settings; a conflicting joiner choice must
+      // not replace the selected landscape while the match is assembled.
+      gameSettings:{landscapeMode:'selected', landscapeId:'igb2', turnTimerMinutes:8}
     })
   });
   assert.equal(secondQueue.status, 200);
@@ -301,6 +303,31 @@ try{
   assert.equal(Object.hasOwn(snapshot0.state.players[1], 'hand'), false);
   assert.equal(Object.hasOwn(snapshot1.state.players[0], 'hand'), false);
   assert.equal(snapshot0.state.phase, 'coin');
+  assert.equal(snapshot0.state.landscapeId, 'igb24');
+  assert.equal(snapshot1.state.landscapeId, 'igb24');
+  assert.equal(snapshot0.state.gameSettings.landscapeMode, 'selected');
+  assert.equal(snapshot0.state.gameSettings.resolvedLandscapeId, 'igb24');
+  assert.equal(snapshot0.state.turnTimerSeconds, 180);
+  const spectatorResponse = await fetch(`http://127.0.0.1:${port}/v3/beta/matches/${encodeURIComponent(matchId)}/spectator-snapshot`, {
+    headers:identityHeaders('warfront-teammate')
+  });
+  assert.equal(spectatorResponse.status, 200);
+  const spectatorSnapshot = await spectatorResponse.json();
+  assert.equal(spectatorSnapshot.kind, 'snapshot');
+  assert.equal(spectatorSnapshot.matchId, matchId);
+  assert.equal(Object.hasOwn(spectatorSnapshot.state.players[0], 'hand'), false);
+  assert.equal(Object.hasOwn(spectatorSnapshot.state.players[1], 'hand'), false);
+  assert.equal(Object.hasOwn(spectatorSnapshot, 'legalCommands'), false, 'spectator projection must be read-only');
+  const incompatibleSpectator = await fetch(`http://127.0.0.1:${port}/v3/beta/matches/${encodeURIComponent(matchId)}/spectator-snapshot`, {
+    headers:identityHeaders('warfront-teammate-old'),
+    method:'GET'
+  });
+  // identityHeaders pins the current version; explicitly verify version gating.
+  const incompatibleSpectatorRetry = await fetch(`http://127.0.0.1:${port}/v3/beta/matches/${encodeURIComponent(matchId)}/spectator-snapshot`, {
+    headers:{...identityHeaders('warfront-teammate-old'),'x-fate-client-version':'old-client'}
+  });
+  assert.equal(incompatibleSpectator.status, 200);
+  assert.equal(incompatibleSpectatorRetry.status, 426);
   assert.deepEqual(snapshot0.state.coinFlip, snapshot1.state.coinFlip);
   assert([0, 1].includes(snapshot0.state.coinFlip.winner));
   const coinWinnerSeat = snapshot0.state.coinFlip.winner;

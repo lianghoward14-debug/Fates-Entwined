@@ -11,7 +11,7 @@
   const HAVANO_TARGETING_SOURCE_IDS = Object.freeze([
     '04', '10', '14', '16', '17', '18', '21', '26', '30', '31', '36', '39',
     '34', '47', '50', '52', '53', '61', '62', '64', '71', '72', '81', '91', '93', '97',
-    'bh04', 'bh16', 'bh18', 'bh25'
+    'bh04', 'bh16', 'bh18'
   ]);
   const havanoTargetingSources = new Set(HAVANO_TARGETING_SOURCE_IDS);
   // Passive Morale sources expose Havano when they enter play, before their

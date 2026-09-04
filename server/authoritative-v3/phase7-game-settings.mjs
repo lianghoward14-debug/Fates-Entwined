@@ -1,4 +1,4 @@
-const LANDSCAPE_IDS = Object.freeze(Array.from({length:20}, (_, index)=>`igb${index + 1}`));
+const LANDSCAPE_IDS = Object.freeze(Array.from({length:24}, (_, index)=>`igb${index + 1}`));
 // These experimental systems are retained, but classic multiplayer is the
 // shipped default. A server operator may opt into both with explicit `1`
 // values without affecting the independent zone-control rework.

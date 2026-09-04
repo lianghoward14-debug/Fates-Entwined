@@ -1,0 +1,13 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Free World Voice Fix Review</title>
+<style>:root{color-scheme:dark;font-family:Inter,system-ui,sans-serif}body{margin:0;min-height:100vh;background:radial-gradient(circle at top,#33405f,#0a0c13 60%);color:#f4f6ff}main{max-width:980px;margin:auto;padding:42px 22px}h1{margin:0 0 8px;font-size:clamp(28px,5vw,46px)}p{margin:0 0 26px;color:#bcc4da}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:13px}button{min-height:112px;padding:18px;border:1px solid #4c587d;border-radius:15px;background:linear-gradient(145deg,#29324d,#171c2c);color:inherit;text-align:left;cursor:pointer;box-shadow:0 10px 25px #0005}button:hover{transform:translateY(-2px);border-color:#90a5ff}button.playing{background:linear-gradient(145deg,#5971c9,#293b78)}b{display:block;font-size:21px}span{color:#bdc5dc;font-size:13px}.split{border-color:#b18b55}footer{margin-top:25px;color:#8e98b5;font-size:13px}</style></head>
+<body><main><h1>Free World merge review</h1><p>Listen to each proposed joined line and both proposed halves of clip 337 before the Free World pool is activated.</p><section class="grid" id="board"></section><footer>Assumed typo corrections: 308+309 and 349+350.</footer></main>
+<script>
+const clips=[
+ ['261 + 262','merged-261-262.mp3'],['263 + 264','merged-263-264.mp3'],['266 + 267','merged-266-267.mp3'],['268 + 269','merged-268-269.mp3'],
+ ['288 + 289','merged-288-289.mp3'],['290 + 291','merged-290-291.mp3'],['308 + 309','merged-308-309.mp3'],
+ ['311 + 312','merged-311-312.mp3'],['337 · first half','split-337-a.mp3','split'],['337 · second half','split-337-b.mp3','split'],
+ ['349 + 350','merged-349-350.mp3'],['351 + 352','merged-351-352.mp3']
+];
+const board=document.querySelector('#board');let audio,active;
+clips.forEach(([label,file,kind])=>{const button=document.createElement('button');button.className=kind||'';button.innerHTML=`<b>${label}</b><span>Loading duration…</span>`;const src='clips/'+file,probe=new Audio(src);probe.preload='metadata';probe.onloadedmetadata=()=>button.querySelector('span').textContent=probe.duration.toFixed(3)+' seconds';button.onclick=()=>{audio?.pause();active?.classList.remove('playing');audio=new Audio(src);active=button;button.classList.add('playing');audio.onended=()=>button.classList.remove('playing');audio.play()};board.append(button)});
+</script></body></html>

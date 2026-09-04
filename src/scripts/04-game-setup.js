@@ -140,18 +140,31 @@ function formatFateMultiplier(mult) {
 }
 
 function clearCompletedOnlineSessionBeforeLocalGame() {
-  if(typeof G === 'undefined' || !G) return;
+  // A Warfront seat is only an event assignment. Entering any local game must
+  // cancel the asynchronous authoritative queue as well as clear its visible
+  // request; otherwise a late match can mount over the single-player screen.
   const beta = window.fateAuthorityV3Beta;
+  const capture = window.FATE_WAR_REPLAY_CAPTURE;
+  try { capture?.unsubscribe?.(); } catch(e) {}
+  window.FATE_WAR_REPLAY_CAPTURE = null;
+  window.FATE_PENDING_WAR_MATCH = null;
+  window.FATE_ONLINE_PENDING_ROOM_DECK = null;
+  try {
+    const leaving = beta?.leaveMatchmaking?.();
+    if(leaving && typeof leaving.catch === 'function') leaving.catch(function(){});
+  } catch(e) {}
+  try { beta?.unmountGameScreen?.(); } catch(e) {}
+  try { beta?.disconnect?.({forget:true}); } catch(e) {}
+  if(typeof G === 'undefined' || !G) return;
   const hasOnlineResidue = !!(
     G._onlineRoomCode
     || G._onlineActionLogMode
     || G._phase7CurrentMultiplayer
     || window.FatePhase7CurrentMultiplayerUi?.active?.()
   );
-  if(!hasOnlineResidue) return;
-  try { beta?.unmountGameScreen?.(); } catch(e) {}
-  try { beta?.disconnect?.(); } catch(e) {}
-  try { window.fateCleanupTerminalOnlineRoomState?.('start-local-game'); } catch(e) {}
+  if(hasOnlineResidue){
+    try { window.fateCleanupTerminalOnlineRoomState?.('start-local-game'); } catch(e) {}
+  }
   G._onlineRoomCode = null;
   G._onlineRole = null;
   G._onlinePlayerIndex = null;
@@ -1359,7 +1372,7 @@ function buildDefaultDecks() {
     const deck = [];
     const activeCards = CARDS.filter(c=>typeof isRetiredCardForBuilder === 'function'
       ? !isRetiredCardForBuilder(c)
-      : (c.id!=='bh25' && !c.retired));
+      : !c.retired);
     const sup = activeCards.filter(c=>c.type==='Supporter');
     const chr = activeCards.filter(c=>c.type!=='Supporter');
     for(const c of sup){
@@ -1584,7 +1597,7 @@ async function drawCard(player, count=1, options = {}) {
       const erbsCanAffect = !(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(card));
       if(erbsCanAffect) {
         const beforeErbsFate = Math.max(0, Number(card.currentFate ?? card.fate) || 0);
-        card.currentFate = beforeErbsFate + 6;
+        modifyFate(card, 6, 'permanent', player);
         if(typeof recordHandCardEffectModifier === 'function') {
           recordHandCardEffectModifier(card, {
             key:'christopher-erbs',
@@ -1619,7 +1632,9 @@ async function drawCard(player, count=1, options = {}) {
     }
   }
   if(outsideDrawLandscapeCard && typeof queueLandscapeOutsideDrawBonus === 'function'){
-    queueLandscapeOutsideDrawBonus(player, outsideDrawLandscapeCard);
+    const effectSourceKey = String(options.effectActivationId || options.effectSource?.iid || options.effectSourceId || 'draw-effect');
+    const landscapeEffectKey = [String(G?.turn || 0), String(player), effectSourceKey].join(':');
+    queueLandscapeOutsideDrawBonus(player, outsideDrawLandscapeCard, landscapeEffectKey);
   }
   if(!options.openingHand && typeof enforceHandLimit === 'function'){
     setTimeout(function(){

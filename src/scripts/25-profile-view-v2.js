@@ -6,6 +6,9 @@
   let activeTab = 'overview';
   let legacyReturnMode = '';
   let eventsInstalled = false;
+  const MEDAL_NAMES = ['The First Standard','Crimson Vanguard','Azure Vanguard','Crown of the Victor','Iron Laurel','Star of the Warfront','The Unbroken Line','Spearhead Citation','Gilded Campaigner','Medal of Entwined Fates','Dawnwatch Honor','Twilight Standard','The Fivefold Star','Heartland Cross','North Gate Ribbon','Silver Crossing Star','Sunken Road Crest','Crown Reach Laureate','Order of the Resolute','Order of the Red Comet','Order of the Blue Moon','The Fateforged Medal','Starlight Conqueror','The Golden Front','Ash and Glory Medal','Banner of Tenacity','The Final Advance','Shield of the Last Line','Laurel of Command',"Field Marshal's Star",'The Quiet Strategist','Master of Five Fronts','Stormbreaker Medal','The Long Vigil','Crest of the Warbound','The Concord Star','Twin Banners Medal','The Victorious Accord','Medal of Decisive Force','Lightning Laureate','Master of Position Star','The Gilded Hour','The Ember Crown','The Sapphire Crown','The Eternal Standard','Veteran of the War Table',"The Mapmaker's Honor",'Champion of the Five Zones','The Lasting Peace','Legend of the Warfront'];
+  window.FATE_WAR_MEDAL_NAMES = MEDAL_NAMES.slice();
+  let medalDraft = [];
 
   function escapeHtml(value){
     return String(value == null ? '' : value).replace(/[&<>'"]/g, function(ch){
@@ -58,12 +61,18 @@
     const recordSource = opts.serverProfile && typeof opts.serverProfile === 'object' ? opts.serverProfile : source;
     // The reset-version field is a migration marker, not a permanent instruction
     // to hide every result recorded after that migration.
-    const humanWins = number(recordSource.humanWins != null ? recordSource.humanWins : recordSource.wins, 0);
-    const humanLosses = number(recordSource.humanLosses != null ? recordSource.humanLosses : recordSource.losses, 0);
     const challengerWins = number(recordSource.challengerWins, 0);
     const challengerLosses = number(recordSource.challengerLosses, 0);
-    const totalWins = humanWins + challengerWins;
-    const totalLosses = humanLosses + challengerLosses;
+    const challengerHumanWins = number(recordSource.challengerHumanWins != null ? recordSource.challengerHumanWins : recordSource.humanWins, 0);
+    const challengerHumanLosses = number(recordSource.challengerHumanLosses != null ? recordSource.challengerHumanLosses : recordSource.humanLosses, 0);
+    const challengerAIWins = number(recordSource.challengerAIWins, Math.max(0, challengerWins - challengerHumanWins));
+    const challengerAILosses = number(recordSource.challengerAILosses, Math.max(0, challengerLosses - challengerHumanLosses));
+    const freePlayWins = number(source.freePlayWins, 0);
+    const freePlayLosses = number(source.freePlayLosses, 0);
+    const freePlayHumanWins = number(source.freePlayHumanWins, 0);
+    const freePlayHumanLosses = number(source.freePlayHumanLosses, 0);
+    const totalWins = freePlayWins + challengerWins;
+    const totalLosses = freePlayLosses + challengerLosses;
     const computedMatches = totalWins + totalLosses;
     const matchesPlayed = Math.max(number(recordSource.matchesPlayed, computedMatches), computedMatches);
     const elo = number(recordSource.challengerElo != null ? recordSource.challengerElo : recordSource.elo, number(source.challengerElo != null ? source.challengerElo : source.elo, 600));
@@ -77,8 +86,12 @@
       bio:String(source.bio || source.status || ''),
       elo:Math.round(elo),
       level:Math.round(level),
-      humanWins:Math.round(humanWins),
-      humanLosses:Math.round(humanLosses),
+      freePlayHumanWins:Math.round(freePlayHumanWins),
+      freePlayHumanLosses:Math.round(freePlayHumanLosses),
+      challengerHumanWins:Math.round(challengerHumanWins),
+      challengerHumanLosses:Math.round(challengerHumanLosses),
+      challengerAIWins:Math.round(challengerAIWins),
+      challengerAILosses:Math.round(challengerAILosses),
       challengerWins:Math.round(challengerWins),
       challengerLosses:Math.round(challengerLosses),
       totalWins:Math.round(totalWins),
@@ -91,7 +104,23 @@
       isSelf:!!opts.isSelf,
       isFriend:!!opts.isFriend,
       actions:Array.isArray(opts.actions) ? opts.actions : []
+      ,ownedMedals:[...new Set((Array.isArray(source.ownedMedals) ? source.ownedMedals : []).map(Number).filter(function(id){ return id >= 1 && id <= 50; }))],
+      displayedMedals:[...new Set((Array.isArray(source.displayedMedals) ? source.displayedMedals : []).map(Number).filter(function(id){ return id >= 1 && id <= 50; }))].slice(0,3)
     };
+  }
+
+  function medalIcon(id, selected){
+    const n = clamp(Math.round(number(id, 1)), 1, 50) - 1;
+    const x = (n % 5) * 25;
+    const y = Math.floor(n / 5) * (100 / 9);
+    return '<span class="profile-medal-icon' + (selected ? ' is-selected' : '') + '" style="--medal-x:' + x + '%;--medal-y:' + y + '%" aria-hidden="true"></span>';
+  }
+
+  function medalsMarkup(model){
+    const shown = model.displayedMedals.filter(function(id){ return model.ownedMedals.includes(id); });
+    return '<section class="profile-view-medals-section"><div class="profile-view-medals-head"><div><div class="profile-view-section-label">Displayed Medals</div><small>' + model.ownedMedals.length + ' earned · up to 3 displayed</small></div>' + (model.isSelf ? '<button type="button" data-profile-command="medals">' + (model.ownedMedals.length ? 'Choose medals' : 'No medals yet') + '</button>' : '') + '</div><div class="profile-view-medal-slots">' +
+      Array.from({length:3}, function(_,i){ const id=shown[i]; return id ? '<div class="profile-view-medal-slot" title="' + escapeHtml(MEDAL_NAMES[id-1]) + '">' + medalIcon(id,false) + '<span>' + escapeHtml(MEDAL_NAMES[id-1]) + '</span></div>' : '<div class="profile-view-medal-slot is-empty"><i>+</i><span>Empty display</span></div>'; }).join('') +
+      '</div></section>';
   }
 
   function rankBadge(model){
@@ -140,16 +169,24 @@
     return '<section class="profile-view-overview" role="tabpanel" aria-label="Overview"><div class="profile-view-stats">' +
       statTile('Challenger ELO', model.elo, 'gold') + statTile('Level', model.level, 'green') + statTile('Win Rate', model.winRate + '%', 'blue') + statTile('Matches', model.matchesPlayed, 'red') +
       '</div><div class="profile-view-lower-grid"><section class="profile-view-bio-section"><div class="profile-view-section-label">About</div><p class="profile-view-bio' + (model.bio ? '' : ' is-empty') + '">' + escapeHtml(model.bio || (model.isSelf ? 'Add a bio to introduce yourself.' : 'No bio set yet.')) + '</p></section>' +
-      '<section class="profile-view-summary-section"><div class="profile-view-section-label">Career Summary</div><dl class="profile-view-summary-list"><div><dt>Overall record</dt><dd>' + model.totalWins + 'W / ' + model.totalLosses + 'L</dd></div><div><dt>Human matches</dt><dd>' + model.humanWins + 'W / ' + model.humanLosses + 'L</dd></div><div><dt>Challenger</dt><dd>' + model.challengerWins + 'W / ' + model.challengerLosses + 'L</dd></div></dl></section></div></section>';
+      '<section class="profile-view-summary-section"><div class="profile-view-section-label">Career Summary</div><dl class="profile-view-summary-list"><div><dt>Overall record</dt><dd>' + model.totalWins + 'W / ' + model.totalLosses + 'L</dd></div><div><dt>Free Play Human</dt><dd>' + model.freePlayHumanWins + 'W / ' + model.freePlayHumanLosses + 'L</dd></div><div><dt>Challenger</dt><dd>' + model.challengerWins + 'W / ' + model.challengerLosses + 'L</dd></div></dl></section></div></section>';
+  }
+
+  function renderMedalPicker(){
+    const body=document.getElementById('modal-body');
+    if(!body||!activeContext)return;
+    const model=activeContext.model;
+    medalDraft=model.displayedMedals.filter(function(id){return model.ownedMedals.includes(id);}).slice(0,3);
+    body.innerHTML='<div class="profile-medal-picker"><header><div><span>PROFILE DISPLAY</span><h2>Choose displayed medals</h2><p>Select up to three Warfront medals. Your selection appears on your public profile.</p></div><strong id="profile-medal-count">'+medalDraft.length+' / 3</strong></header><div class="profile-medal-picker-grid">'+(model.ownedMedals.length?model.ownedMedals.map(function(id){return '<button type="button" data-medal-id="'+id+'" class="'+(medalDraft.includes(id)?'is-selected':'')+'" title="'+escapeHtml(MEDAL_NAMES[id-1])+'">'+medalIcon(id,medalDraft.includes(id))+'<b>'+escapeHtml(MEDAL_NAMES[id-1])+'</b><small>WAR-'+String(id).padStart(3,'0')+'</small></button>';}).join(''):'<div class="profile-medal-empty"><b>No Warfront medals earned yet</b><span>Win a completed Warfront event to receive one.</span></div>')+'</div><footer><button type="button" data-profile-command="medals-cancel">Cancel</button><button type="button" class="primary" data-profile-command="medals-save" '+(model.ownedMedals.length?'':'disabled')+'>Save display</button></footer></div>';
   }
 
   function recordMarkup(model){
-    const humanTotal = model.humanWins + model.humanLosses;
-    const challengerTotal = model.challengerWins + model.challengerLosses;
-    const humanRate = humanTotal ? Math.round(model.humanWins * 100 / humanTotal) : 0;
-    const challengerRate = challengerTotal ? Math.round(model.challengerWins * 100 / challengerTotal) : 0;
+    const aiTotal = model.challengerAIWins + model.challengerAILosses;
+    const humanTotal = model.challengerHumanWins + model.challengerHumanLosses;
+    const aiRate = aiTotal ? Math.round(model.challengerAIWins * 100 / aiTotal) : 0;
+    const humanRate = humanTotal ? Math.round(model.challengerHumanWins * 100 / humanTotal) : 0;
     return '<section class="profile-view-record" role="tabpanel" aria-label="Match record"><div class="profile-view-record-head"><div><span>Career Record</span><strong>' + model.totalWins + 'W / ' + model.totalLosses + 'L</strong></div><div><span>Overall Win Rate</span><strong>' + model.winRate + '%</strong></div></div>' +
-      '<div class="profile-view-record-table" role="table" aria-label="Match record by mode"><div class="profile-view-record-row profile-view-record-labels" role="row"><span>Mode</span><span>Wins</span><span>Losses</span><span>Win Rate</span></div><div class="profile-view-record-row" role="row"><strong>Human</strong><span>' + model.humanWins + '</span><span>' + model.humanLosses + '</span><span>' + humanRate + '%</span></div><div class="profile-view-record-row" role="row"><strong>Challenger</strong><span>' + model.challengerWins + '</span><span>' + model.challengerLosses + '</span><span>' + challengerRate + '%</span></div></div></section>';
+      '<div class="profile-view-record-table" role="table" aria-label="Challenger record by opponent"><div class="profile-view-record-row profile-view-record-labels" role="row"><span>Opponent</span><span>Wins</span><span>Losses</span><span>Win Rate</span></div><div class="profile-view-record-row" role="row"><strong>Challenger vs AI</strong><span>' + model.challengerAIWins + '</span><span>' + model.challengerAILosses + '</span><span>' + aiRate + '%</span></div><div class="profile-view-record-row" role="row"><strong>Challenger vs Human</strong><span>' + model.challengerHumanWins + '</span><span>' + model.challengerHumanLosses + '</span><span>' + humanRate + '%</span></div></div></section>';
   }
 
   function render(){
@@ -161,7 +198,7 @@
     const status = model.isSelf ? 'Your profile' : (model.isFriend ? 'Friend' : 'Player');
     body.innerHTML = '<div class="profile-view-main"><section class="profile-view-hero"><div class="profile-view-portrait" style="' + escapeHtml(activeContext.rankFrame || '') + '"><img src="' + escapeHtml(model.photoSrc) + '" alt="' + escapeHtml(model.name) + '" style="' + escapeHtml(model.photoStyle) + '" onerror="this.onerror=null;this.src=\'blank.png\'"></div>' +
       '<div class="profile-view-identity"><div class="profile-view-status"><i aria-hidden="true"></i>' + escapeHtml(status) + '</div><h2>' + escapeHtml(model.name) + '</h2>' + (model.code ? '<button type="button" class="profile-view-code" data-profile-command="copy-code" title="Copy player ID">' + escapeHtml(model.code) + '</button>' : '') + '<div class="profile-view-badges">' + rankBadge(model) + levelBadge(model) + '</div><div class="profile-view-rank-progress"><div><span style="width:' + progress.percent + '%"></span></div><small>' + escapeHtml(progress.copy) + '</small></div></div>' +
-      '<div class="profile-view-actions">' + actionButtons(model) + '</div></section><nav class="profile-view-tabs" role="tablist" aria-label="Profile sections"><button type="button" role="tab" aria-selected="' + (activeTab === 'overview') + '" class="' + (activeTab === 'overview' ? 'is-active' : '') + '" data-profile-tab="overview">Overview</button><button type="button" role="tab" aria-selected="' + (activeTab === 'record') + '" class="' + (activeTab === 'record' ? 'is-active' : '') + '" data-profile-tab="record">Match Record</button></nav><div class="profile-view-content">' + (activeTab === 'record' ? recordMarkup(model) : overviewMarkup(model)) + '</div></div>';
+      medalsMarkup(model) + '<div class="profile-view-actions">' + actionButtons(model) + '</div></section><nav class="profile-view-tabs" role="tablist" aria-label="Profile sections"><button type="button" role="tab" aria-selected="' + (activeTab === 'overview') + '" class="' + (activeTab === 'overview' ? 'is-active' : '') + '" data-profile-tab="overview">Overview</button><button type="button" role="tab" aria-selected="' + (activeTab === 'record') + '" class="' + (activeTab === 'record' ? 'is-active' : '') + '" data-profile-tab="record">Match Record</button></nav><div class="profile-view-content">' + (activeTab === 'record' ? recordMarkup(model) : overviewMarkup(model)) + '</div></div>';
   }
 
   function refreshSelfContext(){
@@ -238,6 +275,18 @@
     if(!modal) return;
     eventsInstalled = true;
     modal.addEventListener('click', function(event){
+      const medal = event.target.closest('.profile-medal-picker [data-medal-id]');
+      if(medal){
+        const id=Number(medal.getAttribute('data-medal-id'));
+        const index=medalDraft.indexOf(id);
+        if(index>=0)medalDraft.splice(index,1);
+        else if(medalDraft.length<3)medalDraft.push(id);
+        else { if(window.toast)window.toast('You can display up to 3 medals.'); return; }
+        medal.classList.toggle('is-selected',medalDraft.includes(id));
+        medal.querySelector('.profile-medal-icon')?.classList.toggle('is-selected',medalDraft.includes(id));
+        const count=document.getElementById('profile-medal-count');if(count)count.textContent=medalDraft.length+' / 3';
+        return;
+      }
       const tab = event.target.closest('.profile-view-main [data-profile-tab]');
       if(tab){ activeTab = tab.getAttribute('data-profile-tab') === 'record' ? 'record' : 'overview'; render(); return; }
       const command = event.target.closest('.profile-view-modal-v2 [data-profile-command]');
@@ -307,6 +356,21 @@
     if(command === 'portrait'){
       legacyReturnMode = 'view';
       if(typeof window.openProfileImageEditor === 'function') window.openProfileImageEditor();
+      return;
+    }
+    if(command === 'medals'){
+      if(!model.isSelf)return;
+      renderMedalPicker();
+      return;
+    }
+    if(command === 'medals-cancel'){
+      render();
+      return;
+    }
+    if(command === 'medals-save'){
+      const profile=typeof window.getFateLocalProfile==='function'?window.getFateLocalProfile():activeContext.profile;
+      if(profile){profile.displayedMedals=medalDraft.slice(0,3);try{if(typeof window.saveProfile==='function')window.saveProfile();}catch(e){}}
+      refreshSelfContext();render();if(window.toast)window.toast('Displayed medals updated.');
       return;
     }
     if(command === 'edit-portrait'){

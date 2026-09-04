@@ -41,7 +41,7 @@ function makeState(landscapeId, matchId){
 
 assert.equal(multiplayerEligibleCardIds().length, 114);
 assert(multiplayerEligibleCardIds().includes('82'));
-assert.equal(multiplayerEligibleLandscapeIds().length, 20);
+assert.equal(multiplayerEligibleLandscapeIds().length, 24);
 
 // Card 82 exposes every authoritative landscape through one serialized choice.
 let fixture = makeState('igb1', 'P4CARD82');
@@ -59,10 +59,10 @@ let result = reduceCommand(
 );
 assert.equal(result.ok, true);
 assert.equal(result.prompt.type, 'MODAL_CHOICE');
-assert.equal(result.prompt.options.length, 20);
+assert.equal(result.prompt.options.length, 24);
 assert.deepEqual(
   result.prompt.options.map(option=>option.value),
-  Array.from({length:20}, (_value, index)=>`igb${index + 1}`)
+  Array.from({length:24}, (_value, index)=>`igb${index + 1}`)
 );
 state = JSON.parse(stableStringify(result.state));
 result = reduceCommand(

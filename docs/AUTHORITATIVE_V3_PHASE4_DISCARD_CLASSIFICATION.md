@@ -20,7 +20,6 @@ routes cards to the owner's discard pile, checks targeting and immunity, emits
   reordering the existing deck.
 - 80 Apparition of Berkeley optionally discards a controlled same-zone
   Character, then draws two in the same effect frame.
-- bh25 Jimmy (Viltrumite) discards any mutable board card after authoritative
   consolidation placement.
 
 ## Deferred discard/removal cards

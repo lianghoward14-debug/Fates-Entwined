@@ -1,0 +1,322 @@
+[
+  {
+    "id": 1,
+    "file": "clips/greek-001.mp3",
+    "start": 23.24,
+    "end": 25.82,
+    "duration": 2.58,
+    "label": "Έτοιμος διοικητά"
+  },
+  {
+    "id": 2,
+    "file": "clips/greek-002.mp3",
+    "start": 26.04,
+    "end": 27.24,
+    "duration": 1.2,
+    "label": "Διατάξτε"
+  },
+  {
+    "id": 3,
+    "file": "clips/greek-003.mp3",
+    "start": 30.52,
+    "end": 31.72,
+    "duration": 1.2,
+    "label": "Παράγγελμα"
+  },
+  {
+    "id": 4,
+    "file": "clips/greek-004.mp3",
+    "start": 31.78,
+    "end": 32.56,
+    "duration": 0.78,
+    "label": "Παράγγελμα"
+  },
+  {
+    "id": 5,
+    "file": "clips/greek-005.mp3",
+    "start": 32.68,
+    "end": 33.32,
+    "duration": 0.64,
+    "label": "Command 005"
+  },
+  {
+    "id": 6,
+    "file": "clips/greek-006.mp3",
+    "start": 34.04,
+    "end": 35.3,
+    "duration": 1.26,
+    "label": "Command 006"
+  },
+  {
+    "id": 7,
+    "file": "clips/greek-007.mp3",
+    "start": 35.44,
+    "end": 37.02,
+    "duration": 1.58,
+    "label": "Command 007"
+  },
+  {
+    "id": 8,
+    "file": "clips/greek-008.mp3",
+    "start": 37.14,
+    "end": 37.66,
+    "duration": 0.52,
+    "label": "Ακούω"
+  },
+  {
+    "id": 9,
+    "file": "clips/greek-009.mp3",
+    "start": 40.04,
+    "end": 41.24,
+    "duration": 1.2,
+    "label": "Καλυφθείτε"
+  },
+  {
+    "id": 10,
+    "file": "clips/greek-010.mp3",
+    "start": 42.1,
+    "end": 42.82,
+    "duration": 0.72,
+    "label": "Καλυφθείτε"
+  },
+  {
+    "id": 11,
+    "file": "clips/greek-011.mp3",
+    "start": 42.92,
+    "end": 43.78,
+    "duration": 0.86,
+    "label": "Δέχομαι πυρά"
+  },
+  {
+    "id": 12,
+    "file": "clips/greek-012.mp3",
+    "start": 45.02,
+    "end": 46.84,
+    "duration": 1.82,
+    "label": "Μην σταματάτε"
+  },
+  {
+    "id": 13,
+    "file": "clips/greek-013.mp3",
+    "start": 48.5,
+    "end": 49.7,
+    "duration": 1.2,
+    "label": "Εμπρός"
+  },
+  {
+    "id": 14,
+    "file": "clips/greek-014.mp3",
+    "start": 49.68,
+    "end": 50.24,
+    "duration": 0.56,
+    "label": "Κουνηθείτε"
+  },
+  {
+    "id": 15,
+    "file": "clips/greek-015.mp3",
+    "start": 50.18,
+    "end": 51.64,
+    "duration": 1.46,
+    "label": "Εμπρός - Κουνηθείτε"
+  },
+  {
+    "id": 16,
+    "file": "clips/greek-016.mp3",
+    "start": 53.2,
+    "end": 53.86,
+    "duration": 0.66,
+    "label": "Command 016"
+  },
+  {
+    "id": 17,
+    "file": "clips/greek-017.mp3",
+    "start": 53.9,
+    "end": 55.36,
+    "duration": 1.46,
+    "label": "Command 017"
+  },
+  {
+    "id": 18,
+    "file": "clips/greek-018.mp3",
+    "start": 55.28,
+    "end": 57.9,
+    "duration": 2.62,
+    "label": "Command 018"
+  },
+  {
+    "id": 19,
+    "file": "clips/greek-019.mp3",
+    "start": 58.44,
+    "end": 59.88,
+    "duration": 1.44,
+    "label": "Command 019"
+  },
+  {
+    "id": 20,
+    "file": "clips/greek-020.mp3",
+    "start": 59.8,
+    "end": 63.12,
+    "duration": 3.32,
+    "label": "Command 020"
+  },
+  {
+    "id": 21,
+    "file": "clips/greek-021.mp3",
+    "start": 63.74,
+    "end": 64.56,
+    "duration": 0.82,
+    "label": "Command 021"
+  },
+  {
+    "id": 22,
+    "file": "clips/greek-022.mp3",
+    "start": 64.52,
+    "end": 70.54,
+    "duration": 6.02,
+    "label": "Command 022"
+  },
+  {
+    "id": 23,
+    "file": "clips/greek-023.mp3",
+    "start": 70.46,
+    "end": 73.58,
+    "duration": 3.12,
+    "label": "Command 023"
+  },
+  {
+    "id": 24,
+    "file": "clips/greek-024.mp3",
+    "start": 76.96,
+    "end": 79.84,
+    "duration": 2.88,
+    "label": "Command 024"
+  },
+  {
+    "id": 25,
+    "file": "clips/greek-025.mp3",
+    "start": 79.76,
+    "end": 80.22,
+    "duration": 0.46,
+    "label": "Command 025"
+  },
+  {
+    "id": 26,
+    "file": "clips/greek-026.mp3",
+    "start": 80.24,
+    "end": 80.76,
+    "duration": 0.52,
+    "label": "Command 026"
+  },
+  {
+    "id": 27,
+    "file": "clips/greek-027.mp3",
+    "start": 81.58,
+    "end": 81.98,
+    "duration": 0.4,
+    "label": "Command 027"
+  },
+  {
+    "id": 28,
+    "file": "clips/greek-028.mp3",
+    "start": 82.12,
+    "end": 83.4,
+    "duration": 1.28,
+    "label": "Command 028"
+  },
+  {
+    "id": 29,
+    "file": "clips/greek-029.mp3",
+    "start": 83.32,
+    "end": 83.64,
+    "duration": 0.32,
+    "label": "Command 029"
+  },
+  {
+    "id": 30,
+    "file": "clips/greek-030.mp3",
+    "start": 83.68,
+    "end": 84.02,
+    "duration": 0.34,
+    "label": "Command 030"
+  },
+  {
+    "id": 31,
+    "file": "clips/greek-031.mp3",
+    "start": 84.06,
+    "end": 84.66,
+    "duration": 0.6,
+    "label": "Command 031"
+  },
+  {
+    "id": 32,
+    "file": "clips/greek-032.mp3",
+    "start": 84.86,
+    "end": 85.54,
+    "duration": 0.68,
+    "label": "Command 032"
+  },
+  {
+    "id": 33,
+    "file": "clips/greek-033.mp3",
+    "start": 85.64,
+    "end": 86.24,
+    "duration": 0.6,
+    "label": "Command 033"
+  },
+  {
+    "id": 34,
+    "file": "clips/greek-034.mp3",
+    "start": 86.18,
+    "end": 86.86,
+    "duration": 0.68,
+    "label": "Command 034"
+  },
+  {
+    "id": 35,
+    "file": "clips/greek-035.mp3",
+    "start": 86.96,
+    "end": 87.32,
+    "duration": 0.36,
+    "label": "Command 035"
+  },
+  {
+    "id": 36,
+    "file": "clips/greek-036.mp3",
+    "start": 87.48,
+    "end": 88.16,
+    "duration": 0.68,
+    "label": "Command 036"
+  },
+  {
+    "id": 37,
+    "file": "clips/greek-037.mp3",
+    "start": 88.26,
+    "end": 90.1,
+    "duration": 1.84,
+    "label": "Command 037"
+  },
+  {
+    "id": 38,
+    "file": "clips/greek-038.mp3",
+    "start": 90.02,
+    "end": 91.44,
+    "duration": 1.42,
+    "label": "Command 038"
+  },
+  {
+    "id": 39,
+    "file": "clips/greek-039.mp3",
+    "start": 92.46,
+    "end": 93.14,
+    "duration": 0.68,
+    "label": "Command 039"
+  },
+  {
+    "id": 40,
+    "file": "clips/greek-040.mp3",
+    "start": 94.7,
+    "end": 95.37,
+    "duration": 0.67,
+    "label": "Command 040"
+  }
+]

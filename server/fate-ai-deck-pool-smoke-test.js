@@ -50,10 +50,11 @@ const expected = {
   ai_hungarian_war_dance:{strategy:'ai_hungarian_war_dance', characters:19},
   ai_great_oak_salvo:{strategy:'ai_great_oak_salvo', characters:10},
   ai_adjacency_doctrine:{strategy:'ai_adjacency_doctrine', characters:25},
-  ai_safe_row_sanctuary:{strategy:'ai_safe_row_sanctuary', characters:13, reinforcementCost:23},
+  ai_safe_row_sanctuary:{strategy:'ai_safe_row_sanctuary', characters:13, reinforcementCost:24},
   ai_reinforcement_exchange:{strategy:'ai_reinforcement_exchange', characters:13, reinforcementCost:37},
-  ai_alpine_furnace:{strategy:'ai_alpine_furnace', characters:16, reinforcementCost:23},
-  ai_eventide_blockade:{strategy:'ai_eventide_blockade', characters:11, reinforcementCost:28},
+  ai_alpine_furnace:{strategy:'ai_alpine_furnace', characters:16, reinforcementCost:32},
+  ai_alpine_iron_line:{strategy:'ai_alpine_iron_line', characters:13, reinforcementCost:25},
+  ai_eventide_blockade:{strategy:'ai_eventide_blockade', characters:11, reinforcementCost:29},
   ai_hand_quarantine:{strategy:'ai_hand_quarantine', characters:7},
   ai_high_t_draw_mill:{strategy:'ai_high_t_draw_mill', characters:22},
   ai_university_counterbattery:{strategy:'ai_university_counterbattery', characters:16},
@@ -104,10 +105,11 @@ const exactDeckCounts = {
   ai_crown_of_five:{'07':1,'19':3,'15':3,'01':3,'57':3,'77':3,'09':3,'24':3,'49':3,'92':3,'28':3,'68':3,'74':3,'60':3},
   ai_snowball_fight_club:{'bh05':1,'93':3,'37':3,'41':3,'08':3,'48':3,'31':3,'58':3,'60':3,'13':3,'32':3,'42':3,'05':3,'71':3},
   ai_wintertide_family_reunion:{'100':3,'98':3,'88':3,'99':3,'89':3,'82':3,'84':3,'94':3,'92':3,'06':3,'27':2,'28':3,'60':3,'90':2},
-  ai_great_oak_salvo:{'07':1,'47':3,'64':3,'75':3,'58':3,'60':3,'13':3,'32':3,'69':3,'33':3,'20':3,'65':3,'35':3,'bh22':3},
-  ai_safe_row_sanctuary:{'02':1,'43':3,'bh12':3,'bh22':3,'23':3,'24':3,'47':3,'59':3,'60':3,'58':3,'32':3,'33':3,'65':3,'20':3},
+  ai_great_oak_salvo:{'07':1,'47':3,'64':3,'75':3,'58':3,'60':3,'13':3,'32':3,'69':3,'33':3,'05':3,'65':3,'35':3,'bh22':3},
+  ai_safe_row_sanctuary:{'02':1,'43':3,'bh12':3,'bh22':3,'23':3,'24':3,'47':3,'59':3,'60':3,'58':3,'32':3,'33':3,'65':3,'74':3},
   ai_reinforcement_exchange:{'07':1,'14':3,'bh04':3,'21':3,'29':3,'09':3,'24':3,'49':3,'47':3,'60':3,'58':3,'33':3,'25':3,'28':3},
-  ai_alpine_furnace:{'56':1,'22':3,'40':3,'48':3,'87':3,'bh13':3,'73':3,'47':3,'54':3,'60':3,'58':3,'74':3,'76':3,'33':3},
+  ai_alpine_furnace:{'03':1,'14':3,'22':3,'87':3,'bh13':3,'bh15':3,'05':3,'33':3,'47':3,'58':3,'60':3,'73':3,'75':3,'32':3},
+  ai_alpine_iron_line:{'07':1,'14':3,'22':3,'27':3,'bh22':3,'20':3,'32':3,'42':3,'50':3,'58':3,'60':3,'65':3,'71':3,'76':3},
   ai_eventide_blockade:{'02':1,'45':1,'11':3,'51':3,'14':3,'31':3,'33':3,'52':3,'53':3,'64':3,'65':3,'74':3,'75':3,'79':3,'20':2}
 };
 for(const [deckId, blueprint] of Object.entries(exactDeckCounts)){
@@ -129,6 +131,7 @@ for(const strategy of [
   'ai_safe_row_sanctuary',
   'ai_reinforcement_exchange',
   'ai_alpine_furnace',
+  'ai_alpine_iron_line',
   'ai_eventide_blockade',
   'ai_hand_quarantine',
   'ai_high_t_draw_mill',
@@ -153,6 +156,7 @@ const advancedHeuristicMarkers = {
   ai_safe_row_sanctuary:'sanctuaryPieces',
   ai_reinforcement_exchange:'economyHere',
   ai_alpine_furnace:'furnaceLoad',
+  ai_alpine_iron_line:'weakestMargin',
   ai_eventide_blockade:'enemySupportersHere',
   ai_hand_quarantine:'westGermanAvailable',
   ai_high_t_draw_mill:'highTActive',
@@ -172,6 +176,12 @@ assert(aiSource.includes("strat === 'ai_hellenic_heartbreaker'"), 'Hellenic pilo
 assert(aiSource.includes("strat === 'ai_hungarian_war_dance'"), 'Hungarian pilot should force its Third Great War declaration');
 assert(aiSource.includes("strat === 'ai_hungarian_war_dance' || strat === 'ai_crown_of_five'"), 'Crown pilot should force its Third Great War declaration');
 assert(aiSource.includes("strat === 'ai_selva_tidal_strike'"), 'Selva pilot should force its Eventide declaration');
+assert(aiSource.includes('aiChangedCardTimingBonus(move)'), 'shared move scoring should account for changed-card timing');
+assert(aiSource.includes('aiShouldActivateSouthWind(cp)'), 'AI should conserve and deliberately activate South Wind Spearman');
+assert(aiSource.includes('expeditionaries * 520'), 'ALPINE pilot should reward Expeditionary as consolidation material');
+assert(aiSource.includes('balladActive && move.card.type === \'Supporter\''), 'ALPINE pilot should stop setting Supporters during the Ukulele ballad');
+assert(aiSource.includes("if(id === '76') bonus += move.z === weakestZone"), 'Iron Line should deploy immutable ALPINE Infantry to the weakest front');
+assert(aiSource.includes('eventideCount < 3 || (swing === 0 && eventideCount < 5)'), 'Li-Hua should conserve charges until they create a useful zone swing');
 assert(aiSource.includes("if(!resolvedOpp._deckStrategy && Array.isArray(resolvedOpp.deck)"), 'monthly and persisted AI decks should recover their built-in pilot by deck signature');
 assert(/return advancedPool/.test(challengerSource), 'eligible AI opponents should draw from the advanced deck pool');
 assert(/const protectedRanks = new Set\(\['Footman'\]\)/.test(challengerSource), 'Footman opponents should remain on starter decks');

@@ -109,6 +109,7 @@ export function eligibleBoardTargets(state, frame, filter = {}){
         || Math.max(Math.abs(entry.r - source.r), Math.abs(entry.c - source.c)) !== 1)) return false;
       if(Number.isInteger(filter.row) && entry.r !== filter.row) return false;
       if(filter.controller && controllerOf(entry.card) !== frame.controller) return false;
+      if(Array.isArray(filter.cardIds) && !filter.cardIds.map(String).includes(String(entry.card.id || ''))) return false;
       if(filter.opponent && controllerOf(entry.card) === frame.controller) return false;
       if(filter.supporter && effectiveCardType(state, entry.card) !== 'Supporter') return false;
       if(filter.character && effectiveCardType(state, entry.card) === 'Supporter') return false;

@@ -905,14 +905,14 @@ if(typeof window !== 'undefined') window.isCardVisuallyNegated = isCardVisuallyN
 
 function isInnateProtectionIconHiddenCard(card) {
   const id = String(card && card.id || '');
-  return id === '20' || id === '70' || id === '76' || id === 'bh01';
+  return id === '70' || id === '76' || id === 'bh01';
 }
 
 function shouldShowProtectionStatusIcon(card) {
   if(!card || isFaceDownCard(card) || isInnateProtectionIconHiddenCard(card)) return false;
   if(typeof isWojciechPierogiCounter === 'function' && isWojciechPierogiCounter(card)) return false;
   if(typeof frenchFusiliersCopies === 'function' && frenchFusiliersCopies(card, '20')) return true;
-  return !!(card.immuneFlag || card.opponentEffectImmune);
+  return !!(card.immuneFlag || card.opponentEffectImmune || card._igb24OpponentEffectImmune);
 }
 if(typeof window !== 'undefined') window.shouldShowProtectionStatusIcon = shouldShowProtectionStatusIcon;
 
@@ -1051,11 +1051,19 @@ function scheduleCardEffectFlashVisibilityPoll(card, flash) {
 }
 
 function getActiveCardEffectFlash(card) {
+  const cardIid = String(card?.iid || '');
+  const projectedPersistent = card?._persistentEffectOverlay;
+  const legacyPersistent = cardIid && typeof G !== 'undefined' && G && Array.isArray(G._balladEffects)
+    ? G._balladEffects.some(function(ownerEffects){
+        return Array.isArray(ownerEffects) && ownerEffects.some(function(fx){
+          return fx && fx.active && !fx.ended && Array.isArray(fx.affectedIids)
+            && fx.affectedIids.some(function(iid){ return String(iid) === cardIid; });
+        });
+      })
+    : false;
   const flash = card && card._effectFlash;
-  if(!flash || !flash.at || !flash.kind) return null;
-  const cleanKind = sanitizeCardEffectFlashKind(flash.kind);
-  if(cleanKind === 'kvetka_ballad' && (typeof G === 'undefined' || !G || (Number(G.turn) || 0) !== (Number(flash.turn) || 0))) return null;
-  if(flash.waitForConsolidationCinematic) {
+  const cleanKind = sanitizeCardEffectFlashKind(flash?.kind);
+  if(flash && flash.at && flash.kind && cleanKind !== 'kvetka_ballad' && flash.waitForConsolidationCinematic) {
     const now = Date.now();
     const actionPresentationActive = typeof G !== 'undefined' && G && (Number(G._actionPresentationLockUntil) || 0) > now;
     const cinematicLockActive = typeof G !== 'undefined' && G && (Number(G._cinematicUiLockUntil) || 0) > now;
@@ -1078,13 +1086,26 @@ function getActiveCardEffectFlash(card) {
     }
     if(pending && pending.at === oldAt) cardEffectFlashTimers.delete(key);
   }
-  if(cleanKind === 'kvetka_ballad') {
+  if(flash && flash.at && flash.kind && cleanKind === 'kvetka_ballad'
+    && (typeof G !== 'undefined' && G && (Number(G.turn) || 0) === (Number(flash.turn) || 0))) {
     scheduleCardEffectFlashExpiry(card, flash);
     return flash;
   }
-  if(Date.now() >= Number(flash.at) + temporaryCardOverlayDurationMs(flash.kind)) return null;
-  scheduleCardEffectFlashExpiry(card, flash);
-  return flash;
+  if(flash && flash.at && flash.kind && cleanKind !== 'kvetka_ballad'
+    && Date.now() < Number(flash.at) + temporaryCardOverlayDurationMs(flash.kind)) {
+    scheduleCardEffectFlashExpiry(card, flash);
+    return flash;
+  }
+  if(projectedPersistent?.kind === 'kvetka_ballad' || legacyPersistent){
+    return {
+      kind:'kvetka_ballad',
+      label:String(projectedPersistent?.label || 'A Noble Effort at a Ballad'),
+      persistent:true,
+      at:1,
+      duration:0
+    };
+  }
+  return null;
 }
 if(typeof window !== 'undefined') window.getActiveCardEffectFlash = getActiveCardEffectFlash;
 
@@ -1166,12 +1187,19 @@ function getLowMoraleSupporterExpiryState(card) {
   const owner = Number(card.owner);
   const system = typeof G !== 'undefined' && G ? G._moralePressure : null;
   const maxMorale = Math.max(1, Number(system && system.maxMorale || 200));
-  const ownerMorale = Number.isInteger(owner) ? Number(system && system.morale && system.morale[owner]) : NaN;
+  const rawOwnerMorale = Number.isInteger(owner) && Array.isArray(system && system.morale)
+    ? system.morale[owner]
+    : undefined;
+  // An authoritative projection can arrive one frame after the placed card.
+  // Missing Morale is unknown, not zero; Number(null) previously produced a
+  // false low-Morale icon without the server ever scheduling the discard.
+  const ownerMorale = rawOwnerMorale == null || rawOwnerMorale === '' ? NaN : Number(rawOwnerMorale);
   const isSupporter = Number.isInteger(owner) && typeof isCardSupporterForRules === 'function'
     ? isCardSupporterForRules(card, owner)
     : card.type === 'Supporter';
-  const active = !!(isSupporter && Number.isFinite(ownerMorale) && ownerMorale <= maxMorale * .4)
-    || Number.isFinite(startedTurn) || Number.isFinite(rawTurns);
+  const hasExpiryCounter = Number.isFinite(startedTurn) || Number.isFinite(rawTurns);
+  const thresholdActive = Number.isFinite(ownerMorale) && ownerMorale <= maxMorale * .2;
+  const active = !!(isSupporter && (Number.isFinite(ownerMorale) ? thresholdActive : hasExpiryCounter));
   if(!active) return {active:false, turnsCompleted:0, turnsLeft:0};
   const turnsCompleted = Math.max(0, Number.isFinite(rawTurns) ? Math.floor(rawTurns) : 0);
   return {
@@ -1180,6 +1208,20 @@ function getLowMoraleSupporterExpiryState(card) {
     turnsLeft:Math.max(0, 2 - turnsCompleted),
     startedTurn:Number.isFinite(startedTurn) ? startedTurn : null
   };
+}
+
+function getMoscowSupporterTenureState(card) {
+  if(!card || typeof card !== 'object' || typeof G === 'undefined' || !G) return {active:false, turnsOnField:0, turnsRequired:10};
+  if(typeof isLandscapeActive !== 'function' || !isLandscapeActive('igb24') || Number(G.turn) >= 20) return {active:false, turnsOnField:0, turnsRequired:10};
+  if(card._igb24DawnFateGranted === true || card._igb24OpponentEffectImmune === true) return {active:false, turnsOnField:10, turnsRequired:10};
+  const owner = Number(card.owner);
+  const isSupporter = Number.isInteger(owner) && typeof isCardSupporterForRules === 'function'
+    ? isCardSupporterForRules(card, owner)
+    : String(card.type || '') === 'Supporter';
+  if(!isSupporter) return {active:false, turnsOnField:0, turnsRequired:10};
+  const enteredTurn = Number(card._setTurn ?? card.counters?.fieldEnteredTurn);
+  const turnsOnField = Number.isFinite(enteredTurn) ? Math.max(0, Math.min(10, Math.floor(Number(G.turn) - enteredTurn))) : 0;
+  return {active:true, turnsOnField, turnsRequired:10};
 }
 
 function buildLowMoraleSupporterWarningHTML(card) {
@@ -1192,9 +1234,20 @@ function buildLowMoraleSupporterWarningHTML(card) {
     '<span class="cd-low-morale-tooltip">' + warning + '</span>' +
   '</span>';
 }
+
+function buildMoscowSupporterTenureHTML(card) {
+  const tenure = getMoscowSupporterTenureState(card);
+  if(!tenure.active) return '';
+  const text = 'This card has been on the field for ' + tenure.turnsOnField + ' turn' + (tenure.turnsOnField === 1 ? '' : 's') + '.';
+  return '<span class="cd-moscow-tenure" role="status" tabindex="0" title="' + text + '" aria-label="' + text + '">' +
+    '<span class="cd-moscow-symbol" aria-hidden="true">☭</span><b>' + tenure.turnsOnField + '</b>' +
+    '<span class="cd-moscow-tooltip">' + text + '</span></span>';
+}
 if(typeof window !== 'undefined') {
   window.getLowMoraleSupporterExpiryState = getLowMoraleSupporterExpiryState;
+  window.getMoscowSupporterTenureState = getMoscowSupporterTenureState;
   window.buildLowMoraleSupporterWarningHTML = buildLowMoraleSupporterWarningHTML;
+  window.buildMoscowSupporterTenureHTML = buildMoscowSupporterTenureHTML;
 }
 
 function getCardStatusVisualState(card, statuses) {
@@ -1361,9 +1414,11 @@ function collectReusableBoardCards(boardEl) {
 function boardCardDomSignature(card, z, r, c, visual, perspectivePlayer, isHidden, selected) {
   const block = (G.blockedCells || []).find(function(b){ return b && b.z === z && b.r === r && b.c === c; });
   const statusState = getCardStatusVisualState(card, getBoardCardStatusEligibility(card, z, r, c, isHidden));
+  const moscowTenure = getMoscowSupporterTenureState(card);
   return [
     z, r, c, perspectivePlayer, isHidden ? 1 : 0, selected ? 1 : 0,
     block && block.type === 'zoe' ? 1 : 0, statusState.primary || '', statusState.immune ? 1 : 0, statusState.lowMoraleExpiry ? 1 : 0,
+    moscowTenure.active ? moscowTenure.turnsOnField : '',
     isHighTSourceCardActive(card) ? 1 : 0,
     typeof isFlowerKingBlessedCard === 'function' && isFlowerKingBlessedCard(card, z, r, c) ? 1 : 0,
     visual && visual.runtimeImg || '', visual && visual.img || '', visual && visual.name || '',
@@ -1467,6 +1522,8 @@ function getHandRenderSignature() {
   return [
     cp, G.currentPlayer, G.phase, canActFromHand ? 1 : 0, canInspectHand ? 1 : 0, G.selectedHandCard ?? '',
     G.supportsPlacedThisTurn, G.maxSupportsPerTurn, G.extraSupportsThisTurn,
+    JSON.stringify(G.supportersSetForCapThisTurn || []),
+    JSON.stringify(G._bh24DefenseInDepth || []), JSON.stringify(G._phase7Statuses || []),
     G.majaEffectThisTurn ? 1 : 0, force, tutorialSig,
     hand.map(card=>[
       card.iid, card.id, card.owner, card.type, card.rarity, card.aff,
@@ -1969,6 +2026,20 @@ function renderLandscapePanel() {
   } else if(landscape.id === 'igb20') {
     const thresholdNote = typeof getBattleOfPellaFateThresholdPanelNote === 'function' ? getBattleOfPellaFateThresholdPanelNote(st, perspectivePlayer) : '';
     if(thresholdNote) noteHtml = thresholdNote;
+  } else if(landscape.id === 'igb22' && st && Array.isArray(st.targetZones)) {
+    note = 'Fortified Zones: ' + st.targetZones.map(function(zone){ return 'Zone ' + (Number(zone) + 1); }).join(' & ');
+  }
+  let whiteboardActionHtml = '';
+  let whiteboardActionSig = '';
+  if(landscape.id === 'igb21' && !tutorialLandscapeDisplay) {
+    const uses = st && Array.isArray(st.igb21CatalogUses) ? st.igb21CatalogUses : (st && Array.isArray(st.oncePerGameUses) ? st.oncePerGameUses : [0,0]);
+    const spent = (Number(uses[perspectivePlayer]) || 0) >= 1;
+    const isLocalTurn = G && G.currentPlayer === perspectivePlayer && G.phase === 'main' && !G._isSpectator && G._onlineRole !== 'spectator';
+    const enabled = !spent && isLocalTurn;
+    const buttonText = spent ? 'Catalog Used' : 'Open Whiteboard Catalog';
+    whiteboardActionSig = [perspectivePlayer, spent ? 1 : 0, enabled ? 1 : 0].join(':');
+    whiteboardActionHtml = '<div class="landscape-whisper-action ' + (spent ? 'is-spent' : 'is-ready') + '">' +
+      '<button type="button" class="landscape-whisper-button" onclick="activateWhiteboardDrawingsLandscape()"' + (enabled ? '' : ' disabled') + '>' + escapeHtml(buttonText) + '</button></div>';
   }
   let snowLimitHtml = '';
   let snowLimitSig = '';
@@ -1998,7 +2069,7 @@ function renderLandscapePanel() {
         '<button type="button" class="landscape-whisper-button" onclick="activateWhisperOfTheHeartLandscape()"' + (enabled ? '' : ' disabled') + '>' + escapeHtml(buttonText) + '</button>' +
       '</div>';
   }
-  const sig = [landscape.id, landscape.name, landscape.description, note, noteHtml, snowLimitSig, whisperActionSig, tutorialLandscapeDisplay ? 'tutorial' : 'live'].join('|');
+  const sig = [landscape.id, landscape.name, landscape.description, note, noteHtml, snowLimitSig, whisperActionSig, whiteboardActionSig, tutorialLandscapeDisplay ? 'tutorial' : 'live'].join('|');
   if(sig === _lastLandscapeRenderSignature && panel.children.length) return;
   _lastLandscapeRenderSignature = sig;
   panel.classList.remove('empty');
@@ -2016,7 +2087,8 @@ function renderLandscapePanel() {
     '<div class="landscape-desc">' + escapeHtml(panelDescription) + '</div>' +
     (noteHtml ? '<div class="landscape-note ' + (landscape.id === 'igb2' ? 'landscape-alpine-consolidations' : 'landscape-pella-race') + '">' + noteHtml + '</div>' : (note ? '<div class="landscape-note">' + escapeHtml(note) + '</div>' : '')) +
     snowLimitHtml +
-    whisperActionHtml;
+    whisperActionHtml +
+    whiteboardActionHtml;
 }
 
 function showLandscapeChoiceModal(page, onChoose, promptState) {
@@ -2024,7 +2096,7 @@ function showLandscapeChoiceModal(page, onChoose, promptState) {
   const entries = Object.keys(LANDSCAPES || {}).sort(function(a,b){
     return (parseInt(a.replace('igb',''),10)||0) - (parseInt(b.replace('igb',''),10)||0);
   }).map(function(id){
-    const n = Math.max(1, Math.min(20, parseInt(id.replace('igb',''), 10) || 1));
+    const n = Math.max(1, Math.min(24, parseInt(id.replace('igb',''), 10) || 1));
     return {
       id:id,
       num:n,
@@ -2175,7 +2247,6 @@ function getActiveLandscapeFateDiscardConfig() {
 function getBattleOfPellaFateThresholdPanelNote(st, perspectivePlayer) {
   const myTotal = typeof getLandscapeTotalFate === 'function' ? getLandscapeTotalFate(perspectivePlayer) : 0;
   const oppTotal = typeof getLandscapeTotalFate === 'function' ? getLandscapeTotalFate(1 - perspectivePlayer) : 0;
-  const pending = st && Number(st.igb20PendingFateThreshold);
   const claims = st && st.igb20FateThresholdClaims && typeof st.igb20FateThresholdClaims === 'object' ? st.igb20FateThresholdClaims : {};
   const thresholdHtml = BATTLE_OF_PELLA_FATE_DISCARD_THRESHOLDS.map(function(threshold){
     const claim = claims[String(threshold)] || {};
@@ -2187,13 +2258,7 @@ function getBattleOfPellaFateThresholdPanelNote(st, perspectivePlayer) {
       : winner === 1 - Number(perspectivePlayer) ? 'is-opponent' : 'is-unclaimed';
     return '<span class="pella-fate-threshold ' + cls + '"' + (claim.ignored ? ' title="Ignored because this threshold was already reached before Battle of Pella began"' : '') + '>' + threshold + '</span>';
   }).join('<span class="pella-fate-separator">/</span>');
-  let note = 'Fate races ' + thresholdHtml + ':<br>Your Fate: ' + myTotal + ' / Opp: ' + oppTotal;
-  if(BATTLE_OF_PELLA_FATE_DISCARD_THRESHOLDS.includes(pending)) {
-    const claim = claims[String(pending)] || {};
-    const winnerName = G && G.players && G.players[claim.winner] ? G.players[claim.winner].name : 'The first player';
-    note += '<br>' + escapeHtml(winnerName) + ' is choosing a card.';
-  }
-  return note;
+  return 'Fate races ' + thresholdHtml + ':<br>Your Fate: ' + myTotal + ' / Opp: ' + oppTotal;
 }
 window.getBattleOfPellaFateThresholdPanelNote = getBattleOfPellaFateThresholdPanelNote;
 
@@ -2352,16 +2417,37 @@ function maybeResolveBattleOfPellaThreshold() {
   let threshold = getPendingLandscapeFateThreshold(st, config);
   let claim = threshold ? getLandscapeFateThresholdClaim(st, threshold) : null;
   let winner = claim && (claim.winner === 0 || claim.winner === 1) ? claim.winner : -1;
+  const hasOnlineSeat = G._onlinePlayerIndex === 0 || G._onlinePlayerIndex === 1;
+  const isOnlinePella = !!G._onlineRoomCode || hasOnlineSeat;
+  const onlinePlayer = G._onlinePlayerIndex;
+  const localPlayer = onlinePlayer === 0 || onlinePlayer === 1 ? onlinePlayer : Number(G.localPlayerIndex);
+  if(winner !== 0 && winner !== 1) {
+    // A claim can arrive before its pending pointer during an online state merge.
+    // Recover that claim without recalculating its winner from the current turn.
+    const unresolvedThreshold = config.thresholds.find(function(candidate){
+      const existing = getLandscapeFateThresholdClaim(st, candidate);
+      return existing && !existing.choiceResolved && (existing.winner === 0 || existing.winner === 1);
+    });
+    if(unresolvedThreshold) {
+      threshold = unresolvedThreshold;
+      claim = getLandscapeFateThresholdClaim(st, threshold);
+      winner = claim.winner;
+      if(config.id === 'igb20') st.igb20PendingFateThreshold = threshold;
+    }
+  }
   if(winner !== 0 && winner !== 1) {
     const totals = [getBattleOfPellaTotalFate(0), getBattleOfPellaTotalFate(1)];
     threshold = config.thresholds.find(function(candidate){
       const existing = getLandscapeFateThresholdClaim(st, candidate);
-      if(existing && existing.choiceResolved) return false;
+      if(existing) return false;
       return totals[0] >= candidate || totals[1] >= candidate;
     });
     if(!threshold) return false;
     const reached = [0, 1].filter(function(player){ return totals[player] >= threshold; });
     winner = reached.indexOf(Number(G.currentPlayer)) >= 0 ? Number(G.currentPlayer) : reached[0];
+    // Remote snapshots can omit a client-owned pending claim until it resolves.
+    // The losing client must not recreate or announce that claim on every action.
+    if(isOnlinePella && (localPlayer !== winner || G._onlineApplyingRemoteAction)) return true;
     setLandscapeFateThresholdClaim(st, threshold, {
       winner:winner,
       winningTotal:totals[winner],
@@ -2370,7 +2456,12 @@ function maybeResolveBattleOfPellaThreshold() {
       discardedIid:null
     });
     if(config.id === 'igb20') st.igb20PendingFateThreshold = threshold;
-    if(typeof triggerLandscapeFlash === 'function') triggerLandscapeFlash(threshold + ' Fate reached', 'major');
+    if(!G._igb20AnnouncedThresholds || typeof G._igb20AnnouncedThresholds !== 'object') G._igb20AnnouncedThresholds = {};
+    const announcementKey = String(threshold) + ':p' + String(winner);
+    if(!G._igb20AnnouncedThresholds[announcementKey]) {
+      G._igb20AnnouncedThresholds[announcementKey] = true;
+      if(typeof triggerLandscapeFlash === 'function') triggerLandscapeFlash(threshold + ' Fate reached', 'major');
+    }
     renderGame({landscape:true});
   }
   const entries = getAllBoardCardEntries(function(card){ return isBattleOfPellaDiscardableCard(card); });
@@ -2378,9 +2469,7 @@ function maybeResolveBattleOfPellaThreshold() {
   if(G.aiEnabled && Number(G.aiPlayer) === winner) {
     return resolveBattleOfPellaDiscard(winner, chooseBattleOfPellaAiTarget(winner, entries));
   }
-  if(G._onlineRoomCode) {
-    const onlinePlayer = G._onlinePlayerIndex;
-    const localPlayer = onlinePlayer === 0 || onlinePlayer === 1 ? onlinePlayer : Number(G.localPlayerIndex);
+  if(isOnlinePella) {
     if(localPlayer !== winner || G._onlineApplyingRemoteAction) return true;
   }
   if(_battleOfPellaPromptWinner === winner) return true;
@@ -2694,8 +2783,8 @@ function resolvePendingLandscapeEndTurnZone(pending, zone) {
   if(activePending && activePending.promptId && pending.promptId && String(activePending.promptId) !== String(pending.promptId)) return false;
   G.pendingInteraction = null;
   if(landscapeId === 'igb2') {
-    addLandscapeZoneFateBonus(winner, z, 12, 'major');
-    toast(G.players[winner].name + ' gains 12 Fate in Zone ' + (z + 1) + '.');
+    addLandscapeZoneFateBonus(winner, z, 16, 'major');
+    toast(G.players[winner].name + ' gains 16 Fate in Zone ' + (z + 1) + '.');
   } else if(landscapeId === 'igb8') {
     addFullExtraSafeRowForPlayer(z, winner, 'Qingdao extra row', {sfxKind:'major'});
     toast(G.players[winner].name + ' gains an extra safe row in Zone ' + (z + 1) + '.');
@@ -2755,7 +2844,7 @@ function maybeResolveLandscapeEndTurn() {
       playerIndex:winner,
       landscapeId:'igb2',
       title:'The Frontier of Innovation',
-      subtitle:G.players[winner].name + ' consolidated more times. Choose a zone to gain 12 Fate.',
+      subtitle:G.players[winner].name + ' consolidated more times. Choose a zone to gain 16 Fate.',
       pickerKind:'fate',
       promptId:['landscape-zone', String(G._onlineRoomCode || 'local'), 'igb2', String(G.turn || 0), String(winner)].join(':')
     };
@@ -2811,19 +2900,30 @@ function maybeResolveLandscapeEndTurn() {
   return false;
 }
 
-function queueLandscapeOutsideDrawBonus(player, drawnCard) {
+const _landscapeOutsideDrawClaimKeys = new Set();
+
+function queueLandscapeOutsideDrawBonus(player, drawnCard, effectActivationId) {
   if(!(typeof isLandscapeActive === 'function' && isLandscapeActive('igb9'))) return false;
   // Phase 7 owns this landscape trigger on the server.  Do not allow the
   // legacy draw listener to mutate the projected client board before the
   // server-issued prompt arrives; doing so produces a visible +3 that the
   // next authoritative snapshot correctly rolls back.
-  if(G && G._phase7CurrentMultiplayer === true) return false;
-  if(G && G._onlineRoomCode) {
-    const localPlayer = Number(G._onlinePlayerIndex);
-    if(!Number.isInteger(localPlayer) || Number(player) !== localPlayer || G._onlineApplyingRemoteAction) return false;
+  // Every multiplayer route is server-authoritative. Never create a second
+  // legacy West Coast prompt from projected draw animations.
+  if(G && G._onlineRoomCode) return false;
+  const activationKey = String(effectActivationId || '');
+  // Keep this outside G: online projections replace G between draw events.
+  // A latch stored on G disappears and the same effect opens the prompt again.
+  if(activationKey && _landscapeOutsideDrawClaimKeys.has(activationKey)) return false;
+  if(activationKey) {
+    _landscapeOutsideDrawClaimKeys.add(activationKey);
+    if(_landscapeOutsideDrawClaimKeys.size > 160) {
+      const oldest = _landscapeOutsideDrawClaimKeys.values().next().value;
+      if(oldest) _landscapeOutsideDrawClaimKeys.delete(oldest);
+    }
   }
   if(!G._landscapeDrawQueue) G._landscapeDrawQueue = [];
-  G._landscapeDrawQueue.push({player:player, cardName:drawnCard && drawnCard.name || 'a card'});
+  G._landscapeDrawQueue.push({player:player, cardName:drawnCard && drawnCard.name || 'a card', effectActivationId:activationKey || null});
   processLandscapeDrawQueue();
   return true;
 }
@@ -2854,7 +2954,7 @@ function processLandscapeDrawQueue() {
   // A queue may have been created immediately before the Phase 7 projection
   // was marked authoritative.  Drop it rather than resolving a legacy
   // client-owned fate change against the authoritative match.
-  if(G && G._phase7CurrentMultiplayer === true) {
+  if(G && G._onlineRoomCode) {
     G._landscapeDrawQueue = [];
     G._landscapeDrawPromptOpen = false;
     return;
@@ -3081,7 +3181,10 @@ function showCanvasCardGalleryModal(title, cards, opts) {
     drawToken++;
     const token = drawToken;
     const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
-    const cssW = 720, cols = 4, rows = 2, gap = 14, pad = 14;
+    const cssW = 720, cols = 4, gap = 14, pad = 14;
+    const start = page * perPage;
+    const end = Math.min(start + perPage, cards.length);
+    const rows = Math.max(1, Math.ceil((end - start) / cols));
     const cardW = Math.floor((cssW - pad*2 - gap*(cols-1)) / cols);
     const cardH = Math.floor(cardW * 1.4);
     const cssH = pad*2 + rows*cardH + gap*(rows-1);
@@ -3093,8 +3196,6 @@ function showCanvasCardGalleryModal(title, cards, opts) {
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
     hitboxes = [];
-    const start = page * perPage;
-    const end = Math.min(start + perPage, cards.length);
     for(let i=start; i<end; i++) {
       const card = cards[i];
       const visual = getCardVisualData(card, viewerP);
@@ -3316,7 +3417,7 @@ function showHowardDevDeckList(player) {
     ? sortHowardDevDeckCards(CARDS.filter(function(card){
       if(!card || !card.id) return false;
       if(typeof isRetiredCardForBuilder === 'function') return !isRetiredCardForBuilder(card);
-      return String(card.id || '') !== 'bh25' && card.retired !== true;
+      return card.retired !== true;
     }))
     : [];
   if(!cards.length){
@@ -4069,6 +4170,7 @@ function getStatusEffectIcon(kind) {
     heal_outline: `<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M25 10h14v15h15v14H39v15H25V39H10V25h15z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/></svg>`,
     wci_bonus: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="32" r="14" stroke-width="4"/><circle cx="32" cy="32" r="5" stroke-width="3.5"/><path d="M32 8v10M32 46v10M8 32h10M46 32h10M15 15l7 7M42 42l7 7M49 15l-7 7M22 42l-7 7" stroke-width="3.5"/></g></svg>`,
     shield_wall: `<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 8l18 8v14c0 12-7.2 20.4-18 26-10.8-5.6-18-14-18-26V16l18-8z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M22 34l7 7 14-17" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    defense_in_depth: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M10 46h44"/><path d="M14 46c6-15 12-22 18-22s12 7 18 22"/><path d="M22 24l10-14 10 14"/><path d="M20 36h24"/></g></svg>`,
     maja_unlimited: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10 46l14-14-14-14M24 46l14-14-14-14M38 46l14-14-14-14" stroke-width="4"/></g></svg>`,
     fort_calvin: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><circle cx="27" cy="27" r="12"/><path d="M36 36l14 14"/><path d="M24 27h6M27 24v6" opacity=".7"/></g></svg>`,
     berkeley_lock: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 43h25l14-14" stroke-width="4"/><path d="M20 43l-5 9M34 43l5 9" stroke-width="3"/><rect x="42" y="16" width="12" height="12" rx="2" stroke-width="3.5"/><path d="M16 34h14" stroke-width="3.5"/></g></svg>`,
@@ -4090,6 +4192,7 @@ function getStatusEffectIcon(kind) {
     administrative_bloat: `<svg class="administrative-bloat-icon" viewBox="0 0 64 64" aria-hidden="true"><path d="M19 11h20l9 9v33H19z" fill="currentColor" opacity=".12"/><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M19 11h20l9 9v33H19z" stroke-width="4"/><path d="M39 11v10h9" stroke-width="4"/><path d="M25 29h17M25 36h17M25 43h12" stroke-width="3.5"/></g></svg>`,
     blame_game: `<svg class="blame-game-icon" viewBox="0 0 64 64" aria-hidden="true"><g transform="translate(32 32) scale(1.16) translate(-32 -32)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M32 6v9M32 49v9M6 32h9M49 32h9" stroke-width="3.5"/><circle cx="32" cy="25" r="6.5" stroke-width="3.5"/><path d="M20 47c1-10.5 5.5-16 12-16s11 5.5 12 16" stroke-width="4.2"/></g></svg>`,
     boleslaw: `<svg class="boleslaw-bombastic-icon" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10 39c0-13 10-22 24-22h3c14 0 24 9 24 22s-10 22-24 22h-9l-15 8 5-14c-5-4-8-9-8-16z" stroke-width="4.2"/><path d="M24 31h22M24 40h18M24 49h10" stroke-width="3.4"/></g></svg>`,
+    alpine_engineer_proc: `<svg class="alpine-engineer-icon" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"><path d="M32 6l5 8 9-1 2 9 8 5-4 5 4 5-8 5-2 9-9-1-5 8-5-8-9 1-2-9-8-5 4-5-4-5 8-5 2-9 9 1z"/><circle cx="32" cy="32" r="10"/></g></svg>`,
     ali_indomitable: `<svg class="ali-indomitable-icon" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 29V18c0-4 6-4 6 0v8-12c0-4 7-4 7 0v12-14c0-4 7-4 7 0v14-10c0-4 7-4 7 0v18l-5 16H23l-8-13c-3-5 3-9 7-5l5 5" stroke-width="4"/><path d="M23 50h17v7H23z" stroke-width="3.5"/></g></svg>`,
     busser_boot: `<svg class="busser-boot-icon" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M11 40h42M16 40c1-11 7-18 16-18s15 7 16 18" stroke-width="4"/><path d="M28 17h8M32 17v5M10 49h35" stroke-width="3.5"/><path d="M42 14h12M49 9l5 5-5 5" stroke-width="3.5"/></g></svg>`,
     duelist: `<svg class="cook-islands-duelist-icon" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M15 13l27 27" stroke-width="5"/><path d="M12 10l8 3-5 5z" fill="currentColor" stroke="none"/><path d="M42 40l8 8" stroke-width="5"/><path d="M49 45l5 5-4 4-5-5" stroke-width="3.5"/><path d="M49 13L22 40" stroke-width="5"/><path d="M52 10l-8 3 5 5z" fill="currentColor" stroke="none"/><path d="M22 40l-8 8" stroke-width="5"/><path d="M15 45l-5 5 4 4 5-5" stroke-width="3.5"/><path d="M37 34l7 7M27 34l-7 7" stroke-width="3.5"/></g></svg>`,
@@ -4125,10 +4228,11 @@ function getAuthoritativeEffectOverlayDescriptor(event, source, target) {
     'bh01':{kind:'anicka_voyager_boat',label:'Brave Horizons'},'bh02':{kind:'joie_thousand_reel',label:'Thousand Reel Stare'},
     'bh04':{kind:'bh04_selva_paradise',label:'The Destruction of Paradise'},'bh07':{kind:'bh07_overclock',label:'Overclock'},
     'bh08':{kind:'bh08_mischief',label:'Mischievous Activities'},'bh17':{kind:'bh17_crushing_momentum',label:'Crushing Momentum'},
-    'bh25':{kind:'jimmy_wrath',label:'Left Hook of the Incel'}
+    'bh24':{kind:'bh24_winter_star',label:'Defense in Depth'},
+    'bh25':{kind:'alpine_engineer_proc',label:"An Engineer's Ambition"}
   };
   if(type === 'EFFECT_ACTIVATED'){
-    if(['93','31','05','22','83'].includes(sourceId)) return null;
+    if(['93','31','05','22','83','bh24'].includes(sourceId)) return null;
     return bySourceId[sourceId] || null;
   }
   if(type !== 'FATE_CHANGED') return null;
@@ -4673,8 +4777,16 @@ function canPlayCard(card) {
   // Lina free-set: always playable
   if(G._linaFreeIids && G._linaFreeIids.has(card.iid)) return true;
   if(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, card.owner) : card.type==='Supporter') {
+    const defenseInDepthReady = (Array.isArray(G._bh24DefenseInDepth)
+      && G._bh24DefenseInDepth[card.owner]
+      && Number(G._bh24DefenseInDepth[card.owner].remaining || 0) > 0)
+      || (Array.isArray(G._phase7Statuses) && G._phase7Statuses.some(function(status){
+        return status && status.type === 'NEXT_SUPPORTER_SET_EXEMPT'
+          && Number(status.playerIndex) === Number(card.owner)
+          && Number(status.remaining || 0) > 0;
+      }));
     const max=Math.min(SUPPORTER_HARD_TURN_CAP,G.maxSupportsPerTurn+G.extraSupportsThisTurn);
-    if(!G.majaEffectThisTurn && G.supportsPlacedThisTurn>=max) return false;
+    if(!G.majaEffectThisTurn && !defenseInDepthReady && G.supportsPlacedThisTurn>=max) return false;
   }
   return true;
 }
@@ -4689,6 +4801,15 @@ function isSupporterLimitReachedForCard(card) {
   if(G.phase !== 'main') return false;
   if(G._linaFreeIids && G._linaFreeIids.has(card.iid)) return false;
   if(G.majaEffectThisTurn) return false;
+  const defenseInDepthReady = (Array.isArray(G._bh24DefenseInDepth)
+    && G._bh24DefenseInDepth[card.owner]
+    && Number(G._bh24DefenseInDepth[card.owner].remaining || 0) > 0)
+    || (Array.isArray(G._phase7Statuses) && G._phase7Statuses.some(function(status){
+      return status && status.type === 'NEXT_SUPPORTER_SET_EXEMPT'
+        && Number(status.playerIndex) === Number(card.owner)
+        && Number(status.remaining || 0) > 0;
+    }));
+  if(defenseInDepthReady) return false;
   const max = Math.min(SUPPORTER_HARD_TURN_CAP, G.maxSupportsPerTurn + G.extraSupportsThisTurn);
   return G.supportsPlacedThisTurn >= max;
 }
@@ -5503,6 +5624,7 @@ function getTopBarEffectsSourceSignature() {
     // that is created or expires without changing a legacy mirror still
     // mounts/unmounts its normal production top-bar banner immediately.
     JSON.stringify(G._phase7Statuses || []),
+    JSON.stringify(G._bh24DefenseInDepth || []),
     handBits.join(','),
     boardBits.join(',')
   ].join('|');
@@ -5550,7 +5672,8 @@ function renderTopbarEffects() {
        'MAJA_EXTRA_SUPPORTERS',
        'WINE_COUNTRY_GUERILLA_INFILTRATION',
        'FACE_DOWN_CONSOLIDATION_PERMISSION',
-       'PERMANENT_FATE_GAIN_POTENCY',
+      'PERMANENT_FATE_GAIN_POTENCY',
+      'NEXT_SUPPORTER_SET_EXEMPT',
        'MOVEMENT_GRANT',
        'BUSSER_INITIATOR_MORALE'
     ].includes(String(type || '').toUpperCase()) && (affected === 0 || affected === 1)) return affected;
@@ -5599,7 +5722,7 @@ function renderTopbarEffects() {
       const affClass = String(status.affiliation || '').replace(/[^a-z0-9_-]/gi, '');
       add('51', 'rivera_aff', 'Rivera', "Jorge's Right Hand Man", 'Character cards set with ' + aff + ' gain ' + (Number(status.value) || 4) + ' Fate. ' + remaining + ' owner turn' + (remaining === 1 ? '' : 's') + ' remaining.', 'effect-pill-rivera' + (affClass ? ' aff-' + affClass : ''));
     }else if(type === 'CONSOLIDATION_FATE_BONUS'){
-      add('87', 'ballad', 'Kvetka Svoboda', 'A Noble Effort at a Ballad', 'Your consolidations gain ' + (Number(status.value) || 3) + ' Fate until you set a Supporter.', 'effect-pill-music');
+      add('87', 'ballad', 'Kvetka Svoboda', 'A Noble Effort at a Ballad', 'Your consolidations gain ' + (Number(status.value) || 3) + ' Fate permanently until you set a Supporter.', 'effect-pill-music');
     }else if(type === 'CONSOLIDATION_COST_MODIFIER' && remaining > 0){
       add(
         '97',
@@ -5641,10 +5764,26 @@ function renderTopbarEffects() {
     }else if(type === 'PERMANENT_FATE_GAIN_POTENCY' && remaining > 0){
       add('bh19', 'high_t', 'Abed', 'High-T', 'Permanent Fate gain effects have doubled potency for this turn.', 'effect-pill-high-t');
       if(allEffects.length && (affected === 0 || affected === 1)) allEffects[allEffects.length - 1].owner = affected;
+    }else if(type === 'NEXT_SUPPORTER_SET_EXEMPT' && remaining > 0){
+      add('bh24','defense_in_depth','Leningrad 4th Rifles','Defense in Depth','The next Supporter you set ignores the ordinary set limit and gains ' + (Number(status.fateBonus) || 4) + ' Fate. The global 5-per-turn cap still applies.','effect-pill-defense-in-depth');
+      if(allEffects.length && (affected === 0 || affected === 1)) allEffects[allEffects.length - 1].owner = affected;
     }else if(type === 'BH21_FATE_MORALE_CONCEALMENT' && remaining > 0){
       add('bh21','oktai_conceal','Oktai','The Vast Taklamakan','The affected opponent cannot see Fate values, Morale values or changes, hand counts, the timer, turn count, or other active status banners for ' + remaining + ' remaining turn' + (remaining === 1 ? '' : 's') + '.','effect-pill-oktai-conceal');
     }
   });
+  if(G._phase7CurrentMultiplayer !== true && Array.isArray(G._bh24DefenseInDepth)){
+    G._bh24DefenseInDepth.forEach(function(status, owner){
+      if(!status || Number(status.remaining || 0) <= 0) return;
+      const card = phase7StatusCard('bh24');
+      allEffects.push({
+        icon:getStatusEffectIcon('defense_in_depth'),label:card ? card.ability : 'Defense in Depth',
+        cardName:card ? card.name : 'Leningrad 4th Rifles',cardAbility:'Defense in Depth',
+        cardEffect:'The next Supporter you set does not contribute to the ordinary Supporter set limit and gains 4 Fate. The global 5-per-turn cap still applies.',
+        owner:owner,sourceIid:status.sourceIid,extraClass:'effect-pill-defense-in-depth',
+        statusInstanceKey:'bh24-defense-in-depth:' + owner
+      });
+    });
+  }
   const jamieSquares = Array.isArray(G?._phase7Geometry?.squareStatuses)
     ? G._phase7Geometry.squareStatuses.filter(function(status){ return String(status?.type || '') === 'MORALE_RECOVERY_SQUARE'; })
     : [];
@@ -6336,7 +6475,7 @@ function applyWinScreenGameBackground() {
   let gameBgVar = gameScreen ? gameScreen.style.getPropertyValue('--game-bg-img') : '';
   const lastBg = window.__fateLastGameBackground || null;
   if(!gameBgVar && typeof _lastGameSong !== 'undefined' && typeof INGAME_BG_PATH === 'function') {
-    const bgNum = Math.max(1, Math.min(20, parseInt(String(_lastGameSong || 'board1').replace('board',''), 10) || 1));
+    const bgNum = Math.max(1, Math.min(24, parseInt(String(_lastGameSong || 'board1').replace('board',''), 10) || 1));
     const bgPath = typeof getGameLandscapeBackgroundPath === 'function' ? getGameLandscapeBackgroundPath(bgNum) : INGAME_BG_PATH(bgNum);
     gameBgVar = `url(${bgPath})`;
   }
@@ -7205,6 +7344,7 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
     : '';
   const trackerHtml = buildCardDetailTrackerHTML(card, viewerP, hideCard);
   const lowMoraleExpiryBanner = !hideCard ? buildLowMoraleSupporterWarningHTML(card) : '';
+  const moscowTenureBanner = !hideCard ? buildMoscowSupporterTenureHTML(card) : '';
   const copiedPassiveName = (!hideCard && String(card.id || '') === '37') ? (card._copiedPassiveName || card.copiedPassiveName || '') : '';
   const copiedPassiveEffect = (!hideCard && String(card.id || '') === '37') ? (card._copiedPassiveEffect || card.copiedPassiveEffect || '') : '';
   const copiedPassiveBanner = buildFrenchFusiliersCopyBannerHTML(copiedPassiveName, copiedPassiveEffect) + (!hideCard ? buildWhisperTokenCopyBannerHTML(card) + buildTaylorCopyBannerHTML(card) : '');
@@ -7226,8 +7366,8 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
       <div class="cd-info">
         <div class="cd-name cd-name-with-audio">
           <span>${visual.name}</span>
-          ${lowMoraleExpiryBanner}
           ${voiceButton}
+          ${(moscowTenureBanner || lowMoraleExpiryBanner) ? '<span class="cd-status-badges">' + moscowTenureBanner + lowMoraleExpiryBanner + '</span>' : ''}
         </div>
         <div class="cd-ability">${visual.ability}</div>
         <div class="cd-pills">
@@ -7424,7 +7564,7 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
         act.className='btn sm pri';
         act.textContent=String(bc.id || '') === 'bh01'
           ? 'Brave Horizons'
-          : (String(bc.id || '') === 'bh16' ? 'Storm of Ten Thousand Blades' : 'Activate Effect');
+          : (String(bc.id || '') === 'bh16' ? 'Storm of Ten Thousand Blades' : (String(bc.id || '') === '20' ? 'Shield Wall' : 'Activate Effect'));
         act.onclick=()=>{playEffectActivationButtonSound(); closeModal(); triggerCharacterEffect(bc,z,r,c);};
         acts.appendChild(act);
       }
@@ -7534,6 +7674,7 @@ function resetModalChrome() {
   if(document.body) document.body.classList.remove('choose-deck-open', 'public-decks-performance-active');
   const modalBox = document.querySelector('#modal .modal');
   if(modalBox){
+    modalBox.classList.remove('profile-view-modal-v2', 'profile-edit-modal-v2');
     modalBox.querySelectorAll('.preset-order-top-close').forEach(function(el){ el.remove(); });
     // The modal node is shared by every window. Restore its one permanent class
     // instead of maintaining an incomplete list of temporary picker classes.
@@ -7560,7 +7701,6 @@ function shouldUseCardEffectModal(title, bodyHtml, actions) {
     'Over-Reinforcement',
     'Chaparral Hoplite',
     'Artillery Distance',
-    'Left Hook of the Incel',
     'Rearrange Top 5'
   ]);
   const inGame = !!document.getElementById('s-game')?.classList.contains('active');
@@ -7678,7 +7818,9 @@ function showModal(title, bodyHtml, actions, opts) {
     return false;
   }
   const effectModal = shouldUseCardEffectModal(titleStr, bodyHtml, actions);
-  const endGameModal = /^End Game\?$/i.test(titleStr);
+  // Online matches use a different heading, but this is the same concede
+  // decision and must share the shipping single-player confirmation chrome.
+  const endGameModal = /^(?:End Game\?|Leave Online Match\?)$/i.test(titleStr);
   const skipDecorate = !!(opts && opts.skipDecorate);
   if(!(opts && opts.immediate)){
     const setEffectWait = effectModal && typeof G !== 'undefined' && G
@@ -7919,6 +8061,13 @@ function getBoardTargetPickerRowLabel(rowIndex, viewerP) {
 }
 
 function showBoardTargetPicker(opts, onConfirm) {
+  const interactionWait = opts?.immediate === true
+    ? 0
+    : (typeof getInteractionAnimationDelayMs === 'function' ? getInteractionAnimationDelayMs() : 0);
+  if(interactionWait > 0){
+    setTimeout(function(){ showBoardTargetPicker(opts, onConfirm); }, interactionWait);
+    return;
+  }
   const viewerP = typeof opts.viewerPlayerIndex === 'number' ? opts.viewerPlayerIndex : getPerspectivePlayerIndex();
   const allowSquareTargets = !!(opts && opts.allowSquareTargets);
   const entries = (opts.entries || []).filter(function(entry){ return entry && (entry.card || allowSquareTargets); });
@@ -7929,10 +8078,20 @@ function showBoardTargetPicker(opts, onConfirm) {
     ? opts.visibleZones
     : (opts.zones && opts.zones.length ? opts.zones : [entries[0].z])).filter(function(z, idx, arr){
     return typeof z === 'number' && arr.indexOf(z) === idx;
-  });
+  }).sort(function(a,b){ return a-b; });
   const byPos = new Map();
   entries.forEach(function(entry){ byPos.set(entry.z + ':' + entry.r + ':' + entry.c, entry); });
   let selected = [];
+  let selectionCommitted = false;
+
+  function commitSelection(){
+    if(selectionCommitted || selected.length < minCount) return false;
+    selectionCommitted = true;
+    const chosen = selected.slice();
+    closeModal();
+    if(typeof onConfirm === 'function') onConfirm(chosen);
+    return true;
+  }
 
   function openPickerCardInfo(ev, card, entry) {
     if(ev) {
@@ -8135,8 +8294,7 @@ function showBoardTargetPicker(opts, onConfirm) {
     }},
     {label:opts.confirmLabel || 'Confirm', pri:true, action:function(){
       if(selected.length < minCount){ toast(opts.emptySelectionMessage || (allowSquareTargets ? 'Select a square first' : 'Select a card first')); return; }
-      closeModal();
-      if(typeof onConfirm === 'function') onConfirm(selected.slice());
+      commitSelection();
     }}
   ], {immediate:true});
   const bodySlot = document.getElementById('modal-body');
@@ -9821,6 +9979,7 @@ function showCardInfoOverlay(card) {
   var copiedPassiveBanner = buildFrenchFusiliersCopyBannerHTML(copiedPassiveName, copiedPassiveEffect) + buildWhisperTokenCopyBannerHTML(card) + buildTaylorCopyBannerHTML(card);
   var trackerHtml = buildCardDetailTrackerHTML(card, typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : 0, false);
   var lowMoraleExpiryBanner = buildLowMoraleSupporterWarningHTML(card);
+  var moscowTenureBanner = buildMoscowSupporterTenureHTML(card);
   var overlay = document.createElement('div');
   overlay.className = 'card-info-overlay';
   overlay.innerHTML =
@@ -9830,7 +9989,7 @@ function showCardInfoOverlay(card) {
       '<div class="cd-wrap">'+
         '<div class="cd-img">'+cardArt+'</div>'+
         '<div class="cd-info">'+
-          '<div class="cd-name cd-name-with-audio"><span>'+visual.name+'</span>'+lowMoraleExpiryBanner+voiceButton+'</div>'+
+          '<div class="cd-name cd-name-with-audio"><span>'+visual.name+'</span>'+voiceButton+((moscowTenureBanner||lowMoraleExpiryBanner)?'<span class="cd-status-badges">'+moscowTenureBanner+lowMoraleExpiryBanner+'</span>':'')+'</div>'+
           '<div class="cd-ability">'+visual.ability+'</div>'+
           '<div class="cd-pills">'+
              '<span class="pill type">'+visual.type+(visual.cost>0?' ('+(visual.xCost?'X':visual.cost)+')':'')+'</span>'+
@@ -10210,8 +10369,9 @@ function _hexToRgb(hex) {
 }
 
 function getConsolidationCinematicTiming(perfLite) {
+  var timing;
   if(perfLite) {
-    return {
+    timing = {
       subtitleDelay:80,
       overlayFadeAt:2520,
       overlayRemoveAt:2920,
@@ -10219,15 +10379,22 @@ function getConsolidationCinematicTiming(perfLite) {
       lockMs:3000,
       fadeMs:400
     };
+  } else {
+    timing = {
+      subtitleDelay:140,
+      overlayFadeAt:2740,
+      overlayRemoveAt:3180,
+      safetyAt:3620,
+      lockMs:3260,
+      fadeMs:440
+    };
   }
-  return {
-    subtitleDelay:140,
-    overlayFadeAt:2740,
-    overlayRemoveAt:3180,
-    safetyAt:3620,
-    lockMs:3260,
-    fadeMs:440
-  };
+  var replaySpeed = typeof G !== 'undefined' && G && G._warReplayMode
+    ? Math.max(1, Number(window.FATE_WAR_REPLAY_SPEED) || 1)
+    : 1;
+  if(replaySpeed <= 1) return timing;
+  Object.keys(timing).forEach(function(key){ timing[key] = Math.max(key === 'subtitleDelay' ? 20 : 90, Math.round(timing[key] / replaySpeed)); });
+  return timing;
 }
 
 function isConsolidationCinematicPerfLite() {
@@ -10534,6 +10701,7 @@ function showConsolidationCinematic(card, opts) {
   }, timing.safetyAt);
   return true;
 }
+if(typeof window !== 'undefined') window.showConsolidationCinematic = showConsolidationCinematic;
 
 function requestCharacterSetCinematic(card, opts) {
   if(!card || card.faceDown || String(card.type || '') === 'Supporter') return false;
@@ -10753,8 +10921,9 @@ function showEffectActivationCinematic(card, opts) {
       ? EFFECT_ACTIVATION_CINEMATIC_PERF_BASE_DURATION_MS
       : EFFECT_ACTIVATION_CINEMATIC_BASE_DURATION_MS;
     const defaultDuration = baseDuration - EFFECT_ACTIVATION_CINEMATIC_SPEEDUP_MS;
+    const replayMinimum = typeof G !== 'undefined' && G && G._warReplayMode ? 350 : EFFECT_ACTIVATION_CINEMATIC_MIN_DURATION_MS;
     const duration = Math.max(
-      EFFECT_ACTIVATION_CINEMATIC_MIN_DURATION_MS,
+      replayMinimum,
       Math.min(EFFECT_ACTIVATION_CINEMATIC_MAX_DURATION_MS, Number(options.duration) || defaultDuration)
     );
     // Scale every visual beat with the total duration. The frame transitions

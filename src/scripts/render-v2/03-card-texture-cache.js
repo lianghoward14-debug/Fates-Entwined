@@ -603,7 +603,7 @@
 
   function preloadVisible(snapshot, layout){
     const items = collectVisibleCards(snapshot, layout);
-    const boardDpr = Math.min(2.5, Math.max(1, Number(window.devicePixelRatio || 1)));
+    const boardDpr = Math.min(1.5, Math.max(1, Number(window.devicePixelRatio || 1)));
     let requested = 0;
     items.forEach(function(item){
       const visual = item.card && item.card.visual;

@@ -1,0 +1,33 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Free World 360+ Review</title>
+<style>:root{color-scheme:dark;font-family:Inter,system-ui,sans-serif}body{margin:0;min-height:100vh;background:radial-gradient(circle at top,#33405f,#090b12 60%);color:#f4f6ff}main{max-width:980px;margin:auto;padding:42px 22px}h1{margin:0 0 8px;font-size:clamp(28px,5vw,46px)}p{margin:0 0 26px;color:#bcc4da}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:13px}button{min-height:105px;padding:17px;border:1px solid #4c587d;border-radius:15px;background:linear-gradient(145deg,#29324d,#171c2c);color:inherit;text-align:left;cursor:pointer;box-shadow:0 10px 25px #0005}button:hover{transform:translateY(-2px);border-color:#90a5ff}button.playing{background:linear-gradient(145deg,#5971c9,#293b78)}b{display:block;font-size:23px}span{color:#bdc5dc;font-size:13px}</style></head>
+<body><main><h1>Updated clips 360–605</h1><p>Approved fragments are merged into single buttons; rejected clips are omitted.</p><section class="grid" id="board"></section></main>
+<script>
+const board=document.querySelector('#board');let audio,active;
+function sourceFor(globalNumber){
+  if(globalNumber<=380)return[1,globalNumber];
+  if(globalNumber<=473)return[2,globalNumber-380];
+  if(globalNumber<=512)return[3,globalNumber-473];
+  return[4,globalNumber-512];
+}
+const merged={
+  368:'368-369',370:'370-371',372:'372-373',382:'382-383',
+  393:'393-394',395:'395-396',397:'397-398',566:'566-567',
+  572:'572-573',576:'576-577',597:'597-598'
+};
+const consumed=new Set([369,371,373,383,394,396,398,567,573,577,598]);
+const discarded=new Set([367,400,401,447,448]);
+for(let n=360;n<=605;n++){
+  if(consumed.has(n)||discarded.has(n))continue;
+  if(merged[n]){
+    const group=merged[n],src=`../free-world-short-merge-review/clips/merged-${group}.mp3?v=3`,button=document.createElement('button');
+    button.innerHTML=`<b>${group.replaceAll('-',' + ')}</b><span>Approved merged line</span>`;
+    button.onclick=()=>{audio?.pause();active?.classList.remove('playing');audio=new Audio(src);active=button;button.classList.add('playing');audio.onended=()=>button.classList.remove('playing');audio.play()};
+    board.append(button);continue;
+  }
+  const [set,local]=sourceFor(n),globalId=String(n).padStart(3,'0'),localId=String(local).padStart(3,'0');
+  const src=`../voice-line-batches/set-${set}/clips/voice-line-${localId}.mp3`,button=document.createElement('button');
+  button.innerHTML=`<b>${globalId}</b><span>Set ${set} · source clip ${localId}</span>`;
+  button.onclick=()=>{audio?.pause();active?.classList.remove('playing');audio=new Audio(src);active=button;button.classList.add('playing');audio.onended=()=>button.classList.remove('playing');audio.play()};
+  board.append(button);
+}
+</script></body></html>

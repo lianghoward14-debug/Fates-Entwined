@@ -117,6 +117,12 @@ assert.equal(Object.hasOwn(playerProjection.players[1], 'hand'), false);
 assert.equal(Object.hasOwn(playerProjection.players[1], 'deck'), false);
 assert.equal(Object.hasOwn(spectatorProjection.players[0], 'hand'), false);
 assert.equal(JSON.stringify(playerProjection.players[1]).includes(opponentSecretId), false);
+assert.equal(playerProjection.completedHands, null, 'live projections must not reveal replay hands');
+const completedState = structuredClone(state);
+completedState.outcome = {type:'WIN', winner:0};
+const completedProjection = projectStateForPlayer(completedState, 0);
+assert.deepEqual(completedProjection.completedHands, completedState.players.map(player=>player.hand), 'terminal participant projections must reveal both hands for replay capture');
+assert.equal(Object.hasOwn(completedProjection.players[1], 'hand'), false, 'terminal replay hands must not weaken the normal opponent projection');
 
 state = testState({player0:['54', '34'], player1:['32']});
 const identitySet = new Set(

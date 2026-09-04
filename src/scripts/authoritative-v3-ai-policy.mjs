@@ -1,4 +1,9 @@
-import {stableStringify} from '../../shared/engine/index.mjs';
+import {
+  legalCommandTemplates,
+  projectStateForPlayer,
+  reduceCommand,
+  stableStringify
+} from '../../shared/engine/index.mjs';
 
 function controllerOf(card){
   return Number.isInteger(Number(card?.controller)) ? Number(card.controller) : Number(card?.owner);
@@ -185,7 +190,7 @@ function supporterDevelopmentScore(projection, playerIndex){
   const used = Number(projection?.supportersSetThisTurn?.[player] || 0);
   const system = projection?.gameSettings?.healthPressureSeals === true ? projection?.moralePressure : null;
   const maxMorale = Math.max(1, Number(system?.maxMorale || 200));
-  const expiring = !!system && Number(system.morale?.[player] || 0) / maxMorale <= .40;
+  const expiring = !!system && Number(system.morale?.[player] || 0) / maxMorale <= .20;
   return Math.max(0, capacity - used) * (expiring ? 16 : 50);
 }
 
@@ -269,7 +274,7 @@ export function scoreStrategicV3AiCommand(command, projection, context = {}){
   if(command?.type === 'ACTIVATE_EFFECT'){
     const source = cardByIid(projection, payload.sourceIid);
     const pressureBonus = String(source?.type || '') === 'Improvisor' ? 22 * pressureUrgency(projection, playerIndex) : 0;
-    return 820 + totalFate + pressureBonus + moralePosition;
+    return 806 + totalFate + pressureBonus + moralePosition;
   }
   if(command?.type === 'ACTIVATE_LANDSCAPE') return 780 - Number(payload.discardIids?.length || 0) * 8 + totalFate * 0.1;
   if(command?.type === 'FLIP_CARD') return 740 + totalFate;
@@ -303,15 +308,262 @@ export function scoreStrategicV3AiCommand(command, projection, context = {}){
   return 100 + destination;
 }
 
+const RESOLUTION_COMMANDS = new Set([
+  'ANSWER_PROMPT',
+  'DISCARD_TO_HAND_LIMIT',
+  'CHOOSE_TURN_ORDER'
+]);
+
+const PLANNING_CONFIG = Object.freeze({
+  easy:Object.freeze({depth:2, beamWidth:3, branchWidth:4}),
+  medium:Object.freeze({depth:3, beamWidth:4, branchWidth:5}),
+  hard:Object.freeze({depth:4, beamWidth:5, branchWidth:6}),
+  extreme:Object.freeze({depth:4, beamWidth:6, branchWidth:7})
+});
+
+function planningConfig(context = {}){
+  const difficulty = String(context.difficulty || 'medium').toLowerCase();
+  const base = PLANNING_CONFIG[difficulty] || PLANNING_CONFIG.medium;
+  const requestedDepth = Number(context.planningDepth);
+  return {
+    ...base,
+    depth:Number.isFinite(requestedDepth)
+      ? Math.max(2, Math.min(4, Math.round(requestedDepth)))
+      : base.depth
+  };
+}
+
+function commandKey(command){
+  return stableStringify(command || {});
+}
+
+function compareRankedCommands(left, right, projection, context){
+  return scoreStrategicV3AiCommand(right, projection, context)
+    - scoreStrategicV3AiCommand(left, projection, context)
+    || stableStringify(left).localeCompare(stableStringify(right));
+}
+
+function boardPositionScore(projection, playerIndex, context = {}){
+  const player = Number(playerIndex);
+  const opponent = player === 0 ? 1 : 0;
+  const ownScores = zoneScores(projection, player);
+  const enemyScores = zoneScores(projection, opponent);
+  let score = 0;
+  let won = 0;
+  let lost = 0;
+  for(let zone = 0; zone < 3; zone += 1){
+    const margin = ownScores[zone] - enemyScores[zone];
+    score += margin * 6;
+    if(margin > 0){
+      won += 1;
+      score += 24 + Math.min(20, margin * 2);
+    }else if(margin < 0){
+      lost += 1;
+      score -= 20 + Math.min(18, Math.abs(margin) * 1.6);
+    }else{
+      score += 5;
+    }
+  }
+  if(won >= 2) score += 70;
+  if(won === 3) score += 24;
+  if(lost >= 2) score -= 62;
+  score += moralePositionScore(projection, player, ownScores, enemyScores, context);
+
+  const own = projection?.players?.[player] || {};
+  const enemy = projection?.players?.[opponent] || {};
+  const ownHandCount = Array.isArray(own.hand) ? own.hand.length : Number(own.handCount || 0);
+  const enemyHandCount = Array.isArray(enemy.hand) ? enemy.hand.length : Number(enemy.handCount || 0);
+  score += (ownHandCount - enemyHandCount) * 2.5;
+
+  for(const card of projection?.board?.flat(3).filter(Boolean) || []){
+    if(card.faceDown === true) continue;
+    const sign = controllerOf(card) === player ? 1 : (controllerOf(card) === opponent ? -1 : 0);
+    if(!sign) continue;
+    const type = String(card.type || '');
+    const development = type === 'Supporter' ? 1.1
+      : (type === 'Initiator' ? 2.4
+        : (type === 'Improvisor' ? 3.2
+          : (type === 'Coordinator' ? 3.8 : (type === 'Dauntless' ? 4.5 : 0))));
+    score += sign * development;
+  }
+
+  if(projection?.outcome){
+    const winner = Number(projection.outcome.winner);
+    if(winner === player) score += 100000;
+    else if(winner === opponent) score -= 100000;
+  }
+  return score;
+}
+
+function nodeSort(left, right){
+  return right.score - left.score
+    || right.actions - left.actions
+    || stableStringify(left.sequence).localeCompare(stableStringify(right.sequence));
+}
+
+function actorOwnsResolution(state, playerIndex){
+  return Number(state?.pendingPrompt?.playerIndex) === Number(playerIndex)
+    || Number(state?.pendingHandLimit?.playerIndex) === Number(playerIndex);
+}
+
+function opponentOwnsResolution(state, playerIndex){
+  const pendingPlayer = state?.pendingPrompt?.playerIndex ?? state?.pendingHandLimit?.playerIndex;
+  return pendingPlayer !== undefined
+    && pendingPlayer !== null
+    && Number(pendingPlayer) !== Number(playerIndex);
+}
+
+function commandAdvancesPlan(command){
+  return !RESOLUTION_COMMANDS.has(String(command?.type || ''));
+}
+
+function simulateCommand(state, command, context, serial){
+  const actorId = String(context.playerId || state?.players?.[Number(context.playerIndex)]?.id || '');
+  if(!actorId) return null;
+  const result = reduceCommand(state, {
+    ...command,
+    commandId:`ai-plan:${state.revision}:${serial}`,
+    matchId:state.matchId,
+    expectedRevision:state.revision,
+    payload:command?.payload || {}
+  }, {playerId:actorId});
+  return result.ok ? result.state : null;
+}
+
+/**
+ * Build a deterministic, reversible 2-4 action turn plan with the same legal
+ * command generator and reducer used by an authoritative match. Only player
+ * projections are scored, so hidden hands are never read by the evaluator.
+ */
+export function planStrategicV3AiTurn(commands = [], projection, context = {}){
+  const rootState = context.canonicalState;
+  const playerIndex = Number(context.playerIndex ?? projection?.activePlayer ?? 0);
+  if(!rootState || (playerIndex !== 0 && playerIndex !== 1)) return null;
+  const config = planningConfig(context);
+  const rootScore = boardPositionScore(projection, playerIndex, context);
+  let serial = 0;
+  let frontier = [{
+    state:rootState,
+    projection,
+    sequence:[],
+    actions:0,
+    steps:0,
+    score:rootScore,
+    ended:false
+  }];
+  const completed = [];
+  const maxReducerSteps = config.depth * 3 + 4;
+
+  for(let pass = 0; pass < maxReducerSteps && frontier.length; pass += 1){
+    const next = [];
+    for(const node of frontier){
+      const mustResolve = actorOwnsResolution(node.state, playerIndex);
+      const stopped = node.ended
+        || node.state?.outcome
+        || opponentOwnsResolution(node.state, playerIndex)
+        || (!mustResolve && Number(node.state?.activePlayer) !== playerIndex);
+      if(stopped){
+        completed.push(node);
+        continue;
+      }
+
+      const legal = (node.sequence.length ? legalCommandTemplates(node.state, playerIndex) : commands)
+        .filter(command=>command?.type !== 'CONCEDE');
+      if(!legal.length){
+        completed.push(node);
+        continue;
+      }
+      const strategic = legal.filter(command=>command?.type !== 'END_TURN');
+      const endings = legal.filter(command=>command?.type === 'END_TURN');
+      const permitted = mustResolve
+        ? legal
+        : (node.actions >= config.depth
+          ? endings
+          : (strategic.length
+            ? [...strategic, ...(node.actions >= 2 ? endings : [])]
+            : legal));
+      if(!permitted.length){
+        completed.push(node);
+        continue;
+      }
+      const ranked = permitted
+        .sort((left, right)=>compareRankedCommands(left, right, node.projection, context));
+      const candidates = !mustResolve && node.actions >= 2 && node.actions < config.depth && endings.length
+        ? [
+            ...ranked.filter(command=>command.type !== 'END_TURN').slice(0, Math.max(1, config.branchWidth - 1)),
+            endings.sort((left, right)=>commandKey(left).localeCompare(commandKey(right)))[0]
+          ]
+        : ranked.slice(0, config.branchWidth);
+
+      for(const command of candidates){
+        const state = simulateCommand(node.state, command, context, ++serial);
+        if(!state) continue;
+        const nextProjection = projectStateForPlayer(state, playerIndex);
+        const actionIncrement = commandAdvancesPlan(command) && command.type !== 'END_TURN' ? 1 : 0;
+        const actions = node.actions + actionIncrement;
+        const sequence = [...node.sequence, command];
+        const prior = scoreStrategicV3AiCommand(command, node.projection, context);
+        const score = boardPositionScore(nextProjection, playerIndex, context)
+          + Math.max(-20, Math.min(20, prior * .02))
+          + Math.min(actions, config.depth) * .35;
+        const child = {
+          state,
+          projection:nextProjection,
+          sequence,
+          actions,
+          steps:node.steps + 1,
+          score,
+          ended:command.type === 'END_TURN'
+        };
+        const childMustResolve = actorOwnsResolution(state, playerIndex);
+        if(child.ended
+          || state.outcome
+          || opponentOwnsResolution(state, playerIndex)
+          || (!childMustResolve && Number(state.activePlayer) !== playerIndex)){
+          completed.push(child);
+        }else{
+          next.push(child);
+        }
+      }
+    }
+    next.sort(nodeSort);
+    frontier = next.slice(0, config.beamWidth);
+  }
+
+  completed.push(...frontier);
+  const viable = completed.filter(node=>node.sequence.length > 0);
+  if(!viable.length) return null;
+  viable.sort(nodeSort);
+  const best = viable[0];
+  return {
+    command:best.sequence[0],
+    sequence:best.sequence,
+    score:best.score,
+    actions:best.actions,
+    depth:config.depth
+  };
+}
+
 // This v3-only policy reads one player projection and returns one of the exact
 // templates it was given. The adapter re-validates that template before the
 // local session submits it to the shared reducer.
 export function chooseStrategicV3AiCommand(commands = [], projection, context = {}){
+  const cache = context.planCache;
+  if(cache && Array.isArray(cache.sequence) && cache.sequence.length){
+    const expected = cache.sequence[0];
+    const matching = commands.find(command=>commandKey(command) === commandKey(expected));
+    if(matching){
+      cache.sequence.shift();
+      return matching;
+    }
+    cache.sequence.length = 0;
+  }
+  const plan = planStrategicV3AiTurn(commands, projection, context);
+  if(plan?.command){
+    if(cache) cache.sequence = plan.sequence.slice(1);
+    return plan.command;
+  }
   return [...commands]
     .filter(command=>command?.type !== 'CONCEDE')
-    .sort((left, right)=>
-      scoreStrategicV3AiCommand(right, projection, context)
-        - scoreStrategicV3AiCommand(left, projection, context)
-      || stableStringify(left).localeCompare(stableStringify(right))
-    )[0] || null;
+    .sort((left, right)=>compareRankedCommands(left, right, projection, context))[0] || null;
 }

@@ -72,6 +72,7 @@ export function projectStateForPlayer(state, playerIndex){
     gameSettings:cloneSerializable(state.gameSettings ?? null),
     turnTimerSeconds:state.turnTimerSeconds,
     landscapeState:cloneSerializable(state.landscapeState ?? null),
+    aiTakeoverSeats:cloneSerializable(state.aiTakeoverSeats || []),
     moralePressure:cloneSerializable(state.moralePressure ?? null),
     players:state.players.map((player, index)=>
       index === viewer || state.landscapeId === 'igb12'
@@ -83,7 +84,13 @@ export function projectStateForPlayer(state, playerIndex){
     statuses:cloneSerializable(state.statuses),
     pendingPrompt:promptProjection(state.pendingPrompt, viewer),
     pendingHandLimit:handLimitProjection(state.pendingHandLimit, viewer),
-    outcome:cloneSerializable(state.outcome ?? null)
+    outcome:cloneSerializable(state.outcome ?? null),
+    // Once the match is over there is no remaining competitive hand secrecy.
+    // Participants may use this terminal-only reveal to build a complete replay
+    // without weakening the live projection used during the match.
+    completedHands:state.outcome
+      ? state.players.map(player=>cloneSerializable(player.hand))
+      : null
   };
   return projection;
 }

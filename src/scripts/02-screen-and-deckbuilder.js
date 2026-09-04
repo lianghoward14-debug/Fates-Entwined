@@ -111,7 +111,9 @@ function showScreen(id) {
     el.classList.add('screen-fade-in');
     setTimeout(()=>el.classList.remove('screen-fade-in'),500);
   }
-  if(typeof playSfx==='function') playSfx('screenTransition');
+  // Initial title-screen activation is application setup, not a user-driven
+  // screen transition. Keep launch silent while preserving later navigation.
+  if(prevId && prevId !== id && typeof playSfx==='function') playSfx('screenTransition');
   // Log panel disabled
   const lw=document.getElementById('log-wrap');
   if(lw) lw.style.display = 'none';
@@ -286,7 +288,7 @@ function isRetiredCardForBuilder(cardOrId) {
   if(typeof isRetiredChallengerCard === 'function') return isRetiredChallengerCard(cardOrId);
   const id = typeof cardOrId === 'string' ? cardOrId : cardOrId?.id;
   if(typeof TEMP_DISABLED_CARD_IDS !== 'undefined' && TEMP_DISABLED_CARD_IDS.has(String(id))) return true;
-  return id === 'bh25' || !!cardOrId?.retired;
+  return !!cardOrId?.retired;
 }
 
 function getActiveCardIdsForDeck(ids, targetCount = 40) {
@@ -459,6 +461,7 @@ function renderDBCollection() {
       align:'left',
       virtualize:true,
       lowScroll:true,
+      starSheen:true,
       maxDpr:1,
       hoverRedraw:false,
       onClick:(card)=>openDeckBuilderCardDetail(card),

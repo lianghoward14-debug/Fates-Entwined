@@ -71,7 +71,11 @@ let reconnectAttempts = 0;
 let intentionallyClosed = false;
 let fatalError = '';
 let matchmakingCancelled = false;
+let matchmakingGeneration = 0;
 let activeScreen = null;
+let spectatorPollTimer = null;
+let spectatingMatchId = '';
+let spectatorPerspective = 0;
 const listeners = new Set();
 const inflight = new Map();
 
@@ -108,7 +112,7 @@ function validateCredential(value){
   if(!/^[A-Za-z0-9_-]{3,80}$/.test(matchId)) throw new Error('invalid Phase 7 matchId');
   if(!/^[A-Za-z0-9_.:@-]{1,128}$/.test(playerId)) throw new Error('invalid Phase 7 playerId');
   if(!token) throw new Error('Phase 7 match token is required');
-  const queueMode = String(next.queueMode || '') === 'ranked' ? 'ranked' : 'freeplay';
+  const queueMode = ['ranked','warfront'].includes(String(next.queueMode || '')) ? String(next.queueMode) : 'freeplay';
   return {matchId, playerId, token, queueMode};
 }
 
@@ -230,6 +234,19 @@ function applyServerMessage(message){
   // before the UI is allowed to offer that prompt again.
   if(message.kind === 'snapshot' || message.kind === 'accepted' || message.kind === 'rejected'){
     if(message.state) state = clone(message.state);
+    if(message.state && globalThis.document){
+      let notice=document.getElementById('warfront-ai-takeover-notice');
+      if(state.aiTakeoverSeats?.length&&!state.outcome){
+        if(!notice){notice=document.createElement('div');notice.id='warfront-ai-takeover-notice';notice.setAttribute('role','status');notice.style.cssText='position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:100000;background:#241707;color:#ffe29a;border:2px solid #e8b64c;padding:12px 22px;font-weight:bold;text-align:center;pointer-events:none';document.getElementById('s-game')?.appendChild(notice);}
+        notice.textContent=state.aiTakeoverSeats.includes(playerIndex)?'YOU FORFEITED — AI CONTROLS YOUR SEAT':'OPPONENT FORFEITED — AI HAS TAKEN OVER';
+      }else notice?.remove();
+    }
+    if(message.events?.some(event=>event.type==='WARFRONT_AI_TAKEOVER')){
+      const event=message.events.find(event=>event.type==='WARFRONT_AI_TAKEOVER');
+      globalThis.toast?.(Number(event.playerIndex)===playerIndex
+        ? 'You forfeited. AI has taken over your Warfront seat.'
+        : 'YOUR OPPONENT FORFEITED — AI has taken over. Finish the match to earn commendations.');
+    }
     if(Array.isArray(message.legalCommands)) legalCommands = clone(message.legalCommands);
     if(Array.isArray(message.privateActionCards)) privateActionCards = clone(message.privateActionCards);
     revision = Math.max(revision, Number(message.revision || 0) || 0);
@@ -410,16 +427,20 @@ function report(){
   };
 }
 
-async function startUnrankedMatchmaking({deckIds, name = '', rankElo = 600, queueMode = 'freeplay', landscapeId = '', gameSettings = null, testOpeningCardIds = [], testDeckCardIds = [], testDeckTopCardIds = [], testRules = null, onStatus} = {}){
+async function startUnrankedMatchmaking({deckIds, name = '', photoURL = '', rankElo = 600, queueMode = 'freeplay', matchmakingKey = '', landscapeId = '', gameSettings = null, testOpeningCardIds = [], testDeckCardIds = [], testDeckTopCardIds = [], testRules = null, onStatus} = {}){
   const normalizedDeck = Array.isArray(deckIds) ? deckIds.map(String) : [];
   if(normalizedDeck.length !== 40) throw new Error('Authoritative matchmaking requires exactly 40 cards');
-  const normalizedQueueMode = queueMode === 'ranked' ? 'ranked' : 'freeplay';
+  const normalizedQueueMode = ['ranked','warfront'].includes(String(queueMode)) ? String(queueMode) : 'freeplay';
   matchmakingCancelled = false;
+  const generation = ++matchmakingGeneration;
+  const cancelled = ()=>matchmakingCancelled || generation !== matchmakingGeneration;
   const matchmakingPayload = {
       deckIds:normalizedDeck,
       name:String(name || '').slice(0, 80),
+      photoURL:String(photoURL || '').slice(0, 2048),
       rankElo:Math.max(0, Math.round(Number(rankElo) || 600)),
       queueMode:normalizedQueueMode,
+      matchmakingKey:normalizedQueueMode === 'warfront' ? String(matchmakingKey || '').slice(0, 180) : '',
       // `landscapeId` remains for deterministic fixture callers. Production
       // Free Play sends the complete settings object so "Random" is not
       // accidentally converted to its picker fallback (igb1/Pacifica).
@@ -452,7 +473,7 @@ async function startUnrankedMatchmaking({deckIds, name = '', rankElo = 600, queu
   });
   const recoverableRequest = async request=>{
     let attempt = 0;
-    while(!matchmakingCancelled){
+    while(!cancelled()){
       try{ return await request(); }
       catch(error){
         if([400, 403, 426].includes(Number(error?.status))) throw error;
@@ -466,7 +487,7 @@ async function startUnrankedMatchmaking({deckIds, name = '', rankElo = 600, queu
     return {status:'cancelled'};
   };
   let result = await recoverableRequest(enterQueue);
-  while(!matchmakingCancelled && result.status === 'waiting'){
+  while(!cancelled() && result.status === 'waiting'){
     if(typeof onStatus === 'function') onStatus({status:'waiting'});
     await new Promise(resolve=>setTimeout(resolve, 900));
     result = await recoverableRequest(()=>matchmakingRequest('/v3/beta/matchmaking/status'));
@@ -478,34 +499,45 @@ async function startUnrankedMatchmaking({deckIds, name = '', rankElo = 600, queu
       result = await recoverableRequest(enterQueue);
     }
   }
-  if(matchmakingCancelled) return {ok:false, status:'cancelled'};
+  if(cancelled()) return {ok:false, status:'cancelled'};
   if(result.status !== 'matched' || !result.credential){
     throw new Error(`Phase 7 matchmaking ended in unexpected status ${result.status || '(missing)'}`);
   }
   const matchedCredential = validateCredential(result.credential);
+  if(cancelled()) return {ok:false, status:'cancelled'};
   if(typeof onStatus === 'function') onStatus({status:'matched', matchId:matchedCredential.matchId});
   await connect(matchedCredential);
+  if(cancelled()){
+    disconnect({forget:true});
+    return {ok:false, status:'cancelled'};
+  }
   await waitForInitialView();
+  if(cancelled()){
+    disconnect({forget:true});
+    return {ok:false, status:'cancelled'};
+  }
   await mountGameScreen();
   return {ok:true, status:'matched', credential:clone(credential), connection:report()};
 }
 
 async function leaveMatchmaking(){
   matchmakingCancelled = true;
+  matchmakingGeneration += 1;
   try{ return await matchmakingRequest('/v3/beta/matchmaking/leave', {method:'POST', body:{}}); }
   catch(error){ return {ok:false, error:String(error?.message || error)}; }
 }
 
 const networkAdapter = Object.freeze({
   view(){
-    if(!state || !Number.isInteger(playerIndex) || !credential) return null;
+    if(!state || !Number.isInteger(playerIndex)) return null;
+    const spectatorMode=!!spectatingMatchId;
     const opponentIndex = playerIndex === 0 ? 1 : 0;
     return {
-      mode:credential.queueMode === 'ranked'
+      mode:spectatorMode ? 'server-authoritative-v3-phase7-warfront-spectator' : credential?.queueMode === 'ranked'
         ? 'server-authoritative-v3-phase7-challenger'
-        : 'server-authoritative-v3-phase7-freeplay',
-      queueMode:credential.queueMode,
-      playerId:credential.playerId,
+        : credential?.queueMode === 'warfront' ? 'server-authoritative-v3-phase7-warfront' : 'server-authoritative-v3-phase7-freeplay',
+      queueMode:spectatorMode ? 'warfront' : credential?.queueMode,
+      playerId:spectatorMode ? '' : credential?.playerId,
       playerIndex,
       aiPlayerId:String(state.players?.[opponentIndex]?.id || ''),
       aiPlayerIndex:opponentIndex,
@@ -516,6 +548,7 @@ const networkAdapter = Object.freeze({
     };
   },
   async dispatchLegalCommand(command){
+    if(spectatingMatchId)return {ok:false,rejection:{code:'SPECTATOR_READ_ONLY',reason:'Spectators cannot issue match commands'}};
     if(!command || typeof command !== 'object'){
       return {ok:false, rejection:{code:'INVALID_COMMAND', reason:'A server-issued legal command is required'}};
     }
@@ -549,7 +582,7 @@ async function waitForCurrentUiBridge(timeoutMs = 20_000){
   throw new Error('The current multiplayer UI bridge did not finish loading');
 }
 
-async function mountGameScreen(){
+async function mountGameScreen(options = {}){
   if(!globalThis.document) return null;
   unmountGameScreen();
   const currentUi = await waitForCurrentUiBridge();
@@ -557,11 +590,85 @@ async function mountGameScreen(){
     adapter:networkAdapter,
     onExit(){
       unmountGameScreen();
-      disconnect();
-      globalThis.showScreen?.('s-title');
+      if(typeof options.onExit === 'function') options.onExit();
+      else{
+        disconnect();
+        globalThis.showScreen?.('s-title');
+      }
     }
   });
   return activeScreen;
+}
+
+function stopSpectating({showWarfront = true} = {}){
+  if(spectatorPollTimer) clearTimeout(spectatorPollTimer);
+  spectatorPollTimer = null;
+  spectatingMatchId = '';
+  unmountGameScreen();
+  globalThis.document?.getElementById('s-game')?.classList.remove('spectator-mode','warfront-team-spectator');
+  globalThis.document?.getElementById('warfront-spectator-panel')?.remove();
+  const game=globalThis.getFateGameState?.();
+  if(game?._onlineRole==='spectator'){
+    game._isSpectator=false;game._onlineRole=null;game._onlinePlayerIndex=null;
+    game.localPlayerIndex=null;game.viewerPlayerIndex=null;game._onlineRoomCode=null;
+    game._onlineActionLogMode=false;game._phase7CurrentMultiplayer=false;
+  }
+  state = null;revision = 0;stateHash = '';playerIndex = null;legalCommands = [];privateActionCards = [];presentationBatch = null;
+  if(showWarfront){
+    globalThis.showScreen?.('s-challenger');
+    globalThis.renderChWarEventTab?.(globalThis.document?.querySelector('#ch-content > .ch-tab-pane[data-tab="war"]'));
+  }
+}
+
+function enforceWarfrontSpectatorState(){
+  const game=globalThis.getFateGameState?.();
+  if(game){
+    game._isSpectator=true;game._onlineRole='spectator';game._onlinePlayerIndex=spectatorPerspective;
+    game.localPlayerIndex=spectatorPerspective;game.viewerPlayerIndex=spectatorPerspective;
+  }
+  globalThis.document?.getElementById('s-game')?.classList.add('spectator-mode','warfront-team-spectator');
+  if(globalThis.document){
+    let panel=globalThis.document.getElementById('warfront-spectator-panel');
+    if(!panel){
+      panel=globalThis.document.createElement('aside');
+      panel.id='warfront-spectator-panel';
+      panel.innerHTML='<span><i></i>LIVE WARFRONT FEED</span><b></b><em>Team perspective locked · read-only broadcast</em><button type="button">EXIT</button>';
+      panel.querySelector('button')?.addEventListener('click',()=>stopSpectating());
+      globalThis.document.body.appendChild(panel);
+    }
+    const watched=state?.players?.[spectatorPerspective]?.name || `Teammate ${spectatorPerspective+1}`;
+    const label=panel.querySelector('b');if(label)label.textContent=`Watching ${watched}`;
+  }
+}
+
+async function startSpectating({matchId, playerIndex:requestedPerspective = 0} = {}){
+  const id=String(matchId || '');
+  if(!/^[A-Za-z0-9_-]{3,80}$/.test(id)) throw new Error('Invalid live Warfront match');
+  stopSpectating({showWarfront:false});
+  disconnect({forget:false});
+  spectatingMatchId=id;spectatorPerspective=Number(requestedPerspective)===1?1:0;playerIndex=spectatorPerspective;
+  const poll=async()=>{
+    if(spectatingMatchId!==id)return;
+    try{
+      const snapshot=await matchmakingRequest(`/v3/beta/matches/${encodeURIComponent(id)}/spectator-snapshot`);
+      if(spectatingMatchId!==id)return;
+      const projected=clone(snapshot.state || {});
+      if(Array.isArray(projected.players))projected.players=projected.players.map(player=>({...player,hand:[],deck:[]}));
+      applyServerMessage({...snapshot,kind:'snapshot',state:projected,legalCommands:[],privateActionCards:[]});
+      enforceWarfrontSpectatorState();
+      if(projected.outcome){setTimeout(()=>stopSpectating(),1800);return;}
+    }catch(error){
+      if(Number(error?.status)===404){globalThis.toast?.('That Warfront match has ended.');stopSpectating();return;}
+      console.warn('[Fate Phase 7 Beta] spectator refresh failed',error);
+    }
+    spectatorPollTimer=setTimeout(poll,1100);
+  };
+  await poll();
+  if(!spectatingMatchId)return false;
+  await mountGameScreen({onExit:()=>stopSpectating()});
+  enforceWarfrontSpectatorState();
+  activeScreen?.render(networkAdapter.view());
+  return true;
 }
 
 globalThis.fateAuthorityV3Beta = Object.freeze({
@@ -570,6 +677,8 @@ globalThis.fateAuthorityV3Beta = Object.freeze({
   sendCommand,
   startUnrankedMatchmaking,
   leaveMatchmaking,
+  startSpectating,
+  stopSpectating,
   mountGameScreen,
   unmountGameScreen,
   subscribe,

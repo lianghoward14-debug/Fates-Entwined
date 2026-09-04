@@ -94,7 +94,7 @@ const PAYLOAD_FIELDS = Object.freeze({
   CONSOLIDATE_CARD:['cardIid', 'tributeIids', 'destination', 'faceDown'],
   MOVE_CARD:['cardIid', 'destination', 'allowSwap'],
   FLIP_CARD:['cardIid'],
-  ACTIVATE_LANDSCAPE:['sourceIid', 'discardIids', 'targetIid'],
+  ACTIVATE_LANDSCAPE:['sourceIid', 'discardIids', 'targetIid', 'cardIds'],
   DISCARD_CARD:['targetIid', 'sourceIid', 'reason'],
   MODIFY_FATE:['targetIid', 'amount', 'sourceIid', 'reason'],
   ACTIVATE_EFFECT:['sourceIid', 'userActivated'],
@@ -138,7 +138,7 @@ function validatePayload(type, payload){
     return 'goFirst must be a boolean';
   }
   if(type === 'CONSOLIDATE_CARD'){
-    if(!Array.isArray(payload.tributeIids) || payload.tributeIids.length === 0) return 'tributeIids must be a non-empty array';
+    if(!Array.isArray(payload.tributeIids)) return 'tributeIids must be an array';
     if(payload.tributeIids.length > 27) return 'tributeIids exceeds the board capacity';
     if(payload.tributeIids.some(iid=>!String(iid || ''))) return 'every tributeIid must be present';
   }
@@ -154,6 +154,12 @@ function validatePayload(type, payload){
         || payload.discardIids.length > 20
         || payload.discardIids.some(iid=>!String(iid || '')))){
       return 'discardIids must be an array of stable card iids';
+    }
+    if(payload.cardIds !== undefined
+      && (!Array.isArray(payload.cardIds)
+        || payload.cardIds.length > 4
+        || payload.cardIds.some(id=>!String(id || '')))){
+      return 'cardIds must be an array of up to four stable card ids';
     }
   }
   if(type === 'ANSWER_PROMPT'){
@@ -271,6 +277,9 @@ function resolveOperation(template, frame){
 function applyResolvedEffectOperation(ctx, operation, frame){
   if(frame?.sourceCardId && !operation.semanticSourceCardId){
     operation.semanticSourceCardId = String(frame.sourceCardId);
+  }
+  if(frame?.frameId && operation.type === 'DRAW_CARD' && operation.activatedEffect === true && !operation.effectActivationId){
+    operation.effectActivationId = String(frame.frameId);
   }
   const eventStart = ctx.events.length;
   const ruleEventStart = ctx.ruleEvents.length;
@@ -725,14 +734,14 @@ function openReactionPrompt(state, frame, options, phase){
   };
 }
 
-function openEffectFrame(state, source, controller, timing, commandId){
-  const rule = cardRule(source.id, state);
+function openEffectFrame(state, source, controller, timing, commandId, ruleId = source.id){
+  const rule = cardRule(ruleId, state);
   if(!rule?.program) return null;
   const frame = {
     frameId:nextId(state, 'frame'),
     kind:'CARD_EFFECT',
     sourceIid:source.iid,
-    sourceCardId:String(source.id),
+    sourceCardId:String(ruleId),
     sourceType:String(source.type || ''),
     controller,
     timing,
@@ -799,7 +808,7 @@ function openInstructionPrompt(state, frame, instruction, ctx){
       sourceIid:frame.sourceIid,
       options,
       local:instruction.local,
-      cancellable:instruction.optional === true || instruction.cancellable === true,
+      cancellable:true,
       cancelBehavior:instruction.cancelBehavior || 'END_EFFECT',
       defaultChoice,
       timeoutPolicy:'DEFAULT'
@@ -852,7 +861,7 @@ function openInstructionPrompt(state, frame, instruction, ctx){
       min,
       max,
       local:instruction.local,
-      cancellable:instruction.optional === true || instruction.cancellable === true,
+      cancellable:true,
       cancelBehavior:instruction.cancelBehavior || 'END_EFFECT',
       timeoutPolicy:min === 0 ? 'CANCEL' : 'FIRST_ELIGIBLE'
     };
@@ -885,7 +894,7 @@ function openInstructionPrompt(state, frame, instruction, ctx){
       min,
       max,
       local:instruction.local,
-      cancellable:instruction.optional === true || instruction.cancellable === true,
+      cancellable:true,
       cancelBehavior:instruction.cancelBehavior || 'END_EFFECT',
       timeoutPolicy:min === 0 ? 'CANCEL' : 'FIRST_ELIGIBLE'
     };
@@ -905,7 +914,7 @@ function openInstructionPrompt(state, frame, instruction, ctx){
       sourceIid:frame.sourceIid,
       eligible,
       local:instruction.local,
-      cancellable:instruction.optional === true || instruction.cancellable === true,
+      cancellable:true,
       cancelBehavior:instruction.cancelBehavior || 'END_EFFECT',
       timeoutPolicy:instruction.optional ? 'CANCEL' : 'FIRST_ELIGIBLE'
     };
@@ -930,7 +939,7 @@ function openInstructionPrompt(state, frame, instruction, ctx){
       max,
       multi:true,
       local:instruction.local,
-      cancellable:instruction.optional === true || instruction.cancellable === true,
+      cancellable:true,
       cancelBehavior:instruction.cancelBehavior || 'END_EFFECT',
       timeoutPolicy:min === 0 ? 'CANCEL' : 'FIRST_ELIGIBLE'
     };
@@ -950,7 +959,7 @@ function openInstructionPrompt(state, frame, instruction, ctx){
       sourceIid:frame.sourceIid,
       eligibleZones:zones,
       local:instruction.local,
-      cancellable:instruction.optional === true || instruction.cancellable === true,
+      cancellable:true,
       cancelBehavior:instruction.cancelBehavior || 'END_EFFECT',
       timeoutPolicy:instruction.optional ? 'CANCEL' : 'FIRST_ELIGIBLE'
     };
@@ -1127,12 +1136,100 @@ function runEffectStack(state, ctx){
       }
       continue;
     }
+    if(instruction.kind === 'INHERIT_TRIGGERED_FATE'){
+      const coordinatorIid = String(resolveValue(instruction.coordinatorIid, frame) || '');
+      const coordinator = findBoardCard(state, coordinatorIid)?.card;
+      if(!coordinator || !['15','bh02','bh08'].includes(String(coordinator.id || ''))){
+        throw Object.assign(new Error('the selected Coordinator cannot provide triggered Fate history'), {code:'INVALID_TARGET'});
+      }
+      const amount = Math.max(0, Number(coordinator.counters?.triggeredFateHistoryTotal) || 0);
+      if(amount > 0){
+        applyResolvedEffectOperation(ctx, {
+          type:'MODIFY_FATE',
+          targetIid:frame.sourceIid,
+          amount,
+          sourceIid:frame.sourceIid,
+          sourceController:frame.controller,
+          reason:'IN_DEFENSE_OF_PACIFICA',
+          bypassReaction:true
+        }, frame);
+      }
+      const source = findBoardCard(state, frame.sourceIid)?.card;
+      if(source){
+        source.counters.bh23InheritedCoordinatorIid = coordinatorIid;
+        source.counters.bh23InheritedFate = amount;
+      }
+      frame.instructionIndex += 1;
+      continue;
+    }
+    if(instruction.kind === 'PROC_ZONE_CONDITIONAL_FATE_TRIGGERS'){
+      const engineerEntry = findBoardCard(state, frame.sourceIid);
+      const minimumTurn = Math.max(1, Number(instruction.minimumTurn) || 18);
+      frame.instructionIndex += 1;
+      if(!engineerEntry || Number(state.turn) < minimumTurn){
+        ctx.events.push({type:'EFFECT_CONDITION_UNMET',sourceIid:frame.sourceIid,semanticSourceCardId:'bh25',reason:'TURN_BEFORE_18'});
+        continue;
+      }
+      const eligibleIds = new Set(['15','46','86','95','100','bh02','bh08']);
+      const sources = boardEntries(state).filter(entry=>
+        entry.z === engineerEntry.z
+        && String(entry.card.iid || '') !== String(frame.sourceIid || '')
+        && eligibleIds.has(runtimeRuleId(entry.card))
+        && entry.card.faceDown !== true
+        && !isEffectSourceSuppressed(state, entry)
+      );
+      for(const entry of sources){
+        const id = runtimeRuleId(entry.card);
+        const owner = controllerOf(entry.card);
+        ctx.events.push({
+          type:'EFFECT_ACTIVATED',sourceIid:entry.card.iid,sourceController:owner,
+          targetIid:entry.card.iid,overlayTargetIid:entry.card.iid,
+          semanticSourceCardId:'bh25',triggeredCardId:id,triggeredByIid:frame.sourceIid,
+          reason:'ENGINEERS_AMBITION_PROC',suppressActivationCinematic:true,
+          presentationOnly:true,forceEffectOverlay:true
+        });
+        ctx.events.push({
+          type:'EFFECT_ACTIVATED',sourceIid:entry.card.iid,sourceController:owner,
+          semanticSourceCardId:id,triggeredCardId:id,triggeredByIid:frame.sourceIid,
+          reason:'ENGINEERS_AMBITION_FORCED_PROC',suppressActivationCinematic:true,presentationOnly:true
+          ,deferEffectOverlayMs:3500
+        });
+        const zoneTargets = boardEntries(state).filter(target=>
+          target.z === engineerEntry.z
+          && controllerOf(target.card) === owner
+          && target.card.faceDown !== true
+          && !isEffectImmutable(target.card)
+        );
+        if(['15','bh02','bh08'].includes(id)){
+          const amount = id === 'bh08' ? 2 : 1;
+          for(const target of zoneTargets){
+            applyResolvedEffectOperation(ctx,{type:'MODIFY_FATE',targetIid:target.card.iid,amount,sourceIid:entry.card.iid,sourceController:owner,semanticSourceCardId:id,reason:'ENGINEERS_AMBITION_FORCED_PROC',bypassReaction:true,presentationDelayMs:3500},frame);
+          }
+        }else if(id === '86'){
+          applyResolvedEffectOperation(ctx,{type:'DRAW_CARD',playerIndex:owner,count:1,activatedEffect:true,sourceIid:entry.card.iid,sourceController:owner,semanticSourceCardId:id,reason:'ENGINEERS_AMBITION_FORCED_PROC'},frame);
+          applyResolvedEffectOperation(ctx,{type:'MODIFY_FATE',targetIid:entry.card.iid,amount:2,sourceIid:entry.card.iid,sourceController:owner,semanticSourceCardId:id,reason:'ENGINEERS_AMBITION_FORCED_PROC',bypassReaction:true,presentationDelayMs:3500},frame);
+        }else{
+          const amount = id === '46' ? 2 : id === '95' ? 1 : 2;
+          applyResolvedEffectOperation(ctx,{type:'MODIFY_FATE',targetIid:entry.card.iid,amount,sourceIid:entry.card.iid,sourceController:owner,semanticSourceCardId:id,reason:'ENGINEERS_AMBITION_FORCED_PROC',bypassReaction:true,presentationDelayMs:3500},frame);
+          if(id === '100'){
+            const hasFamily = boardEntries(state).some(target=>controllerOf(target.card)===owner && /Felicyta|Květka/.test(String(target.card.name || '')));
+            if(hasFamily) applyResolvedEffectOperation(ctx,{type:'MODIFY_FATE',targetIid:entry.card.iid,amount:3,sourceIid:entry.card.iid,sourceController:owner,semanticSourceCardId:id,reason:'ENGINEERS_AMBITION_FAMILY_BONUS',bypassReaction:true,presentationDelayMs:3500},frame);
+          }
+        }
+        if(!entry.card.counters || typeof entry.card.counters !== 'object') entry.card.counters = {};
+        entry.card.counters.alpineEngineerProcCount = Math.max(0,Number(entry.card.counters.alpineEngineerProcCount)||0)+1;
+      }
+      const engineer = findBoardCard(state,frame.sourceIid)?.card;
+      if(engineer){
+        if(!engineer.counters || typeof engineer.counters !== 'object') engineer.counters = {};
+        engineer.counters.alpineEngineerTriggeredIids = sources.map(entry=>String(entry.card.iid || ''));
+      }
+      continue;
+    }
     if(instruction.kind === 'COMPLETE_END_TURN'){
       const endingPlayer = Number(resolveValue(instruction.playerIndex, frame));
       frame.instructionIndex += 1;
-      if(!openBh18EndTurnFrame(state, ctx, endingPlayer, frame.originalCommandId)){
-        completeEndTurn(state, ctx, endingPlayer);
-      }
+      completeEndTurn(state, ctx, endingPlayer);
       continue;
     }
     if(instruction.kind === 'FINALIZE_END_TURN'){
@@ -1214,6 +1311,26 @@ function completeEndTurn(state, ctx, actorIndex){
   state.cardsPlacedThisTurn[actorIndex] = 0;
   state.activePlayer = actorIndex === 0 ? 1 : 0;
   state.turn += 1;
+  if(state.landscapeId === 'igb24'
+    && state.turn >= 20
+    && state.landscapeState.resolvedTurns.igb24 !== true){
+    state.landscapeState.resolvedTurns.igb24 = true;
+    const affectedIids = [];
+    for(const entry of boardEntries(state)){
+      if(effectiveCardType(state, entry.card) !== 'Supporter' || entry.card.counters?.igb24DawnFateGranted === true) continue;
+      const enteredTurn = Number(entry.card.counters?.fieldEnteredTurn);
+      if(!Number.isFinite(enteredTurn) || state.turn - enteredTurn < 10) continue;
+      applyOperation(ctx, {
+        type:'MODIFY_FATE', targetIid:entry.card.iid, amount:6,
+        sourceIid:'landscape:igb24', sourceController:controllerOf(entry.card),
+        reason:'LANDSCAPE_IGB24_DAWN', bypassTargeting:true
+      });
+      entry.card.counters.igb24DawnFateGranted = true;
+      if(!entry.card.statuses.includes('IMMUNE_TO_OPPONENT_EFFECTS')) entry.card.statuses.push('IMMUNE_TO_OPPONENT_EFFECTS');
+      affectedIids.push(String(entry.card.iid));
+    }
+    ctx.events.push({type:'LANDSCAPE_RESOLVED',landscapeId:'igb24',turn:state.turn,affectedIids,amount:6,grantedStatus:'IMMUNE_TO_OPPONENT_EFFECTS'});
+  }
   state.supportersSetThisTurn[state.activePlayer] = 0;
   state.supportersSetForCapThisTurn = [0, 0];
   state.extraSupportersThisTurn[state.activePlayer] = 0;
@@ -1293,21 +1410,21 @@ function resolveMoraleLowHandDiscard(state, ctx, playerIndex){
   const discarded = applyOperation(ctx, {
     type:'RANDOM_DISCARD_HAND',
     playerIndex:player,
-    sourceIid:'morale:20',
-    semanticSourceCardId:'MORALE_THRESHOLD_20',
+    sourceIid:'morale:40',
+    semanticSourceCardId:'MORALE_THRESHOLD_40',
     sourceController:player,
-    reason:'MORALE_20_RANDOM_HAND_DISCARD',
+    reason:'MORALE_40_RANDOM_HAND_DISCARD',
     revealDiscard:true
   });
   if(!discarded?.discardedIid) return null;
   const event = {
-    type:'MORALE_20_HAND_DISCARDED',
+    type:'MORALE_40_HAND_DISCARDED',
     playerIndex:player,
     cardIid:String(discarded.discardedIid),
     cardId:String(discarded.cardId || ''),
     cardName:String(discarded.cardName || 'Card'),
-    threshold:20,
-    reason:'MORALE_20_RANDOM_HAND_DISCARD'
+    threshold:40,
+    reason:'MORALE_40_RANDOM_HAND_DISCARD'
   };
   ctx.events.push(event);
   return event;
@@ -1323,6 +1440,11 @@ function resolveMoraleSupporterExpiry(state, ctx, playerIndex){
   const expired = [];
   for(const entry of owned){
     if(!entry.card.counters || typeof entry.card.counters !== 'object') entry.card.counters = {};
+    if(isEffectImmutable(entry.card)){
+      delete entry.card.counters.moraleSupporterExpiryTurns;
+      delete entry.card.counters.moraleSupporterExpiryStartedTurn;
+      continue;
+    }
     if(!active){
       delete entry.card.counters.moraleSupporterExpiryTurns;
       delete entry.card.counters.moraleSupporterExpiryStartedTurn;
@@ -1346,18 +1468,18 @@ function resolveMoraleSupporterExpiry(state, ctx, playerIndex){
     applyOperation(ctx, {
       type:'DISCARD_CARD',
       targetIid,
-      sourceIid:'morale:40',
+      sourceIid:'morale:20',
       sourceController:playerIndex,
       bypassTargeting:true,
       bypassReaction:true,
-      reason:'MORALE_40_SUPPORTER_EXPIRY'
+      reason:'MORALE_20_SUPPORTER_EXPIRY'
     });
     ctx.events.push({
       type:'MORALE_SUPPORTER_EXPIRED',
       playerIndex:Number(playerIndex),
       cardIid:targetIid,
       cardName,
-      threshold:40
+      threshold:20
     });
   }
   return expired;
@@ -1443,7 +1565,7 @@ function openTimedLandscapeEndTurnFrame(state, ctx, actorIndex, commandId){
               type:'ZONE_FATE_MODIFIER',
               zone:'$zone',
               playerIndex:winner,
-              value:12,
+              value:16,
               sourceIid:'landscape:igb2',
               reason:'LANDSCAPE_IGB2_RESOLUTION'
             }
@@ -1513,8 +1635,8 @@ function openTimedLandscapeEndTurnFrame(state, ctx, actorIndex, commandId){
   return true;
 }
 
-function startEffect(state, ctx, source, controller, timing, commandId){
-  const rule = cardRule(source.id, state);
+function startEffect(state, ctx, source, controller, timing, commandId, ruleId = source.id){
+  const rule = cardRule(ruleId, state);
   const sourceEntry = findBoardCard(state, source.iid);
   if(sourceEntry && isEffectSourceSuppressed(state, sourceEntry)){
     ctx.events.push({
@@ -1573,7 +1695,7 @@ function startEffect(state, ctx, source, controller, timing, commandId){
     });
     return;
   }
-  const frame = openEffectFrame(state, source, controller, timing, commandId);
+  const frame = openEffectFrame(state, source, controller, timing, commandId, ruleId);
   if(frame && timing !== 'ACTIVATE'){
     ctx.events.push({
       type:RULE_EVENT_TYPES.EFFECT_ACTIVATED,
@@ -1863,6 +1985,11 @@ function performCommand(state, ctx, command, actorIndex, options){
   // choosing turn order or a mandatory prompt is open. Server-owned
   // disconnect forfeits must be able to terminate every active match state.
   if(command.type === 'CONCEDE'){
+    if(state.warfrontMatch){
+      state.aiTakeoverSeats = [...new Set([...(state.aiTakeoverSeats || []), actorIndex])];
+      ctx.events.push({type:'WARFRONT_AI_TAKEOVER',playerIndex:actorIndex});
+      return;
+    }
     state.outcome = {
       type:'CONCEDED',
       winner:actorIndex === 0 ? 1 : 0,
@@ -1957,15 +2084,46 @@ function performCommand(state, ctx, command, actorIndex, options){
   }
   assertActivePlayer(state, actorIndex);
   if(command.type === 'ACTIVATE_LANDSCAPE'){
-    if(!['igb16', 'igb17'].includes(state.landscapeId)){
+    if(!['igb16', 'igb17', 'igb21'].includes(state.landscapeId)){
       throw Object.assign(new Error('the active landscape has no direct v3 activation'), {code:'LANDSCAPE_ACTIVATION_NOT_AVAILABLE'});
+    }
+    if(state.landscapeId === 'igb21'){
+      if(Number(state.landscapeState.oncePerGameUses[actorIndex] || 0) >= 1){
+        throw Object.assign(new Error('Whiteboard Drawings can only be used once per game'), {code:'USE_LIMIT_REACHED'});
+      }
+      const cardIds = Array.isArray(payload.cardIds) ? payload.cardIds.map(String) : [];
+      if(cardIds.length < 1 || cardIds.length > 4){
+        throw Object.assign(new Error('Whiteboard Drawings requires between one and four cards'), {code:'INVALID_LANDSCAPE_SELECTION'});
+      }
+      const catalog = new Map((Array.isArray(state.cardCatalog) ? state.cardCatalog : []).map(card=>[String(card.id || ''), card]));
+      const definitions = cardIds.map(id=>catalog.get(id));
+      if(definitions.some(card=>!card || String(card.rarity || '').toLowerCase() === 'star')){
+        throw Object.assign(new Error('Whiteboard Drawings can only add non-Star catalog cards'), {code:'INVALID_LANDSCAPE_SELECTION'});
+      }
+      const createdIids = [];
+      for(const definition of definitions){
+        state.instanceCounter += 1;
+        const fate = Number(definition.fate || 0);
+        const card = {
+          iid:`${state.matchId}:p${actorIndex}:c${state.instanceCounter}`,
+          id:String(definition.id), name:String(definition.name || definition.id), ability:String(definition.ability || ''),
+          type:String(definition.type || 'Supporter'), affiliation:String(definition.affiliation || ''), rarity:String(definition.rarity || ''),
+          baseFate:fate, currentFate:fate, cost:Number(definition.cost || 0), owner:actorIndex, controller:actorIndex,
+          faceDown:false, statuses:[], counters:{igb21CatalogCreated:true}
+        };
+        state.players[actorIndex].hand.push(card);
+        createdIids.push(card.iid);
+      }
+      state.landscapeState.oncePerGameUses[actorIndex] = 1;
+      ctx.events.push({type:'LANDSCAPE_ACTIVATED', landscapeId:'igb21', playerIndex:actorIndex, cardIds, createdIids, privateTo:[actorIndex]});
+      return;
     }
     if(state.landscapeId === 'igb17'){
       if(Number(state.landscapeState.oncePerGameUses[actorIndex] || 0) >= 1){
         throw Object.assign(new Error('Concrete Roads can only be used once per game'), {code:'USE_LIMIT_REACHED'});
       }
       const source = findBoardCard(state, payload.sourceIid);
-      const copyableIds = new Set(['10', '11', '15', '19', '23', '57', '77', 'bh02', 'bh07', 'bh08', 'bh11']);
+      const copyableIds = new Set(['10', '11', '15', '19', '23', '34', '57', '77', 'bh02', 'bh07', 'bh08', 'bh11']);
       if(!source
         || controllerOf(source.card) !== actorIndex
         || String(source.card.counters?.bh14OriginalType || source.card.type || '') !== 'Coordinator'
@@ -2082,6 +2240,12 @@ function performCommand(state, ctx, command, actorIndex, options){
     }
     const isPierogi = entry.card.counters?.pierogiCounter === true;
     const isWhisperToken = entry.card.counters?.whisperLandscapeToken === true;
+    const defenseInDepthReady = String(entry.card.type || '') === 'Supporter'
+      && state.statuses.some(status=>
+        status?.type === 'NEXT_SUPPORTER_SET_EXEMPT'
+        && Number(status.playerIndex) === actorIndex
+        && Number(status.remaining || 0) > 0
+      );
     if(!isPierogi
       && !isWhisperToken
       && (String(entry.card.type || '') !== 'Supporter' || Number(entry.card.cost || 0) !== 0)){
@@ -2094,7 +2258,7 @@ function performCommand(state, ctx, command, actorIndex, options){
       MAX_SUPPORTERS_SET_PER_TURN,
       state.baseSupportersPerTurn + Number(state.extraSupportersThisTurn[actorIndex] || 0)
     );
-    if(!isPierogi && !isWhisperToken && state.supportersSetThisTurn[actorIndex] >= normalSupporterAllowance){
+    if(!isPierogi && !isWhisperToken && !defenseInDepthReady && state.supportersSetThisTurn[actorIndex] >= normalSupporterAllowance){
       throw Object.assign(new Error('the Supporter set limit has been reached'), {code:'SUPPORTER_SET_LIMIT_REACHED'});
     }
     const placementBlock = zoneActionBlock(state, actorIndex, payload.destination?.z);
@@ -2144,7 +2308,7 @@ function performCommand(state, ctx, command, actorIndex, options){
       card.controller = host;
     }
     if(card){
-      const effectId = card.id;
+      const effectId = isWhisperToken ? runtimeRuleId(card) : card.id;
       const hasWhenSetEffect = hasTiming(effectId, 'WHEN_SET', state);
       const block = supporterEffectBlock(state, card, actorIndex);
       if(block?.statusType === 'LUMBERJACK_SUPPRESSION'){
@@ -2170,7 +2334,7 @@ function performCommand(state, ctx, command, actorIndex, options){
       }else if(startFieldEntryDeclaration(state, ctx, card, actorIndex, command.commandId)){
         // Passive field-entry declaration, intentionally not a When Set effect.
       }else if(hasWhenSetEffect){
-        startEffect(state, ctx, card, actorIndex, 'WHEN_SET', command.commandId);
+        startEffect(state, ctx, card, actorIndex, 'WHEN_SET', command.commandId, effectId);
       }
     }
     return;
@@ -2506,7 +2670,7 @@ function performCommand(state, ctx, command, actorIndex, options){
   if(command.type === 'END_TURN'){
     ctx.events.push({type:RULE_EVENT_TYPES.TURN_ENDING, playerIndex:actorIndex, turn:state.turn});
     if(openTimedLandscapeEndTurnFrame(state, ctx, actorIndex, command.commandId)) return;
-    if(!openBh18EndTurnFrame(state, ctx, actorIndex, command.commandId)) completeEndTurn(state, ctx, actorIndex);
+    completeEndTurn(state, ctx, actorIndex);
     return;
   }
   if(options.allowDebugCommands === true && ['DRAW_CARD', 'DISCARD_CARD', 'MODIFY_FATE'].includes(command.type)){

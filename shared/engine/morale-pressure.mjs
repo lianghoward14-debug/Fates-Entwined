@@ -1,6 +1,6 @@
 import {cloneSerializable} from './serialization.mjs';
 import {boardEntries, controllerOf, findBoardCard, findCard} from './selectors.mjs';
-import {effectiveCardType, effectiveFate, isEffectSourceSuppressed} from './modifiers.mjs';
+import {effectiveCardType, effectiveFate, isEffectSourceSuppressed, runtimeRuleId} from './modifiers.mjs';
 import {zoneScore} from './scoring.mjs';
 
 export const MORALE_PRESSURE_RULESET_FLAG = 'healthPressureSeals';
@@ -9,8 +9,8 @@ export const STARTING_MORALE = 200;
 export const MORALE_PENALTY_THRESHOLDS = Object.freeze({
   consolidation:80,
   alternatingDraw:60,
-  supporterExpiry:40,
-  randomHandDiscard:20
+  randomHandDiscard:40,
+  supporterExpiry:20
 });
 
 export function moralePressureEnabled(state){
@@ -251,6 +251,9 @@ export function modifyMorale(ctx, operation = {}){
   const system = state.moralePressure;
   const before = Number(system.morale[player] || 0);
   let requestedAmount = Number(operation.amount || 0);
+  if(String(state.landscapeId || '') === 'igb23'
+    && requestedAmount < 0
+    && /(?:^|_)COST$/i.test(String(operation.reason || ''))) requestedAmount = 0;
   const perMatchingCard = Number(operation.amountPerMatchingZoneCard || 0);
   if(perMatchingCard && operation.sourceIid){
     const source = findBoardCard(state, operation.sourceIid);
@@ -586,11 +589,12 @@ function resolveZoneFateMoraleDamage(ctx){
       const id = String(source.id || '');
       let sourceDamage = 0;
       let affectedIids = [];
-      if(pressureReworks && id === '34' && source.counters?.moraleAffiliation){
+      const whisperRozsi = source.counters?.whisperLandscapeToken === true && runtimeRuleId(source) === '34';
+      if(pressureReworks && (id === '34' || whisperRozsi) && source.counters?.moraleAffiliation){
         const affiliation = String(source.counters.moraleAffiliation).toLowerCase();
         const affected = entries.filter(target=>
           controllerOf(target.card) === owner
-          && target.z === entry.z
+          && (whisperRozsi || target.z === entry.z)
           && cardAffiliation(target.card) === affiliation
         );
         sourceDamage = affected.length * 2;
@@ -603,8 +607,7 @@ function resolveZoneFateMoraleDamage(ctx){
         outgoingSources[owner].push({card:source, amount:sourceDamage, affectedIids});
       }
   }
-  if(pressureReworks){
-    for(let owner = 0; owner < 2; owner += 1){
+  for(let owner = 0; owner < 2; owner += 1){
       const doublers = entries.filter(entry=>
         controllerOf(entry.card) === owner
         && String(entry.card.id || '') === '64'
@@ -612,22 +615,45 @@ function resolveZoneFateMoraleDamage(ctx){
       );
       if(doublers.length){
         const multiplier = Math.pow(2, doublers.length);
+        // Blade Dance doubles the complete Morale Damage calculation its
+        // controller inflicts, including zone-difference damage.
+        resolution.damage[1 - owner] *= multiplier;
         outgoing[owner] *= multiplier;
         for(const source of outgoingSources[owner]) source.amount *= multiplier;
         for(const entry of doublers) entry.card.counters.doubleNextMoraleDamage = false;
       }
-      if(moraleDamageInflictionBlocked(state, owner)){
+      if(pressureReworks && moraleDamageInflictionBlocked(state, owner)){
         resolution.damage[1 - owner] = 0;
         outgoing[owner] = 0;
         outgoingSources[owner] = [];
       }
-    }
   }
   for(let owner = 0; owner < 2; owner += 1) resolution.damage[1 - owner] += outgoing[owner];
+  const bh18ZoneFateReductions = [];
+  for(let player = 0; player < 2; player += 1){
+    if(Math.max(0, Number(resolution.damage[player]) || 0) <= 0) continue;
+    for(const entry of entries.filter(item=>controllerOf(item.card) === player && String(item.card.id || '') === 'bh18')){
+      const status = {
+        statusId:`bh18:${entry.card.iid}:cycle:${Number(system.cycle || 0)}`,
+        type:'ZONE_FATE_MODIFIER',
+        zone:entry.z,
+        playerIndex:1 - player,
+        value:-3,
+        sourceIid:entry.card.iid,
+        sourceController:player,
+        reason:'GENESIS_OF_ALL_INCELDOM'
+      };
+      if(!Array.isArray(state.statuses)) state.statuses = [];
+      state.statuses.push(status);
+      bh18ZoneFateReductions.push(cloneSerializable(status));
+      pushEvent(ctx,{type:'STATUS_CREATED',status:cloneSerializable(status)});
+    }
+  }
   pushEvent(ctx, {
     type:'MORALE_CYCLE_RESOLVED',
     zoneResults:cloneSerializable(resolution.zoneResults),
     damage:cloneSerializable(resolution.damage),
+    bh18ZoneFateReductions:cloneSerializable(bh18ZoneFateReductions),
     moraleDamageSources:cloneSerializable(outgoingSources.map(sources=>sources.map(source=>({
       sourceIid:String(source.card?.iid || ''),
       sourceCardId:String(source.card?.id || ''),
@@ -788,6 +814,16 @@ export function resolveMoralePressureCycle(ctx){
   // the end of Turn 4, then continues on Turns 6, 8, 10, and so on.
   if(!moralePressureEnabled(state) || !state.moralePressure || turn < 4 || turn % 2 !== 0) return null;
   const resolution = resolveZoneFateMoraleDamage(ctx);
+  if(String(state.landscapeId || '') === 'igb23'){
+    for(let player = 0; player < 2; player += 1){
+      const before = Number(state.moralePressure.morale[player] || 0);
+      const requested = Math.max(0, Number(state.players?.[player]?.hand?.length || 0) * 2);
+      const after = Math.min(Number(state.moralePressure.maxMorale || STARTING_MORALE), before + requested);
+      const amount = after - before;
+      state.moralePressure.morale[player] = after;
+      if(amount) pushEvent(ctx, {type:'MORALE_HEALED',playerIndex:player,amount,before,after,sourceIid:'landscape:igb23',semanticSourceCardId:'igb23',reason:'SHORES_OF_LA_HELENA'});
+    }
+  }
   state.moralePressure.cycle += 1;
   return resolution;
 }

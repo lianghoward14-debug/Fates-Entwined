@@ -14,8 +14,8 @@
   const MORALE_THRESHOLDS = Object.freeze([
     {percent:0.80, key:'consolidation', weight:7},
     {percent:0.60, key:'alternatingDraw', weight:18},
-    {percent:0.40, key:'supporterExpiry', weight:25},
-    {percent:0.20, key:'randomHandDiscard', weight:30},
+    {percent:0.40, key:'randomHandDiscard', weight:30},
+    {percent:0.20, key:'supporterExpiry', weight:25},
     {percent:0, key:'defeat', weight:600}
   ]);
 

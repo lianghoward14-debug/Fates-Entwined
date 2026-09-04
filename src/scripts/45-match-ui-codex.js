@@ -126,6 +126,19 @@
     }
     return '';
   }
+  function playerPortraitArt(playerIndex,legacyId){
+    const profile=window.G?.playerProfiles?.[playerIndex]||null;
+    let src='';
+    if(profile){
+      src=window.FateOnline?.profilePhoto
+        ? window.FateOnline.profilePhoto(profile)
+        : (profile.img||profile.photoURL||profile.profileImg||profile.pfp||'');
+    }
+    // The local profile is available before multiplayer identity hydration.
+    if(!src&&playerIndex===0&&typeof window.getProfileImgSrc==='function')src=window.getProfileImgSrc()||'';
+    if(src&&src!=='blank.png')return `url("${String(src).replace(/"/g,'\\"')}")`;
+    return findArt($(legacyId));
+  }
   function suppressLegacyNode(node){
     if(!node)return;
     node.hidden=true;
@@ -228,7 +241,7 @@
     copyHtml(root,'my-stat');copyHtml(root,'opp-stat');
     const raw=invoke('getPerspectivePlayerIndex'),authorityView=currentAuthoritativeView(),projectedSelf=Number(authorityView?.playerIndex),self=Number.isInteger(projectedSelf)?projectedSelf:(Number.isInteger(Number(raw))?Number(raw):0),rival=self===0?1:0;
     const turnState=authorityView?.state||(invoke('getFateGameState')||window.FATE_GAME_STATE||{}),activePlayer=Number(turnState?.activePlayer??turnState?.currentPlayer),turnNumber=Number(turnState?.turn??turnState?.turnNumber??0),turnSoundKey=[String(turnState?.matchId||turnState?._onlineRoomCode||'local'),turnNumber,activePlayer].join(':');
-    if(root._lastTurnOwnershipSoundKey!==turnSoundKey){
+    if(game.classList.contains('active')&&Number.isFinite(activePlayer)&&root._lastTurnOwnershipSoundKey!==turnSoundKey){
       root._lastTurnOwnershipSoundKey=turnSoundKey;
       if(activePlayer===self){
         playTurnStartCue('turn-start:'+turnNumber+':'+activePlayer);
@@ -247,8 +260,14 @@
       // The old inline URL resolved from the document and left this pile blank.
       discardArt.style.removeProperty('--archive-card-image');
     }
-    [['my-pic','my-pic'],['opp-pic','opp-pic']].forEach(([key,id])=>{const out=root.querySelector(`[data-art="${key}"]`),art=findArt($(id));if(out&&art)out.style.backgroundImage=art});
-    const land=$('landscape-panel'),landOut=root.querySelector('[data-land]');if(land&&landOut&&landOut.dataset.cache!==land.innerHTML){landOut.innerHTML=land.innerHTML;landOut.dataset.cache=land.innerHTML;scheduleLandscapeFit(landOut)}
+    [['my-pic',self,'my-pic'],['opp-pic',rival,'opp-pic']].forEach(([key,seat,id])=>{const out=root.querySelector(`[data-art="${key}"]`),art=playerPortraitArt(seat,id);if(out&&art)out.style.backgroundImage=art});
+    const land=$('landscape-panel'),landOut=root.querySelector('[data-land]');
+    if(land&&landOut){
+      [...landOut.classList].forEach(cls=>{if(/^landscape-id-/.test(cls))landOut.classList.remove(cls)});
+      const landscapeClass=[...land.classList].find(cls=>/^landscape-id-/.test(cls));
+      if(landscapeClass)landOut.classList.add(landscapeClass);
+      if(landOut.dataset.cache!==land.innerHTML){landOut.innerHTML=land.innerHTML;landOut.dataset.cache=land.innerHTML;scheduleLandscapeFit(landOut)}
+    }
      const stopConsolidation=root.querySelector('[data-stop-consolidate]');if(stopConsolidation)stopConsolidation.hidden=!Boolean(invoke('isLocalConsolidationActive'));
      const endControl=root.querySelector('[data-end]');
      const authorityScreen=window.FateAuthorityV3SinglePlayer?.currentScreen?.();

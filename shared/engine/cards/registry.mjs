@@ -159,7 +159,7 @@ const REGISTRY = Object.freeze({
         kind:'CHOOSE_OPTION',
         local:'landscapeId',
         landscapeChoices:true,
-        options:Array.from({length:20}, (_value, index)=>({
+        options:Array.from({length:24}, (_value, index)=>({
           value:`igb${index + 1}`,
           label:`Landscape ${index + 1}`
         })),
@@ -768,9 +768,12 @@ const REGISTRY = Object.freeze({
     prompts:[]
   },
   '20':{
-    timings:['PASSIVE'],
-    operations:[],
-    prompts:[]
+    timings:['ACTIVATE'],
+    operations:['CREATE_TIMED_PLAYER_STATUS'],
+    prompts:['REACTION'],
+    manualOnly:true,
+    maxUses:2,
+    program:[{kind:'OPERATION',operation:{type:'CREATE_TIMED_PLAYER_STATUS',statusType:'MORALE_DAMAGE_INFLICTED_ZERO',playerIndex:'$opponent',targetTurns:1,startsNextTargetTurn:true}}]
   },
   '22':{
     timings:['ACTIVATE'],
@@ -1279,7 +1282,7 @@ const REGISTRY = Object.freeze({
     operations:['MODIFY_FATE', 'CREATE_STATUS'],
     prompts:[],
     program:[
-      {kind:'OPERATION', operation:{type:'MODIFY_FATE', targetIid:'$sourceIid', amount:4}},
+      {kind:'OPERATION', operation:{type:'MODIFY_FATE', targetIid:'$sourceIid', amount:5}},
       {kind:'OPERATION', operation:{type:'CREATE_STATUS', targetIid:'$sourceIid', status:'IMMUNE_TO_OPPONENT_EFFECTS'}}
     ]
   },
@@ -1382,7 +1385,8 @@ const REGISTRY = Object.freeze({
             type:'CONSOLIDATION_FATE_BONUS',
             playerIndex:'$controller',
             sourceIid:'$sourceIid',
-            value:3
+            value:3,
+            affectedIids:['$sourceIid']
           }
         }
       }
@@ -1751,12 +1755,12 @@ const REGISTRY = Object.freeze({
     triggerSubscriptions:['CARD_CONSOLIDATED']
   },
   'bh18':{
-    effectLabels:['OPPONENT_TURN_END_DECK_DISCARD'],
+    effectLabels:['MORALE_CALCULATION_ZONE_FATE_REDUCTION'],
     timings:['PASSIVE'],
-    operations:['RANDOM_DISCARD_DECK'],
+    operations:['CREATE_MATCH_STATUS'],
     prompts:[],
     havanoTargeting:'OPPONENT',
-    triggerSubscriptions:['TURN_ENDING']
+    triggerSubscriptions:['MORALE_CYCLE_RESOLVED']
   },
   'bh19':{
     effectLabels:['PERMANENT_FATE_GAIN_POTENCY'],
@@ -1821,22 +1825,31 @@ const REGISTRY = Object.freeze({
       }}
     ]
   },
+  'bh23':{
+    timings:['WHEN_SET'],
+    operations:['MODIFY_FATE'],
+    prompts:['BOARD_TARGET'],
+    program:[
+      {kind:'SELECT_BOARD',local:'coordinatorIid',filter:{sameZone:true,controller:true,faceUp:true,cardIds:['15','bh02','bh08']}},
+      {kind:'INHERIT_TRIGGERED_FATE',coordinatorIid:'$coordinatorIid'}
+    ]
+  },
+  'bh24':{
+    effectLabels:['NEXT_SUPPORTER_SET_EXEMPT'],
+    timings:['WHEN_SET'],
+    operations:['MODIFY_MORALE','CREATE_MATCH_STATUS'],
+    prompts:[],
+    program:[
+      {kind:'OPERATION',operation:{type:'MODIFY_MORALE',playerIndex:'$controller',sourceIid:'$sourceIid',amount:-15,reason:'DEFENSE_IN_DEPTH_COST'}},
+      {kind:'OPERATION',operation:{type:'CREATE_MATCH_STATUS',status:{type:'NEXT_SUPPORTER_SET_EXEMPT',playerIndex:'$controller',sourceIid:'$sourceIid',remaining:1,fateBonus:4}}}
+    ]
+  },
   'bh25':{
     timings:['WHEN_SET'],
-    operations:['DISCARD_CARD'],
-    prompts:['BOARD_TARGET', 'REACTION'],
-    program:[
-      {
-        kind:'SELECT_BOARD',
-        local:'targetIid',
-        filter:{effectMutable:true, targetable:'DISCARD_CARD'}
-      },
-      {
-        kind:'OPERATION',
-        targeted:true,
-        operation:{type:'DISCARD_CARD', targetIid:'$targetIid', reason:'LEFT_HOOK_OF_THE_INCEL'}
-      }
-    ]
+    effectLabels:['CONDITIONAL_FATE_TRIGGER_PROC'],
+    operations:['MODIFY_FATE','DRAW_CARD'],
+    prompts:[],
+    program:[{kind:'PROC_ZONE_CONDITIONAL_FATE_TRIGGERS',minimumTurn:18}]
   },
   'test-p3-chain':{
     testOnly:true,
@@ -1910,7 +1923,7 @@ const REGISTRY = Object.freeze({
 });
 
 const PRESSURE_REWORK_REGISTRY = Object.freeze({
-  '20':{timings:['WHEN_SET'],operations:['CREATE_TIMED_PLAYER_STATUS'],prompts:['REACTION'],program:[{kind:'OPERATION',operation:{type:'CREATE_TIMED_PLAYER_STATUS',statusType:'MORALE_DAMAGE_INFLICTED_ZERO',playerIndex:'$opponent',targetTurns:1,startsNextTargetTurn:true}}]},
+  '20':{timings:['ACTIVATE'],operations:['CREATE_TIMED_PLAYER_STATUS'],prompts:['REACTION'],manualOnly:true,maxUses:2,program:[{kind:'OPERATION',operation:{type:'CREATE_TIMED_PLAYER_STATUS',statusType:'MORALE_DAMAGE_INFLICTED_ZERO',playerIndex:'$opponent',targetTurns:1,startsNextTargetTurn:true}}]},
   '25':{timings:['PASSIVE'],operations:[],prompts:[],program:[]},
   '33':{timings:['WHEN_SET'],operations:['MODIFY_MORALE'],prompts:[],program:[{kind:'OPERATION',operation:{type:'MODIFY_MORALE',playerIndex:'$controller',sourceIid:'$sourceIid',amount:16}}]},
   '34':{timings:['WHEN_SET','PASSIVE'],operations:['SET_CARD_COUNTER'],prompts:['MODAL_CHOICE','REACTION'],havanoTargeting:'OPPONENT',program:[
@@ -1929,7 +1942,7 @@ const PRESSURE_REWORK_REGISTRY = Object.freeze({
     {kind:'OPERATION',operation:{type:'SET_CARD_COUNTER',targetIid:'$sourceIid',counterKey:'sovietDeclaredType',value:'$declaredType',sourceIid:'$sourceIid'}}
   ]},
   '45':{timings:['WHEN_SET','PASSIVE'],operations:['MODIFY_MORALE','DISCARD_CARD'],prompts:['BOARD_TARGET','REACTION'],program:[
-    {kind:'OPERATION',operation:{type:'MODIFY_MORALE',playerIndex:'$controller',sourceIid:'$sourceIid',amount:-50}},
+    {kind:'OPERATION',operation:{type:'MODIFY_MORALE',playerIndex:'$controller',sourceIid:'$sourceIid',amount:-50,reason:'THE_LAST_MOHICAN_COST'}},
     {kind:'SELECT_BOARD',local:'targetIid',filter:{targetable:'DISCARD_CARD'}},
     {kind:'OPERATION',targeted:true,operation:{type:'DISCARD_CARD',targetIid:'$targetIid',reason:'THE_LAST_MOHICAN'}}
   ]},
@@ -1946,6 +1959,7 @@ const PRESSURE_REWORK_REGISTRY = Object.freeze({
 
 export function cardRule(cardId, state = null){
   const id = String(cardId || '');
+  if(['20','34','64','73'].includes(id) && PRESSURE_REWORK_REGISTRY[id]) return PRESSURE_REWORK_REGISTRY[id];
   if(state?.gameSettings?.pressureCardReworks === true && PRESSURE_REWORK_REGISTRY[id]) return PRESSURE_REWORK_REGISTRY[id];
   return REGISTRY[id] || null;
 }
