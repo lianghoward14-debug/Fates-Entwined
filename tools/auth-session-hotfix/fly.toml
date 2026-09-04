@@ -1,0 +1,52 @@
+# Production-only surgical hotfix. Not an isolated beta deployment.
+app = 'fates-entwined-main'
+primary_region = 'lax'
+
+[build]
+  dockerfile = 'Dockerfile'
+
+[processes]
+  app = 'node server/authoritative-v3/phase7-beta-server.mjs'
+
+[env]
+  FATE_SERVER_AUTHORITATIVE_V3_PHASE7_BETA_ENABLED = '1'
+  FATE_SERVER_AUTHORITATIVE_V3_ENABLED = '0'
+  FATE_SERVER_AUTHORITATIVE_V3_SHADOW_ENABLED = '0'
+  FATE_AUTHORITY_V3_PHASE7_CLIENT_VERSION = '1.39.0-phase7-beta.1'
+  FATE_AUTHORITY_V3_PHASE7_COMPATIBLE_CLIENT_VERSIONS = '1.39.0-phase7-beta.1,1.39.95-phase7-beta.1'
+  FATE_AUTHORITY_V3_PHASE7_BUILD_ID = 'phase7-c50e1f3c607bdc0f87ed951392edca7fd9aa3c1703d6dc2f3e392cabf51f0ff7-authfix1'
+  FATE_AUTHORITY_V3_RETAINED_MATCHES = '50'
+  FATE_AUTHORITY_V3_PHASE7_QUEUE_STALE_MS = '45000'
+  FATE_AUTHORITY_V3_DISCONNECT_FORFEIT_MS = '5000'
+  FATE_AUTHORITY_V3_DATA_DIR = '/data/authority-v3-phase7'
+  FATE_FLY_DATA_API_DIR = '/data/fate-authority'
+  FATE_FLY_DATA_API_ENABLED = '1'
+  FATE_AUTHORITY_V3_HOST = '0.0.0.0'
+  FATE_AUTHORITY_V3_PORT = '8787'
+  FATE_AUTHORITY_V3_ALLOW_TEST_MATCHES = '0'
+  FATE_AUTHORITY_V3_PHASE7_ALLOW_TEST_IDENTITIES = '0'
+  FATE_AI_LEARNING_ENABLED = '1'
+  FATE_AI_TRAINING_MODE = 'scheduled'
+  FATE_AI_TRAIN_INTERVAL_MS = '21600000'
+  FATE_AI_TRAIN_MAX_MS = '30'
+  FATE_AI_TRAIN_EPISODES = '96'
+  FATE_AI_TRAIN_MAX_SAMPLES = '12000'
+  FATE_AI_TRAIN_RETENTION_DAYS = '45'
+
+[[mounts]]
+  source = 'fate_authority_data'
+  destination = '/data'
+
+[http_service]
+  internal_port = 8787
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ['app']
+
+[[vm]]
+  memory = '1gb'
+  cpu_kind = 'shared'
+  cpus = 1
+  memory_mb = 1024
