@@ -26039,6 +26039,32 @@ html body #s-social .social-online-command .social-online-card-rank .rank-badge-
   margin-right:0!important;
 }
 
+/* Fit long online-player ranks inside the actual 150px pill, not beyond it.
+   Preserve the short Footman and already-centered Lieutenant layouts. */
+html body #s-social .social-online-command .social-online-card-rank .rank-badge.rank-md:not(.rank-badge-short):not(.rank-badge-two-line){
+  box-sizing:border-box!important;
+  width:150px!important;
+  inline-size:150px!important;
+  max-width:150px!important;
+  max-inline-size:150px!important;
+  gap:6px!important;
+}
+html body #s-social .social-online-command .social-online-card-rank .rank-badge.rank-md:not(.rank-badge-short):not(.rank-badge-two-line) .rank-badge-label{
+  flex:1 1 0!important;
+  width:auto!important;
+  inline-size:auto!important;
+  min-width:0!important;
+  max-width:100%!important;
+  margin:0!important;
+  transform:none!important;
+  font-size:10px!important;
+  letter-spacing:0!important;
+  line-height:1.15!important;
+  white-space:normal!important;
+  overflow-wrap:anywhere!important;
+  text-align:center!important;
+}
+
 /* Profile: keep the pill box fixed while shifting only its visible icon and
    two-line label four pixels right from their previous -3px offset. */
 html body #modal .profile-view-badges .rank-badge.rank-badge-two-line .rank-badge-icon,

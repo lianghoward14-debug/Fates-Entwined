@@ -1,0 +1,387 @@
+[
+  {
+    "batch": 3,
+    "start": 50,
+    "language": "el",
+    "segments": [
+      {
+        "start": 50.0,
+        "end": 53.82,
+        "text": " Κουνηθείτε! Εμπρός! Κουνηθείτε! Εμπρός! Κουνηθείτε! Διαταγές!",
+        "words": [
+          {
+            "start": 50.0,
+            "end": 50.24,
+            "word": " Κουνηθείτε!"
+          },
+          {
+            "start": 50.54,
+            "end": 50.98,
+            "word": " Εμπρός!"
+          },
+          {
+            "start": 51.18,
+            "end": 51.62,
+            "word": " Κουνηθείτε!"
+          },
+          {
+            "start": 51.86,
+            "end": 52.3,
+            "word": " Εμπρός!"
+          },
+          {
+            "start": 52.64,
+            "end": 53.08,
+            "word": " Κουνηθείτε!"
+          },
+          {
+            "start": 53.38,
+            "end": 53.82,
+            "word": " Διαταγές!"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "batch": 4,
+    "start": 28.5,
+    "language": "cs",
+    "segments": [
+      {
+        "start": 28.5,
+        "end": 29.82,
+        "text": " Děme príč!",
+        "words": [
+          {
+            "start": 28.5,
+            "end": 29.26,
+            "word": " Děme"
+          },
+          {
+            "start": 29.26,
+            "end": 29.82,
+            "word": " príč!"
+          }
+        ]
+      },
+      {
+        "start": 29.92,
+        "end": 30.58,
+        "text": " Děme príč!",
+        "words": [
+          {
+            "start": 29.92,
+            "end": 30.16,
+            "word": " Děme"
+          },
+          {
+            "start": 30.16,
+            "end": 30.58,
+            "word": " príč!"
+          }
+        ]
+      },
+      {
+        "start": 30.64,
+        "end": 30.86,
+        "text": " Príč!",
+        "words": [
+          {
+            "start": 30.64,
+            "end": 30.86,
+            "word": " Príč!"
+          }
+        ]
+      },
+      {
+        "start": 31.259999999999998,
+        "end": 31.7,
+        "text": " Rozskazím!",
+        "words": [
+          {
+            "start": 31.259999999999998,
+            "end": 31.7,
+            "word": " Rozskazím!"
+          }
+        ]
+      },
+      {
+        "start": 31.8,
+        "end": 31.98,
+        "text": " Roz...",
+        "words": [
+          {
+            "start": 31.8,
+            "end": 31.98,
+            "word": " Roz..."
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "batch": 4,
+    "start": 55,
+    "language": "en",
+    "segments": [
+      {
+        "start": 55.0,
+        "end": 57.0,
+        "text": " Stand on top! Stand on top! Stand on top!",
+        "words": [
+          {
+            "start": 55.0,
+            "end": 55.7,
+            "word": " Stand"
+          },
+          {
+            "start": 55.7,
+            "end": 55.86,
+            "word": " on"
+          },
+          {
+            "start": 55.86,
+            "end": 56.1,
+            "word": " top!"
+          },
+          {
+            "start": 56.1,
+            "end": 56.1,
+            "word": " Stand"
+          },
+          {
+            "start": 56.1,
+            "end": 56.1,
+            "word": " on"
+          },
+          {
+            "start": 56.1,
+            "end": 56.1,
+            "word": " top!"
+          },
+          {
+            "start": 56.28,
+            "end": 56.5,
+            "word": " Stand"
+          },
+          {
+            "start": 56.5,
+            "end": 56.76,
+            "word": " on"
+          },
+          {
+            "start": 56.76,
+            "end": 57.0,
+            "word": " top!"
+          }
+        ]
+      },
+      {
+        "start": 57.22,
+        "end": 58.88,
+        "text": " Bo-hip! Bo-hip! Bo-hip! Bo-hip!",
+        "words": [
+          {
+            "start": 57.22,
+            "end": 57.4,
+            "word": " Bo"
+          },
+          {
+            "start": 57.4,
+            "end": 57.52,
+            "word": "-hip!"
+          },
+          {
+            "start": 57.74,
+            "end": 57.8,
+            "word": " Bo"
+          },
+          {
+            "start": 57.8,
+            "end": 57.92,
+            "word": "-hip!"
+          },
+          {
+            "start": 58.1,
+            "end": 58.16,
+            "word": " Bo"
+          },
+          {
+            "start": 58.16,
+            "end": 58.36,
+            "word": "-hip!"
+          },
+          {
+            "start": 58.52,
+            "end": 58.72,
+            "word": " Bo"
+          },
+          {
+            "start": 58.72,
+            "end": 58.88,
+            "word": "-hip!"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "batch": 4,
+    "start": 69,
+    "language": "cs",
+    "segments": [
+      {
+        "start": 69.0,
+        "end": 71.6,
+        "text": " Nezastavujme se! Nezastavujme se!",
+        "words": [
+          {
+            "start": 69.0,
+            "end": 69.82,
+            "word": " Nezastavujme"
+          },
+          {
+            "start": 69.82,
+            "end": 70.1,
+            "word": " se!"
+          },
+          {
+            "start": 70.8,
+            "end": 71.36,
+            "word": " Nezastavujme"
+          },
+          {
+            "start": 71.36,
+            "end": 71.6,
+            "word": " se!"
+          }
+        ]
+      },
+      {
+        "start": 71.92,
+        "end": 73.98,
+        "text": " Starouce! Starouce! Starouce!",
+        "words": [
+          {
+            "start": 71.92,
+            "end": 72.48,
+            "word": " Starouce!"
+          },
+          {
+            "start": 72.8,
+            "end": 73.36,
+            "word": " Starouce!"
+          },
+          {
+            "start": 73.56,
+            "end": 73.98,
+            "word": " Starouce!"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "batch": 4,
+    "start": 79,
+    "language": "pl",
+    "segments": [
+      {
+        "start": 79.0,
+        "end": 83.28,
+        "text": " Pohyb, pohyb, pohyb, pohyb!",
+        "words": [
+          {
+            "start": 79.0,
+            "end": 79.36,
+            "word": " Pohyb,"
+          },
+          {
+            "start": 79.42,
+            "end": 79.86,
+            "word": " pohyb,"
+          },
+          {
+            "start": 79.86,
+            "end": 80.42,
+            "word": " pohyb,"
+          },
+          {
+            "start": 80.42,
+            "end": 83.28,
+            "word": " pohyb!"
+          }
+        ]
+      },
+      {
+        "start": 83.28,
+        "end": 83.78,
+        "text": " Przeluczy!",
+        "words": [
+          {
+            "start": 83.28,
+            "end": 83.78,
+            "word": " Przeluczy!"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "batch": 4,
+    "start": 85,
+    "language": "cs",
+    "segments": [
+      {
+        "start": 85.0,
+        "end": 85.54,
+        "text": " Jedušit!",
+        "words": [
+          {
+            "start": 85.0,
+            "end": 85.54,
+            "word": " Jedušit!"
+          }
+        ]
+      },
+      {
+        "start": 85.76,
+        "end": 88.54,
+        "text": " Dejme zpátky! Dejme zpátky! Dejme zpátka!",
+        "words": [
+          {
+            "start": 85.76,
+            "end": 85.94,
+            "word": " Dejme"
+          },
+          {
+            "start": 85.94,
+            "end": 86.42,
+            "word": " zpátky!"
+          },
+          {
+            "start": 86.64,
+            "end": 86.92,
+            "word": " Dejme"
+          },
+          {
+            "start": 86.92,
+            "end": 87.56,
+            "word": " zpátky!"
+          },
+          {
+            "start": 87.78,
+            "end": 88.06,
+            "word": " Dejme"
+          },
+          {
+            "start": 88.06,
+            "end": 88.54,
+            "word": " zpátka!"
+          }
+        ]
+      }
+    ]
+  }
+]

@@ -224,6 +224,27 @@ function scheduleReconnect(){
   }, delay);
 }
 
+let takeoverNoticeKey = '';
+let takeoverNoticeTimer = null;
+function updateTakeoverNotice(state, playerIndex){
+  if(!globalThis.document) return;
+  const key=state?.aiTakeoverSeats?.length&&!state.outcome
+    ? `${state.matchId}:${state.aiTakeoverSeats.join(',')}` : '';
+  if(key===takeoverNoticeKey) return;
+  takeoverNoticeKey=key;
+  clearTimeout(takeoverNoticeTimer);
+  document.getElementById('warfront-ai-takeover-notice')?.remove();
+  if(!key) return;
+  const notice=document.createElement('div');
+  notice.id='warfront-ai-takeover-notice';notice.setAttribute('role','status');
+  notice.style.cssText='position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:100000;background:#241707;color:#ffe29a;border:2px solid #e8b64c;padding:12px 22px;font-weight:bold;text-align:center;pointer-events:none';
+  notice.textContent=state.aiTakeoverSeats.includes(playerIndex)
+    ? 'YOU FORFEITED — AI CONTROLS YOUR SEAT'
+    : 'ZONE WON 5–0 — Continue against AI for commendations';
+  document.getElementById('s-game')?.appendChild(notice);
+  takeoverNoticeTimer=setTimeout(()=>notice.remove(),5000);
+  globalThis.refreshFateWarfrontState?.();
+}
 function applyServerMessage(message){
   if(message.kind === 'hello-ok'){
     playerIndex = Number(message.playerIndex);
@@ -234,19 +255,7 @@ function applyServerMessage(message){
   // before the UI is allowed to offer that prompt again.
   if(message.kind === 'snapshot' || message.kind === 'accepted' || message.kind === 'rejected'){
     if(message.state) state = clone(message.state);
-    if(message.state && globalThis.document){
-      let notice=document.getElementById('warfront-ai-takeover-notice');
-      if(state.aiTakeoverSeats?.length&&!state.outcome){
-        if(!notice){notice=document.createElement('div');notice.id='warfront-ai-takeover-notice';notice.setAttribute('role','status');notice.style.cssText='position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:100000;background:#241707;color:#ffe29a;border:2px solid #e8b64c;padding:12px 22px;font-weight:bold;text-align:center;pointer-events:none';document.getElementById('s-game')?.appendChild(notice);}
-        notice.textContent=state.aiTakeoverSeats.includes(playerIndex)?'YOU FORFEITED — AI CONTROLS YOUR SEAT':'OPPONENT FORFEITED — AI HAS TAKEN OVER';
-      }else notice?.remove();
-    }
-    if(message.events?.some(event=>event.type==='WARFRONT_AI_TAKEOVER')){
-      const event=message.events.find(event=>event.type==='WARFRONT_AI_TAKEOVER');
-      globalThis.toast?.(Number(event.playerIndex)===playerIndex
-        ? 'You forfeited. AI has taken over your Warfront seat.'
-        : 'YOUR OPPONENT FORFEITED — AI has taken over. Finish the match to earn commendations.');
-    }
+    if(message.state) updateTakeoverNotice(state,playerIndex);
     if(Array.isArray(message.legalCommands)) legalCommands = clone(message.legalCommands);
     if(Array.isArray(message.privateActionCards)) privateActionCards = clone(message.privateActionCards);
     revision = Math.max(revision, Number(message.revision || 0) || 0);
@@ -504,6 +513,13 @@ async function startUnrankedMatchmaking({deckIds, name = '', photoURL = '', rank
     throw new Error(`Phase 7 matchmaking ended in unexpected status ${result.status || '(missing)'}`);
   }
   const matchedCredential = validateCredential(result.credential);
+  if(queueMode==='warfront'){
+    const req=globalThis.FATE_PENDING_WAR_MATCH;
+    if(!req || !globalThis.FateOnline?.flyApiRequest) throw new Error('Warfront account binding is unavailable');
+    await globalThis.FateOnline.flyApiRequest('/api/warfront/bind-match',{method:'POST',body:{
+      mapCode:req.mapCode,zoneId:req.zoneId,credential:matchedCredential
+    }});
+  }
   if(cancelled()) return {ok:false, status:'cancelled'};
   if(typeof onStatus === 'function') onStatus({status:'matched', matchId:matchedCredential.matchId});
   await connect(matchedCredential);

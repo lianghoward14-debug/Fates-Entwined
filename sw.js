@@ -1,5 +1,5 @@
 // Minimal service worker for Chrome PWA installability
-const CACHE_NAME = 'fates-entwined-v30-warfront-live-team-voices-20260903';
+const CACHE_NAME = 'fates-entwined-v31-approved-free-world-20260904';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();

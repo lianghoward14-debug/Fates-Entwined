@@ -7085,7 +7085,10 @@
     if(sub){
       const outcomeType = String(outcome.type || '').toUpperCase();
       const outcomeReason = String(outcome.reason || '').toUpperCase();
-      if(outcomeType === 'CONCEDED') sub.textContent = won ? 'Your opponent conceded the match' : 'You conceded the match';
+      if(outcomeType === 'WARFRONT_FORFEIT') sub.textContent = won
+        ? (outcome.commendationsEligible ? 'Zone won 5–0 by forfeit · AI continuation completed' : 'Zone win retained · no commendation credit for leaving the AI continuation')
+        : 'Zone lost by forfeit';
+      else if(outcomeType === 'CONCEDED') sub.textContent = won ? 'Your opponent conceded the match' : 'You conceded the match';
       else if(outcomeReason === 'MORALE_DOUBLE_KO') sub.textContent = 'Both players reached 0 Morale';
       else if(outcomeReason === 'MORALE_DEPLETED'){
         const depleted = finalMorale ? finalMorale.map(function(value,index){ return Number(value) <= 0 ? index : -1; }).filter(function(index){ return index >= 0; }) : [];

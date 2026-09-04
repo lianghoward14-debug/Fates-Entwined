@@ -218,6 +218,7 @@ export class AuthorityV3RoomManager {
         : null
     });
     state.warfrontMatch = input.mode === 'warfront';
+    if(state.warfrontMatch) state.warfrontMatchmakingKey=String(input.warfrontMatchmakingKey || '');
     if(this.allowOrganicTestFixtures){
       forceTestOpeningCards(state, players);
       forceTestDeckCards(state, players);

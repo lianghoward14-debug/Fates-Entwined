@@ -11,13 +11,14 @@ function clone(value){ return value == null ? value : JSON.parse(JSON.stringify(
 function mapBy(list, key){ return new Map((Array.isArray(list) ? list : []).filter(Boolean).map(item=>[cleanId(item[key]), clone(item)]).filter(row=>row[0])); }
 function objectFromSet(set){ return Object.fromEntries([...set].map(uid=>[uid, {uid, createdAt:Date.now()}])); }
 
-export function createFlyDataApi({readBody, writeJson}){
+export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>null, authenticateMatch = ()=>null}){
   fs.mkdirSync(DATA_DIR, {recursive:true});
   let snapshot = {};
   try{ snapshot = JSON.parse(fs.readFileSync(SNAPSHOT_PATH, 'utf8')) || {}; }catch(error){
     if(error?.code !== 'ENOENT') console.warn('Fly data snapshot could not be read:', error.message);
   }
   const profiles = mapBy(snapshot.playerStats, 'uid');
+  const warfrontBindings = mapBy(snapshot.warfrontBindings, 'matchId');
   const challengerResultReceipts = mapBy(snapshot.challengerResultReceipts, 'receiptId');
   const aiRecords = mapBy(snapshot.aiRecords, 'aiId');
   let aiMatches = Array.isArray(snapshot.aiMatches) ? snapshot.aiMatches.map(clone) : [];
@@ -51,7 +52,7 @@ export function createFlyDataApi({readBody, writeJson}){
 
   function serialize(){
     return Object.assign({}, snapshot, {
-      playerStats:[...profiles.values()], challengerResultReceipts:[...challengerResultReceipts.values()].sort((a,b)=>Number(a.createdAt||0)-Number(b.createdAt||0)).slice(-2000),
+      playerStats:[...profiles.values()], warfrontBindings:[...warfrontBindings.values()], challengerResultReceipts:[...challengerResultReceipts.values()].sort((a,b)=>Number(a.createdAt||0)-Number(b.createdAt||0)).slice(-2000),
       aiRecords:[...aiRecords.values()], playerSaves:[...saves.values()], publicDecks:[...decks.values()],
       aiMatches:aiMatches.slice(-500), aiSimulationSchedule:clone(aiSimulationSchedule),
       marketplaceListings:[...listings.values()], marketplaceTransactions:marketplaceTransactions.slice(-500),
@@ -112,6 +113,7 @@ export function createFlyDataApi({readBody, writeJson}){
   function mergeWarfrontState(current,incoming){
     if(!current) return incoming;
     if(incoming.mapCode!==current.mapCode){
+      if(current.zones.some(z=>z.activeMatch?.matchId && resolveMatchState(z.activeMatch.matchId)?.warfrontForfeit && !resolveMatchState(z.activeMatch.matchId)?.outcome)) return current;
       return Number(incoming.sequence)>Number(current.sequence)?incoming:current;
     }
     const merged=clone(current),statusRank={enrollment:0,active:1};
@@ -124,6 +126,9 @@ export function createFlyDataApi({readBody, writeJson}){
     merged.zones=merged.zones.map(zone=>{
       const other=incomingZones.get(zone.id);if(!other)return zone;
       const out=clone(zone);out.a=out.a||clone(other.a)||null;out.b=out.b||clone(other.b)||null;
+      // Active seats are bound via server-issued match credentials, never via
+      // client snapshot fields. A completed normal match releases its queue.
+      if(out.activeMatch?.matchId && resolveMatchState(out.activeMatch.matchId)?.outcome) out.activeMatch=null;
       const byId=new Map((out.matches||[]).map(match=>[cleanId(match?.id,160),match]));
       for(const match of other.matches||[]){const id=cleanId(match?.id,160);if(!id)continue;if(!byId.has(id))byId.set(id,clone(match));else if(!byId.get(id)?.replay&&match?.replay)byId.get(id).replay=clone(match.replay);}
       const oldCount=(out.matches||[]).length;out.matches=[...byId.values()].sort((a,b)=>Number(a.completedAt||0)-Number(b.completedAt||0)).slice(0,5);
@@ -137,6 +142,77 @@ export function createFlyDataApi({readBody, writeJson}){
     merged._syncRevision=Math.max(Number(current._syncRevision||0),Number(incoming._syncRevision||0))+1;
     merged._updatedAt=Date.now();
     return sanitizeWarfrontState(merged);
+  }
+  function settleWarfrontForfeit(match, clock={}){
+    const lock=match?.warfrontForfeit;
+    if(!match?.warfrontMatch || !lock || !warfrontEvent) return false;
+    const id=String(match.matchId),recordId=id+'-forfeit';
+    const binding=warfrontBindings.get(id);
+    if(!binding || binding.mapCode!==warfrontEvent.mapCode || !binding.uids?.[0] || !binding.uids?.[1]) return false;
+    const zone=warfrontEvent.zones.find(z=>z.id===binding.zoneId);
+    if(!zone || !zone.a || !zone.b) return false;
+    const before=JSON.stringify(zone);
+    let record=zone.matches.find(m=>m.id===recordId);
+    const teamASeat=binding.uids.indexOf(zone.a.uid);
+    if(teamASeat!==0 && teamASeat!==1) return false;
+    if(binding.uids[1-teamASeat]!==zone.b.uid) return false;
+    const winnerTeam=lock.winner===teamASeat?'a':'b',loserTeam=winnerTeam==='a'?'b':'a';
+    if(!record){
+      // A zone sweep replaces earlier battle results, but not their earned stats.
+      zone.matches.forEach(m=>{m.voidedByForfeit=true;});
+      record={id:recordId,winnerTeam,teamASeat,completedAt:Date.now(),forfeitSweep:true,
+        starValue:5,commendationExcluded:true,playerStats:{a:{},b:{}}};
+      zone.matches.push(record);
+    }
+    // Never trust a client-authored match record to decide the sweep or ELO.
+    zone.matches.forEach(m=>{if(m.id!==recordId)m.voidedByForfeit=true;});
+    Object.assign(record,{winnerTeam,teamASeat,starValue:5,forfeitSweep:true,voidedByForfeit:false});
+    if(!match.outcome){record.commendationExcluded=true;record.continuationCompleted=false;record.playerStats={a:{},b:{}};}
+    if(!binding.ratingsSettled){
+      const winnerElo=profile(zone[winnerTeam].uid).challengerElo;
+      const loserElo=profile(zone[loserTeam].uid).challengerElo;
+      applyChallengerResult(zone[winnerTeam].uid,{didWin:true,source:'warfront',roomCode:id,opponentElo:loserElo,eloGainMultiplier:3});
+      applyChallengerResult(zone[loserTeam].uid,{didWin:false,source:'warfront',roomCode:id,opponentElo:winnerElo});
+      binding.ratingsSettled=true;
+    }
+    if(match.outcome){
+      zone.activeMatch=null;
+      record.commendationExcluded=match.outcome.commendationsEligible!==true;
+      record.continuationCompleted=match.outcome.commendationsEligible===true;
+      // Only a completed continuation contributes; leaving wipes its credit.
+      const totals=match.outcome.totalFate || [0,0];
+      const winnerStats=record.playerStats[winnerTeam] || {};
+      record.playerStats={a:{},b:{}};
+      if(record.continuationCompleted) record.playerStats[winnerTeam]={...winnerStats,
+        totalFateGenerated:Math.max(0,Number(totals[lock.winner])||0),
+        fateDifferential:Math.max(0,(Number(totals[lock.winner])||0)-(Number(totals[lock.loser])||0)),
+        consolidations:Number(match.warfrontConsolidations?.[lock.winner])||0,
+        durationMs:Number(clock.consumedMs?.[lock.winner])||Number(winnerStats.durationMs)||0};
+    }
+    if(before===JSON.stringify(zone)) return true;
+    warfrontEvent._syncRevision=Number(warfrontEvent._syncRevision||0)+1;
+    persist();
+    return true;
+  }
+  function refreshWarfrontForfeits(){
+    for(const binding of warfrontBindings.values()){
+      if(binding.mapCode===warfrontEvent?.mapCode) settleWarfrontForfeit(resolveMatchState(binding.matchId));
+    }
+  }
+  // Seat ratings are enrollment snapshots, not a source of current ratings.
+  // Project live server profiles on every response without changing archives.
+  function warfrontStateForClient(){
+    refreshWarfrontForfeits();
+    const current = clone(warfrontEvent);
+    for(const zone of current?.zones || []) for(const team of ['a','b']){
+      const player = zone[team];
+      if(!player) continue;
+      const stored = profiles.get(cleanId(player.uid,128));
+      const rating = stored?.challengerElo ?? stored?.elo;
+      player.elo = rating != null && Number.isFinite(Number(rating))
+        ? Math.max(0,Number(rating)) : null;
+    }
+    return current;
   }
   function profile(uid){
     const key = cleanId(uid, 128);
@@ -388,16 +464,37 @@ export function createFlyDataApi({readBody, writeJson}){
       if(req.method==='GET' && url.pathname==='/api/social/state'){
         const uid=await requireSelf(req,url.searchParams.get('uid'));writeJson(res,200,Object.assign({ok:true},stateFor(uid)));return true;
       }
+      if(req.method==='POST' && url.pathname==='/api/warfront/bind-match'){
+        const body=await readBody(req),uid=await verifiedUid(req),c=body.credential || {};
+        const auth=authenticateMatch(c.matchId,c.playerId,c.token);
+        const match=auth && resolveMatchState(c.matchId);
+        const zone=warfrontEvent?.zones.find(z=>z.id===body.zoneId);
+        const team=zone?.a?.uid===uid?'a':zone?.b?.uid===uid?'b':null;
+        if(!auth || !match?.warfrontMatch || !team || body.mapCode!==warfrontEvent?.mapCode){
+          throw Object.assign(new Error('Warfront seat ownership required'),{status:403});
+        }
+        const expected=[body.mapCode,body.zoneId,...[zone.a?.uid,zone.b?.uid].map(String).sort()].join('|');
+        if(match.warfrontMatchmakingKey!==expected) throw Object.assign(new Error('Warfront match does not belong to this zone'),{status:403});
+        const binding=warfrontBindings.get(c.matchId) || {matchId:c.matchId,mapCode:body.mapCode,zoneId:body.zoneId,uids:[null,null]};
+        const seat=Number(auth.seat);
+        if(![0,1].includes(seat) || (binding.uids[seat] && binding.uids[seat]!==uid) || binding.uids[1-seat]===uid){
+          throw Object.assign(new Error('Warfront account already bound to another seat'),{status:403});
+        }
+        binding.uids[seat]=uid;warfrontBindings.set(c.matchId,binding);
+        zone.activeMatch={matchId:c.matchId,teamASeat:team==='a'?seat:1-seat,startedAt:zone.activeMatch?.startedAt||Date.now()};
+        persist();settleWarfrontForfeit(match);
+        writeJson(res,200,{ok:true});return true;
+      }
       if(req.method==='GET' && url.pathname==='/api/social/lookup'){
         await verifiedUid(req);const term=cleanId(url.searchParams.get('term')).toLowerCase();
         const found=[...profiles.values()].filter(x=>[x.uid,x.baseCode,x.username,x.chosenUsername,x.displayName].some(v=>String(v||'').toLowerCase()===term)).slice(0,5).map(clone);
         writeJson(res,200,{ok:true,profiles:found});return true;
       }
       if(p[1]==='warfront'&&p[2]==='state'){
-        if(req.method==='GET'){await verifiedUid(req);writeJson(res,200,{ok:true,state:clone(warfrontEvent)});return true;}
+        if(req.method==='GET'){await verifiedUid(req);writeJson(res,200,{ok:true,state:warfrontStateForClient()});return true;}
         const body=await readBody(req);await requireSelf(req,body.uid);const incoming=sanitizeWarfrontState(body.state);
         if(!incoming)throw new Error('invalid Warfront event state');
-        warfrontEvent=mergeWarfrontState(warfrontEvent,incoming);persist();writeJson(res,200,{ok:true,state:clone(warfrontEvent)});return true;
+        warfrontEvent=mergeWarfrontState(warfrontEvent,incoming);persist();writeJson(res,200,{ok:true,state:warfrontStateForClient()});return true;
       }
       if(req.method==='POST' && p[1]==='friends'){
         const body=await readBody(req),uid=await requireSelf(req,body.uid),action=p[2];
@@ -456,6 +553,7 @@ export function createFlyDataApi({readBody, writeJson}){
   }
   return {
     handle,
+    settleWarfrontForfeit,
     flush,
     counts:()=>({profiles:profiles.size,challengerResultReceipts:challengerResultReceipts.size,saves:saves.size,decks:decks.size,listings:listings.size,warfrontEvent:!!warfrontEvent}),
     testSanitizeWarfrontState:value=>sanitizeWarfrontState(value),

@@ -1,0 +1,146 @@
+[
+  {
+    "number": "482-part-1a-1",
+    "original": "clips/482-part-1a-1.mp3",
+    "duration": 0.97,
+    "parts": [
+      {
+        "label": "482-part-1a-1 \u00e2\u20ac\u201d new split; review",
+        "file": "clips/482-part-1a-1.mp3",
+        "duration": 0.97
+      }
+    ]
+  },
+  {
+    "number": "482-part-1a-2",
+    "original": "clips/482-part-1a-2.mp3",
+    "duration": 1.15,
+    "parts": [
+      {
+        "label": "482-part-1a-2 \u00e2\u20ac\u201d new split; review",
+        "file": "clips/482-part-1a-2.mp3",
+        "duration": 1.15
+      }
+    ]
+  },
+  {
+    "number": "482-part-3a",
+    "original": "clips/482-part-3a.mp3",
+    "duration": 1.355,
+    "parts": [
+      {
+        "label": "482-part-3a \u00e2\u20ac\u201d ending fragment removed; review",
+        "file": "clips/482-part-3a.mp3",
+        "duration": 1.355
+      }
+    ]
+  },
+  {
+    "number": "482-part-4a+4b",
+    "original": "clips/482-part-4a_4b.mp3",
+    "duration": 1.7277083333333334,
+    "parts": [
+      {
+        "label": "482-part-4a+4b \u00e2\u20ac\u201d rejoined",
+        "file": "clips/482-part-4a_4b.mp3",
+        "duration": 1.7277083333333334
+      }
+    ]
+  },
+  {
+    "number": "488+489",
+    "original": "clips/488_489.mp3",
+    "duration": 1.3866666666666667,
+    "parts": [
+      {
+        "label": "488+489 \u00e2\u20ac\u201d rejoined including transferred tail",
+        "file": "clips/488_489.mp3",
+        "duration": 1.3866666666666667
+      }
+    ]
+  },
+  {
+    "number": "586-1",
+    "original": "clips/586-1.mp3",
+    "duration": 0.99,
+    "parts": [
+      {
+        "label": "586-1 \u00e2\u20ac\u201d tail transferred to part 2",
+        "file": "clips/586-1.mp3",
+        "duration": 0.99
+      }
+    ]
+  },
+  {
+    "number": "586-2",
+    "original": "clips/586-2.mp3",
+    "duration": 1.3751666666666666,
+    "parts": [
+      {
+        "label": "586-2 \u00e2\u20ac\u201d includes missing start from part 1",
+        "file": "clips/586-2.mp3",
+        "duration": 1.3751666666666666
+      }
+    ]
+  },
+  {
+    "number": "596+598",
+    "original": "clips/596_598.mp3",
+    "duration": 1.75,
+    "parts": [
+      {
+        "label": "596+598 \u00e2\u20ac\u201d ending fragment removed; review",
+        "file": "clips/596_598.mp3",
+        "duration": 1.75
+      }
+    ]
+  },
+  {
+    "number": "512-part-4",
+    "original": "clips/512-part-4.mp3",
+    "duration": 1.015,
+    "parts": [
+      {
+        "label": "512-part-4 \u00e2\u20ac\u201d ending fragment removed; review",
+        "file": "clips/512-part-4.mp3",
+        "duration": 1.015
+      }
+    ]
+  },
+  {
+    "number": "549",
+    "original": "clips/549.mp3",
+    "duration": 0.87,
+    "parts": [
+      {
+        "label": "549 \u00e2\u20ac\u201d ending fragment removed; review",
+        "file": "clips/549.mp3",
+        "duration": 0.87
+      }
+    ]
+  },
+  {
+    "number": "572-source-recovery",
+    "original": "clips/572-source-recovery.mp3",
+    "duration": 0.9398333333333333,
+    "parts": [
+      {
+        "label": "572-source-recovery \u00e2\u20ac\u201d source context restored; review boundary",
+        "file": "clips/572-source-recovery.mp3",
+        "duration": 0.9398333333333333
+      }
+    ]
+  },
+  {
+    "number": "605-source-recovery",
+    "original": "clips/605-source-recovery.mp3",
+    "duration": 1.047,
+    "parts": [
+      {
+        "label": "605-source-recovery \u00e2\u20ac\u201d source context restored; review boundary",
+        "file": "clips/605-source-recovery.mp3",
+        "duration": 1.047
+      }
+    ]
+  }
+]

@@ -1,0 +1,49 @@
+{
+  "approved_part": 2,
+  "approved_sha256": "ef9e3398b8b50dc293409586bb83b3e0f6d03edacbc34773a329de3d563ceeb1",
+  "replacements": [
+    {
+      "label": "482 part 1a",
+      "file": "482-part-01a.mp3",
+      "start": 0,
+      "end": 2.12,
+      "status": "proposed; needs listening review"
+    },
+    {
+      "label": "482 part 1b",
+      "file": "482-part-01b.mp3",
+      "start": 2.12,
+      "end": 2.8484375,
+      "status": "proposed; needs listening review"
+    },
+    {
+      "label": "482 part 3a",
+      "file": "482-part-03a.mp3",
+      "start": 0,
+      "end": 1.55,
+      "status": "proposed; needs listening review"
+    },
+    {
+      "label": "482 part 3b",
+      "file": "482-part-03b.mp3",
+      "start": 1.55,
+      "end": 2.7725,
+      "status": "proposed; needs listening review"
+    },
+    {
+      "label": "482 part 4a",
+      "file": "482-part-04a.mp3",
+      "start": 0,
+      "end": 0.65,
+      "status": "proposed; needs listening review"
+    },
+    {
+      "label": "482 part 4b",
+      "file": "482-part-04b.mp3",
+      "start": 0.65,
+      "end": 1.7276875,
+      "status": "proposed; needs listening review"
+    }
+  ],
+  "notes": "Parts 1, 3, 4 reported overmerged. Staged only; existing board and game unchanged."
+}

@@ -1986,6 +1986,20 @@ function performCommand(state, ctx, command, actorIndex, options){
   // disconnect forfeits must be able to terminate every active match state.
   if(command.type === 'CONCEDE'){
     if(state.warfrontMatch){
+      // The first forfeit decides the competitive result permanently. The
+      // remaining human may continue only to earn commendation statistics.
+      if(!state.warfrontForfeit){
+        const loser = state.aiTakeoverSeats?.[0] ?? actorIndex;
+        state.warfrontForfeit = {winner:1-loser,loser,turn:state.turn};
+      }
+      if(actorIndex === state.warfrontForfeit.winner){
+        state.outcome = {type:'WARFRONT_FORFEIT',...state.warfrontForfeit,commendationsEligible:false};
+        state.phase = 'ended';
+        state.pendingPrompt = null;
+        state.pendingHandLimit = null;
+        state.effectStack = [];
+        return;
+      }
       state.aiTakeoverSeats = [...new Set([...(state.aiTakeoverSeats || []), actorIndex])];
       ctx.events.push({type:'WARFRONT_AI_TAKEOVER',playerIndex:actorIndex});
       return;
@@ -2709,6 +2723,17 @@ export function reduceCommand(currentState, rawCommand, options = {}){
     reconcileSovietGrenadierTargets(state, ctx);
     refreshMoralePressure(ctx);
     refreshHandLimitRequirement(state);
+    if(state.warfrontMatch){
+      state.warfrontConsolidations ||= [0,0];
+      for(const event of ctx.events) if(event.type==='CARD_CONSOLIDATED' && [0,1].includes(event.playerIndex)){
+        state.warfrontConsolidations[event.playerIndex]++;
+      }
+    }
+    if(state.warfrontForfeit && state.outcome){
+      state.outcome = {...state.outcome,boardWinner:state.outcome.boardWinner ?? state.outcome.winner,
+        type:'WARFRONT_FORFEIT',winner:state.warfrontForfeit.winner,loser:state.warfrontForfeit.loser,
+        commendationsEligible:state.outcome.commendationsEligible !== false};
+    }
     state.revision += 1;
     assertInvariants(state);
     const stateHash = canonicalHash(state);

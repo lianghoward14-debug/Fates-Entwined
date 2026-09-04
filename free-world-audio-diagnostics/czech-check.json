@@ -1,0 +1,125 @@
+[
+  {
+    "start": 79,
+    "segments": [
+      {
+        "start": 79.0,
+        "end": 82.26,
+        "text": " Pohip, pohip, pohip, pohip, pohip, pohip!",
+        "words": [
+          {
+            "start": 79.0,
+            "end": 79.28,
+            "word": " Pohip,"
+          },
+          {
+            "start": 79.44,
+            "end": 79.78,
+            "word": " pohip,"
+          },
+          {
+            "start": 79.9,
+            "end": 80.32,
+            "word": " pohip,"
+          },
+          {
+            "start": 80.34,
+            "end": 80.52,
+            "word": " pohip,"
+          },
+          {
+            "start": 80.52,
+            "end": 80.88,
+            "word": " pohip,"
+          },
+          {
+            "start": 81.44,
+            "end": 82.26,
+            "word": " pohip!"
+          }
+        ]
+      },
+      {
+        "start": 83.18,
+        "end": 83.86,
+        "text": " Čerušit!",
+        "words": [
+          {
+            "start": 83.18,
+            "end": 83.86,
+            "word": " Čerušit!"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "start": 55,
+    "segments": [
+      {
+        "start": 55.48,
+        "end": 57.02,
+        "text": " Stáhnout se! Stáhnout se! Stáhnout se!",
+        "words": [
+          {
+            "start": 55.48,
+            "end": 55.9,
+            "word": " Stáhnout"
+          },
+          {
+            "start": 55.9,
+            "end": 56.12,
+            "word": " se!"
+          },
+          {
+            "start": 56.24,
+            "end": 56.24,
+            "word": " Stáhnout"
+          },
+          {
+            "start": 56.24,
+            "end": 56.24,
+            "word": " se!"
+          },
+          {
+            "start": 56.38,
+            "end": 56.8,
+            "word": " Stáhnout"
+          },
+          {
+            "start": 56.8,
+            "end": 57.02,
+            "word": " se!"
+          }
+        ]
+      },
+      {
+        "start": 57.2,
+        "end": 58.98,
+        "text": " Bohyp! Bohyp! Bohyp! Bohyp!",
+        "words": [
+          {
+            "start": 57.2,
+            "end": 57.62,
+            "word": " Bohyp!"
+          },
+          {
+            "start": 57.78,
+            "end": 57.98,
+            "word": " Bohyp!"
+          },
+          {
+            "start": 58.12,
+            "end": 58.46,
+            "word": " Bohyp!"
+          },
+          {
+            "start": 58.56,
+            "end": 58.98,
+            "word": " Bohyp!"
+          }
+        ]
+      }
+    ]
+  }
+]

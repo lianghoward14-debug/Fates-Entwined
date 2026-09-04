@@ -460,6 +460,9 @@ html body #s-challenger .war2-zone-command-v3{border:2px solid #c19a43!important
 /* Match report: executive summary plus equal, data-rich combatant dossiers. */
 #s-challenger .war3-match-report{display:grid!important;grid-template-columns:220px minmax(0,1fr)!important;grid-template-rows:126px minmax(0,1fr) 48px 60px!important;overflow:hidden!important}
 #s-challenger .war3-match-report>header{grid-column:1!important;grid-row:1/5!important;padding:30px 24px!important}
+#s-challenger .war3-match-report{position:relative!important}
+#s-challenger .war3-match-report>.war-report-close{position:absolute!important;top:12px!important;right:12px!important;left:auto!important;bottom:auto!important;z-index:10!important;display:grid!important;place-items:center!important;width:34px!important;height:34px!important;min-width:34px!important;padding:0!important;margin:0!important;transform:none!important;border:1px solid #b9954566!important;border-radius:4px!important;background:#08151be6!important;color:#e8cd81!important;font:24px/1 Arial,sans-serif!important;cursor:pointer}
+#s-challenger .war3-match-report>.war-report-close:hover,#s-challenger .war3-match-report>.war-report-close:focus-visible{background:#253039!important;border-color:#e8cd81!important;outline:2px solid #e8cd8170;outline-offset:2px}
 #s-challenger .war3-match-report>header em{display:block;margin-top:16px;color:#91a2a5;font:700 9px/1.45 Cinzel,serif;font-style:normal}
 #s-challenger .war3-report-summary{grid-column:2;grid-row:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-bottom:1px solid #b995455f;background:linear-gradient(90deg,#7d27302b,#071117 48%,#246c9e2b);text-align:center}
 #s-challenger .war3-report-summary>span{color:#91a2a5;font:900 8px/1 Cinzel,serif;letter-spacing:.18em}

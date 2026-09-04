@@ -43,6 +43,12 @@
     'split-481-01.mp3','split-481-02.mp3','split-481-03.mp3','split-481-04.mp3'
   );
 
+  // Approved 482–605 revisions, tracked in approved-late-manifest.json.
+  // Excludes 549, 572, 605, 586-2 and 598-recut; superseded cuts are not loaded.
+  for(let clip=1; clip<=149; clip++){
+    ALL_FILES.push('approved-late-' + String(clip).padStart(3, '0') + '.mp3');
+  }
+
   let shuffleBag = [];
   let activeVoice = null;
 

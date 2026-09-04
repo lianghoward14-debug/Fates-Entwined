@@ -1,0 +1,7 @@
+{
+  "scope": "All unmentioned candidates on the round-2 board are approved by the user; no game integration authorized in this pass.",
+  "approved": ["482-part-1a-1", "482-part-1a-2", "482-part-3a", "482-part-4a+4b", "512-part-4"],
+  "needs_revision": ["488+489", "586-1", "586-2", "596+598", "549", "572-source-recovery", "605-source-recovery"],
+  "instructions": {"488+489": "Separate into two complete lines", "549": "User confirmed 549, not 548"},
+  "implemented": false
+}

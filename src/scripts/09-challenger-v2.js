@@ -3296,6 +3296,12 @@ function showMatchmakingScreen(opts={}) {
     if(timerEl) timerEl.textContent = m + ':' + s.toString().padStart(2,'0');
   }, 1000);
 
+  // Warfront owns its queue lifecycle; this screen only supplies the waiting UI.
+  if(opts.externallyManaged && queueMode === 'warfront'){
+    setMatchmakingStatus('Waiting in Warfront Queue…');
+    return;
+  }
+
   if(wantsOnlineQueue){
     getOnlineQueueFunction(queueMode).then(queueFn => {
       startHumanMatchmakingQueue(queueMode, queueFn);

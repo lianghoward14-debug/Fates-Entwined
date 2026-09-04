@@ -73,6 +73,7 @@ export function projectStateForPlayer(state, playerIndex){
     turnTimerSeconds:state.turnTimerSeconds,
     landscapeState:cloneSerializable(state.landscapeState ?? null),
     aiTakeoverSeats:cloneSerializable(state.aiTakeoverSeats || []),
+    warfrontForfeit:cloneSerializable(state.warfrontForfeit || null),
     moralePressure:cloneSerializable(state.moralePressure ?? null),
     players:state.players.map((player, index)=>
       index === viewer || state.landscapeId === 'igb12'

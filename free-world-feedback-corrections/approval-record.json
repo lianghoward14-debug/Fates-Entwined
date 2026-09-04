@@ -1,0 +1,767 @@
+{
+  "approved": [
+    {
+      "label": "482 \u00b7 part 2",
+      "file": "clips/482-part-02.mp3",
+      "start": 2.8475,
+      "end": 8.8625,
+      "duration": 6.015000000000001
+    },
+    {
+      "label": "483 \u00b7 part 2",
+      "file": "clips/483-part-02.mp3",
+      "start": 6.755,
+      "end": 7.798625,
+      "duration": 1.0436250000000005
+    },
+    {
+      "label": "484 \u00b7 part 2",
+      "file": "clips/484-part-02.mp3",
+      "start": 1.99,
+      "end": 3.01825,
+      "duration": 1.02825
+    },
+    {
+      "label": "487",
+      "file": "../voice-line-batches/set-3/clips/voice-line-014.mp3",
+      "start": 0.0,
+      "end": 1.3725,
+      "duration": 1.3725
+    },
+    {
+      "label": "490",
+      "file": "../voice-line-batches/set-3/clips/voice-line-017.mp3",
+      "start": 0.0,
+      "end": 0.8239375,
+      "duration": 0.8239375
+    },
+    {
+      "label": "491",
+      "file": "../voice-line-batches/set-3/clips/voice-line-018.mp3",
+      "start": 0.0,
+      "end": 0.7455625,
+      "duration": 0.7455625
+    },
+    {
+      "label": "494",
+      "file": "../voice-line-batches/set-3/clips/voice-line-021.mp3",
+      "start": 0.0,
+      "end": 1.686,
+      "duration": 1.686
+    },
+    {
+      "label": "495",
+      "file": "../voice-line-batches/set-3/clips/voice-line-022.mp3",
+      "start": 0.0,
+      "end": 1.346375,
+      "duration": 1.346375
+    },
+    {
+      "label": "496",
+      "file": "../voice-line-batches/set-3/clips/voice-line-023.mp3",
+      "start": 0.0,
+      "end": 1.607625,
+      "duration": 1.607625
+    },
+    {
+      "label": "497",
+      "file": "../voice-line-batches/set-3/clips/voice-line-024.mp3",
+      "start": 0.0,
+      "end": 1.8426875,
+      "duration": 1.8426875
+    },
+    {
+      "label": "499",
+      "file": "../voice-line-batches/set-3/clips/voice-line-026.mp3",
+      "start": 0.0,
+      "end": 1.503125,
+      "duration": 1.503125
+    },
+    {
+      "label": "500",
+      "file": "../voice-line-batches/set-3/clips/voice-line-027.mp3",
+      "start": 0.0,
+      "end": 1.712125,
+      "duration": 1.712125
+    },
+    {
+      "label": "501 \u00b7 part 1",
+      "file": "clips/501-part-01.mp3",
+      "start": 0.0,
+      "end": 1.6425,
+      "duration": 1.6425
+    },
+    {
+      "label": "502",
+      "file": "../voice-line-batches/set-3/clips/voice-line-029.mp3",
+      "start": 0.0,
+      "end": 1.137375,
+      "duration": 1.137375
+    },
+    {
+      "label": "503",
+      "file": "../voice-line-batches/set-3/clips/voice-line-030.mp3",
+      "start": 0.0,
+      "end": 1.398625,
+      "duration": 1.398625
+    },
+    {
+      "label": "504",
+      "file": "../voice-line-batches/set-3/clips/voice-line-031.mp3",
+      "start": 0.0,
+      "end": 1.189625,
+      "duration": 1.189625
+    },
+    {
+      "label": "505",
+      "file": "../voice-line-batches/set-3/clips/voice-line-032.mp3",
+      "start": 0.0,
+      "end": 0.5365625,
+      "duration": 0.5365625
+    },
+    {
+      "label": "506",
+      "file": "../voice-line-batches/set-3/clips/voice-line-033.mp3",
+      "start": 0.0,
+      "end": 0.5888125,
+      "duration": 0.5888125
+    },
+    {
+      "label": "507",
+      "file": "../voice-line-batches/set-3/clips/voice-line-034.mp3",
+      "start": 0.0,
+      "end": 1.503125,
+      "duration": 1.503125
+    },
+    {
+      "label": "510",
+      "file": "../voice-line-batches/set-3/clips/voice-line-037.mp3",
+      "start": 0.0,
+      "end": 1.0851875,
+      "duration": 1.0851875
+    },
+    {
+      "label": "512 \u00b7 part 1",
+      "file": "clips/512-part-01.mp3",
+      "start": 0.0,
+      "end": 0.9125000000000001,
+      "duration": 0.9125000000000001
+    },
+    {
+      "label": "512 \u00b7 part 2",
+      "file": "clips/512-part-02.mp3",
+      "start": 0.9125000000000001,
+      "end": 1.9500000000000002,
+      "duration": 1.0375
+    },
+    {
+      "label": "513",
+      "file": "../voice-line-batches/set-4/clips/voice-line-001.mp3",
+      "start": 0.0,
+      "end": 0.99375,
+      "duration": 0.99375
+    },
+    {
+      "label": "514",
+      "file": "../voice-line-batches/set-4/clips/voice-line-002.mp3",
+      "start": 0.0,
+      "end": 0.8239375,
+      "duration": 0.8239375
+    },
+    {
+      "label": "515",
+      "file": "../voice-line-batches/set-4/clips/voice-line-003.mp3",
+      "start": 0.0,
+      "end": 0.7716875,
+      "duration": 0.7716875
+    },
+    {
+      "label": "516",
+      "file": "../voice-line-batches/set-4/clips/voice-line-004.mp3",
+      "start": 0.0,
+      "end": 0.5888125,
+      "duration": 0.5888125
+    },
+    {
+      "label": "517",
+      "file": "../voice-line-batches/set-4/clips/voice-line-005.mp3",
+      "start": 0.0,
+      "end": 0.7194375,
+      "duration": 0.7194375
+    },
+    {
+      "label": "518",
+      "file": "../voice-line-batches/set-4/clips/voice-line-006.mp3",
+      "start": 0.0,
+      "end": 0.6933125,
+      "duration": 0.6933125
+    },
+    {
+      "label": "519",
+      "file": "../voice-line-batches/set-4/clips/voice-line-007.mp3",
+      "start": 0.0,
+      "end": 0.7455625,
+      "duration": 0.7455625
+    },
+    {
+      "label": "520",
+      "file": "../voice-line-batches/set-4/clips/voice-line-008.mp3",
+      "start": 0.0,
+      "end": 0.6933125,
+      "duration": 0.6933125
+    },
+    {
+      "label": "521",
+      "file": "../voice-line-batches/set-4/clips/voice-line-009.mp3",
+      "start": 0.0,
+      "end": 0.6933125,
+      "duration": 0.6933125
+    },
+    {
+      "label": "522",
+      "file": "../voice-line-batches/set-4/clips/voice-line-010.mp3",
+      "start": 0.0,
+      "end": 0.9545625,
+      "duration": 0.9545625
+    },
+    {
+      "label": "523",
+      "file": "../voice-line-batches/set-4/clips/voice-line-011.mp3",
+      "start": 0.0,
+      "end": 0.9806875,
+      "duration": 0.9806875
+    },
+    {
+      "label": "524",
+      "file": "../voice-line-batches/set-4/clips/voice-line-012.mp3",
+      "start": 0.0,
+      "end": 0.9023125,
+      "duration": 0.9023125
+    },
+    {
+      "label": "525",
+      "file": "../voice-line-batches/set-4/clips/voice-line-013.mp3",
+      "start": 0.0,
+      "end": 0.7455625,
+      "duration": 0.7455625
+    },
+    {
+      "label": "526",
+      "file": "../voice-line-batches/set-4/clips/voice-line-014.mp3",
+      "start": 0.0,
+      "end": 0.6410625,
+      "duration": 0.6410625
+    },
+    {
+      "label": "527",
+      "file": "../voice-line-batches/set-4/clips/voice-line-015.mp3",
+      "start": 0.0,
+      "end": 0.6933125,
+      "duration": 0.6933125
+    },
+    {
+      "label": "528",
+      "file": "../voice-line-batches/set-4/clips/voice-line-016.mp3",
+      "start": 0.0,
+      "end": 0.5104375,
+      "duration": 0.5104375
+    },
+    {
+      "label": "529",
+      "file": "../voice-line-batches/set-4/clips/voice-line-017.mp3",
+      "start": 0.0,
+      "end": 0.5104375,
+      "duration": 0.5104375
+    },
+    {
+      "label": "530",
+      "file": "../voice-line-batches/set-4/clips/voice-line-018.mp3",
+      "start": 0.0,
+      "end": 0.5104375,
+      "duration": 0.5104375
+    },
+    {
+      "label": "531",
+      "file": "../voice-line-batches/set-4/clips/voice-line-019.mp3",
+      "start": 0.0,
+      "end": 1.137375,
+      "duration": 1.137375
+    },
+    {
+      "label": "534",
+      "file": "../voice-line-batches/set-4/clips/voice-line-022.mp3",
+      "start": 0.0,
+      "end": 1.21575,
+      "duration": 1.21575
+    },
+    {
+      "label": "535",
+      "file": "../voice-line-batches/set-4/clips/voice-line-023.mp3",
+      "start": 0.0,
+      "end": 0.7978125,
+      "duration": 0.7978125
+    },
+    {
+      "label": "536",
+      "file": "../voice-line-batches/set-4/clips/voice-line-024.mp3",
+      "start": 0.0,
+      "end": 0.7716875,
+      "duration": 0.7716875
+    },
+    {
+      "label": "537",
+      "file": "../voice-line-batches/set-4/clips/voice-line-025.mp3",
+      "start": 0.0,
+      "end": 0.8239375,
+      "duration": 0.8239375
+    },
+    {
+      "label": "538",
+      "file": "../voice-line-batches/set-4/clips/voice-line-026.mp3",
+      "start": 0.0,
+      "end": 0.7716875,
+      "duration": 0.7716875
+    },
+    {
+      "label": "539",
+      "file": "../voice-line-batches/set-4/clips/voice-line-027.mp3",
+      "start": 0.0,
+      "end": 0.8239375,
+      "duration": 0.8239375
+    },
+    {
+      "label": "540",
+      "file": "../voice-line-batches/set-4/clips/voice-line-028.mp3",
+      "start": 0.0,
+      "end": 0.7455625,
+      "duration": 0.7455625
+    },
+    {
+      "label": "541",
+      "file": "../voice-line-batches/set-4/clips/voice-line-029.mp3",
+      "start": 0.0,
+      "end": 1.0068125,
+      "duration": 1.0068125
+    },
+    {
+      "label": "542",
+      "file": "../voice-line-batches/set-4/clips/voice-line-030.mp3",
+      "start": 0.0,
+      "end": 1.0068125,
+      "duration": 1.0068125
+    },
+    {
+      "label": "543",
+      "file": "../voice-line-batches/set-4/clips/voice-line-031.mp3",
+      "start": 0.0,
+      "end": 1.11125,
+      "duration": 1.11125
+    },
+    {
+      "label": "544",
+      "file": "../voice-line-batches/set-4/clips/voice-line-032.mp3",
+      "start": 0.0,
+      "end": 1.0068125,
+      "duration": 1.0068125
+    },
+    {
+      "label": "545",
+      "file": "../voice-line-batches/set-4/clips/voice-line-033.mp3",
+      "start": 0.0,
+      "end": 1.0329375,
+      "duration": 1.0329375
+    },
+    {
+      "label": "546",
+      "file": "../voice-line-batches/set-4/clips/voice-line-034.mp3",
+      "start": 0.0,
+      "end": 1.1635,
+      "duration": 1.1635
+    },
+    {
+      "label": "547",
+      "file": "../voice-line-batches/set-4/clips/voice-line-035.mp3",
+      "start": 0.0,
+      "end": 0.7978125,
+      "duration": 0.7978125
+    },
+    {
+      "label": "548",
+      "file": "../voice-line-batches/set-4/clips/voice-line-036.mp3",
+      "start": 0.0,
+      "end": 0.9284375,
+      "duration": 0.9284375
+    },
+    {
+      "label": "550",
+      "file": "../voice-line-batches/set-4/clips/voice-line-038.mp3",
+      "start": 0.0,
+      "end": 0.7978125,
+      "duration": 0.7978125
+    },
+    {
+      "label": "551",
+      "file": "../voice-line-batches/set-4/clips/voice-line-039.mp3",
+      "start": 0.0,
+      "end": 0.6671875,
+      "duration": 0.6671875
+    },
+    {
+      "label": "552",
+      "file": "../voice-line-batches/set-4/clips/voice-line-040.mp3",
+      "start": 0.0,
+      "end": 0.7455625,
+      "duration": 0.7455625
+    },
+    {
+      "label": "553",
+      "file": "../voice-line-batches/set-4/clips/voice-line-041.mp3",
+      "start": 0.0,
+      "end": 1.0851875,
+      "duration": 1.0851875
+    },
+    {
+      "label": "554",
+      "file": "../voice-line-batches/set-4/clips/voice-line-042.mp3",
+      "start": 0.0,
+      "end": 0.9284375,
+      "duration": 0.9284375
+    },
+    {
+      "label": "555",
+      "file": "../voice-line-batches/set-4/clips/voice-line-043.mp3",
+      "start": 0.0,
+      "end": 1.189625,
+      "duration": 1.189625
+    },
+    {
+      "label": "556",
+      "file": "../voice-line-batches/set-4/clips/voice-line-044.mp3",
+      "start": 0.0,
+      "end": 1.42475,
+      "duration": 1.42475
+    },
+    {
+      "label": "557",
+      "file": "../voice-line-batches/set-4/clips/voice-line-045.mp3",
+      "start": 0.0,
+      "end": 1.63375,
+      "duration": 1.63375
+    },
+    {
+      "label": "558",
+      "file": "../voice-line-batches/set-4/clips/voice-line-046.mp3",
+      "start": 0.0,
+      "end": 1.659875,
+      "duration": 1.659875
+    },
+    {
+      "label": "559",
+      "file": "../voice-line-batches/set-4/clips/voice-line-047.mp3",
+      "start": 0.0,
+      "end": 1.32025,
+      "duration": 1.32025
+    },
+    {
+      "label": "560",
+      "file": "../voice-line-batches/set-4/clips/voice-line-048.mp3",
+      "start": 0.0,
+      "end": 1.503125,
+      "duration": 1.503125
+    },
+    {
+      "label": "561",
+      "file": "../voice-line-batches/set-4/clips/voice-line-049.mp3",
+      "start": 0.0,
+      "end": 1.686,
+      "duration": 1.686
+    },
+    {
+      "label": "562",
+      "file": "../voice-line-batches/set-4/clips/voice-line-050.mp3",
+      "start": 0.0,
+      "end": 1.7643125,
+      "duration": 1.7643125
+    },
+    {
+      "label": "563",
+      "file": "../voice-line-batches/set-4/clips/voice-line-051.mp3",
+      "start": 0.0,
+      "end": 1.8165625,
+      "duration": 1.8165625
+    },
+    {
+      "label": "564",
+      "file": "../voice-line-batches/set-4/clips/voice-line-052.mp3",
+      "start": 0.0,
+      "end": 1.73825,
+      "duration": 1.73825
+    },
+    {
+      "label": "565",
+      "file": "../voice-line-batches/set-4/clips/voice-line-053.mp3",
+      "start": 0.0,
+      "end": 1.137375,
+      "duration": 1.137375
+    },
+    {
+      "label": "568",
+      "file": "../voice-line-batches/set-4/clips/voice-line-056.mp3",
+      "start": 0.0,
+      "end": 1.0329375,
+      "duration": 1.0329375
+    },
+    {
+      "label": "569",
+      "file": "../voice-line-batches/set-4/clips/voice-line-057.mp3",
+      "start": 0.0,
+      "end": 0.8239375,
+      "duration": 0.8239375
+    },
+    {
+      "label": "570",
+      "file": "../voice-line-batches/set-4/clips/voice-line-058.mp3",
+      "start": 0.0,
+      "end": 0.8761875,
+      "duration": 0.8761875
+    },
+    {
+      "label": "571",
+      "file": "../voice-line-batches/set-4/clips/voice-line-059.mp3",
+      "start": 0.0,
+      "end": 0.9545625,
+      "duration": 0.9545625
+    },
+    {
+      "label": "573",
+      "file": "../voice-line-batches/set-4/clips/voice-line-061.mp3",
+      "start": 0.0,
+      "end": 0.8761875,
+      "duration": 0.8761875
+    },
+    {
+      "label": "574",
+      "file": "../voice-line-batches/set-4/clips/voice-line-062.mp3",
+      "start": 0.0,
+      "end": 1.503125,
+      "duration": 1.503125
+    },
+    {
+      "label": "575",
+      "file": "../voice-line-batches/set-4/clips/voice-line-063.mp3",
+      "start": 0.0,
+      "end": 0.5104375,
+      "duration": 0.5104375
+    },
+    {
+      "label": "576",
+      "file": "../voice-line-batches/set-4/clips/voice-line-064.mp3",
+      "start": 0.0,
+      "end": 0.432125,
+      "duration": 0.432125
+    },
+    {
+      "label": "577",
+      "file": "../voice-line-batches/set-4/clips/voice-line-065.mp3",
+      "start": 0.0,
+      "end": 0.6149375,
+      "duration": 0.6149375
+    },
+    {
+      "label": "578",
+      "file": "../voice-line-batches/set-4/clips/voice-line-066.mp3",
+      "start": 0.0,
+      "end": 1.11125,
+      "duration": 1.11125
+    },
+    {
+      "label": "579",
+      "file": "../voice-line-batches/set-4/clips/voice-line-067.mp3",
+      "start": 0.0,
+      "end": 1.241875,
+      "duration": 1.241875
+    },
+    {
+      "label": "580",
+      "file": "../voice-line-batches/set-4/clips/voice-line-068.mp3",
+      "start": 0.0,
+      "end": 1.137375,
+      "duration": 1.137375
+    },
+    {
+      "label": "581",
+      "file": "../voice-line-batches/set-4/clips/voice-line-069.mp3",
+      "start": 0.0,
+      "end": 0.6671875,
+      "duration": 0.6671875
+    },
+    {
+      "label": "582",
+      "file": "../voice-line-batches/set-4/clips/voice-line-070.mp3",
+      "start": 0.0,
+      "end": 0.8500625,
+      "duration": 0.8500625
+    },
+    {
+      "label": "583",
+      "file": "../voice-line-batches/set-4/clips/voice-line-071.mp3",
+      "start": 0.0,
+      "end": 0.8239375,
+      "duration": 0.8239375
+    },
+    {
+      "label": "584",
+      "file": "../voice-line-batches/set-4/clips/voice-line-072.mp3",
+      "start": 0.0,
+      "end": 1.294125,
+      "duration": 1.294125
+    },
+    {
+      "label": "585",
+      "file": "../voice-line-batches/set-4/clips/voice-line-073.mp3",
+      "start": 0.0,
+      "end": 1.450875,
+      "duration": 1.450875
+    },
+    {
+      "label": "587",
+      "file": "../voice-line-batches/set-4/clips/voice-line-075.mp3",
+      "start": 0.0,
+      "end": 0.8761875,
+      "duration": 0.8761875
+    },
+    {
+      "label": "588",
+      "file": "../voice-line-batches/set-4/clips/voice-line-076.mp3",
+      "start": 0.0,
+      "end": 0.8500625,
+      "duration": 0.8500625
+    },
+    {
+      "label": "589",
+      "file": "../voice-line-batches/set-4/clips/voice-line-077.mp3",
+      "start": 0.0,
+      "end": 0.6933125,
+      "duration": 0.6933125
+    },
+    {
+      "label": "590",
+      "file": "../voice-line-batches/set-4/clips/voice-line-078.mp3",
+      "start": 0.0,
+      "end": 0.7194375,
+      "duration": 0.7194375
+    },
+    {
+      "label": "591",
+      "file": "../voice-line-batches/set-4/clips/voice-line-079.mp3",
+      "start": 0.0,
+      "end": 0.5365625,
+      "duration": 0.5365625
+    },
+    {
+      "label": "592",
+      "file": "../voice-line-batches/set-4/clips/voice-line-080.mp3",
+      "start": 0.0,
+      "end": 0.7455625,
+      "duration": 0.7455625
+    },
+    {
+      "label": "593",
+      "file": "../voice-line-batches/set-4/clips/voice-line-081.mp3",
+      "start": 0.0,
+      "end": 0.9023125,
+      "duration": 0.9023125
+    },
+    {
+      "label": "594",
+      "file": "../voice-line-batches/set-4/clips/voice-line-082.mp3",
+      "start": 0.0,
+      "end": 0.8761875,
+      "duration": 0.8761875
+    },
+    {
+      "label": "595",
+      "file": "../voice-line-batches/set-4/clips/voice-line-083.mp3",
+      "start": 0.0,
+      "end": 1.477,
+      "duration": 1.477
+    },
+    {
+      "label": "597",
+      "file": "../voice-line-batches/set-4/clips/voice-line-085.mp3",
+      "start": 0.0,
+      "end": 0.45825,
+      "duration": 0.45825
+    },
+    {
+      "label": "599",
+      "file": "../voice-line-batches/set-4/clips/voice-line-087.mp3",
+      "start": 0.0,
+      "end": 0.5365625,
+      "duration": 0.5365625
+    },
+    {
+      "label": "600",
+      "file": "../voice-line-batches/set-4/clips/voice-line-088.mp3",
+      "start": 0.0,
+      "end": 0.6671875,
+      "duration": 0.6671875
+    },
+    {
+      "label": "601",
+      "file": "../voice-line-batches/set-4/clips/voice-line-089.mp3",
+      "start": 0.0,
+      "end": 0.7978125,
+      "duration": 0.7978125
+    },
+    {
+      "label": "602",
+      "file": "../voice-line-batches/set-4/clips/voice-line-090.mp3",
+      "start": 0.0,
+      "end": 0.8761875,
+      "duration": 0.8761875
+    },
+    {
+      "label": "603",
+      "file": "../voice-line-batches/set-4/clips/voice-line-091.mp3",
+      "start": 0.0,
+      "end": 0.9284375,
+      "duration": 0.9284375
+    },
+    {
+      "label": "604",
+      "file": "../voice-line-batches/set-4/clips/voice-line-092.mp3",
+      "start": 0.0,
+      "end": 1.11125,
+      "duration": 1.11125
+    }
+  ],
+  "pending_numbers": [
+    482,
+    483,
+    484,
+    485,
+    486,
+    488,
+    489,
+    492,
+    493,
+    498,
+    501,
+    508,
+    509,
+    511,
+    512,
+    532,
+    533,
+    549,
+    566,
+    567,
+    572,
+    586,
+    596,
+    598,
+    605
+  ],
+  "implemented": false
+}

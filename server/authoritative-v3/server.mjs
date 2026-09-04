@@ -8,7 +8,7 @@ import {AuthorityV3RoomManager} from './room-manager.mjs';
 import {SQLiteAuthorityStore} from './storage.mjs';
 import {normalizePhase7GameSettings, resolvePhase7GameSettings} from './phase7-game-settings.mjs';
 import {createFlyDataApi} from './fly-data-api.mjs';
-import {chooseStrategicV3AiCommand} from '../../src/scripts/authoritative-v3-ai-policy.mjs';
+import {createWarfrontTakeoverDriver} from './warfront-takeover.mjs';
 
 if(process.env.FATE_SERVER_AUTHORITATIVE_V3_ENABLED !== '1'){
   throw new Error(
@@ -100,19 +100,17 @@ const matchSockets = new Map();
 const promptTimers = new Map();
 const turnTimers = new Map();
 const takeoverJobs = new Set();
+const driveTakeover = createWarfrontTakeoverDriver();
 function scheduleTakeover(actor){
   const id=actor.state.matchId;
   if(actor.state.outcome||takeoverJobs.has(id))return;
-  const seat=Number(actor.state.pendingPrompt?.playerIndex ?? actor.state.pendingHandLimit?.playerIndex ?? (actor.state.phase==='coin'?actor.state.coinFlip?.winner:actor.state.activePlayer));
+  const seat=Number(actor.state.phase==='coin'?actor.state.coinFlip?.winner:(actor.state.pendingHandLimit?.playerIndex ?? actor.state.pendingPrompt?.playerIndex ?? actor.state.activePlayer));
   if(!actor.state.aiTakeoverSeats?.includes(seat))return;
   takeoverJobs.add(id);
   setTimeout(async()=>{
     try{
-      const view=actor.snapshotForPlayer(seat);
-      const choice=chooseStrategicV3AiCommand(view.legalCommands,view.state,{playerIndex:seat});
-      if(!choice)return;
-      const result=await actor.dispatch(actor.state.players[seat].id,{...choice,matchId:id,expectedRevision:actor.state.revision,commandId:'takeover:'+id+':'+actor.state.revision});
-      if(result.broadcasts.length)broadcastPrivate(id,result.broadcasts);
+      const result=await driveTakeover(actor);
+      if(result?.broadcasts.length)broadcastPrivate(id,result.broadcasts);
     }catch(error){console.error('Warfront AI takeover failed',error);}
     finally{takeoverJobs.delete(id);scheduleAuthorityTimers(actor);}
   },600);
@@ -251,6 +249,7 @@ function completeBetaQueueMatch(queued){
   const queueMode = ['ranked','warfront'].includes(queued.queueMode) ? queued.queueMode : 'freeplay';
   const result = manager.createMatch({
     mode:queueMode,
+    warfrontMatchmakingKey:queueMode==='warfront'?queued.matchmakingKey:'',
     matchId,
     seed:matchId,
     requireTurnChoice:true,
@@ -384,6 +383,7 @@ function register(ws, session){
 
 function broadcastPrivate(matchId, broadcasts){
   settleTurnClock(matchId);
+  flyDataApi.settleWarfrontForfeit?.(manager.actor(matchId)?.state,clockUsage(matchId));
   const players = matchSockets.get(matchId);
   if(!players) return;
   for(const broadcast of broadcasts){
@@ -626,7 +626,7 @@ function readBody(req, maxBytes = MAX_MESSAGE_BYTES){
 }
 
 const flyDataApi = process.env.FATE_FLY_DATA_API_ENABLED === '1'
-  ? createFlyDataApi({readBody:req=>readBody(req, 2 * 1024 * 1024), writeJson})
+  ? createFlyDataApi({readBody:req=>readBody(req, 2 * 1024 * 1024), writeJson, resolveMatchState:id=>manager.actor(id)?.state, authenticateMatch:(...args)=>manager.authenticate(...args)})
   : {handle:async()=>false, flush:()=>{}, counts:()=>null};
 
 function bearer(req){

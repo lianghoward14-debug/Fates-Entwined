@@ -1,0 +1,119 @@
+[
+  {
+    "label": "488",
+    "file": "clips/488.mp3",
+    "duration": 0.63,
+    "batch": 3,
+    "ranges": [
+      [
+        51.775,
+        52.405
+      ]
+    ],
+    "note": "First complete command; no mid-word splice."
+  },
+  {
+    "label": "489",
+    "file": "clips/489.mp3",
+    "duration": 0.745,
+    "batch": 3,
+    "ranges": [
+      [
+        52.425,
+        53.17
+      ]
+    ],
+    "note": "Second complete command; separate from 488."
+  },
+  {
+    "label": "549",
+    "file": "clips/549.mp3",
+    "duration": 0.635,
+    "batch": 4,
+    "ranges": [
+      [
+        29.9,
+        30.535
+      ]
+    ],
+    "note": "Removed the extra repeated ending after the phrase."
+  },
+  {
+    "label": "586-1",
+    "file": "clips/586-1.mp3",
+    "duration": 1.575,
+    "batch": 4,
+    "ranges": [
+      [
+        70.26,
+        71.835
+      ]
+    ],
+    "note": "Restored the full first phrase; previous split was inside it."
+  },
+  {
+    "label": "586-2",
+    "file": "clips/586-2.mp3",
+    "duration": 0.785,
+    "batch": 4,
+    "ranges": [
+      [
+        71.845,
+        72.63
+      ]
+    ],
+    "note": "Starts at the next phrase, without the previous phrase tail."
+  },
+  {
+    "label": "572",
+    "file": "clips/572.mp3",
+    "duration": 0.435,
+    "batch": 4,
+    "ranges": [
+      [
+        57.19,
+        57.625
+      ]
+    ],
+    "note": "Isolated the short command with its decay; removed neighboring speech added by the previous recovery."
+  },
+  {
+    "label": "605",
+    "file": "clips/605.mp3",
+    "duration": 0.74,
+    "batch": 4,
+    "ranges": [
+      [
+        87.765,
+        88.505
+      ]
+    ],
+    "note": "Kept the command and its decay; removed the detached burst at the end of the recording."
+  },
+  {
+    "label": "596-recut",
+    "file": "clips/596-recut.mp3",
+    "duration": 1.38,
+    "batch": 4,
+    "ranges": [
+      [
+        80.425,
+        81.805
+      ]
+    ],
+    "note": "Kept the complete repeated-command passage from 596 without appending 598. The former join combined separate source passages."
+  },
+  {
+    "label": "598-recut",
+    "file": "clips/598-recut.mp3",
+    "duration": 0.46,
+    "batch": 4,
+    "ranges": [
+      [
+        82.305,
+        82.765
+      ]
+    ],
+    "note": "Separate short command from 598, with its original ending restored. The previous merged trim shortened this ending."
+  }
+]
