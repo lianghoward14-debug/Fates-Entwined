@@ -28610,6 +28610,15 @@ html body #s-challenger #coll-grid .coll-card.rarity-star::after{
   animation:fateJeweledDom 7.2s ease-in-out infinite!important;
 }
 
+/* Match card information: tighten only the audio button's circle while
+   preserving the music glyph at its existing size. */
+html body #modal.card-detail-overlay .card-voice-btn{
+  width:26px!important;
+  height:26px!important;
+  flex:0 0 26px!important;
+  font-size:1rem!important;
+}
+
 /* The Star rarity treatment is part of card presentation, so keep it visible
    when optional ambient animations are disabled. Motion becomes a static foil. */
 html.fate-animations-off body #s-deck #db-collection .canvas-card-grid-sheen-layer,

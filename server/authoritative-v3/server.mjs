@@ -842,11 +842,9 @@ const server = http.createServer(async (req, res)=>{
         return;
       }
       const teammateIndex=flyDataApi.warfrontSpectatorSeat?.(matchId,identity.uid);
-      if(teammateIndex!==0 && teammateIndex!==1){
-        writeJson(res,403,{ok:false,error:'Only deployed teammates may spectate this Warfront match'});
-        return;
-      }
-      writeJson(res, 200, {ok:true, playerIndex:teammateIndex, ...actor.snapshotForSpectator(teammateIndex)});
+      const requestedPerspective=Number(url.searchParams.get('perspective'))===1?1:0;
+      const perspective=teammateIndex===0||teammateIndex===1?teammateIndex:requestedPerspective;
+      writeJson(res, 200, {ok:true, playerIndex:perspective, ...actor.snapshotForSpectator(teammateIndex)});
       return;
     }
     const snapshotMatch = BETA_MODE

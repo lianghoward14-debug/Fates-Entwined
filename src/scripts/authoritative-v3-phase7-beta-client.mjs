@@ -666,7 +666,7 @@ async function startSpectating({matchId, playerIndex:requestedPerspective = 0} =
   const poll=async()=>{
     if(spectatingMatchId!==id)return;
     try{
-      const snapshot=await matchmakingRequest(`/v3/beta/matches/${encodeURIComponent(id)}/spectator-snapshot`);
+      const snapshot=await matchmakingRequest(`/v3/beta/matches/${encodeURIComponent(id)}/spectator-snapshot?perspective=${spectatorPerspective}`);
       if(spectatingMatchId!==id)return;
       const projected=clone(snapshot.state || {});
       spectatorPerspective=Number(snapshot.playerIndex)===1?1:0;playerIndex=spectatorPerspective;
