@@ -36,6 +36,7 @@ primary_region = 'lax'
   FATE_AI_TRAIN_EPISODES = '96'
   FATE_AI_TRAIN_MAX_SAMPLES = '12000'
   FATE_AI_TRAIN_RETENTION_DAYS = '45'
+  FATE_WARFRONT_AUTHORITY_BASELINE_RESET = '1'
 
 [[mounts]]
   source = 'fate_authority_data'

@@ -43,6 +43,8 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
     ? snapshot.marketplaceTransactions.map(clone)
     : [...listings.values()].filter(row=>row.status && row.status !== 'active').map(clone);
   let warfrontEvent = sanitizeWarfrontState(snapshot.warfrontEvent);
+  const warfrontAuthorityBaseline='20260904-server-authority-1';
+  const resetWarfrontForAuthorityUpgrade=process.env.FATE_WARFRONT_AUTHORITY_BASELINE_RESET==='1'&&!!warfrontEvent&&snapshot.warfrontAuthorityBaseline!==warfrontAuthorityBaseline;
   let worldSeq = Number(snapshot.worldChatSeq || 0) || 0;
   let dmSeq = Number(snapshot.privateMessageSeq || 0) || 0;
   let saveTimer = null;
@@ -203,6 +205,7 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
   // Project live server profiles on every response without changing archives.
   function warfrontStateForClient(){
     refreshWarfrontForfeits();
+    if(warfrontEvent?.status==='active'&&(((Number(warfrontEvent.endsAt)||0)>0&&Number(warfrontEvent.endsAt)<=Date.now())||warfrontEvent.zones.every(zone=>{let played=0;for(const match of zone.matches||[])if(!match?.voidedByForfeit)played+=Math.max(1,Math.min(5,Number(match.starValue)||1));return played>=5;}))) return finishWarfrontEvent();
     const current = clone(warfrontEvent);
     for(const zone of current?.zones || []) for(const team of ['a','b']){
       const player = zone[team];
@@ -213,6 +216,36 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
         ? Math.max(0,Number(rating)) : null;
     }
     return current;
+  }
+  function newWarfrontDeployment(){
+    const current=warfrontEvent;
+    if(!current) throw new Error('Warfront event is not initialized');
+    const sequence=Math.max(1,Number(current.sequence)||1)+1;
+    warfrontEvent={...clone(current),sequence,mapCode:`WF-${String(sequence).padStart(2,'0')}-${crypto.randomBytes(2).toString('hex').slice(0,3).toUpperCase()}`,status:'enrollment',createdAt:Date.now(),startedAt:0,endsAt:0,nextTeam:null,lastResult:null,postWarUntil:0,zones:current.zones.map(zone=>({id:zone.id,a:null,b:null,matches:[],landscape:clone(zone.landscape||null),bans:{a:[],b:[]},bansLocked:{a:false,b:false}})),archives:(current.archives||[]).slice(0,30),_syncRevision:Number(current._syncRevision||0)+1,_updatedAt:Date.now()};
+    warfrontBindings.clear();persist();return warfrontStateForClient();
+  }
+  function finishWarfrontEvent(){
+    const completed=clone(warfrontEvent),zoneScore=zone=>{let a=0,b=0;for(const match of zone.matches||[]){if(match?.voidedByForfeit)continue;const value=Math.max(1,Math.min(5,Number(match.starValue)||1));if(match.winnerTeam==='a')a+=value;if(match.winnerTeam==='b')b+=value;}return{a,b,played:a+b,bonus:a>=3?'a':b>=3?'b':null};};
+    const score={a:0,b:0,match:{a:0,b:0},award:{a:0,b:0}};
+    for(const zone of completed.zones){const z=zoneScore(zone);for(const team of ['a','b']){score[team]+=z[team]+(z.bonus===team?1:0);score.match[team]+=z[team]+(z.bonus===team?1:0);}}
+    const players=[];for(const zone of completed.zones)for(const team of ['a','b'])if(zone[team])players.push({...clone(zone[team]),team,zoneId:zone.id,matches:zoneScore(zone).played,wins:zoneScore(zone)[team],losses:zoneScore(zone)[team==='a'?'b':'a']});
+    const report={mapCode:completed.mapCode,sequence:completed.sequence,startedAt:completed.startedAt,completedAt:Date.now(),reason:'command',teams:clone(completed.teams),score,winner:score.a===score.b?'draw':score.a>score.b?'a':'b',players,zones:clone(completed.zones),achievements:[],matches:completed.zones.reduce((sum,zone)=>sum+zoneScore(zone).played,0)};
+    const sequence=Math.max(1,Number(completed.sequence)||1)+1;
+    warfrontEvent={...completed,sequence,mapCode:`WF-${String(sequence).padStart(2,'0')}-${crypto.randomBytes(2).toString('hex').slice(0,3).toUpperCase()}`,status:'enrollment',createdAt:Date.now(),startedAt:0,endsAt:0,nextTeam:null,lastResult:report,postWarUntil:report.completedAt+24*60*60*1000,zones:completed.zones.map(zone=>({id:zone.id,a:null,b:null,matches:[],landscape:clone(zone.landscape||null),bans:{a:[],b:[]},bansLocked:{a:false,b:false}})),archives:[report,...(completed.archives||[])].slice(0,30),_syncRevision:Number(completed._syncRevision||0)+1,_updatedAt:Date.now()};
+    warfrontBindings.clear();persist();return warfrontStateForClient();
+  }
+  function applyWarfrontCommand(action){
+    if(action==='deployment') return newWarfrontDeployment();
+    if(!warfrontEvent) throw new Error('Warfront event is not initialized');
+    if(action==='start'){
+      if(warfrontEvent.status!=='enrollment') throw new Error('Warfront is not in deployment');
+      if(!warfrontEvent.zones.some(zone=>zone.a||zone.b)) throw new Error('At least one deployment is required');
+      warfrontEvent.status='active';warfrontEvent.startedAt=Date.now();warfrontEvent.endsAt=warfrontEvent.startedAt+48*60*60*1000;warfrontEvent.lastResult=null;
+    }else if(action==='end'){
+      if(warfrontEvent.status!=='active') throw new Error('Warfront is not active');
+      return finishWarfrontEvent();
+    }else throw new Error('Unknown Warfront command');
+    warfrontEvent._syncRevision=Number(warfrontEvent._syncRevision||0)+1;warfrontEvent._updatedAt=Date.now();persist();return warfrontStateForClient();
   }
   function profile(uid){
     const key = cleanId(uid, 128);
@@ -494,7 +527,20 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
         if(req.method==='GET'){await verifiedUid(req);writeJson(res,200,{ok:true,state:warfrontStateForClient()});return true;}
         const body=await readBody(req);await requireSelf(req,body.uid);const incoming=sanitizeWarfrontState(body.state);
         if(!incoming)throw new Error('invalid Warfront event state');
+        if(warfrontEvent){incoming.mapCode=warfrontEvent.mapCode;incoming.sequence=warfrontEvent.sequence;incoming.status=warfrontEvent.status;incoming.startedAt=warfrontEvent.startedAt;incoming.endsAt=warfrontEvent.endsAt;incoming.lastResult=clone(warfrontEvent.lastResult);incoming.postWarUntil=warfrontEvent.postWarUntil;incoming.archives=clone(warfrontEvent.archives);for(const zone of incoming.zones){const serverZone=warfrontEvent.zones.find(row=>row.id===zone.id);zone.a=clone(serverZone?.a||null);zone.b=clone(serverZone?.b||null);}}
         warfrontEvent=mergeWarfrontState(warfrontEvent,incoming);persist();writeJson(res,200,{ok:true,state:warfrontStateForClient()});return true;
+      }
+      if(req.method==='POST'&&p[1]==='warfront'&&p[2]==='command'){
+        const body=await readBody(req);await requireSelf(req,body.uid);writeJson(res,200,{ok:true,state:applyWarfrontCommand(cleanId(body.action,30))});return true;
+      }
+      if(req.method==='POST'&&p[1]==='warfront'&&p[2]==='deploy'){
+        const body=await readBody(req),uid=await requireSelf(req,body.uid),team=body.team==='a'||body.team==='b'?body.team:null,zone=warfrontEvent?.zones.find(row=>row.id===cleanId(body.zoneId,40));
+        if(!team||!zone||warfrontEvent.status!=='enrollment')throw new Error('Warfront is not accepting deployments');
+        if(warfrontEvent.zones.some(row=>row.a?.uid===uid||row.b?.uid===uid))throw new Error('Player is already deployed');
+        if(zone[team])throw new Error('That command post is occupied');
+        if(body.profile)mergeProfile(uid,body.profile);const stored=profile(uid);
+        zone[team]={uid,name:cleanId(stored.chosenUsername||stored.displayName||stored.username||body.profile?.name||'Player',80),photo:stored.photoURL||stored.profileImg||body.profile?.photo||'blank.png',elo:Number(stored.challengerElo??stored.elo??body.profile?.elo??600),joinedAt:Date.now()};
+        warfrontEvent._syncRevision=Number(warfrontEvent._syncRevision||0)+1;warfrontEvent._updatedAt=Date.now();persist();writeJson(res,200,{ok:true,state:warfrontStateForClient()});return true;
       }
       if(req.method==='POST' && p[1]==='friends'){
         const body=await readBody(req),uid=await requireSelf(req,body.uid),action=p[2];
@@ -551,6 +597,7 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
       return false;
     }catch(error){ writeJson(res,Number(error?.status)||400,{ok:false,error:String(error?.message||error)});return true; }
   }
+  if(resetWarfrontForAuthorityUpgrade){snapshot.warfrontAuthorityBaseline=warfrontAuthorityBaseline;newWarfrontDeployment();flush();}
   return {
     handle,
     settleWarfrontForfeit,

@@ -513,7 +513,7 @@ html body #modal .modal.deck-info-modal{width:min(900px,92vw)!important;padding:
 html body #modal .modal.deck-info-modal .di-window{display:grid!important;gap:12px!important}
 html body #modal .modal.deck-info-modal .di-count-row{display:grid!important;grid-template-columns:130px 1fr!important;gap:12px!important;align-items:stretch!important}
 html body #modal .modal.deck-info-modal .di-count-main{display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;border:1px solid rgba(42,220,226,.36)!important;background:linear-gradient(145deg,rgba(42,220,226,.12),rgba(5,12,19,.72))!important}
-html body #modal .modal.deck-info-modal .di-count-num{color:#f0ca69!important;font:700 38px/.9 Georgia,serif!important}
+html body #modal .modal.deck-info-modal .di-count-num{color:#f0ca69!important;font:700 38px/.9 Georgia,serif!important;transform:translateY(-3px)!important}
 html body #modal .modal.deck-info-modal .di-count-stats{display:grid!important;grid-template-columns:repeat(3,1fr)!important;gap:8px!important}
 html body #modal .modal.deck-info-modal .di-stat{display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;min-height:62px!important;border:1px solid rgba(215,170,79,.35)!important;background:linear-gradient(145deg,rgba(255,255,255,.035),rgba(8,12,19,.8))!important;color:#b7b2c8!important}
 html body #modal .modal.deck-info-modal .di-stat span{color:#f3e2bd!important;font-size:18px!important;font-weight:700!important}
