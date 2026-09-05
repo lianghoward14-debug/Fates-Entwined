@@ -788,9 +788,6 @@
     const outgoing=[0,0];
     const outgoingSources=[[],[]];
     zoneResults.forEach(function(result){if(!pacificaPreventsMoraleDamage&&(result.damagedPlayer===0||result.damagedPlayer===1))damage[result.damagedPlayer]+=Math.floor(result.difference/2);});
-      const pressureReworks=window.FATE_PRESSURE_CARD_REWORKS_ENABLED === true
-        || state?.gameSettings?.pressureCardReworks === true
-        || state?._freePlayGameSettings?.pressureCardReworks === true;
     const entries=legacyBoardEntries(state).filter(function(entry){return entry.card&&!legacyFaceDown(entry.card)&&!legacySuppressed(entry);});
     if(entries.length){
       entries.forEach(function(entry){
@@ -800,7 +797,7 @@
         let sourceDamage=0;
         let affectedIids=[];
         const whisperRozsi=String(source._whisperCopiedEffectId||'')==='34';
-        if(pressureReworks&&(id==='34'||whisperRozsi)&&source._moraleAffiliation){
+        if(((typeof cardActsAsPassive==='function'?cardActsAsPassive(source,'34'):id==='34')||whisperRozsi)&&source._moraleAffiliation){
           const affected=entries.filter(function(target){return Number(target.card.owner)===owner&&(whisperRozsi||Number(target.z)===Number(entry.z))&&String(target.card.aff||target.card.affiliation||'')===String(source._moraleAffiliation);});
           sourceDamage=affected.length*2;
           affectedIids=affected.map(function(target){return String(target.card&&target.card.iid||'');}).filter(Boolean);
@@ -816,7 +813,6 @@
       for(let owner=0;owner<2;owner+=1){
         const doublers=entries.filter(function(entry){return Number(entry.card.owner)===owner&&String(entry.card.id||'')==='64'&&entry.card._doubleNextMoraleDamage===true;});
         if(doublers.length){const multiplier=Math.pow(2,doublers.length);damage[1-owner]*=multiplier;outgoing[owner]*=multiplier;outgoingSources[owner].forEach(function(source){source.amount*=multiplier;});doublers.forEach(function(entry){entry.card._doubleNextMoraleDamage=false;});}
-        if(!pressureReworks)continue;
         const block=state._southWindMoraleBlock;
         if(block&&Number(block.targetPlayer)===owner&&Number(block.activeFromTurn)<=Number(state.turn)&&Number(block.remainingTargetTurns)>0){
           damage[1-owner]=0;

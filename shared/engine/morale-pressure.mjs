@@ -590,7 +590,7 @@ function resolveZoneFateMoraleDamage(ctx){
       let sourceDamage = 0;
       let affectedIids = [];
       const whisperRozsi = source.counters?.whisperLandscapeToken === true && runtimeRuleId(source) === '34';
-      if(pressureReworks && (id === '34' || whisperRozsi) && source.counters?.moraleAffiliation){
+      if((runtimeRuleId(source) === '34' || whisperRozsi) && source.counters?.moraleAffiliation){
         const affiliation = String(source.counters.moraleAffiliation).toLowerCase();
         const affected = entries.filter(target=>
           controllerOf(target.card) === owner
@@ -622,7 +622,7 @@ function resolveZoneFateMoraleDamage(ctx){
         for(const source of outgoingSources[owner]) source.amount *= multiplier;
         for(const entry of doublers) entry.card.counters.doubleNextMoraleDamage = false;
       }
-      if(pressureReworks && moraleDamageInflictionBlocked(state, owner)){
+      if(moraleDamageInflictionBlocked(state, owner)){
         resolution.damage[1 - owner] = 0;
         outgoing[owner] = 0;
         outgoingSources[owner] = [];

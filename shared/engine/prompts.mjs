@@ -10,6 +10,7 @@ import {
 } from './selectors.mjs';
 import {
   canTarget,
+  consolidationPlacementCheck,
   effectiveCardType,
   isEffectSourceSuppressed,
   isEffectImmutable,
@@ -81,6 +82,7 @@ export function openingProgramChoiceAvailable(state, frame, program){
 
 function copiedEffectAvailable(state, frame, rule){
   if(rule?.program?.some(instruction=>instruction?.kind === 'COPY_EFFECT')) return false;
+  if(Math.max(Number(rule?.minimumTurn || 0), Number(rule?.program?.[0]?.minimumTurn || 0)) > state.turn) return false;
   const sharedKey = String(rule?.sharedUseLimit?.key || '').toLowerCase();
   if(sharedKey){
     const uses = Number(state.statuses.find(status=>
@@ -94,7 +96,8 @@ function copiedEffectAvailable(state, frame, rule){
     status?.statusId === `turn-use:${turnUseKey}:p${frame.controller}`
     && Number(status.turn) === Number(state.turn)
   )) return false;
-  return openingProgramChoiceAvailable(state, frame, rule?.program);
+  if(!rule?.program?.length) return rule?.timings?.includes('PASSIVE') === true;
+  return openingProgramChoiceAvailable(state, frame, rule.program);
 }
 
 export function eligibleBoardTargets(state, frame, filter = {}){
@@ -263,6 +266,8 @@ export function eligibleDestinations(state, frame, filter = {}){
     if(filter.excludePermanentlyBlocked
       && squareStatuses(state, destination, 'PERMANENTLY_BLOCKED').length) return false;
     if(freeSetCard){
+      if(nextInstruction.countsAsConsolidation === true && !['Supporter', 'Counter'].includes(effectiveCardType(state, freeSetCard))
+        && !consolidationPlacementCheck(state, freeSetCard, Number(frame.controller), destination).ok) return false;
       if(squareStatuses(state, destination, 'PERMANENTLY_BLOCKED').length) return false;
       if(state.gameSettings?.pressureCardReworks !== true && String(freeSetCard.id || '') === '65' && Number(destination.r) !== 1) return false;
       if(String(freeSetCard.type || '') === 'Supporter'){

@@ -624,7 +624,7 @@
 <script src="src/scripts/13-svg-ui-enhancements.js?v=1780269000"></script>
   <script src="src/scripts/03-profile-and-progression.js?v=2026090106"></script>
 <script src="src/scripts/04-game-setup.js?v=2026083104"></script>
-<script src="src/scripts/05-gameplay-core.js?v=2026090501"></script>
+<script src="src/scripts/05-gameplay-core.js?v=2026090502"></script>
   <script src="src/scripts/06-rendering-and-helpers.js?v=2026090401"></script>
 <script src="src/scripts/render-v2/00-render-v2-flags.js?v=1780590901"></script>
   <script src="src/scripts/render-v2/01-render-snapshot.js?v=1787980001"></script>
@@ -638,7 +638,7 @@
 <script src="src/scripts/render-v2/11-vfx-director.js?v=1788289101"></script>
 <script src="src/scripts/render-v2/04-match-renderer-adapter.js?v=2026090103"></script>
 <script src="src/scripts/render-v2/06-match-scene-input.js?v=1785686105"></script>
-<script src="src/scripts/render-v2/09-hand-drag-bridge.js?v=2026083008"></script>
+<script src="src/scripts/render-v2/09-hand-drag-bridge.js?v=2026090502"></script>
 <script src="src/scripts/render-v2/10-card-motion-fx.js?v=1788129101"></script>
 <script src="src/scripts/render-v2/17-action-presentation.js?v=1785683501"></script>
   <script src="src/scripts/23-board-canvas-renderer.js?v=1788290501"></script>
@@ -646,17 +646,17 @@
   <!-- Deck grid canvas disabled for now: the DOM deck builder path matches the faster Copy (2) baseline. -->
   <script src="src/scripts/07-ai-intelligence.js?v=2026083002"></script>
   <script src="src/scripts/07-ai-learning.js?v=1784382001"></script>
-<script src="src/scripts/07-ai.js?v=2026083103"></script>
+<script src="src/scripts/07-ai.js?v=2026090502"></script>
   <script src="src/scripts/08-audio-and-meta-ui.js?v=2026083102"></script>
   <script src="src/scripts/48-zone-click-voices.js?v=2026090303"></script>
   <script src="src/scripts/50-free-world-zone-voices.js?v=2026090401"></script>
   <script src="src/scripts/08a-profile-performance.js?v=1788280005"></script>
-  <script src="src/scripts/27-morale-pressure-ui.js?v=2026083002"></script>
+  <script src="src/scripts/27-morale-pressure-ui.js?v=2026090502"></script>
   <script src="src/scripts/34-hand-viewer.js?v=1788073001"></script>
-  <script src="src/scripts/45-match-ui-codex.js?v=2026090201"></script>
+  <script src="src/scripts/45-match-ui-codex.js?v=2026090501"></script>
 <script src="src/scripts/46-bh21-hooks.js?v=1788372001"></script>
   <script src="src/scripts/25-profile-view-v2.js?v=1798923604"></script>
-<script src="src/scripts/09-challenger-mode.js?v=2026090401"></script>
+<script src="src/scripts/09-challenger-mode.js?v=2026090501"></script>
 <script src="src/scripts/47-challenger-war-event.js?v=2026090422"></script>
 <script src="src/scripts/49-warfront-zone-voice-hook.js?v=2026090304"></script>
 <script src="src/scripts/09a-card-information-5-lore.js?v=1784293501"></script>
@@ -668,7 +668,7 @@
 <script src="src/scripts/26-desktop-updater.js?v=1784365201"></script>
 
 <!-- Online play uses the Fate authoritative service and a local installation identity. -->
-<script src="src/scripts/14-cloud-save.js?v=2026083101"></script>
+<script src="src/scripts/14-cloud-save.js?v=2026090501"></script>
 <!-- Online runtime: Google account auth + local authoritative multiplayer identity -->
 <script>
 (function(){
@@ -677,11 +677,11 @@
   if(window.__fateOnlineModuleLoaderInstalled) return;
   window.__fateOnlineModuleLoaderInstalled = true;
   var modules = [
-    './src/scripts/15-online-auth.js?v=2026090401',
-    './src/scripts/16-online-core.js?v=1782617501',
+    './src/scripts/15-online-auth.js?v=2026090501',
+    './src/scripts/16-online-core.js?v=2026090501',
     './src/scripts/17-online-social.js?v=1788000401',
     './src/scripts/18-online-rooms.js?v=2026090301&sync=2026090301',
-    './src/scripts/19-online-elo.js?v=2026090201',
+    './src/scripts/19-online-elo.js?v=2026090501',
     './src/scripts/20-online-economy.js?v=1788001502'
   ];
   var isElectron = /[?&]electron=1(?:&|$)/.test(location.search || '') || /Electron/i.test(navigator.userAgent || '');

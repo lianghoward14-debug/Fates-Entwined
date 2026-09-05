@@ -1,6 +1,8 @@
 import {MAX_SUPPORTERS_SET_PER_TURN, OPERATION_TYPES, RULE_EVENT_TYPES} from './constants.mjs';
 import {
   canUseAsConsolidationTribute,
+  canConsolidateWithoutTribute,
+  consolidationPlacementCheck,
   effectiveFate,
   effectiveConsolidationCost,
   inspectOperation,
@@ -312,6 +314,10 @@ function setCard(ctx, operation){
     );
   }
   const {z, r, c} = operation.destination;
+  if(operation.consolidated === true){
+    const check = consolidationPlacementCheck(ctx.state, player.hand[handIndex], playerIndex, operation.destination);
+    if(!check.ok) throw operationError(check.rejection.code, check.rejection.reason);
+  }
   if(squareStatuses(ctx.state, operation.destination, 'PERMANENTLY_BLOCKED').length){
     throw operationError('SQUARE_BLOCKED', 'the destination square is permanently blocked');
   }
@@ -410,17 +416,10 @@ function consolidateCard(ctx, operation){
   const requestedDestination = operation.destination && typeof operation.destination === 'object'
     ? {z:Number(operation.destination.z), r:Number(operation.destination.r), c:Number(operation.destination.c)}
     : null;
-  const zeroCostAnickaDestination = requestedDestination && (ctx.state.geometry?.playableExtraSquares || []).some(square=>
-    Number(square.z) === requestedDestination.z
-    && Number(square.r) === requestedDestination.r
-    && Number(square.c) === requestedDestination.c
-    && Number(square.owner) === playerIndex
-    && String(findBoardCard(ctx.state, square.sourceIid)?.card?.id || '') === '02'
-  );
-  const zeroCostOpenDestination = zeroCostAnickaDestination
+  const zeroCostOpenDestination = requestedDestination
     && isBoardCoordinate(ctx.state, requestedDestination)
     && !boardCardAt(ctx.state, requestedDestination)
-    && effectiveConsolidationCost(ctx.state, handEntry.card, playerIndex, requestedDestination) === 0;
+    && canConsolidateWithoutTribute(ctx.state, handEntry.card, playerIndex, requestedDestination);
   if(!tributeIids.length && !zeroCostOpenDestination){
     throw operationError('TRIBUTES_REQUIRED', 'consolidation requires at least one tribute unless its destination cost is zero');
   }
@@ -456,30 +455,8 @@ function consolidateCard(ctx, operation){
   if(blockedSquare){
     throw operationError('CONSOLIDATION_SQUARE_BLOCKED', 'Zoe prevents consolidation on or from this square');
   }
-  const characterEntries = boardEntries(ctx.state).filter(entry=>
-    entry.z === destinationEntry.z
-    && controllerOf(entry.card) === playerIndex
-    && !tributeIids.includes(String(entry.card.iid))
-    && String(entry.card.type || '') !== 'Supporter'
-  );
-  if(String(handEntry.card.id || '') === '45'){
-    if(characterEntries.length){
-      throw operationError('CHINGACHLOOK_ZONE_RESTRICTED', 'Chingachlook requires a zone with no other friendly Character');
-    }
-    if(ctx.state.gameSettings?.pressureCardReworks !== true && boardEntries(ctx.state).some(entry=>
-      String(entry.card.id || '') === '45'
-      && Number(entry.card.owner) === playerIndex
-      && !tributeIids.includes(String(entry.card.iid))
-    )){
-      throw operationError('UNIQUE_CARD_ALREADY_PLAYED', 'only one Chingachlook copy can be played');
-    }
-  }else if(characterEntries.some(entry=>
-    String(entry.card.id || '') === '45'
-    && entry.card.faceDown !== true
-    && !isEffectSourceSuppressed(ctx.state, entry)
-  )){
-    throw operationError('CHINGACHLOOK_ZONE_RESTRICTED', 'Chingachlook forbids another friendly Character in this zone');
-  }
+  const placementCheck = consolidationPlacementCheck(ctx.state, handEntry.card, playerIndex, destinationEntry, tributeIids);
+  if(!placementCheck.ok) throw operationError(placementCheck.rejection.code, placementCheck.rejection.reason);
   const colomboRestricted = boardEntries(ctx.state).some(entry=>
     entry.z === destinationEntry.z
     && runtimeRuleId(entry.card) === '53'
@@ -767,11 +744,11 @@ function changeFate(ctx, operation, absolute){
     const entry = findCard(ctx.state, targetIid);
     const beforeStored = Number(entry.card.currentFate) || 0;
     const before = entry.zone === 'board' ? effectiveFate(ctx.state, entry) : beforeStored;
-    const baseTransformed = absolute ? value : (beforeStored * multiplier) + amount;
+    const baseTransformed = absolute ? value : beforeStored + before * (multiplier - 1) + amount;
     const highTPlayer = Number.isInteger(Number(operation.sourceController))
       ? Number(operation.sourceController)
       : controllerOf(entry.card);
-    const highTSources = operation.permanentFateGain === true && !absolute && baseTransformed > beforeStored
+    const highTSources = operation.permanentFateGain !== false && !absolute && baseTransformed > beforeStored
       ? ctx.state.statuses.filter(status=>
           status?.type === 'PERMANENT_FATE_GAIN_POTENCY'
           && Number(status.playerIndex) === highTPlayer

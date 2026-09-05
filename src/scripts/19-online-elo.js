@@ -78,7 +78,7 @@
       .then(data=>{
         const next = {};
         (Array.isArray(data?.leaderboard) ? data.leaderboard : []).forEach(entry=>{
-          const uid = entry?.uid || entry?.username || entry?.name;
+          const uid = entry?.uid; // Human account identity must never fall back to a display name.
           if(!uid) return;
           const internalIdentity = [entry?.uid, entry?.id, entry?.aiId, entry?.username, entry?.name, entry?.displayName, entry?.chosenUsername, entry?.baseCode]
             .filter(Boolean).join(' ').toLowerCase();

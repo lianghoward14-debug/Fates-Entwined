@@ -56,7 +56,7 @@ export function effectiveCost(_state, card){
     const owner = Number(card?.owner);
     const relatedIds = new Set(['15', '34', '88', '89', '99']);
     if(boardEntries(_state).some(entry=>
-      controllerOf(entry.card) === owner && relatedIds.has(String(entry.card.id || ''))
+      controllerOf(entry.card) === owner && String(entry.card.iid) !== String(card.iid) && relatedIds.has(String(entry.card.id || ''))
     )) cost = 0;
   }
   return cost;
@@ -69,7 +69,7 @@ export function isEffectSourceSuppressed(state, value){
   const card = entry?.card || value;
   if(!card) return false;
   if(card.statuses?.includes('EFFECTS_SUPPRESSED')) return true;
-  if(!entry || String(card.type || '') !== 'Coordinator') return false;
+  if(!entry || effectiveCardType(state, card) !== 'Coordinator') return false;
   if(isEffectImmutable(card) || isImmuneToOpponentEffects(card, state)) return false;
   return squareStatuses(state, entry, 'COORDINATOR_SUPPRESSED').some(status=>{
     if(Number(status.blockedPlayer) !== controllerOf(card)) return false;
@@ -357,13 +357,15 @@ export function canUseAsConsolidationTribute(state, entry, playerIndex, consolid
   // played. A printed Supporter remains a reinforcement tribute, while a
   // printed Character declared Supporter does not become one.
   const cardType = structuralCardType(state, card);
-  if(cardType !== 'Supporter'){
-    if(['99', '100'].includes(String(consolidationCard?.id || ''))){
-      if(isEffectImmutable(card)){
-        return rejection('INVALID_TRIBUTE_TYPE', 'an immutable Character cannot be used for this consolidation');
-      }
-      return {ok:true, reinforcement:1};
+  if(['99', '100'].includes(runtimeRuleId(consolidationCard))){
+    const effectiveType = effectiveCardType(state, card);
+    if(['Supporter', 'Counter'].includes(effectiveType) || isEffectImmutable(card)
+      || card.noConsolidate === true || card.statuses?.includes('CANNOT_CONSOLIDATE')){
+      return rejection('INVALID_TRIBUTE_TYPE', 'this card requires Character reinforcement');
     }
+    return {ok:true, reinforcement:1};
+  }
+  if(cardType !== 'Supporter'){
     const irvinePermission = boardEntries(state).some(source=>
       source.z === entry.z
       && runtimeRuleId(source.card) === '49'
@@ -385,6 +387,33 @@ export function canUseAsConsolidationTribute(state, entry, playerIndex, consolid
   return {ok:true, reinforcement:effectiveReinforcement(state, entry, playerIndex)};
 }
 
+export function consolidationPlacementCheck(state, card, playerIndex, destination, tributeIids = []){
+  const zone = Number(destination?.z);
+  if(zoneActionBlock(state, playerIndex, zone)) return rejection('ZONE_ACTION_BLOCKED', 'consolidation is blocked in this zone');
+  if(squareStatuses(state, destination, 'CONSOLIDATION_BLOCKED').some(status=>Number(status.blockedPlayer) === playerIndex)){
+    return rejection('CONSOLIDATION_SQUARE_BLOCKED', 'consolidation is blocked on this square');
+  }
+  const remaining = boardEntries(state).filter(entry=>controllerOf(entry.card) === playerIndex
+    && !tributeIids.includes(String(entry.card.iid)) && String(entry.card.iid) !== String(card.iid));
+  const characters = remaining.filter(entry=>entry.z === zone && !['Supporter', 'Counter'].includes(effectiveCardType(state, entry.card)));
+  if(runtimeRuleId(card) === '45'){
+    if(characters.length) return rejection('CHINGACHLOOK_ZONE_RESTRICTED', 'Chingachlook requires a zone with no other friendly Character');
+    if(state.gameSettings?.pressureCardReworks !== true && remaining.some(entry=>runtimeRuleId(entry.card) === '45')){
+      return rejection('UNIQUE_CARD_ALREADY_PLAYED', 'only one Chingachlook copy can be played');
+    }
+  }else if(!['Supporter', 'Counter'].includes(effectiveCardType(state, card))
+    && characters.some(entry=>runtimeRuleId(entry.card) === '45' && activeAuraSource(state, entry))){
+    return rejection('CHINGACHLOOK_ZONE_RESTRICTED', 'Chingachlook forbids another friendly Character in this zone');
+  }
+  return {ok:true};
+}
+
+export function canConsolidateWithoutTribute(state, card, playerIndex, destination){
+  // Fixture-only cost waivers must not create production placement permissions.
+  const rulesState = state.testRules?.zeroReinforcementCost ? {...state, testRules:null} : state;
+  return effectiveConsolidationCost(rulesState, card, playerIndex, destination) === 0;
+}
+
 export function effectiveConsolidationCost(state, card, playerIndex, destination = null){
   if(state?.testRules?.zeroReinforcementCost === true) return 0;
   let cost = effectiveCost(state, card);
@@ -403,7 +432,7 @@ export function effectiveConsolidationCost(state, card, playerIndex, destination
       && Number(square.r) === Number(destination.r)
       && Number(square.c) === Number(destination.c)
       && Number(square.owner) === Number(playerIndex)
-      && String(findCard(state, square.sourceIid)?.card?.id || '') === '02'
+      && runtimeRuleId(findCard(state, square.sourceIid)?.card) === '02'
     );
     if(generatedSquare) cost -= 2;
   }

@@ -87,10 +87,10 @@
 
   function subscribeProfile(uid, cb){
     if(!uid) return ()=>{};
-    if(cache.has(uid)) setTimeout(()=>cb(cache.get(uid)),0);
     if(flyProfileReadsEnabled()){
       let cancelled = false;
-      FO.getPublicProfile(uid)
+      let timer = 0;
+      const refresh = ()=>FO.getPublicProfile(uid)
         .then(p=>{
           if(cancelled) return;
           const profile = p || fallbackProfile(uid);
@@ -100,12 +100,15 @@
         .catch(err=>{
           if(cancelled) return;
           console.warn('Fly profile read failed', err);
-          const profile = fallbackProfile(uid);
-          cache.set(uid, profile);
+          const profile = cache.get(uid) || fallbackProfile(uid);
           try{ cb(profile); }catch(e){ console.warn('profile callback failed', e); }
+        }).finally(()=>{
+          if(!cancelled) timer = setTimeout(refresh,15000);
         });
-      return ()=>{ cancelled = true; };
+      refresh();
+      return ()=>{ cancelled = true; if(timer) clearTimeout(timer); };
     }
+    if(cache.has(uid)) setTimeout(()=>cb(cache.get(uid)),0);
     if(rtdbDisabledMode() || !FO.rtdb) return ()=>{};
     const key = uid + ':' + Math.random().toString(36).slice(2);
     const r = FO.ref(FO.rtdb, `publicProfiles/${uid}`);

@@ -1078,7 +1078,7 @@ function runEffectStack(state, ctx){
         }
       }
       const countsAsConsolidation = instruction.countsAsConsolidation === true
-        && structuralCardType(state, selected.card) !== 'Supporter';
+        && !['Supporter', 'Counter'].includes(effectiveCardType(state, selected.card));
       const result = applyOperation(ctx, {
         type:'SET_CARD',
         playerIndex:frame.controller,
@@ -1124,6 +1124,9 @@ function runEffectStack(state, ctx){
       const copiedRule = cardRule(selected?.id, state);
       if(!selected || !source || !copiedRule){
         throw Object.assign(new Error('copied effect is no longer available'), {code:'EFFECT_NOT_IMPLEMENTED'});
+      }
+      if(Math.max(Number(copiedRule.minimumTurn || 0), Number(copiedRule.program?.[0]?.minimumTurn || 0)) > state.turn){
+        throw Object.assign(new Error('the copied effect cannot activate before its minimum turn'), {code:'MINIMUM_TURN_NOT_REACHED'});
       }
       if(copiedRule.timings?.includes('PASSIVE')){
         source.counters.copiedPassiveId = String(selected.id);

@@ -4,6 +4,10 @@
   const LEGACY_SOURCE_SELECTOR='.topbar,.zscore,.game-layout,.game-left,.left-piles,#landscape-panel,#turn-hud,#morale-pressure-hud,#match-utility-panel,#actbar,.fm-action-console,.fm-field-console';
   const $=id=>document.getElementById(id);
   const invoke=(name,...args)=>typeof window[name]==='function'?window[name](...args):undefined;
+  // Identical DOM writes still notify the game's observers and can invalidate
+  // style/layout. Keep the polling cadence, but only publish actual changes.
+  function setText(node,value){if(node&&node.textContent!==String(value))node.textContent=String(value);}
+  function setAttribute(node,key,value){if(node&&node.getAttribute(key)!==String(value))node.setAttribute(key,String(value));}
   const markup=`
     <div class="codex-v19-backdrop"></div>
     <header class="codex-v19-hud">
@@ -72,7 +76,7 @@
     const source=$(authoritativeSource&&document.body?.classList.contains('fate-authority-v3-single-player-active')
       ? authoritativeSource
       : key);
-    if(out&&source&&source.textContent)out.textContent=source.textContent;
+    if(out&&source&&source.textContent)setText(out,source.textContent);
   }
   function copyHtml(root,key){const out=root.querySelector(`[data-html="${key}"]`),source=$(key);if(out&&source&&out.dataset.cache!==source.innerHTML){out.innerHTML=source.innerHTML;out.dataset.cache=source.innerHTML}}
   function playEndTurnInputCue(key){
@@ -141,16 +145,16 @@
   }
   function suppressLegacyNode(node){
     if(!node)return;
-    node.hidden=true;
-    node.setAttribute('aria-hidden','true');
-    node.style.setProperty('display','none','important');
-    node.style.setProperty('visibility','hidden','important');
-    node.style.setProperty('pointer-events','none','important');
+    if(!node.hidden)node.hidden=true;
+    setAttribute(node,'aria-hidden','true');
+    for(const [key,value] of [['display','none'],['visibility','hidden'],['pointer-events','none']]){
+      if(node.style.getPropertyValue(key)!==value||node.style.getPropertyPriority(key)!=='important')node.style.setProperty(key,value,'important');
+    }
   }
   function updateStatusItems(button,statusNode,count){
     if(!button)return;
     button.classList.toggle('has-effects',count>0);
-    button.dataset.effectCount=String(count);
+    setAttribute(button,'data-effect-count',count);
   }
   function escapeStatusText(value){
     return String(value||'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
@@ -231,7 +235,11 @@
     const root=$(ROOT),game=$('s-game');if(!root||!game)return;
     game.querySelectorAll(LEGACY_SOURCE_SELECTOR).forEach(suppressLegacyNode);
     suppressLegacyNode($('board'));
-    game.className=game.className.replace(/match-ui-v\d+-live|poster-raster-live|svg-board-v20-live/g,'').trim();game.classList.add('match-ui-v19-live','svg-board-v20-live');
+    for(const cls of [...game.classList]){
+      if((/^match-ui-v\d+-live$/.test(cls)&&cls!=='match-ui-v19-live')||cls==='poster-raster-live')game.classList.remove(cls);
+    }
+    if(!game.classList.contains('match-ui-v19-live'))game.classList.add('match-ui-v19-live');
+    if(!game.classList.contains('svg-board-v20-live'))game.classList.add('svg-board-v20-live');
     ['my-name','opp-name','turn-hud-turn','turn-hud-timer','turn-hud-player','my-deck-count','my-discard-count','act-hint'].forEach(k=>copyText(root,k));
     ['my-name','opp-name'].forEach(key=>{const name=root.querySelector(`[data-text="${key}"]`),length=(name?.textContent||'').trim().length;if(name){name.classList.toggle('is-long-name',length>=21);name.classList.toggle('is-very-long-name',length>=28)}});
     const clockText=root.querySelector('[data-text="turn-hud-timer"]');
@@ -250,7 +258,7 @@
     const selfProjected=authorityView?.state?.players?.[self],rivalProjected=authorityView?.state?.players?.[rival];
     const selfHand=Number.isFinite(Number(selfProjected?.handCount))?Number(selfProjected.handCount):(Number(invoke('getPlayerHandCount',self))||0),rivalHand=Number.isFinite(Number(rivalProjected?.handCount))?Number(rivalProjected.handCount):(Number(invoke('getPlayerHandCount',rival))||0);
     const bh21Concealed=typeof window.isBh21ViewerConcealed==='function'&&window.isBh21ViewerConcealed(self);
-    root.querySelector('[data-hand-count="self"]').textContent=bh21Concealed?'?':String(selfHand);root.querySelector('[data-hand-count="rival"]').textContent=bh21Concealed?'?':String(rivalHand);
+    setText(root.querySelector('[data-hand-count="self"]'),bh21Concealed?'?':String(selfHand));setText(root.querySelector('[data-hand-count="rival"]'),bh21Concealed?'?':String(rivalHand));
     if(clockText&&bh21Concealed)clockText.textContent='?:??';
     if(turnCountText&&bh21Concealed)turnCountText.textContent='??/??';
     const pilePlayer=currentPilePlayer(self);
@@ -263,9 +271,9 @@
     [['my-pic',self,'my-pic'],['opp-pic',rival,'opp-pic']].forEach(([key,seat,id])=>{const out=root.querySelector(`[data-art="${key}"]`),art=playerPortraitArt(seat,id);if(out&&art)out.style.backgroundImage=art});
     const land=$('landscape-panel'),landOut=root.querySelector('[data-land]');
     if(land&&landOut){
-      [...landOut.classList].forEach(cls=>{if(/^landscape-id-/.test(cls))landOut.classList.remove(cls)});
       const landscapeClass=[...land.classList].find(cls=>/^landscape-id-/.test(cls));
-      if(landscapeClass)landOut.classList.add(landscapeClass);
+      [...landOut.classList].forEach(cls=>{if(/^landscape-id-/.test(cls)&&cls!==landscapeClass)landOut.classList.remove(cls)});
+      if(landscapeClass&&!landOut.classList.contains(landscapeClass))landOut.classList.add(landscapeClass);
       if(landOut.dataset.cache!==land.innerHTML){landOut.innerHTML=land.innerHTML;landOut.dataset.cache=land.innerHTML;scheduleLandscapeFit(landOut)}
     }
      const stopConsolidation=root.querySelector('[data-stop-consolidate]');if(stopConsolidation)stopConsolidation.hidden=!Boolean(invoke('isLocalConsolidationActive'));
@@ -276,13 +284,13 @@
        const discardCount=Array.isArray(pilePlayer.discard)?pilePlayer.discard.length:Math.max(0,Number(pilePlayer.discardCount)||0);
        const deckLabel=root.querySelector('[data-text="my-deck-count"]');
        const discardLabel=root.querySelector('[data-text="my-discard-count"]');
-       if(deckLabel)deckLabel.textContent=String(deckCount);
-       if(discardLabel)discardLabel.textContent=String(discardCount);
+       setText(deckLabel,deckCount);
+       setText(discardLabel,discardCount);
      }
      if(endControl&&authorityScreen){
        const canEnd=authorityScreen.view?.legalCommands?.some(item=>item.type==='END_TURN')===true;
-       endControl.disabled=!canEnd;
-       endControl.setAttribute('aria-disabled',String(!canEnd));
+       if(endControl.disabled!==!canEnd)endControl.disabled=!canEnd;
+       setAttribute(endControl,'aria-disabled',String(!canEnd));
      }
        const authoritativeMorale=authorityScreen?.view?.state?.moralePressure||null;
        const liveState=invoke('getFateGameState')||window.FATE_GAME_STATE||null;
@@ -296,15 +304,15 @@
         const panel=hud?.querySelector(side),legacyLocal=Number(invoke('getPerspectivePlayerIndex'))||0,local=authorityScreen?Number(authorityScreen.view?.playerIndex):legacyLocal,seat=key==='you'?local:1-local,stateMorale=Number(moraleSystem?.morale?.[seat]),value=Number.isFinite(stateMorale)?stateMorale:Number(((panel?.querySelector('.mp-heading strong')?.textContent||String(max)).match(/\d+/)||[max])[0]);
        const label=root.querySelector(`[data-morale="${key}"]`),fill=root.querySelector(`[data-fill="${key}"]`),button=root.querySelector(`[data-status="${key}"]`),statusNode=hud?.querySelector(status);
         const displayedValue=bh21Concealed?Number(root._bh21MoraleUiSnapshot?.values?.[seat]??value):value;
-        if(label)label.textContent=bh21Concealed?'???':String(value);if(fill)fill.style.width=Math.max(0,Math.min(100,displayedValue/max*100))+'%';
+        setText(label,bh21Concealed?'???':String(value));if(fill)fill.style.width=Math.max(0,Math.min(100,displayedValue/max*100))+'%';
        const moralePanel=root.querySelector(`[data-morale-panel="${key}"]`);
         const liveMoraleContent=panel?.querySelector('.mp-morale-tip')?.innerHTML||'<p>Morale penalties are inactive.</p>';
         if(bh21Concealed&&root._bh21MoraleUiSnapshot&&!root._bh21MoraleUiSnapshot.contents[key])root._bh21MoraleUiSnapshot.contents[key]=concealedMoraleTooltip(liveMoraleContent);
         if(moralePanel)moralePanel.dataset.content=bh21Concealed?(root._bh21MoraleUiSnapshot?.contents?.[key]||liveMoraleContent):liveMoraleContent;
        if(button){
           const rail=statusRailSummary(key,bh21Concealed),summaryCount=Number((statusNode?.querySelector(':scope > b')?.textContent||'0').match(/\d+/)?.[0]||0),count=bh21Concealed?rail.count:Math.max(summaryCount,rail.count),content=rail.count?rail.content:(bh21Concealed?'<p>The Taklamakan hinders your ability to view active statuses.</p>':(statusNode?.querySelector('.mp-status-popover')?.innerHTML||'<p>No active status effects.</p>'));
-           button.querySelector('[data-status-count]').textContent=bh21Concealed?'?':String(count);button.dataset.content=content;
-          button.setAttribute('aria-label',(key==='you'?'Your':'Opponent')+' status effects');
+           setText(button.querySelector('[data-status-count]'),bh21Concealed?'?':String(count));setAttribute(button,'data-content',content);
+          setAttribute(button,'aria-label',(key==='you'?'Your':'Opponent')+' status effects');
          updateStatusItems(button,statusNode,count);
        }
     });

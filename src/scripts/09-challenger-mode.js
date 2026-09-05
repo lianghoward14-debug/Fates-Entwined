@@ -4253,12 +4253,6 @@ function getMergedChallengerLeaderboardEntries() {
   const merged = new Map();
   const currentUid = window.FATE_ONLINE?.user?.uid || '';
   const currentBaseCode = window.FATE_ONLINE?.baseCode || window.FATE_ONLINE?.profile?.baseCode || '';
-  const currentNames = new Set([
-    USER_PROFILE?.username,
-    window.FATE_ONLINE?.profile?.chosenUsername,
-    window.FATE_ONLINE?.profile?.displayName,
-    window.FATE_ONLINE?.profile?.username
-  ].filter(Boolean).map(v=>String(v).trim().toLowerCase()));
   const currentAICycleKey = typeof getMonthKey === 'function' ? getMonthKey() : '';
   const isRetiredMonthlyEntry = entry => !!(entry && entry.isMonthly && currentAICycleKey && entry.monthKey !== currentAICycleKey);
   const entryIsAI = entry => !!(entry && (entry.isAI || entry.aiId || /^monthly_|^preset_/i.test(String(entry.uid || ''))));
@@ -4285,12 +4279,16 @@ function getMergedChallengerLeaderboardEntries() {
     : (window.FATE_ONLINE_LEADERBOARD || {});
   const sharedAIEntries = Array.isArray(window.FATE_SHARED_AI_ROSTER) ? window.FATE_SHARED_AI_ROSTER : [];
   const onlineEntries = sharedAIEntries.concat(Object.values(onlineSource || {})).map(applyAIBalanceOverrideToLeaderboardEntry);
+  // Signed-in humans come exclusively from the server, including while a
+  // refresh is pending. Name-only local history is not an account identity.
+  const authoritativeHumans = !!currentUid || onlineEntries.some(entry=>!entryIsAI(entry));
   const hasAuthoritativeAI = onlineEntries.some(entry=>entryIsAI(entry) && !isRetiredMonthlyEntry(entry));
   LEADERBOARD.forEach(entry=>{
     entry = applyAIBalanceOverrideToLeaderboardEntry(entry);
     if(isInternalLeaderboardEntry(entry)) return;
     if(isRetiredMonthlyEntry(entry)) return;
     if(hasAuthoritativeAI && entryIsAI(entry)) return;
+    if(authoritativeHumans && !entryIsAI(entry)) return;
     if(isStaleHumanName(entry)) return;
     const rawName = entry.username || entry.name || '';
     const isCurrent = isCurrentUserEntry(entry);
@@ -4302,15 +4300,13 @@ function getMergedChallengerLeaderboardEntries() {
     if(isInternalLeaderboardEntry(entry)) return;
     if(isRetiredMonthlyEntry(entry)) return;
     if(isStaleHumanName(entry)) return;
-    const key = entryIsAI(entry) ? aiMergeKey(entry) : (entry.uid || entry.username || entry.name);
+    const key = entryIsAI(entry) ? aiMergeKey(entry) : entry.uid;
     if(!key) return;
-    const local = merged.get(key) || {};
+    const local = entryIsAI(entry) ? (merged.get(key) || {}) : {};
     const onlineWins = getLeaderboardRecordWins(entry);
     const onlineLosses = getLeaderboardRecordLosses(entry);
-    const localWins = getLeaderboardRecordWins(local);
-    const localLosses = getLeaderboardRecordLosses(local);
-    const wins = entryIsAI(entry) ? onlineWins : Math.max(onlineWins, localWins);
-    const losses = entryIsAI(entry) ? onlineLosses : Math.max(onlineLosses, localLosses);
+    const wins = onlineWins;
+    const losses = onlineLosses;
     const displayName = getLeaderboardDisplayName(entry);
     merged.set(key, {
       ...local,
@@ -4334,17 +4330,9 @@ function getMergedChallengerLeaderboardEntries() {
       isOnline:true
     });
   });
-  return [...merged.values()].filter(entry=>!isInternalLeaderboardEntry(entry)).filter((entry, index, all)=>{
-    if(!currentUid) return true;
-    const rawName = String(entry.username || entry.name || '').trim().toLowerCase();
-    const isCurrent = entry.uid === currentUid || (currentBaseCode && entry.baseCode === currentBaseCode) || currentNames.has(rawName);
-    if(!isCurrent) return true;
-    return all.findIndex(other=>{
-      const otherName = String(other.username || other.name || '').trim().toLowerCase();
-      return other.uid === currentUid || (currentBaseCode && other.baseCode === currentBaseCode) || currentNames.has(otherName);
-    }) === index;
-  });
+  return [...merged.values()].filter(entry=>!isInternalLeaderboardEntry(entry));
 }
+
 showLeaderboard = async function(page=0, opts={}) {
   const modalAlreadyOpen = !!document.getElementById('modal')?.classList.contains('on');
   if(!(opts && opts.skipFresh) && !modalAlreadyOpen && typeof window.FateOnlineReady === 'function') {

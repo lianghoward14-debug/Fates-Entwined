@@ -56,7 +56,7 @@ export function collectTriggeredOperations(state, event){
     if(placed && !isEffectImmutable(placed.card)){
       for(const anicka of boardEntries(state).filter(entry=>
         entry.z === placed.z
-        && String(entry.card.id || '') === '02'
+        && runtimeRuleId(entry.card) === '02'
         && controllerOf(entry.card) === Number(event.playerIndex)
         && String(entry.card.iid) !== String(placed.card.iid)
         && entry.card.faceDown !== true
@@ -111,9 +111,11 @@ export function collectTriggeredOperations(state, event){
       ]).find(card=>String(card.iid) === String(event.cardIid));
       for(const marker of departed?.statuses || []){
         if(!String(marker).startsWith('VIGILANTES_MARK:')) continue;
-        const parts = String(marker).split(':');
-        const sourceIid = parts[1] || null;
-        const sourceController = Number(parts[2]);
+        const encoded = String(marker).slice('VIGILANTES_MARK:'.length);
+        const separator = encoded.lastIndexOf(':');
+        const sourceIid = encoded.slice(0, separator);
+        const sourceController = Number(encoded.slice(separator + 1));
+        if(separator < 0 || ![0, 1].includes(sourceController)) continue;
         operations.push({
           type:'RANDOM_DISCARD_HAND',
           playerIndex:sourceController === 0 ? 1 : 0,
@@ -187,7 +189,7 @@ export function collectTriggeredOperations(state, event){
   }
   if(event.type === 'CARD_SET'){
     const placed = boardEntries(state).find(entry=>String(entry.card.iid) === String(event.cardIid));
-    if(placed && String(placed.card.type || '') === 'Supporter'){
+    if(placed && event.consolidated !== true && effectiveCardType(state, placed.card) === 'Supporter'){
       for(const status of state.statuses.filter(item=>
         item?.type === 'CONSOLIDATION_FATE_BONUS'
         && Number(item.playerIndex) === Number(event.playerIndex)
@@ -201,7 +203,7 @@ export function collectTriggeredOperations(state, event){
     }
     if(placed
       && placed.card.faceDown !== true
-      && String(placed.card.type || '') === 'Coordinator'){
+      && effectiveCardType(state, placed.card) === 'Coordinator'){
       const playerIndex = controllerOf(placed.card);
       for(const source of boardEntries(state).filter(entry=>
         (entry.z === placed.z || entry.card.counters?.whisperLandscapeToken === true)
@@ -269,34 +271,10 @@ export function collectTriggeredOperations(state, event){
       }
     }
   }
-  if(event.type === 'CARD_MOVED' && state.gameSettings?.pressureCardReworks !== true){
-    const destinationZone = Number(event.to?.z);
-    const moved = findCard(state, event.cardIid)?.card;
-    for(const entry of boardEntries(state)){
-      if(runtimeRuleId(entry.card) !== '34') continue;
-      if(entry.card.counters?.whisperLandscapeToken !== true && entry.z !== destinationZone) continue;
-      const targetCheck = canTarget(state, entry.card, moved, {
-        type:'MODIFY_FATE',
-        sourceIid:entry.card.iid,
-        sourceController:controllerOf(entry.card),
-        targetIid:event.cardIid
-      });
-      if(!targetCheck.ok) continue;
-      operations.push({
-        type:'MODIFY_FATE',
-        targetIid:event.cardIid,
-        amount:3,
-        sourceIid:entry.card.iid,
-        sourceController:controllerOf(entry.card),
-        semanticSourceCardId:'34',
-        reason:'ROZSI_MOVEMENT_BONUS',
-        bypassReaction:true
-      });
-    }
-  }
   if(event.type === 'DRAW_EFFECT_ACTIVATED'){
     for(const joie of boardEntries(state).filter(entry=>
       runtimeRuleId(entry.card) === 'bh02' && controllerOf(entry.card) === Number(event.playerIndex)
+      && entry.card.faceDown !== true && !isEffectSourceSuppressed(state, entry)
     )){
       const amount = 1 + coordinatorAuraPotencyBoost(state, joie);
       operations.push({
@@ -415,7 +393,7 @@ export function collectTriggeredOperations(state, event){
     }
     for(const entry of boardEntries(state)){
       if(entry.z !== Number(event.destination?.z)) continue;
-      if(String(entry.card.id || '') !== '36') continue;
+      if(runtimeRuleId(entry.card) !== '36' || entry.card.faceDown === true) continue;
       if(controllerOf(entry.card) === Number(event.playerIndex)) continue;
       if(isEffectSourceSuppressed(state, entry)) continue;
       operations.push({
@@ -461,7 +439,7 @@ export function collectTriggeredOperations(state, event){
     }
     if(state.landscapeId === 'igb15'){
       for(const entry of boardEntries(state).filter(item=>
-        String(item.card.id || '') === '100'
+        runtimeRuleId(item.card) === '100'
         && controllerOf(item.card) === Number(event.playerIndex)
         && item.card.faceDown !== true
         && !isEffectSourceSuppressed(state, item)
@@ -479,7 +457,7 @@ export function collectTriggeredOperations(state, event){
       }
     }
     for(const entry of boardEntries(state).filter(item=>
-      String(item.card.id || '') === '95'
+      runtimeRuleId(item.card) === '95'
       && item.card.faceDown !== true
       && !isEffectSourceSuppressed(state, item)
     )){
@@ -505,7 +483,7 @@ export function collectTriggeredOperations(state, event){
   }
   if(event.type === 'DRAW_PHASE_COMPLETED'){
     for(const entry of boardEntries(state).filter(item=>
-      String(item.card.id || '') === '46'
+      runtimeRuleId(item.card) === '46'
       && controllerOf(item.card) === Number(event.playerIndex)
       && item.card.faceDown !== true
       && !isEffectSourceSuppressed(state, item)

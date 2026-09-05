@@ -2,6 +2,8 @@ import {cardRule} from './cards/registry.mjs';
 import {MAX_SUPPORTERS_SET_PER_TURN} from './constants.mjs';
 import {
   canUseAsConsolidationTribute,
+  canConsolidateWithoutTribute,
+  consolidationPlacementCheck,
   effectiveCardType,
   effectiveConsolidationCost,
   isEffectImmutable,
@@ -316,14 +318,8 @@ export function legalCommandTemplates(state, playerIndex){
       .filter(item=>item.eligibility.ok)
       .map(item=>({...item.entry, reinforcement:item.eligibility.reinforcement}));
     for(const destination of setDestinations){
-      const generatedByAnicka = (state.geometry?.playableExtraSquares || []).some(square=>
-        Number(square.z) === Number(destination.z)
-        && Number(square.r) === Number(destination.r)
-        && Number(square.c) === Number(destination.c)
-        && Number(square.owner) === player
-        && String(findBoardCard(state, square.sourceIid)?.card?.id || '') === '02'
-      );
-      if(!generatedByAnicka || effectiveConsolidationCost(state, card, player, destination) !== 0) continue;
+      if(!canConsolidateWithoutTribute(state, card, player, destination)) continue;
+      if(!consolidationPlacementCheck(state, card, player, destination).ok) continue;
       if(zoneActionBlock(state, player, destination.z)) continue;
       commands.push({
         type:'CONSOLIDATE_CARD',

@@ -210,13 +210,16 @@ function requireUser(){
   throw new Error('not signed in');
 }
 function getEphemeralMultiplayerGuestUser(){ return guestUser; }
-async function syncPublicProfile(){
-  const active = auth.currentUser;
-  if(!active) return null;
+let accountProfileGeneration = 0;
+let hydratedProfileUid = '';
+let publishedCosmetics = null;
+let profileSyncQueue = Promise.resolve();
+
+function buildPublicProfilePayload(active){
   const localProfile = buildLocalProfile(active);
   const rawLocal = getLocalProfile();
   const localImage = rawLocal && typeof rawLocal.profileImg === 'object' ? rawLocal.profileImg : {};
-  const payload = {
+  return {
     uid:active.uid,
     baseCode:localProfile.baseCode,
     baseUsername:localProfile.baseCode,
@@ -235,28 +238,65 @@ async function syncPublicProfile(){
     schemaVersion:1,
     localAuthoritativeSession:false
   };
-  // Fly owns records/rank and merges only these cosmetic fields. This avoids a
-  // stale local or Firebase profile resetting established account data.
-  const result = await flyApiRequest(`/api/profiles/${encodeURIComponent(active.uid)}`, {
-    method:'POST',
-    body:{uid:active.uid, profile:payload}
-  });
-  state.profile = result?.profile || Object.assign({}, payload, {updatedAt:Date.now()});
-  state.user = active;
-  state.baseCode = state.profile.baseCode || payload.baseCode;
-  // Fly owns account records and Challenger ELO. Apply that same returned
-  // profile to the local game profile so Social, title, profile, and in-game
-  // rank badges cannot disagree about the signed-in player's rank.
-  if(state.profile && typeof window.fateApplyServerProfileStats === 'function'){
-    window.fateApplyServerProfileStats(state.profile);
+}
+function applyCanonicalProfile(profile){
+  if(!profile || profile.uid !== auth.currentUser?.uid || profile.uid !== state.user?.uid) return false;
+  state.profile = profile;
+  state.baseCode = profile.baseCode || makeBaseCode(profile.uid);
+  const local = getLocalProfile();
+  const name = profile.chosenUsername || profile.displayName || profile.username;
+  if(name) local.username = local.chosenUsername = local.displayName = name;
+  for(const key of ['bio','profileImg','photoURL','profileCropFocusX','profileCropFocusY','profileCropY','profileCropZoom']){
+    if(profile[key] !== undefined) local[key] = profile[key];
   }
-  emit();
-  return state.profile;
+  if(typeof window.fateApplyServerProfileStats === 'function') window.fateApplyServerProfileStats(profile);
+  window.FateOnline?.profileCache?.set(profile.uid, profile);
+  return true;
+}
+async function hydrateAccountProfile(account, generation){
+  const result = await flyApiRequest(`/api/profiles/${encodeURIComponent(account.uid)}`);
+  if(generation !== accountProfileGeneration || auth.currentUser?.uid !== account.uid) return;
+  // The API returns an unstamped default only when no saved profile exists.
+  // Existing identity must be read before any device/cloud copy can be posted.
+  if(result?.profile?.updatedAt){
+    if(!applyCanonicalProfile(result.profile)) return;
+    publishedCosmetics = buildPublicProfilePayload(account);
+  }else{
+    publishedCosmetics = null;
+  }
+  hydratedProfileUid = account.uid;
+  await syncPublicProfile();
+}
+function syncPublicProfile(){
+  const active = auth.currentUser;
+  const generation = accountProfileGeneration;
+  if(!active || hydratedProfileUid !== active.uid) return Promise.resolve(null);
+  const payload = buildPublicProfilePayload(active);
+  // Capture edits against the last published local projection, not a later
+  // response. Serialize writes so two saves cannot complete out of order.
+  const changes = {};
+  for(const key of Object.keys(payload)){
+    if(!publishedCosmetics || JSON.stringify(payload[key]) !== JSON.stringify(publishedCosmetics[key])) changes[key] = payload[key];
+  }
+  const run = async()=>{
+    if(generation !== accountProfileGeneration || auth.currentUser?.uid !== active.uid) return null;
+    const route = `/api/profiles/${encodeURIComponent(active.uid)}`;
+    const result = await flyApiRequest(route, Object.keys(changes).length
+      ? {method:'POST',body:{uid:active.uid,profile:changes}}
+      : {});
+    if(generation !== accountProfileGeneration || auth.currentUser?.uid !== active.uid) return null;
+    if(!result?.profile || !applyCanonicalProfile(result.profile)) return null;
+    publishedCosmetics = buildPublicProfilePayload(active);
+    emit();
+    return state.profile;
+  };
+  const pending = profileSyncQueue.then(run,run);
+  profileSyncQueue = pending.catch(()=>{});
+  return pending;
 }
 async function getPublicProfile(uid){
   const key = String(uid || '').trim();
   if(!key) return null;
-  if(key === auth.currentUser?.uid && state.profile) return state.profile;
   const result = await flyApiRequest(`/api/profiles/${encodeURIComponent(key)}`);
   return result?.profile || null;
 }
@@ -297,6 +337,7 @@ async function flyApiRequest(route, options={}){
     headers['content-type'] = 'application/json';
     init.body = JSON.stringify(options.body || {});
   }
+  if(options.signal) init.signal = options.signal;
   const response = await fetch(authorityHttpBaseUrl() + route, init);
   if(!response.ok){
     const message = await response.text().catch(()=>'');
@@ -377,7 +418,8 @@ window.FateOnline = Object.assign(window.FateOnline || {}, {
   escapeHtml,
   flyApiRequest,
   authorityHttpBaseUrl,
-  flyProfilesEnabled:()=>false,
+  flyProfilesEnabled:()=>true,
+  restoreCanonicalProfile:()=>hydratedProfileUid && state.profile ? applyCanonicalProfile(state.profile) : false,
   rtdbDisabledMode:()=>false,
   rtdbAvailable:()=>!!rtdb
 });
@@ -594,6 +636,10 @@ async function syncAccountPresence(account){
 }
 
 async function handleAccountState(account){
+  const generation = ++accountProfileGeneration;
+  hydratedProfileUid = '';
+  publishedCosmetics = null;
+  profileSyncQueue = Promise.resolve();
   const previousUser = state.user;
   state.unsubs.splice(0).forEach(unsub=>{ try{ unsub(); }catch(_){ } });
   if(previousUser && typeof window._fateClearActiveAccount === 'function'){
@@ -601,7 +647,7 @@ async function handleAccountState(account){
   }
   state.user = account || null;
   state.ready = true;
-  state.profile = account ? buildLocalProfile(account) : null;
+  state.profile = null;
   state.baseCode = state.profile?.baseCode || null;
   renderAuthPanel();
   emit();
@@ -610,7 +656,9 @@ async function handleAccountState(account){
       if(typeof window._fatePrepareAccountSwitch === 'function') window._fatePrepareAccountSwitch(account.uid);
       else if(typeof window._fateSetActiveUid === 'function') window._fateSetActiveUid(account.uid);
       await window.FateCloudSave?.onSignIn?.(account.uid);
-      await syncPublicProfile();
+      if(generation !== accountProfileGeneration || auth.currentUser?.uid !== account.uid) return;
+      await hydrateAccountProfile(account, generation);
+      if(generation !== accountProfileGeneration || auth.currentUser?.uid !== account.uid) return;
       await syncAccountPresence(account);
     }catch(error){ console.warn('Account profile initialization failed', error); }
   }else{

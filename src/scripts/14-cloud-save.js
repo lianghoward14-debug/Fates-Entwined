@@ -501,6 +501,9 @@
     } else if(data.profile && typeof data.profile === 'object') {
       console.warn('[CloudSave] ignored profile stamped for another account');
     }
+    // A delayed cloud load may finish after sign-in's public-profile read.
+    // Collections come from the save; account identity still comes from Fly.
+    window.FateOnline?.restoreCanonicalProfile?.();
     // Presets
     if(data.presets && typeof data.presets === 'object'){
       if(typeof PRESET_DECKS !== 'undefined'){

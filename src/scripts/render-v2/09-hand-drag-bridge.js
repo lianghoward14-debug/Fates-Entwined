@@ -679,17 +679,13 @@
 
   function isZeroCostAnickaRowDrop(card, hit){
     if(!card || !hit || hit.kind !== 'cell' || boardCardAt(hit)) return false;
+    if(isFreeSetCard(card)) return false;
     const cp = typeof G !== 'undefined' && G ? Number(G.currentPlayer) : -1;
     const isCharacter = typeof isCardCharacterForRules === 'function'
       ? isCardCharacterForRules(card, cp)
       : String(card.type || '') !== 'Supporter';
     if(!isCharacter || !canPlaceCardOnCell(card, hit)) return false;
-    const generated = Array.isArray(G?.anickaSafeRows) && G.anickaSafeRows.some(function(entry){
-      return Number(entry?.z) === Number(hit.z)
-        && Number(entry?.r) === Number(hit.r)
-        && Number(entry?.owner) === cp;
-    });
-    if(!generated) return false;
+    if(typeof canConsolidateWithoutTributeAt === 'function') return canConsolidateWithoutTributeAt(card, hit);
     const baseCost = typeof getDisplayedCardCost === 'function' ? getDisplayedCardCost(card) : Number(card.cost || 0);
     return typeof getConsolidationCostForZone === 'function'
       && getConsolidationCostForZone(card, hit.z, cp, baseCost, hit.r, hit.c) <= 0;

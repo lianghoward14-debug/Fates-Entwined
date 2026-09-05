@@ -765,6 +765,8 @@ function aiGenerateAllMoves() {
         if(!G.board[z][r]) continue;
         for(let c=0;c<getBoardRowCapacity(z,r);c++){
           if(G.board[z][r][c]!==null || isBlocked(z,r,c)) continue;
+          if(!(G._linaFreeIids && G._linaFreeIids.has(ch.iid))
+            && typeof canConsolidateWithoutTributeAt === 'function' && !canConsolidateWithoutTributeAt(ch, {z,r,c})) continue;
           moves.push({type:'place', card:ch, z, r, c, contested:r===1});
         }
       }
@@ -3545,6 +3547,12 @@ async function aiDoPlace(choice) {
   const isAchillesToken = typeof isAchillesAdaptiveToken === 'function' && isAchillesAdaptiveToken(card);
   const isEffectFree = !!(G._linaFreeIids && G._linaFreeIids.has(card.iid)) || isAchillesToken;
   const cardIsSupporterForRules = typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, cp) : card.type === 'Supporter';
+  const placementCountsAsConsolidated = (isAchillesToken && card._achillesPlayMode === 'consolidated')
+    || (!cardIsSupporterForRules && !isAchillesToken && isEffectFree);
+  if(!cardIsSupporterForRules && !isEffectFree){
+    if(typeof canConsolidateWithoutTributeAt !== 'function' || !canConsolidateWithoutTributeAt(card, choice)) return;
+    return aiDoConsolidate({...choice, tributes:[]});
+  }
   const defenseInDepthStatus = cardIsSupporterForRules && Array.isArray(G._bh24DefenseInDepth)
     ? G._bh24DefenseInDepth[cp]
     : null;
@@ -3552,22 +3560,33 @@ async function aiDoPlace(choice) {
   const inst = newInstance(card);
   inst.owner = cp;
   inst.currentFate = getPlacedCardFate(card);
-  if(typeof preparePlacementFateReveal === 'function') preparePlacementFateReveal(inst, card, 'set');
+  if(placementCountsAsConsolidated){
+    inst._wasConsolidated = true;
+    inst._wasSet = false;
+  }
+  if(typeof preparePlacementFateReveal === 'function') preparePlacementFateReveal(inst, card, placementCountsAsConsolidated ? 'consolidation' : 'set');
   if(typeof applyLandscapePlacementBonuses === 'function') applyLandscapePlacementBonuses(inst, choice.z, choice.r, choice.c);
+  if(placementCountsAsConsolidated && typeof trackLandscapeConsolidation === 'function') trackLandscapeConsolidation(cp, inst, choice.z);
   consumePendingPlacementFlags(card, inst);
   const commitAiPlace = function(){
     if(!isFaceDownCard(inst)) inst._onlineSetResolutionPending = true;
     G.board[choice.z][choice.r][choice.c] = inst;
-    if(typeof window.recordLegacyMoralePressureCardSet === 'function') {
+    if(!placementCountsAsConsolidated && typeof window.recordLegacyMoralePressureCardSet === 'function') {
       window.recordLegacyMoralePressureCardSet(inst);
+    }
+    if(placementCountsAsConsolidated){
+      if(typeof applyMarieDeterranceForConsolidation === 'function') applyMarieDeterranceForConsolidation(cp, choice.z, inst);
+      if(typeof applyCrushingMomentumAfterConsolidation === 'function') applyCrushingMomentumAfterConsolidation(inst, cp);
+      if(typeof window.recordLegacyMoraleConsolidation === 'function') window.recordLegacyMoraleConsolidation(cp);
+      if(typeof noteBalladConsolidation === 'function') noteBalladConsolidation(cp, inst);
     }
     if(typeof markCardSetTurn === 'function') markCardSetTurn(inst, cp);
     if(typeof applyRiveraBuffToPlacedCard === 'function') applyRiveraBuffToPlacedCard(inst, inst.owner);
     const characterSetCinematic = card.type !== 'Supporter' && typeof requestCharacterSetCinematic === 'function';
     if(characterSetCinematic) requestCharacterSetCinematic(inst, {z:choice.z, r:choice.r, c:choice.c, delayMs:90, source:'ai-set'});
     sourceList.splice(idx,1);
-    if(typeof recordSupporterHardCapSet === 'function') recordSupporterHardCapSet(inst, cp);
-    if(cardIsSupporterForRules) {
+    if(!placementCountsAsConsolidated && typeof recordSupporterHardCapSet === 'function') recordSupporterHardCapSet(inst, cp);
+    if(cardIsSupporterForRules && !placementCountsAsConsolidated) {
       if(!isEffectFree && !defenseInDepthSet) G.supportsPlacedThisTurn++;
       if(!Array.isArray(G.supportersSetP)) G.supportersSetP = [0,0];
       G.supportersSetP[cp] = (Number(G.supportersSetP[cp]) || 0) + 1;
@@ -3579,7 +3598,7 @@ async function aiDoPlace(choice) {
       inst._hasBeenOnBoard = true;
       inst._supporterSetOwner = cp;
       inst._setReinforcementValue = setReinforcementValue;
-      if(typeof noteBalladSupporterSet === 'function') noteBalladSupporterSet(cp);
+      if(typeof noteBalladSupporterSet === 'function') noteBalladSupporterSet(cp, inst);
       if(defenseInDepthSet){
         G._bh24DefenseInDepth[cp] = null;
         if(typeof applyPairedOverlayFateGain === 'function'){
@@ -3659,7 +3678,8 @@ async function aiDoConsolidate(choice) {
     return {t, score};
   }).sort((a,b)=>b.score - a.score);
   const requestedTarget = choice.tributes.find(t=>t.z===choice.z && t.r===choice.r && t.c===choice.c);
-  const target = requestedTarget || scored[0].t;
+  const target = requestedTarget || scored[0]?.t || {z:choice.z, r:choice.r, c:choice.c};
+  if(!choice.tributes.length && (typeof canConsolidateWithoutTributeAt !== 'function' || !canConsolidateWithoutTributeAt(choice.card, target))) return;
   const chaparralSource = getUnusedChaparralAmbusherInZone(target.z, cp);
   const useFaceDown = !!chaparralSource && (
     choice.card.type === 'Dauntless' ||
@@ -3669,10 +3689,12 @@ async function aiDoConsolidate(choice) {
 
   const bonusFate = typeof getGreatOakConsolidationBonus === 'function'
     ? getGreatOakConsolidationBonus(choice.tributes)
-    : choice.tributes.reduce((total, t)=>total + (t.card && t.card.id==='47' ? 3 : 0), 0);
+    : choice.tributes.reduce((total, t)=>total + (t.card && t.card.id==='73' ? 4 : 0), 0);
 
   const inst = newInstance(choice.card);
   inst.owner = cp;
+  inst._wasConsolidated = true;
+  inst._wasSet = false;
   inst.currentFate = getPlacedCardFate(choice.card, {bonusFate:0, tributeCount: choice.tributes.length});
   if(typeof applyGreatOakConsolidationBonus === 'function') applyGreatOakConsolidationBonus(inst, bonusFate);
   else inst.currentFate = Math.max(0, Number(inst.currentFate ?? inst.fate) || 0) + bonusFate;
@@ -3704,6 +3726,8 @@ async function aiDoConsolidate(choice) {
     }
     if(typeof markCardSetTurn === 'function') markCardSetTurn(inst, cp);
     if(typeof consumeAdministrativeBloatForPlayer === 'function') consumeAdministrativeBloatForPlayer(cp);
+    if(typeof applyCrushingMomentumAfterConsolidation === 'function') applyCrushingMomentumAfterConsolidation(inst, cp);
+    if(typeof window.recordLegacyMoraleConsolidation === 'function') window.recordLegacyMoraleConsolidation(cp);
     if(typeof noteBalladConsolidation === 'function') noteBalladConsolidation(cp, inst);
     if(typeof applyRiveraBuffToPlacedCard === 'function') applyRiveraBuffToPlacedCard(inst, inst.owner);
     const placementDelay = motionMs ? 0 : Math.min(360, 180 + choice.tributes.length * 40);
@@ -3946,7 +3970,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
           ? ['100','84','87','99']
           : [];
       const candidates = [].concat(G.players[cp].hand || [], G.players[cp].deck || []).filter(function(candidate){
-        return candidate && String(candidate.id || '') !== 'bh05';
+        return typeof isTaylorCopyAvailable === 'function' ? isTaylorCopyAvailable(candidate) : candidate && String(candidate.id || '') !== 'bh05';
       }).sort(function(a,b){
         const ap = aiPriorityIndex(a, mimicPriority);
         const bp = aiPriorityIndex(b, mimicPriority);
@@ -4330,15 +4354,14 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       G._westCaribNext = { owner: cp };
       if(typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
       break;
-    case '34': // Rozsi Szocs: passive movement trigger is handled by triggerRozsiPassive.
-      if(window.FATE_PRESSURE_CARD_REWORKS_ENABLED === true){
+    case '34': { // Rozsi Szocs: declare the affiliation for Morale damage.
         const counts={};(G.board[z]||[]).forEach(row=>row.forEach(card=>{if(card&&card.owner===cp&&!isFaceDownCard(card)){const aff=String(card.aff||card.affiliation||'');counts[aff]=(counts[aff]||0)+1;}}));
         const strat = G._selectedAI?._deckStrategy || '';
         inst._moraleAffiliation=(strat === 'starter_freeworld' || strat === 'ai_hungarian_war_dance')
           ? 'third_great_war'
           : Object.keys(counts).sort((a,b)=>counts[b]-counts[a])[0]||'reality';
-      }
       break;
+    }
     case '35': { // Alexander: initialize from the same live effective-Fate total used by all modes
       if(window.FATE_PRESSURE_CARD_REWORKS_ENABLED === true) break;
       const total = typeof getAlexanderSupporterFateTotal === 'function'
@@ -5354,31 +5377,11 @@ async function aiRunEffect(card, z, r, c) {
                 : (ri === 1 || ri === (cp === 0 ? 2 : 0));
               if(!legalRow) continue;
               if(!G.board[zi][ri][ci] && !isBlocked(zi, ri, ci)){
-                const placedCard = newInstance(pick);
-                placedCard.owner = cp;
-                placedCard.currentFate = getPlacedCardFate(pick);
-                if(typeof preparePlacementFateReveal === 'function') preparePlacementFateReveal(placedCard, pick, 'set');
-                if(typeof applyLandscapePlacementBonuses === 'function') applyLandscapePlacementBonuses(placedCard, zi, ri, ci);
-                consumePendingPlacementFlags(pick, placedCard);
-                let placementDelay = 0;
-                await aiRunBoardPlacementPresentation({
-                  sourceCard:pick,
-                  inst:placedCard,
-                  owner:cp,
-                  source:fromDiscard ? 'discard' : 'deck',
-                  recipe:fromDiscard ? 'PLAY_CARD' : 'DECK_TO_BOARD',
-                  target:{z:zi, r:ri, c:ci},
-                  commit:function(tx){
-                    G.board[zi][ri][ci] = placedCard;
-                    placementDelay = tx && tx.presentMs ? Math.max(0, Number(tx.presentMs) || 0) : 0;
-                    if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:false, blocks:false, topbar:false, effects:false, hover:false});
-                    else renderGame({board:true, scores:true, blocks:true, topbar:true});
-                  }
-                });
-                if(placedCard.type !== 'Supporter' && typeof requestCharacterSetCinematic === 'function') {
-                  requestCharacterSetCinematic(placedCard, {z:zi, r:ri, c:ci, delayMs:Math.max(0, placementDelay || 0) + 90, source:'ai-effect-free-set'});
-                }
-                if(typeof aiTriggerWhenSet === 'function' && WHEN_SET_IDS.has(placedCard.id)) await aiTriggerWhenSet(placedCard, zi, ri, ci);
+                pick._freePlacementCinematicKind = 'lina-free-set';
+                if(!G._linaFreeIids) G._linaFreeIids = new Set();
+                G._linaFreeIids.add(pick.iid);
+                G.players[cp].hand.push(pick);
+                await aiDoPlace({card:pick, z:zi, r:ri, c:ci});
                 placed = true;
               }
             }
