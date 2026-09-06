@@ -42,6 +42,7 @@ jobs:
         run: |
           npm run smoke:warfront
           npm run smoke:marketplace
+          npm run smoke:archive-medals
 
       - name: Deploy to Fly
         env:

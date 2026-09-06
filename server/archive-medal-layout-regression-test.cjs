@@ -1,0 +1,11 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const archiveCss=fs.readFileSync('src/styles/challenger-war-event-final.css','utf8');
+const profileJs=fs.readFileSync('src/scripts/25-profile-view-v2.js','utf8');
+const profileCss=fs.readFileSync('src/styles/profile-view-v2.css','utf8');
+assert.match(archiveCss,/war3-file-stack>button:nth-child\(even\)\{transform:none;width:100%\}/,'archive rows must share one left edge and width');
+assert.match(profileJs,/assets\/medals\/cropped\/medal-/,'profile medals must use clean individual art');
+assert.doesNotMatch(profileJs,/warfront-medals-contact-sheet/,'profile medals must not expose contact-sheet labels or neighboring cells');
+assert.match(profileCss,/background-image:var\(--medal-src\)/,'medal slots must render their individual artwork');
+for(let id=1;id<=50;id++)assert.ok(fs.existsSync(`assets/medals/cropped/medal-${String(id).padStart(2,'0')}.png`),`missing medal ${id}`);
+console.log('Archive alignment and all 50 clean displayed-medal assets passed');

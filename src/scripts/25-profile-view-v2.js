@@ -110,10 +110,9 @@
   }
 
   function medalIcon(id, selected){
-    const n = clamp(Math.round(number(id, 1)), 1, 50) - 1;
-    const x = (n % 5) * 25;
-    const y = Math.floor(n / 5) * (100 / 9);
-    return '<span class="profile-medal-icon' + (selected ? ' is-selected' : '') + '" style="--medal-x:' + x + '%;--medal-y:' + y + '%" aria-hidden="true"></span>';
+    const n = clamp(Math.round(number(id, 1)), 1, 50);
+    const src = 'assets/medals/cropped/medal-' + String(n).padStart(2, '0') + '.png';
+    return '<span class="profile-medal-icon' + (selected ? ' is-selected' : '') + '" style="--medal-src:url(&quot;' + src + '&quot;)" aria-hidden="true"></span>';
   }
 
   function medalsMarkup(model){

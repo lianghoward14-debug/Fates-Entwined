@@ -419,18 +419,18 @@
 
 /* Displayed medals live beside the identity, leaving the overview balanced below. */
 #modal .profile-view-lower-grid{grid-template-columns:minmax(0,1.35fr) minmax(250px,.65fr);max-width:760px;margin-left:auto;margin-right:auto}
-#modal .profile-view-medals-section{grid-column:3;grid-row:1;align-self:start;min-height:0;padding:.78rem .9rem;border-radius:5px;background:rgba(12,15,22,.58)}
+#modal .profile-view-medals-section{grid-column:3;grid-row:1;align-self:start;min-height:0;padding:.82rem .9rem .9rem;border:1px solid rgba(201,168,76,.16);border-radius:6px;background:linear-gradient(145deg,rgba(17,22,31,.9),rgba(7,10,16,.82))}
 #modal .profile-view-medals-head{display:flex;align-items:flex-start;justify-content:space-between;gap:.7rem}
 #modal .profile-view-medals-head .profile-view-section-label{margin-bottom:.16rem}
 #modal .profile-view-medals-head small{color:#727d8a;font-size:.58rem}
 #modal .profile-view-medals-head button{min-height:28px;padding:0 .62rem;border:1px solid rgba(201,168,76,.3);border-radius:4px;background:rgba(201,168,76,.08);color:#dfc878;font:700 .56rem 'Cinzel',serif;cursor:pointer}
 #modal .profile-view-medals-head button:hover{border-color:rgba(221,190,101,.58);background:rgba(201,168,76,.15)}
-#modal .profile-view-medal-slots{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.42rem;margin-top:.62rem}
-#modal .profile-view-medal-slot{min-width:0;display:flex;flex-direction:column;align-items:center;gap:.26rem}
-#modal .profile-view-medal-slot>span{width:100%;overflow:hidden;color:#aeb7c1;font-size:.52rem;line-height:1.15;text-align:center;text-overflow:ellipsis;white-space:nowrap}
+#modal .profile-view-medal-slots{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.5rem;margin-top:.65rem}
+#modal .profile-view-medal-slot{min-width:0;min-height:96px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:.38rem;padding:.45rem .28rem .42rem;box-sizing:border-box;border:1px solid rgba(201,168,76,.16);border-radius:5px;background:linear-gradient(180deg,rgba(201,168,76,.055),rgba(255,255,255,.015))}
+#modal .profile-view-medal-slot>span:not(.profile-medal-icon){width:100%;min-height:2.3em;overflow:hidden;color:#cbd1d5;font:600 .5rem/1.18 'Cinzel',serif;text-align:center;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;white-space:normal}
 #modal .profile-view-medal-slot.is-empty{height:72px;justify-content:center;border:1px dashed rgba(255,255,255,.11)}
 #modal .profile-view-medal-slot.is-empty i{color:#59636f;font-size:1rem;font-style:normal}
-#modal .profile-medal-icon{display:block;width:52px;height:62px;flex:0 0 auto;background-image:url("../../assets/medals/concepts/warfront-medals-contact-sheet-v3-modern.png");background-repeat:no-repeat;background-size:500% 1000%;background-position:var(--medal-x) var(--medal-y);border-radius:3px;box-shadow:0 5px 12px rgba(0,0,0,.35)}
+#modal .profile-medal-icon{display:block;width:62px;height:62px;flex:0 0 auto;background-image:var(--medal-src);background-repeat:no-repeat;background-size:cover;background-position:center;border:1px solid rgba(216,183,93,.2);border-radius:4px;box-shadow:0 6px 14px rgba(0,0,0,.42)}
 #modal .profile-medal-icon.is-selected{outline:2px solid #d8b75d;outline-offset:2px;box-shadow:0 0 16px rgba(216,183,93,.35)}
 #modal .profile-medal-picker{height:100%;min-height:0;display:flex;flex-direction:column;padding:1rem 1.15rem .8rem;box-sizing:border-box}
 #modal .profile-medal-picker>header{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:0 .2rem .85rem;border-bottom:1px solid rgba(255,255,255,.1)}
@@ -444,7 +444,7 @@
 #modal .profile-medal-picker-grid>button.is-selected{border-color:#d5b65f;background:rgba(201,168,76,.12)}
 #modal .profile-medal-picker-grid b{max-width:100%;overflow:hidden;font:700 .6rem 'Cinzel',serif;text-overflow:ellipsis;white-space:nowrap}
 #modal .profile-medal-picker-grid small{color:#6f7a86;font:400 .52rem ui-monospace,Consolas,monospace}
-#modal .profile-medal-picker-grid .profile-medal-icon{width:58px;height:68px}
+#modal .profile-medal-picker-grid .profile-medal-icon{width:68px;height:68px}
 #modal .profile-medal-empty{grid-column:1/-1;min-height:220px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#737e8a;text-align:center}
 #modal .profile-medal-empty b{color:#c8ced3;font:700 1rem 'Cinzel',serif}
 #modal .profile-medal-empty span{margin-top:.45rem;font-size:.7rem}

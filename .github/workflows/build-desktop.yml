@@ -43,6 +43,7 @@ jobs:
             fi
           done
           npm run smoke:marketplace
+          npm run smoke:archive-medals
 
   build-windows:
     needs: verify-online-systems
