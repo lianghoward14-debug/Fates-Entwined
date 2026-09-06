@@ -245,7 +245,7 @@
     const clockText=root.querySelector('[data-text="turn-hud-timer"]');
     const turnCountText=root.querySelector('[data-text="turn-hud-turn"]');
     const clockMatch=(clockText?.textContent||'').match(/\d+\s*:\s*\d+/);
-    if(clockText&&clockMatch)clockText.textContent=clockMatch[0].replace(/\s/g,'');
+    if(clockText&&clockMatch)setText(clockText,clockMatch[0].replace(/\s/g,''));
     copyHtml(root,'my-stat');copyHtml(root,'opp-stat');
     const raw=invoke('getPerspectivePlayerIndex'),authorityView=currentAuthoritativeView(),projectedSelf=Number(authorityView?.playerIndex),self=Number.isInteger(projectedSelf)?projectedSelf:(Number.isInteger(Number(raw))?Number(raw):0),rival=self===0?1:0;
     const turnState=authorityView?.state||(invoke('getFateGameState')||window.FATE_GAME_STATE||{}),activePlayer=Number(turnState?.activePlayer??turnState?.currentPlayer),turnNumber=Number(turnState?.turn??turnState?.turnNumber??0),turnSoundKey=[String(turnState?.matchId||turnState?._onlineRoomCode||'local'),turnNumber,activePlayer].join(':');
@@ -259,8 +259,8 @@
     const selfHand=Number.isFinite(Number(selfProjected?.handCount))?Number(selfProjected.handCount):(Number(invoke('getPlayerHandCount',self))||0),rivalHand=Number.isFinite(Number(rivalProjected?.handCount))?Number(rivalProjected.handCount):(Number(invoke('getPlayerHandCount',rival))||0);
     const bh21Concealed=typeof window.isBh21ViewerConcealed==='function'&&window.isBh21ViewerConcealed(self);
     setText(root.querySelector('[data-hand-count="self"]'),bh21Concealed?'?':String(selfHand));setText(root.querySelector('[data-hand-count="rival"]'),bh21Concealed?'?':String(rivalHand));
-    if(clockText&&bh21Concealed)clockText.textContent='?:??';
-    if(turnCountText&&bh21Concealed)turnCountText.textContent='??/??';
+    if(clockText&&bh21Concealed)setText(clockText,'?:??');
+    if(turnCountText&&bh21Concealed)setText(turnCountText,'??/??');
     const pilePlayer=currentPilePlayer(self);
     const discardArt=root.querySelector('[data-discard] .codex-v19-archive-art');
     if(discardArt){
@@ -308,7 +308,7 @@
        const moralePanel=root.querySelector(`[data-morale-panel="${key}"]`);
         const liveMoraleContent=panel?.querySelector('.mp-morale-tip')?.innerHTML||'<p>Morale penalties are inactive.</p>';
         if(bh21Concealed&&root._bh21MoraleUiSnapshot&&!root._bh21MoraleUiSnapshot.contents[key])root._bh21MoraleUiSnapshot.contents[key]=concealedMoraleTooltip(liveMoraleContent);
-        if(moralePanel)moralePanel.dataset.content=bh21Concealed?(root._bh21MoraleUiSnapshot?.contents?.[key]||liveMoraleContent):liveMoraleContent;
+        setAttribute(moralePanel,'data-content',bh21Concealed?(root._bh21MoraleUiSnapshot?.contents?.[key]||liveMoraleContent):liveMoraleContent);
        if(button){
           const rail=statusRailSummary(key,bh21Concealed),summaryCount=Number((statusNode?.querySelector(':scope > b')?.textContent||'0').match(/\d+/)?.[0]||0),count=bh21Concealed?rail.count:Math.max(summaryCount,rail.count),content=rail.count?rail.content:(bh21Concealed?'<p>The Taklamakan hinders your ability to view active statuses.</p>':(statusNode?.querySelector('.mp-status-popover')?.innerHTML||'<p>No active status effects.</p>'));
            setText(button.querySelector('[data-status-count]'),bh21Concealed?'?':String(count));setAttribute(button,'data-content',content);
@@ -333,7 +333,20 @@
     const root=document.createElement('div');root.id=ROOT;root.innerHTML=markup;game.appendChild(root);
     const board=$('board');if(board){board.dataset.codexV19Source='true';suppressLegacyNode(board)}
     const hand=game.querySelector('.hand-strip');if(hand)root.querySelector('[data-hand]').appendChild(hand);
-    wire(root);update();setInterval(update,250);
+    wire(root);update();
+    const updateVisible = function(){
+      if(!root.isConnected){root.__fateCodexCleanup?.();return;}
+      if(!document.hidden && game.classList.contains('active') && root.isConnected) update();
+    };
+    const updateTimer = setInterval(updateVisible,250);
+    const screenObserver = new MutationObserver(updateVisible);
+    screenObserver.observe(game,{attributes:true,attributeFilter:['class']});
+    document.addEventListener('visibilitychange',updateVisible);
+    root.__fateCodexCleanup = function(){
+      clearInterval(updateTimer);
+      screenObserver.disconnect();
+      document.removeEventListener('visibilitychange',updateVisible);
+    };
     window.addEventListener('resize',()=>scheduleLandscapeFit(root.querySelector('[data-land]')),{passive:true});
     requestAnimationFrame(()=>requestAnimationFrame(()=>{window.FateMatchRendererAdapter?.resetBoardViewport?.('codex-v19');window.dispatchEvent(new Event('resize'))}));
   }

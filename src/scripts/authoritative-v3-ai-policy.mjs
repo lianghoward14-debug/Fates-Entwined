@@ -2,6 +2,7 @@ import {
   legalCommandTemplates,
   projectStateForPlayer,
   reduceCommand,
+  zoneScore,
   stableStringify
 } from '../../shared/engine/index.mjs';
 
@@ -70,7 +71,7 @@ function zoneBalance(projection, zone, playerIndex){
 }
 
 function zoneScores(projection, playerIndex){
-  return [0,1,2].map(zone=>zoneBalance(projection, zone, playerIndex).own);
+  return [0,1,2].map(zone=>zoneScore(projection,zone,Number(playerIndex)));
 }
 
 function moraleStyle(context = {}){
@@ -95,8 +96,8 @@ function moraleCycle(scores, enemyScores){
   let outgoing = 0;
   for(let zone = 0; zone < 3; zone += 1){
     const margin = Number(scores?.[zone] || 0)-Number(enemyScores?.[zone] || 0);
-    if(margin < 0) incoming += Math.abs(margin);
-    else outgoing += margin;
+    if(margin < 0) incoming += Math.floor(Math.abs(margin)/2);
+    else outgoing += Math.floor(margin/2);
   }
   return {incoming,outgoing};
 }
@@ -114,7 +115,7 @@ function moralePositionScore(projection, playerIndex, scores, enemyScores, conte
   const ownAfter = Math.max(0, Number(system.morale?.[player] || 0)-incoming);
   const opponentAfter = Math.max(0, Number(system.morale?.[opponent] || 0)-outgoing);
   const turn = Math.max(1, Number(projection?.turn) || 1);
-  const cadence = turn < 6 ? .34 : (turn % 2 === 0 ? 1.42 : .72);
+  const cadence = turn < 4 ? .34 : (turn % 2 === 0 ? 1.42 : .72);
   return cadence * (
     outgoing*1.8*style.aggression-incoming*1.9*style.preservation
     + thresholdBurden(opponentAfter,maxMorale)*style.aggression
@@ -343,9 +344,50 @@ function compareRankedCommands(left, right, projection, context){
     || stableStringify(left).localeCompare(stableStringify(right));
 }
 
+// Reserve search space for different cards and action families. Otherwise many
+// placements of one high-scoring card can crowd every setup out of the beam.
+function actionFamily(command){
+  const p = command.payload || {};
+  return `${command.type}:${p.cardIid || p.sourceIid || p.reactionIid || p.choice || ''}`;
+}
+
+export function selectDiverseAiCommands(ranked, width){
+  const selected = [];
+  const families = new Set();
+  for(const command of ranked){
+    const family = actionFamily(command);
+    if(families.has(family)) continue;
+    families.add(family);
+    selected.push(command);
+    if(selected.length >= width) return selected;
+  }
+  for(const command of ranked){
+    if(!selected.includes(command)) selected.push(command);
+    if(selected.length >= width) break;
+  }
+  return selected;
+}
+
+function diverseFrontier(nodes, width){
+  const selected = [];
+  const families = new Set();
+  for(const node of nodes){
+    const family = actionFamily(node.sequence[0]);
+    if(families.has(family)) continue;
+    families.add(family);
+    selected.push(node);
+    if(selected.length >= width) return selected;
+  }
+  return [...selected, ...nodes.filter(node=>!selected.includes(node))].slice(0,width);
+}
+
 function boardPositionScore(projection, playerIndex, context = {}){
   const player = Number(playerIndex);
   const opponent = player === 0 ? 1 : 0;
+  if(projection?.outcome){
+    const winner = projection.outcome.winner;
+    return winner == null ? 0 : (Number(winner) === player ? 100000 : -100000);
+  }
   const ownScores = zoneScores(projection, player);
   const enemyScores = zoneScores(projection, opponent);
   let score = 0;
@@ -387,16 +429,12 @@ function boardPositionScore(projection, playerIndex, context = {}){
     score += sign * development;
   }
 
-  if(projection?.outcome){
-    const winner = Number(projection.outcome.winner);
-    if(winner === player) score += 100000;
-    else if(winner === opponent) score -= 100000;
-  }
   return score;
 }
 
 function nodeSort(left, right){
   return right.score - left.score
+    || (left.score >= 90000 ? left.sequence.length-right.sequence.length : 0)
     || right.actions - left.actions
     || stableStringify(left.sequence).localeCompare(stableStringify(right.sequence));
 }
@@ -421,7 +459,7 @@ function simulateCommand(state, command, context, serial){
   const actorId = String(context.playerId || state?.players?.[Number(context.playerIndex)]?.id || '');
   if(!actorId) return null;
   const result = reduceCommand(state, {
-    ...command,
+    type:command.type,
     commandId:`ai-plan:${state.revision}:${serial}`,
     matchId:state.matchId,
     expectedRevision:state.revision,
@@ -430,8 +468,66 @@ function simulateCommand(state, command, context, serial){
   return result.ok ? result.state : null;
 }
 
+/** Bounded adversarial continuation through real reactions and turn handoff.
+ * Unrevealed opponent cards are replaced by a conservative vanilla Supporter
+ * belief, not inspected. This models development without granting hand vision.
+ */
+export function evaluateAiCounterplay(state, playerIndex, context = {}){
+  const originalView = projectStateForPlayer(state, playerIndex);
+  const opponent = 1-playerIndex;
+  const model = structuredClone(state);
+  const unknownCard = (owner, index, pile)=>({
+    iid:`ai-belief:${owner}:${pile}:${index}`, id:'ai-unknown-supporter', name:'Unknown supporter',
+    type:'Supporter', affiliation:'reality', baseFate:1, currentFate:1,
+    cost:0, owner, controller:owner, faceDown:false, statuses:[], counters:{}
+  });
+  if(!Array.isArray(originalView.players[opponent].hand)){
+    model.players[opponent].hand = Array.from({length:originalView.players[opponent].handCount},
+      (_,i)=>unknownCard(opponent,i,'hand'));
+  }
+  for(let z=0;z<model.board.length;z++) for(let r=0;r<model.board[z].length;r++){
+    for(let c=0;c<model.board[z][r].length;c++){
+      const card = model.board[z][r][c];
+      if(card?.faceDown === true && controllerOf(card) === opponent){
+        model.board[z][r][c] = {...unknownCard(opponent,`${z}:${r}:${c}`,'board'),
+          iid:card.iid, faceDown:true};
+      }
+    }
+  }
+  // Neither side knows future draw order. Preserve pile sizes, not identities.
+  for(const owner of [0,1]) model.players[owner].deck = Array.from(
+    {length:originalView.players[owner].deckCount}, (_,i)=>unknownCard(owner,i,'deck'));
+  const limit = context.difficulty === 'easy' ? 1 : 2;
+  let simulations = 0;
+  const visit = (current, steps, replies)=>{
+    const view = projectStateForPlayer(current, playerIndex);
+    const value = boardPositionScore(view, playerIndex, context);
+    if(current.outcome || steps >= 6 || simulations >= 48) return value;
+    const pending = current.pendingPrompt?.playerIndex ?? current.pendingHandLimit?.playerIndex;
+    const actor = Number(pending ?? current.activePlayer);
+    if(pending == null && actor === playerIndex) return value;
+    const actorView = projectStateForPlayer(current, actor);
+    const actorContext = {...context, playerIndex:actor, playerId:current.players[actor].id};
+    const ranked = legalCommandTemplates(current, actor).filter(c=>c.type !== 'CONCEDE'
+      && !(pending == null && replies >= limit && c.type !== 'END_TURN'))
+      .sort((a,b)=>compareRankedCommands(a,b,actorView,actorContext));
+    const candidates = selectDiverseAiCommands(ranked, 3);
+    const end = ranked.find(c=>c.type === 'END_TURN');
+    if(end && !candidates.includes(end)) candidates.push(end);
+    const values = [];
+    for(const command of candidates){
+      if(simulations >= 48) break;
+      const next = simulateCommand(current, command, actorContext, ++simulations);
+      if(next) values.push(visit(next, steps+1, replies+(pending == null ? 1 : 0)));
+    }
+    return values.length ? (actor === playerIndex ? Math.max(...values) : Math.min(...values)) : value;
+  };
+  return {score:visit(model,0,0), simulations};
+}
+
 /**
- * Build a deterministic, reversible 2-4 action turn plan with the same legal
+ * Build a deterministic, reversible turn plan with a 2-4 action horizon and
+ * early ending when appropriate, using the same legal
  * command generator and reducer used by an authoritative match. Only player
  * projections are scored, so hidden hands are never read by the evaluator.
  */
@@ -480,7 +576,7 @@ export function planStrategicV3AiTurn(commands = [], projection, context = {}){
         : (node.actions >= config.depth
           ? endings
           : (strategic.length
-            ? [...strategic, ...(node.actions >= 2 ? endings : [])]
+            ? [...strategic, ...endings]
             : legal));
       if(!permitted.length){
         completed.push(node);
@@ -488,12 +584,12 @@ export function planStrategicV3AiTurn(commands = [], projection, context = {}){
       }
       const ranked = permitted
         .sort((left, right)=>compareRankedCommands(left, right, node.projection, context));
-      const candidates = !mustResolve && node.actions >= 2 && node.actions < config.depth && endings.length
+      const candidates = !mustResolve && node.actions < config.depth && endings.length
         ? [
-            ...ranked.filter(command=>command.type !== 'END_TURN').slice(0, Math.max(1, config.branchWidth - 1)),
+            ...selectDiverseAiCommands(ranked.filter(command=>command.type !== 'END_TURN'), Math.max(1, config.branchWidth - 1)),
             endings.sort((left, right)=>commandKey(left).localeCompare(commandKey(right)))[0]
           ]
-        : ranked.slice(0, config.branchWidth);
+        : selectDiverseAiCommands(ranked, config.branchWidth);
 
       for(const command of candidates){
         const state = simulateCommand(node.state, command, context, ++serial);
@@ -504,8 +600,8 @@ export function planStrategicV3AiTurn(commands = [], projection, context = {}){
         const sequence = [...node.sequence, command];
         const prior = scoreStrategicV3AiCommand(command, node.projection, context);
         const score = boardPositionScore(nextProjection, playerIndex, context)
-          + Math.max(-20, Math.min(20, prior * .02))
-          + Math.min(actions, config.depth) * .35;
+          + (state.outcome ? 0 : Math.max(-20, Math.min(20, prior * .02))
+          + Math.min(actions, config.depth) * .35);
         const child = {
           state,
           projection:nextProjection,
@@ -527,20 +623,30 @@ export function planStrategicV3AiTurn(commands = [], projection, context = {}){
       }
     }
     next.sort(nodeSort);
-    frontier = next.slice(0, config.beamWidth);
+    frontier = diverseFrontier(next, config.beamWidth);
   }
 
   completed.push(...frontier);
   const viable = completed.filter(node=>node.sequence.length > 0);
   if(!viable.length) return null;
   viable.sort(nodeSort);
-  const best = viable[0];
+  const finalists = diverseFrontier(viable, config.beamWidth);
+  let replySimulations = 0;
+  for(const node of finalists){
+    const reply = evaluateAiCounterplay(node.state, playerIndex, context);
+    replySimulations += reply.simulations;
+    node.score += reply.score-boardPositionScore(node.projection, playerIndex, context);
+  }
+  finalists.sort(nodeSort);
+  if(typeof context.onPlanEvaluated === 'function') context.onPlanEvaluated(finalists.map(node=>({score:node.score,sequence:node.sequence})));
+  const best = finalists[0];
   return {
     command:best.sequence[0],
     sequence:best.sequence,
     score:best.score,
     actions:best.actions,
-    depth:config.depth
+    depth:config.depth,
+    replySimulations
   };
 }
 
@@ -552,15 +658,19 @@ export function chooseStrategicV3AiCommand(commands = [], projection, context = 
   if(cache && Array.isArray(cache.sequence) && cache.sequence.length){
     const expected = cache.sequence[0];
     const matching = commands.find(command=>commandKey(command) === commandKey(expected));
-    if(matching){
+    if(matching && (cache.expectedRevision == null || cache.expectedRevision === projection.revision)){
       cache.sequence.shift();
+      cache.expectedRevision = Number(projection.revision)+1;
       return matching;
     }
     cache.sequence.length = 0;
   }
   const plan = planStrategicV3AiTurn(commands, projection, context);
   if(plan?.command){
-    if(cache) cache.sequence = plan.sequence.slice(1);
+    if(cache){
+      cache.sequence = plan.sequence.slice(1);
+      cache.expectedRevision = Number(projection.revision)+1;
+    }
     return plan.command;
   }
   return [...commands]

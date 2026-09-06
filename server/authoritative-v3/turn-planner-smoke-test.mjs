@@ -51,7 +51,7 @@ for(let index = 0; index < plan.sequence.length; index += 1){
   );
   assert(exactLegal, `planned command ${index + 1} must remain legal after prior simulated actions`);
   const result = reduceCommand(simulated, {
-    ...command,
+    type:command.type,
     commandId:`turn-planner-smoke:${index + 1}`,
     matchId:simulated.matchId,
     expectedRevision:simulated.revision,
@@ -66,7 +66,7 @@ assert(
 );
 
 const firstResult = reduceCommand(state, {
-  ...plan.sequence[0],
+  type:plan.sequence[0].type,
   commandId:'turn-planner-cache:1',
   matchId:state.matchId,
   expectedRevision:state.revision,

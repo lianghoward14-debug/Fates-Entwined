@@ -5660,6 +5660,8 @@
   }
   function phase7SyncInteractionUi(){
     if(!phase7CurrentUiActive()) return;
+    // Recorded choices arrive in snapshots; replay must never open live pickers.
+    if(gameState()?._warReplayMode) return;
     if(phase7CurrentUiSession.presentationBusy){
       setTimeout(phase7SyncInteractionUi, 80);
       return;
@@ -5962,6 +5964,7 @@
     });
   }
   function phase7FastPresentationMode(){
+    if(gameState()?._warReplayMode) return false;
     const query = new URLSearchParams(location.search || '');
     return query.get('fateV3FullUiE2E') === '1'
       && query.get('fateV3PresentationE2E') !== '1';
@@ -7048,7 +7051,7 @@
   function phase7RenderAuthoritativeOutcome(view, outcome){
     if(!view?.state || !outcome) return false;
     let warfrontCompletion = null;
-    try { warfrontCompletion = window.fateCompleteWarfrontMatch?.(view, outcome) || null; } catch(error) { console.warn('Warfront match reporting failed', error); }
+    try { if(!gameState()?._warReplayMode) warfrontCompletion = window.fateCompleteWarfrontMatch?.(view, outcome) || null; } catch(error) { console.warn('Warfront match reporting failed', error); }
     const localIndex = Number(view.playerIndex) === 1 ? 1 : 0;
     const winner = Number.isInteger(Number(outcome.winner)) ? Number(outcome.winner) : null;
     const isDraw = String(outcome.type || '').toUpperCase() === 'DRAW' || winner === null;
@@ -7162,6 +7165,7 @@
     const returnButton = winScreen?.querySelector('.win-return-action .btn');
     if(returnButton){
       returnButton.onclick = function(){
+        if(gameState()?._warReplayMode){window.exitWarReplay?.();return;}
         const exit = phase7CurrentUiSession.onExit;
         if(typeof window.cleanupGame === 'function') window.cleanupGame();
         if(typeof exit === 'function') exit();
@@ -7173,6 +7177,9 @@
     return true;
   }
   function phase7PresentAuthoritativeOutcome(view, outcome){
+    const replayGame=gameState()?._warReplayMode?gameState():null;
+    const generation=phase7CurrentUiSession.presentationGeneration;
+    const current=()=>!replayGame||(gameState()===replayGame&&phase7CurrentUiSession.mounted&&generation===phase7CurrentUiSession.presentationGeneration);
     const zoneResults = phase7OutcomeZoneResults(outcome);
     const e2eFast = new URLSearchParams(location.search || '').get('fateV3FullUiE2E') === '1';
     const conceded = String(outcome?.type || '').toUpperCase() === 'CONCEDED';
@@ -7184,7 +7191,7 @@
         drawByFate:String(outcome.reason || '').toUpperCase() === 'TOTAL_FATE',
         p0wins:Number(outcome.zoneWins?.[0] || 0),
         p1wins:Number(outcome.zoneWins?.[1] || 0),
-        onComplete:function(){ phase7RenderAuthoritativeOutcome(view, outcome); }
+        onComplete:function(){ if(current()) phase7RenderAuthoritativeOutcome(view, outcome); }
       });
       return true;
     }
@@ -7252,7 +7259,7 @@
       legacy._turnStartedAt = Number(g._turnStartedAt);
     }
     g._onlineRoomCode = String(view.state.matchId || 'PHASE7');
-    g._onlineRole = localIndex === 0 ? 'host' : 'guest';
+    g._onlineRole = g._warReplayMode ? 'spectator' : (localIndex === 0 ? 'host' : 'guest');
     g._onlinePlayerIndex = localIndex;
     g.localPlayerIndex = localIndex;
     g.viewerPlayerIndex = localIndex;
@@ -7294,7 +7301,7 @@
     g._phase7PendingHandLimit = cloneOnlinePlain(view.state.pendingHandLimit || null);
     if(!g._phase7PendingHandLimit) delete g._authoritativeHandLimitModalCloseAllowedUntil;
     g._phase7Outcome = cloneOnlinePlain(view.state.outcome || null);
-    const ownsMandatoryHandLimit = g._phase7PendingHandLimit
+    const ownsMandatoryHandLimit = !g._warReplayMode && g._phase7PendingHandLimit
       && Number(g._phase7PendingHandLimit.playerIndex) === localIndex;
     if(ownsMandatoryHandLimit){
       const handLimitMatchId = String(view.state.matchId || '');
@@ -7335,6 +7342,12 @@
     setTimeout(resyncStatusBanners, 600);
     phase7ResyncStatusBannersWhenGameReady(statusMatchId, statusRevision, 0);
     if(previousPhase === 'coin' && String(view.state.phase || '') === 'main'){
+      if(g._warReplayMode){
+        // The recorded snapshot already contains the opening state.
+        // chooseTurn would re-run local setup and start a live turn timer.
+        if(typeof window.showScreen === 'function') window.showScreen('s-game');
+        return applied;
+      }
       const winner = Number(view.state.coinFlip?.winner);
       const goFirst = Number(view.state.activePlayer) === winner;
       setTimeout(function(){
@@ -7529,7 +7542,8 @@
     const outcomeKey = outcome ? JSON.stringify(outcome) : '';
     if(!outcomeKey || phase7CurrentUiSession.outcomeKey === outcomeKey) return;
     phase7CurrentUiSession.outcomeKey = outcomeKey;
-    setTimeout(function(){ phase7PresentAuthoritativeOutcome(view, outcome); }, 80);
+    const generation=phase7CurrentUiSession.presentationGeneration;
+    setTimeout(function(){ if(generation===phase7CurrentUiSession.presentationGeneration && phase7CurrentUiSession.mounted) phase7PresentAuthoritativeOutcome(view, outcome); }, 80);
   }
   function phase7PresentCardSetAuraOverlays(events){
     for(const event of events || []){
@@ -17538,6 +17552,7 @@
       phase7CurrentUiSession.pickerKey = '';
       phase7CurrentUiSession.consolidation = null;
       phase7CurrentUiSession.outcomeKey = '';
+      phase7CurrentUiSession.coinPresentationKey = '';
       phase7CurrentUiSession.seenPresentationBatchIds = new Set();
       phase7CurrentUiSession.presentationGeneration += 1;
       phase7CurrentUiSession.presentationTail = Promise.resolve();
@@ -17549,6 +17564,8 @@
       phase7ApplyCurrentView(initial, 'Phase 7 replay bootstrap');
       return {
         async render(nextView){
+          const batchId=String(nextView?.presentationBatch?.id || '');
+          if(batchId) phase7CurrentUiSession.seenPresentationBatchIds.delete(batchId);
           phase7ApplyCurrentView(cloneOnlinePlain(nextView), 'Phase 7 replay snapshot');
           await Promise.resolve(phase7CurrentUiSession.presentationTail);
           return true;

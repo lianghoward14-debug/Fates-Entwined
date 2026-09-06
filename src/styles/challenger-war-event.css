@@ -1100,3 +1100,6 @@ body .warfront-deck-picker .deck-slate-row{border-left:4px solid #c69e3d!importa
 
 @media(max-height:850px){#s-challenger .war2-objective{transform:translate(-50%,-50%) scale(.88)!important}.war2-stacked-duel .war2-avatar{width:70px!important;height:70px!important;flex-basis:70px!important}}
 
+
+/* Coin choices are recorded decisions during replay. */
+body.war-replay-active #coin-btns{pointer-events:none!important;}

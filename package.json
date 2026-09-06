@@ -6,6 +6,7 @@
   "private": true,
   "main": "electron/main.js",
   "scripts": {
+    "smoke:warfront": "node server/warfront-regression-suite.cjs",
     "start": "electron .",
     "electron": "electron .",
     "electron:p1": "electron . --allow-multiple-instances --session=player1",
@@ -44,6 +45,8 @@
     "smoke:lore": "node server/fate-lore-card-information-5-smoke-test.js",
     "smoke:ai-intelligence": "node server/fate-ai-intelligence-smoke-test.js && node server/authoritative-v3/morale-ai-policy-smoke-test.mjs && node server/authoritative-v3/turn-planner-smoke-test.mjs",
     "smoke:ai-deck-pool": "node server/fate-ai-deck-pool-smoke-test.js",
+    "smoke:ai-tactics": "node server/authoritative-v3/ai-tactical-benchmark.mjs",
+    "benchmark:ai": "node server/authoritative-v3/ai-tactical-benchmark.mjs --games 4",
     "train:ai-full-game": "node server/fate-full-game-self-play-cli.js",
     "inventory:authority-v3": "node tools/generate-authority-v3-card-inventory.mjs",
     "smoke:authority-v3-phase0": "node server/authoritative-v3/phase0-gate-smoke-test.mjs && node server/authoritative-v3/phase0-recorder-runtime-smoke-test.mjs",

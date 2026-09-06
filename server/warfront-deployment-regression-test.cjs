@@ -6,7 +6,7 @@ const handler=source.slice(source.indexOf('window.joinWarEventZone='),source.ind
 async function run(){
   let resolve,requests=0,timer,refreshes=0,simulation=false;
   const messages=[];
-  const c={window:{toast:true,FateOnline:{flyApiRequest:()=>{requests++;return new Promise(r=>resolve=r);}}},toast:m=>messages.push(m),state:{status:'enrollment',zones:[{id:'front',a:null,b:null}]},deploymentPending:null,selectedTeam:'a',TEAMS:{a:{},b:{}},lifecycle(){},me:()=>({uid:'me'}),meta:()=>({name:'Front'}),localStorage:{getItem:()=>simulation},storageKey:x=>x,SIMBACKUP:'sim',save(){},rerender(){},warSfx(){},remoteEligible:()=>true,AbortController,setTimeout:fn=>{timer=fn;return 1;},clearTimeout(){},pullRemoteState:()=>{refreshes++;},Date};
+  const c={simulationSession:false,window:{toast:true,FateOnline:{flyApiRequest:()=>{requests++;return new Promise(r=>resolve=r);}}},toast:m=>messages.push(m),state:{status:'enrollment',zones:[{id:'front',a:null,b:null}]},deploymentPending:null,selectedTeam:'a',TEAMS:{a:{},b:{}},lifecycle(){},me:()=>({uid:'me'}),meta:()=>({name:'Front'}),localStorage:{getItem:()=>simulation},storageKey:x=>x,SIMBACKUP:'sim',save(){},rerender(){},warSfx(){},remoteEligible:()=>true,AbortController,setTimeout:fn=>{timer=fn;return 1;},clearTimeout(){},pullRemoteState:()=>{refreshes++;},Date};
   c.seat=uid=>c.state.zones[0].a?.uid===uid?{zone:c.state.zones[0],team:'a'}:null;
   c.adoptRemoteState=s=>{c.state=s;};
   vm.createContext(c);vm.runInContext(handler,c);
@@ -20,10 +20,10 @@ async function run(){
   assert.equal(c.deploymentPending,null);assert.match(messages.at(-1),/timed out/);assert.equal(refreshes,1);
   const failed=c.window.joinWarEventZone('front','a');resolve({ok:true});await failed;
   assert.match(messages.at(-1),/not confirmed/);
-  simulation=true;const before=requests;await c.window.joinWarEventZone('front','a');
+  simulation=true;c.simulationSession=true;const before=requests;await c.window.joinWarEventZone('front','a');
   assert.equal(requests,before);assert.equal(c.state.zones[0].a.uid,'me');
   const adopt=source.slice(source.indexOf('function adoptRemoteState('),source.indexOf('\nasync function pushRemoteState'));
-  const stale={remoteEligible:()=>true,normalize:x=>x,clone:x=>x,state:{mapCode:'WF',_syncRevision:8}};
+  const stale={acceptedRemoteRevision:8,remoteEligible:()=>true,normalize:x=>x,clone:x=>x,state:{mapCode:'WF',_syncRevision:8}};
   vm.createContext(stale);vm.runInContext(adopt,stale);
   assert.equal(stale.adoptRemoteState({mapCode:'WF',_syncRevision:7}),false);
   console.log('Warfront deployment progress, duplicate clicks, timeout, confirmation, simulation and stale snapshot regressions passed');

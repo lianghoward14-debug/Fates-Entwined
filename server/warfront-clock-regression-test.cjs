@@ -5,7 +5,7 @@ const source=fs.readFileSync('server/authoritative-v3/server.mjs','utf8');
 let now=0;
 const sandbox={Date:{now:()=>now},fs:{readFileSync(){throw Error('missing');},writeFileSync(){}},path:{join:(...p)=>p.join('/')},DATA_DIR:'test',Map,JSON,encodeURIComponent};
 vm.createContext(sandbox);
-vm.runInContext(source.slice(source.indexOf('const turnTimers ='),source.indexOf('const disconnectForfeitTimers')),sandbox);
+vm.runInContext('const turnTimers = new Map();\n'+source.slice(source.indexOf('const turnClockUsage ='),source.indexOf('const disconnectForfeitTimers')),sandbox);
 vm.runInContext("turnTimers.set('m',{playerIndex:0,remainingMs:180000,deadlineAt:180000,suspended:false})",sandbox);
 now=30000;
 assert.equal(vm.runInContext("settleTurnClock('m').consumedMs[0]",sandbox),30000);

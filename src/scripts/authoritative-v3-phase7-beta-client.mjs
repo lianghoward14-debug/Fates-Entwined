@@ -690,6 +690,7 @@ async function startSpectating({matchId, playerIndex:requestedPerspective = 0} =
 }
 
 globalThis.fateAuthorityV3Beta = Object.freeze({
+  apiBaseUrl:API_URL,
   connect,
   disconnect,
   sendCommand,
@@ -700,6 +701,7 @@ globalThis.fateAuthorityV3Beta = Object.freeze({
   mountGameScreen,
   unmountGameScreen,
   subscribe,
+  replayView:()=>networkAdapter.view(),
   report,
   acceptMatchCredential(next){
     credential = validateCredential(next);

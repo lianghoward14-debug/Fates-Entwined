@@ -10924,7 +10924,7 @@ function showEffectActivationCinematic(card, opts) {
     const replayMinimum = typeof G !== 'undefined' && G && G._warReplayMode ? 350 : EFFECT_ACTIVATION_CINEMATIC_MIN_DURATION_MS;
     const duration = Math.max(
       replayMinimum,
-      Math.min(EFFECT_ACTIVATION_CINEMATIC_MAX_DURATION_MS, Number(options.duration) || defaultDuration)
+      Math.min(EFFECT_ACTIVATION_CINEMATIC_MAX_DURATION_MS, Number(options.duration) || (defaultDuration / (typeof G !== 'undefined' && G?._warReplayMode ? Math.max(1,Number(window.FATE_WAR_REPLAY_SPEED)||1) : 1)))
     );
     // Scale every visual beat with the total duration. The frame transitions
     // are also capped to the post-image-load entrance budget so they finish

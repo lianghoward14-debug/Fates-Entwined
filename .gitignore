@@ -1,5 +1,7 @@
 # Dependencies
 node_modules/
+.tools/
+ffmpeg-release-essentials.zip
 
 # Generated Electron/build outputs
 dist/

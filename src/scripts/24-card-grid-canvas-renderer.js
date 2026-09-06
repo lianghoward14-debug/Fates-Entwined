@@ -2,6 +2,24 @@
 // The canvas paints the card visuals; lightweight buttons preserve click/right-click behavior.
 (function(){
   const imageCache = new Map();
+  const imageWaiters = new WeakMap();
+  const pendingImageRedraws = new Set();
+  let imageRedrawScheduled = false;
+
+  function scheduleImageRedraw(redraw) {
+    if(typeof redraw !== 'function') return;
+    pendingImageRedraws.add(redraw);
+    if(imageRedrawScheduled) return;
+    imageRedrawScheduled = true;
+    const flush = function(){
+      imageRedrawScheduled = false;
+      const callbacks = Array.from(pendingImageRedraws);
+      pendingImageRedraws.clear();
+      callbacks.forEach(function(callback){ callback(false); });
+    };
+    if(typeof requestAnimationFrame === 'function') requestAnimationFrame(flush);
+    else setTimeout(flush, 0);
+  }
 
   function isEnhancedVisualFxOn() {
     try {
@@ -15,15 +33,21 @@
   function getImage(src, redraw) {
     if(!src) return null;
     let img = imageCache.get(src);
-    if(img) return img;
+    if(img) {
+      const waiters = imageWaiters.get(img);
+      if(waiters && typeof redraw === 'function') waiters.add(redraw);
+      return img;
+    }
     img = new Image();
+    const waiters = new Set();
+    if(typeof redraw === 'function') waiters.add(redraw);
+    imageWaiters.set(img, waiters);
     img.decoding = 'async';
     img.loading = 'eager';
     img.onload = function(){
-      if(typeof redraw === 'function') {
-        if(typeof requestAnimationFrame === 'function') requestAnimationFrame(function(){ redraw(false); });
-        else redraw(false);
-      }
+      waiters.forEach(scheduleImageRedraw);
+      waiters.clear();
+      imageWaiters.delete(img);
     };
     img.onerror = function(){
       const fallback = typeof window.getFullCardImageFallbackSrc === 'function'
@@ -34,7 +58,9 @@
         img.src = fallback;
         return;
       }
-      if(typeof redraw === 'function') redraw(false);
+      waiters.forEach(scheduleImageRedraw);
+      waiters.clear();
+      imageWaiters.delete(img);
     };
     img.src = src;
     imageCache.set(src, img);
@@ -227,6 +253,7 @@
     let rects = [];
     let resizeTimer = 0;
     let scrollRaf = 0;
+    let disposed = false;
     let lastVirtualKey = '';
     // Collection/deck-builder callers opt in explicitly. Keep the rarity treatment
     // independent from the global enhanced-FX and scrolling-performance switches.
@@ -379,7 +406,7 @@
     }
 
     function draw(syncHits, scrollOnly) {
-      if(!ctx) return;
+      if(!ctx || disposed) return;
       if(syncHits === undefined) syncHits = true;
       state.time = (window.performance && performance.now) ? performance.now() : Date.now();
       const layout = computeLayout();
@@ -462,6 +489,9 @@
       container.__fateCanvasGridResizeObserver = ro;
     }
     container.__fateCanvasGridCleanup = function(){
+      disposed = true;
+      clearTimeout(resizeTimer);
+      pendingImageRedraws.delete(state.redraw);
       if(scrollRaf) cancelAnimationFrame(scrollRaf);
       scrollRaf = 0;
       if(virtualize) container.removeEventListener('scroll', onScroll);

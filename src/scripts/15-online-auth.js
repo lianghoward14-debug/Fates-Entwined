@@ -338,7 +338,12 @@ async function flyApiRequest(route, options={}){
     init.body = JSON.stringify(options.body || {});
   }
   if(options.signal) init.signal = options.signal;
-  const response = await fetch(authorityHttpBaseUrl() + route, init);
+  // Warfront and its reserved matches must use the same authority. Historical
+  // per-installation debug URLs must not split the campaign between players.
+  const baseUrl = route.startsWith('/api/warfront/')
+    ? (window.fateAuthorityV3Beta?.apiBaseUrl || 'https://fates-entwined-main.fly.dev')
+    : authorityHttpBaseUrl();
+  const response = await fetch(baseUrl + route, init);
   if(!response.ok){
     const message = await response.text().catch(()=>'');
     throw new Error(`Fate authority API failed: ${response.status}${message ? ` ${message.slice(0, 160)}` : ''}`);

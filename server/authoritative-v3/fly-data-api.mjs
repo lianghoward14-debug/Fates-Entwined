@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import {warfrontReportStats} from './warfront-report.mjs';
 
 const FIREBASE_PROJECT_ID = String(process.env.FATE_FIREBASE_PROJECT_ID || 'fates-entwined-41491');
 const DATA_DIR = path.resolve(process.env.FATE_FLY_DATA_API_DIR || path.join(process.cwd(), '.tmp', 'fate-authority'));
@@ -94,7 +95,7 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
       if(!replay||typeof replay!=='object'||!Array.isArray(replay.actions)){delete match.replay;return match;}
       replay.version=Math.max(1,Math.floor(Number(replay.version)||1));
       replay.hands=replay.hands&&typeof replay.hands==='object'?replay.hands:{a:[],b:[]};
-      replay.actions=replay.actions.slice(0,500).map(action=>action&&typeof action==='object'?action:{});
+      replay.actions=replay.actions.map(action=>action&&typeof action==='object'?action:{});
       const bytes=Buffer.byteLength(JSON.stringify(replay),'utf8');
       if(bytes>8000000)delete match.replay;
       return match;
@@ -227,9 +228,12 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
   function finishWarfrontEvent(){
     const completed=clone(warfrontEvent),zoneScore=zone=>{let a=0,b=0;for(const match of zone.matches||[]){if(match?.voidedByForfeit)continue;const value=Math.max(1,Math.min(5,Number(match.starValue)||1));if(match.winnerTeam==='a')a+=value;if(match.winnerTeam==='b')b+=value;}return{a,b,played:a+b,bonus:a>=3?'a':b>=3?'b':null};};
     const score={a:0,b:0,match:{a:0,b:0},award:{a:0,b:0}};
+    const {achievements,playerStats}=warfrontReportStats(completed.zones);
+    for(const award of achievements)if(award.leader){score[award.leader.team]+=2;score.award[award.leader.team]+=2;}
     for(const zone of completed.zones){const z=zoneScore(zone);for(const team of ['a','b']){score[team]+=z[team]+(z.bonus===team?1:0);score.match[team]+=z[team]+(z.bonus===team?1:0);}}
     const players=[];for(const zone of completed.zones)for(const team of ['a','b'])if(zone[team])players.push({...clone(zone[team]),team,zoneId:zone.id,matches:zoneScore(zone).played,wins:zoneScore(zone)[team],losses:zoneScore(zone)[team==='a'?'b':'a']});
-    const report={mapCode:completed.mapCode,sequence:completed.sequence,startedAt:completed.startedAt,completedAt:Date.now(),reason:'command',teams:clone(completed.teams),score,winner:score.a===score.b?'draw':score.a>score.b?'a':'b',players,zones:clone(completed.zones),achievements:[],matches:completed.zones.reduce((sum,zone)=>sum+zoneScore(zone).played,0)};
+    for(const player of players)Object.assign(player,playerStats(player.uid));
+    const report={mapCode:completed.mapCode,sequence:completed.sequence,startedAt:completed.startedAt,completedAt:Date.now(),reason:'command',teams:clone(completed.teams),score,winner:score.a===score.b?'draw':score.a>score.b?'a':'b',players,zones:clone(completed.zones),achievements,matches:completed.zones.reduce((sum,zone)=>sum+zoneScore(zone).played,0)};
     const sequence=Math.max(1,Number(completed.sequence)||1)+1;
     warfrontEvent={...completed,sequence,mapCode:`WF-${String(sequence).padStart(2,'0')}-${crypto.randomBytes(2).toString('hex').slice(0,3).toUpperCase()}`,status:'enrollment',createdAt:Date.now(),startedAt:0,endsAt:0,nextTeam:null,lastResult:report,postWarUntil:report.completedAt+24*60*60*1000,zones:completed.zones.map(zone=>({id:zone.id,a:null,b:null,matches:[],landscape:clone(zone.landscape||null),bans:{a:[],b:[]},bansLocked:{a:false,b:false}})),archives:[report,...(completed.archives||[])].slice(0,30),_syncRevision:Number(completed._syncRevision||0)+1,_updatedAt:Date.now()};
     warfrontBindings.clear();persist();return warfrontStateForClient();
@@ -518,6 +522,7 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
         binding.playerIds[seat]=String(c.playerId);
         warfrontBindings.set(c.matchId,binding);
         zone.activeMatch={matchId:c.matchId,teamASeat:team==='a'?seat:1-seat,startedAt:zone.activeMatch?.startedAt||Date.now()};
+        warfrontEvent._syncRevision=Number(warfrontEvent._syncRevision||0)+1;warfrontEvent._updatedAt=Date.now();
         persist();settleWarfrontForfeit(match);
         writeJson(res,200,{ok:true});return true;
       }
@@ -530,6 +535,9 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
         if(req.method==='GET'){await verifiedUid(req);writeJson(res,200,{ok:true,state:warfrontStateForClient()});return true;}
         const body=await readBody(req);await requireSelf(req,body.uid);const incoming=sanitizeWarfrontState(body.state);
         if(!incoming)throw new Error('invalid Warfront event state');
+        // A delayed upload from the previous campaign must not import its
+        // completed matches into the new campaign under a rewritten map code.
+        if(warfrontEvent&&incoming.mapCode!==warfrontEvent.mapCode){writeJson(res,200,{ok:true,state:warfrontStateForClient()});return true;}
         if(warfrontEvent){incoming.mapCode=warfrontEvent.mapCode;incoming.sequence=warfrontEvent.sequence;incoming.status=warfrontEvent.status;incoming.startedAt=warfrontEvent.startedAt;incoming.endsAt=warfrontEvent.endsAt;incoming.lastResult=clone(warfrontEvent.lastResult);incoming.postWarUntil=warfrontEvent.postWarUntil;incoming.archives=clone(warfrontEvent.archives);for(const zone of incoming.zones){const serverZone=warfrontEvent.zones.find(row=>row.id===zone.id);zone.a=clone(serverZone?.a||null);zone.b=clone(serverZone?.b||null);}}
         warfrontEvent=mergeWarfrontState(warfrontEvent,incoming);persist();writeJson(res,200,{ok:true,state:warfrontStateForClient()});return true;
       }

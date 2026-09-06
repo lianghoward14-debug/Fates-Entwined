@@ -464,7 +464,16 @@ async function aiChooseMoveWithMCTS(moves, settings, ctx) {
   if(!scored) return null;
 
   const pruneThreshold = bestBaseScore - 25;
-  const viable = moveScores.filter(ms => ms.baseScore >= pruneThreshold);
+  const setupCandidates = new Set();
+  const setupFamilies = new Set();
+  for(const ms of [...moveScores].sort((a,b)=>b.baseScore-a.baseScore)){
+    const family = `${ms.move.type}:${ms.move.card?.iid || ms.move.card?.id || ''}`;
+    if(setupFamilies.has(family)) continue;
+    setupFamilies.add(family);
+    setupCandidates.add(ms);
+    if(setupCandidates.size >= cfg.maxCandidates) break;
+  }
+  const viable = moveScores.filter(ms => ms.baseScore >= pruneThreshold || setupCandidates.has(ms));
   if(!viable.length) return null;
 
   let bestCombined = -Infinity;
@@ -483,7 +492,19 @@ async function aiChooseMoveWithMCTS(moves, settings, ctx) {
   }
 
   viable.sort((a,b)=>b.combined-a.combined);
-  const candidates = viable.slice(0, Math.min(cfg.maxCandidates, viable.length));
+  const candidates = [];
+  const candidateFamilies = new Set();
+  for(const ms of viable){
+    const family = `${ms.move.type}:${ms.move.card?.iid || ms.move.card?.id || ''}`;
+    if(candidateFamilies.has(family)) continue;
+    candidates.push(ms);
+    candidateFamilies.add(family);
+    if(candidates.length >= cfg.maxCandidates) break;
+  }
+  for(const ms of viable){
+    if(candidates.length >= cfg.maxCandidates) break;
+    if(!candidates.includes(ms)) candidates.push(ms);
+  }
   if(cfg.enabled && candidates.length > 1){
     await aiRunRootMCTS(candidates, cfg, ctx);
   }

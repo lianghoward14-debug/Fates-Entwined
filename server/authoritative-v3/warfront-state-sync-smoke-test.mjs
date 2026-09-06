@@ -33,6 +33,14 @@ const sanitized=api.testSanitizeWarfrontState(completed);
 assert.equal(Object.hasOwn(sanitized.archives[0],'localReward'),false,'personal rewards must never be synchronized to another account');
 assert.equal(Array.isArray(sanitized.archives[0].zones[0].matches[0].replay.actions),true,'archive replays must remain replayable');
 
+const longReplay=fresh();
+longReplay.zones[0].matches=[{id:'long-replay',replay:{version:6,teamASeat:1,recordedPerspective:'b',actions:Array.from({length:650},(_,i)=>({atMs:i*1500,view:{playerIndex:0,state:{revision:i},presentationBatch:{id:String(i),events:[{type:'CARD_DRAWN'}]}}}))}}];
+const preserved=api.testSanitizeWarfrontState(longReplay).zones[0].matches[0].replay;
+assert.equal(preserved.actions.length,650,'shared storage must not truncate full matches after 500 actions');
+assert.equal(preserved.actions.at(-1).atMs,649*1500,'preserve original replay timing');
+assert.equal(preserved.actions.at(-1).view.presentationBatch.events[0].type,'CARD_DRAWN','retain the normal presentation payload');
+assert.equal(preserved.teamASeat,1,'retain team-to-seat mapping');
+
 const next=fresh(2);
 next.archives=[{mapCode:'WF-1-SYNC',zones:[]}];
 merged=api.testMergeWarfrontState(completed,next);
