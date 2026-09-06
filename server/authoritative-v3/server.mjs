@@ -728,7 +728,7 @@ const server = http.createServer(async (req, res)=>{
       const body = await readBody(req);
       let pendingDelivery = betaDeliveries.get(queuePlayerId) || betaDeliveries.get(identity.uid) || null;
       if(pendingDelivery){
-        const pendingMatch = resolveMatchState(pendingDelivery.matchId);
+        const pendingMatch = manager.actor(pendingDelivery.matchId)?.state;
         const requestedMode = ['ranked','warfront'].includes(String(body.queueMode || '')) ? String(body.queueMode) : 'freeplay';
         const requestedWarfrontKey = requestedMode === 'warfront' ? String(body.matchmakingKey || '') : '';
         const deliveryIsCurrent = pendingMatch

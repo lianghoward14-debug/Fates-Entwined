@@ -53,5 +53,16 @@ try{
   const results=await Promise.race([Promise.all([a.c.startUnrankedMatchmaking({...request,onStatus:s=>a.statuses.push(s)}),b.c.startUnrankedMatchmaking({...request,onStatus:s=>b.statuses.push(s)})]),new Promise((_,reject)=>{timeout=setTimeout(()=>reject(Error('Both players failed to enter a reserved match')),12000);})]);
   assert(a.statuses.some(s=>s.reconnecting),'temporary request failures recover visibly');assert(results.every(x=>x.ok));assert.equal(results[0].credential.matchId,results[1].credential.matchId);assert.notEqual(results[0].connection.playerIndex,results[1].connection.playerIndex);assert(a.mounted()&&b.mounted());
   const state=await jsonRequest('/api/warfront/state',{authorization:`Bearer ${token('alpha')}`});assert.equal(state.state.zones[2].activeMatch.matchId,results[0].credential.matchId);
-  console.log('Two accounts in player1/player2 desktop sessions enter, match, bind their accounts, receive private coin-phase views over WebSockets and reach the UI bridge through the full production client');
+  const normal={...request,queueMode:'freeplay',matchmakingKey:''};
+  const headersA={authorization:'Bearer '+token('returning-alpha')};
+  const headersB={authorization:'Bearer '+token('returning-bravo')};
+  assert.equal((await jsonRequest('/v3/beta/matchmaking/enter',headersA,{method:'POST',body:normal})).status,'waiting');
+  const paired=await jsonRequest('/v3/beta/matchmaking/enter',headersB,{method:'POST',body:normal});
+  assert.equal(paired.status,'matched');
+  const returned=await jsonRequest('/v3/beta/matchmaking/enter',headersA,{method:'POST',body:normal});
+  assert.equal(returned.status,'matched','a retry before WebSocket handshake must recover the delivery');
+  assert.equal(returned.credential.matchId,paired.credential.matchId);
+  const switched=await jsonRequest('/v3/beta/matchmaking/enter',headersA,{method:'POST',body:{...normal,queueMode:'ranked'}});
+  assert.equal(switched.status,'waiting','a delivery from another mode must not block normal matchmaking');
+  console.log('Warfront production clients connect, recover active deliveries and switch to normal matchmaking');
 }finally{clearTimeout(timeout);for(const c of clients)c.fateAuthorityV3Beta.disconnect({forget:true});child.kill();await new Promise(resolve=>child.exitCode!==null?resolve():child.once('exit',resolve));fs.rmSync(dir,{recursive:true,force:true});}

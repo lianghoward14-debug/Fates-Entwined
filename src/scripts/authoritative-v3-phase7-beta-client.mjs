@@ -488,10 +488,12 @@ async function startUnrankedMatchmaking({deckIds, name = '', photoURL = '', rank
     while(!cancelled()){
       try{ return await request(); }
       catch(error){
-        if([400, 403, 426].includes(Number(error?.status))) throw error;
+        const status=Number(error?.status)||0;
+        if(status>=400&&status<500&&![408,429].includes(status)) throw error;
         attempt += 1;
+        if(attempt>=6)throw new Error('Could not reconnect to the authoritative queue. '+String(error?.message||'Connection failed')+' Please try again.');
         if(typeof onStatus === 'function'){
-          onStatus({status:'waiting', reconnecting:true, message:'Reconnecting to the authoritative queue...'});
+          onStatus({status:'waiting', reconnecting:true, message:'Reconnecting to the authoritative queue ('+attempt+'/6)...'});
         }
         await new Promise(resolve=>setTimeout(resolve, Math.min(4000, 500 * attempt)));
       }
@@ -500,7 +502,7 @@ async function startUnrankedMatchmaking({deckIds, name = '', photoURL = '', rank
   };
   let result = await recoverableRequest(enterQueue);
   while(!cancelled() && result.status === 'waiting'){
-    if(typeof onStatus === 'function') onStatus({status:'waiting'});
+    if(typeof onStatus === 'function') onStatus({status:'waiting',reconnecting:false,message:'Waiting for an opponent...'});
     await new Promise(resolve=>setTimeout(resolve, 900));
     result = await recoverableRequest(()=>matchmakingRequest('/v3/beta/matchmaking/status'));
     // A rolling deployment or recovery can briefly return idle between the
