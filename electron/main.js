@@ -283,7 +283,7 @@ async function writeDiagnosticLine(paths, payload, reset) {
 function clampZoomFactor(value) {
   const n = Number(value);
   if (!Number.isFinite(n)) return 1;
-  return Math.max(0.75, Math.min(1.35, Math.round(n * 100) / 100));
+  return Math.max(0.75, Math.min(3, Math.round(n * 100) / 100));
 }
 
 ipcMain.handle('fate:get-zoom-factor', (event) => {

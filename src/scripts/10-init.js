@@ -154,7 +154,7 @@ function initCtrlWheelZoom(){
   window.__FATES_CTRL_WHEEL_ZOOM_INSTALLED = true;
 
   var minZoom = 0.75;
-  var maxZoom = 1.35;
+  var maxZoom = 3;
   var zoomStorageKey = 'fate_game_zoom';
   var zoom = readStoredZoom();
   var zoomIndicatorTimer = 0;
