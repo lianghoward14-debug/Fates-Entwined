@@ -219,6 +219,11 @@ export class AuthorityV3RoomManager {
         : null
     });
     state.warfrontMatch = input.mode === 'warfront';
+    // Only server-created Warfront AI seats receive automatic control.
+    if(state.warfrontMatch && input.aiSeats?.length){
+      state.aiTakeoverSeats=input.aiSeats.filter(seat=>seat===0||seat===1);
+      state.warfrontAiSeats=[...state.aiTakeoverSeats];
+    }
     if(state.warfrontMatch) state.warfrontMatchmakingKey=String(input.warfrontMatchmakingKey || '');
     if(this.allowOrganicTestFixtures){
       forceTestOpeningCards(state, players);

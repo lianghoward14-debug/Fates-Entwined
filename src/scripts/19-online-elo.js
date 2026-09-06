@@ -989,6 +989,7 @@
           opponentElo,
           roomCode:String(options.roomCode || ''),
           source:String(options.source || (isAI?'ai':'human')),
+          isAI:!!isAI,
           eloGainMultiplier:Math.max(1,Math.min(3,Number(options.eloGainMultiplier)||1)),
           oldElo,
           newElo,

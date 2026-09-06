@@ -94,6 +94,12 @@
       challengerAILosses:Math.round(challengerAILosses),
       challengerWins:Math.round(challengerWins),
       challengerLosses:Math.round(challengerLosses),
+      warfrontWins:number(recordSource.warfrontWins,0),
+      warfrontLosses:number(recordSource.warfrontLosses,0),
+      warfrontMatchWins:number(recordSource.warfrontMatchWins,0),
+      warfrontMatchLosses:number(recordSource.warfrontMatchLosses,0),
+      warfrontHumanWins:number(recordSource.warfrontHumanWins,0),
+      warfrontHumanLosses:number(recordSource.warfrontHumanLosses,0),
       totalWins:Math.round(totalWins),
       totalLosses:Math.round(totalLosses),
       matchesPlayed:Math.round(matchesPlayed),
@@ -168,7 +174,7 @@
     return '<section class="profile-view-overview" role="tabpanel" aria-label="Overview"><div class="profile-view-stats">' +
       statTile('Challenger ELO', model.elo, 'gold') + statTile('Level', model.level, 'green') + statTile('Win Rate', model.winRate + '%', 'blue') + statTile('Matches', model.matchesPlayed, 'red') +
       '</div><div class="profile-view-lower-grid"><section class="profile-view-bio-section"><div class="profile-view-section-label">About</div><p class="profile-view-bio' + (model.bio ? '' : ' is-empty') + '">' + escapeHtml(model.bio || (model.isSelf ? 'Add a bio to introduce yourself.' : 'No bio set yet.')) + '</p></section>' +
-      '<section class="profile-view-summary-section"><div class="profile-view-section-label">Career Summary</div><dl class="profile-view-summary-list"><div><dt>Overall record</dt><dd>' + model.totalWins + 'W / ' + model.totalLosses + 'L</dd></div><div><dt>Free Play Human</dt><dd>' + model.freePlayHumanWins + 'W / ' + model.freePlayHumanLosses + 'L</dd></div><div><dt>Challenger</dt><dd>' + model.challengerWins + 'W / ' + model.challengerLosses + 'L</dd></div></dl></section></div></section>';
+      '<section class="profile-view-summary-section"><div class="profile-view-section-label">Career Summary</div><dl class="profile-view-summary-list"><div><dt>Challenger Wins</dt><dd>' + model.challengerWins + 'W / ' + model.challengerLosses + 'L</dd></div><div><dt>Warfront Wins</dt><dd>' + model.warfrontWins + 'W / ' + model.warfrontLosses + 'L</dd></div><div><dt>Warfront Matches Win</dt><dd>' + model.warfrontMatchWins + 'W / ' + model.warfrontMatchLosses + 'L</dd></div></dl></section></div></section>';
   }
 
   function renderMedalPicker(){
@@ -180,12 +186,12 @@
   }
 
   function recordMarkup(model){
-    const aiTotal = model.challengerAIWins + model.challengerAILosses;
+    const aiTotal = model.warfrontHumanWins + model.warfrontHumanLosses;
     const humanTotal = model.challengerHumanWins + model.challengerHumanLosses;
-    const aiRate = aiTotal ? Math.round(model.challengerAIWins * 100 / aiTotal) : 0;
+    const aiRate = aiTotal ? Math.round(model.warfrontHumanWins * 100 / aiTotal) : 0;
     const humanRate = humanTotal ? Math.round(model.challengerHumanWins * 100 / humanTotal) : 0;
     return '<section class="profile-view-record" role="tabpanel" aria-label="Match record"><div class="profile-view-record-head"><div><span>Career Record</span><strong>' + model.totalWins + 'W / ' + model.totalLosses + 'L</strong></div><div><span>Overall Win Rate</span><strong>' + model.winRate + '%</strong></div></div>' +
-      '<div class="profile-view-record-table" role="table" aria-label="Challenger record by opponent"><div class="profile-view-record-row profile-view-record-labels" role="row"><span>Opponent</span><span>Wins</span><span>Losses</span><span>Win Rate</span></div><div class="profile-view-record-row" role="row"><strong>Challenger vs AI</strong><span>' + model.challengerAIWins + '</span><span>' + model.challengerAILosses + '</span><span>' + aiRate + '%</span></div><div class="profile-view-record-row" role="row"><strong>Challenger vs Human</strong><span>' + model.challengerHumanWins + '</span><span>' + model.challengerHumanLosses + '</span><span>' + humanRate + '%</span></div></div></section>';
+      '<div class="profile-view-record-table" role="table" aria-label="Challenger record by opponent"><div class="profile-view-record-row profile-view-record-labels" role="row"><span>Opponent</span><span>Wins</span><span>Losses</span><span>Win Rate</span></div><div class="profile-view-record-row" role="row"><strong>Warfront vs Human</strong><span>' + model.warfrontHumanWins + '</span><span>' + model.warfrontHumanLosses + '</span><span>' + aiRate + '%</span></div><div class="profile-view-record-row" role="row"><strong>Challenger vs Human</strong><span>' + model.challengerHumanWins + '</span><span>' + model.challengerHumanLosses + '</span><span>' + humanRate + '%</span></div></div></section>';
   }
 
   function render(){

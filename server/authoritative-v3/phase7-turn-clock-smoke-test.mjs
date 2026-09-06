@@ -22,6 +22,7 @@ assert.equal(sample().remainingMs, 175000);
 function browser(){
   let mono = 0;
   const context = vm.createContext({turnClock:null, credential:{matchId:'clock1'}, performance:{now:()=>mono}});
+  vm.runInContext(client.match(/^const monotonicNow = .*;$/m)[0], context);
   vm.runInContext(extract(client, 'function readTurnClock(', '\nasync function connect('), context);
   return {context, advance:ms=>{mono+=ms;}, receive:message=>context.applyServerMessage(message),
     value:()=>context.readTurnClock('clock1',1,0)};

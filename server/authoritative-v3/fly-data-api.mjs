@@ -604,6 +604,9 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
         // A delayed upload from the previous campaign must not import its
         // completed matches into the new campaign under a rewritten map code.
         if(warfrontEvent&&incoming.mapCode!==warfrontEvent.mapCode){writeJson(res,200,{ok:true,state:warfrontStateForClient()});return true;}
+        // Results are immutable on the authority. A client that was offline
+        // before the campaign ended must not append stale matches afterward.
+        if(warfrontEvent?.status==='results'){writeJson(res,200,{ok:true,state:warfrontStateForClient()});return true;}
         if(warfrontEvent){incoming.mapCode=warfrontEvent.mapCode;incoming.sequence=warfrontEvent.sequence;incoming.status=warfrontEvent.status;incoming.startedAt=warfrontEvent.startedAt;incoming.endsAt=warfrontEvent.endsAt;incoming.lastResult=clone(warfrontEvent.lastResult);incoming.postWarUntil=warfrontEvent.postWarUntil;incoming.archives=clone(warfrontEvent.archives);for(const zone of incoming.zones){const serverZone=warfrontEvent.zones.find(row=>row.id===zone.id);zone.a=clone(serverZone?.a||null);zone.b=clone(serverZone?.b||null);}}
         warfrontEvent=mergeWarfrontState(warfrontEvent,incoming);persist();writeJson(res,200,{ok:true,state:warfrontStateForClient()});return true;
       }

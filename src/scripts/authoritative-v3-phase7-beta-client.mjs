@@ -23,6 +23,7 @@ const WS_URL = LOCAL_TEST_API_URL
   ? `${LOCAL_TEST_API_URL.replace(/^http:/, 'ws:')}/v3/beta/socket`
   : 'wss://fates-entwined-main.fly.dev/v3/beta/socket';
 const CREDENTIAL_KEY = 'fateAuthorityV3Phase7BetaCredential';
+const monotonicNow = () => globalThis.performance?.now?.() ?? Date.now();
 
 if(globalThis.FATE_PHASE7_UNRANKED_BETA !== true
   || globalThis.FATE_PHASE7_UNRANKED_BETA_BLOCKED === true
@@ -263,7 +264,7 @@ function readTurnClock(matchId, turn, activePlayer){
   if(!turnClock || turnClock.matchId !== String(matchId)
     || Number(turnClock.turn) !== Number(turn)
     || Number(turnClock.activePlayer) !== Number(activePlayer)) return null;
-  const elapsed = turnClock.paused || !turnClock.active ? 0 : Math.max(0, performance.now() - turnClock.receivedAt);
+  const elapsed = turnClock.paused || !turnClock.active ? 0 : Math.max(0, monotonicNow() - turnClock.receivedAt);
   return {paused:turnClock.paused || !turnClock.active,
     remaining:Math.ceil(Math.max(0, turnClock.remainingMs - elapsed) / 1000)};
 }
@@ -273,7 +274,7 @@ function applyServerMessage(message){
     if(String(message.matchId) !== String(credential?.matchId)
       || !Number.isFinite(message.remainingMs) || message.remainingMs < 0
       || (turnClock && Number(message.revision) < Number(turnClock.revision))) return;
-    turnClock = {...message, receivedAt:performance.now()};
+    turnClock = {...message, receivedAt:monotonicNow()};
     globalThis.refreshAuthoritativeTurnTimer?.();
     return;
   }

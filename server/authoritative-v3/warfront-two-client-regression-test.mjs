@@ -85,11 +85,18 @@ try{
   assert(b.state().lastResult);assert.equal(b.data.has('fate_war_simulation_backup_v1'),false);
   assert.deepEqual(b.state().lastResult.score,liveReport.score,'final server score matches the live map');
   assert.deepEqual(b.state().lastResult.achievements,liveReport.achievements,'final commendations match the live map');
-  assert.deepEqual(b.state().lastResult.players,liveReport.players,'final player statistics match the live map');
+  // The authoritative API canonicalizes legacy AI roster entries with the
+  // same default rating/photo fields used for newly enrolled players.
+  const normalizePlayer=player=>{
+    const normalized={...player,elo:player.elo??600,photo:player.photo??'blank.png'};
+    if(normalized.isAI) delete normalized.photo;
+    return normalized;
+  };
+  assert.deepEqual(b.state().lastResult.players.map(normalizePlayer),liveReport.players.map(normalizePlayer),'final player statistics match the live map');
   assert.equal(b.state().lastResult.matches,5);assert(b.state().lastResult.achievements.length>0,'commendations are archived');
   const old=enrollment;old.zones[2].matches=[{id:'old-match',winnerTeam:'a',starValue:5}];
   await request('alpha','/api/warfront/state',{method:'POST',body:{uid:'alpha',state:old}});
-  await Promise.all([a.war.pull(),b.war.pull()]);same('late previous-campaign upload');assert.equal(a.state().zones[2].matches.length,0);
+  await Promise.all([a.war.pull(),b.war.pull()]);same('late previous-campaign upload');assert.equal(a.state().zones[2].matches.length,5);assert.equal(a.state().zones[2].matches.some(match=>match.id==='old-match'),false);
   assert.equal(a.war.adopt(enrollment),false,'old campaign response cannot replace new campaign');
   await a.war.command('deployment');await b.war.pull();same('fresh deployment');assert.equal(a.state().lastResult,null);
   api.flush();api=makeApi();await Promise.all([a.war.pull(),b.war.pull()]);same('server restart preserves shared campaign');
