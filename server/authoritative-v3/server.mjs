@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import {normalizeMultiplayerPhoto} from '../../shared/profile-photo.mjs';
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
@@ -703,7 +704,7 @@ const server = http.createServer(async (req, res)=>{
         writeJson(res, 426, {ok:false, error:'compatible Phase 7 client version is required'});
         return;
       }
-      const body = await readBody(req);
+      const body = await readBody(req, 2 * 1024 * 1024);
       if(BETA_MODE && String(body.mode || '') !== 'unranked'){
         writeJson(res, 400, {ok:false, error:'Phase 7 beta creates unranked matches only'});
         return;
@@ -725,7 +726,7 @@ const server = http.createServer(async (req, res)=>{
       }
       const queuePlayerId = phase7QueuePlayerId(req, identity);
       migrateLegacyBetaQueueIdentity(identity, queuePlayerId);
-      const body = await readBody(req);
+      const body = await readBody(req, 2 * 1024 * 1024);
       let pendingDelivery = betaDeliveries.get(queuePlayerId) || betaDeliveries.get(identity.uid) || null;
       if(pendingDelivery){
         const pendingMatch = manager.actor(pendingDelivery.matchId)?.state;
@@ -759,7 +760,7 @@ const server = http.createServer(async (req, res)=>{
         uid:queuePlayerId,
         authUid:identity.uid,
         name:String(body.name || identity.uid).slice(0, 80),
-        photoURL:String(body.photoURL || '').slice(0, 2048),
+        photoURL:normalizeMultiplayerPhoto(body.photoURL),
         rankElo:Math.max(0, Math.round(Number(body.rankElo) || 600)),
         deckIds,
         queueMode:['ranked','warfront'].includes(String(body.queueMode || '')) ? String(body.queueMode) : 'freeplay',

@@ -35,8 +35,10 @@ jobs:
         with:
           node-version: 20
 
-      - name: Verify Warfront before deployment
-        run: npm run smoke:warfront
+      - name: Verify shared online systems before deployment
+        run: |
+          npm run smoke:warfront
+          npm run smoke:marketplace
 
       - name: Deploy to Fly
         env:

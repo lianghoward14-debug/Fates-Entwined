@@ -8043,14 +8043,14 @@ function pickCardInZone(z, prompt, callback, filter=null, onCancel=null, sourceC
   }, filter, onCancel, sourceCard);
 }
 
-function pickMultipleInZone(z, max, prompt, callback, filter=null, onCancel=null, sourceCard=null) {
+function pickMultipleInZone(z, max, prompt, callback, filter=null, onCancel=null, sourceCard=null, minCount=1) {
   const viewerP = G.currentPlayer;
   const entries=[];
   G.board[z].forEach((row,r)=>row.forEach((cell,c)=>{
     if(cell&&(!filter||filter(cell,z,r,c))) entries.push({card:cell,z,r,c});
   }));
   if(!entries.length){toast('No valid targets in this zone');return false;}
-  return showZonePicker(z, prompt, entries, max, viewerP, callback, filter, onCancel, sourceCard);
+  return showZonePicker(z, prompt, entries, max, viewerP, callback, filter, onCancel, sourceCard, minCount);
 }
 
 function getBoardTargetPickerRowLabel(rowIndex, viewerP) {
@@ -8313,10 +8313,10 @@ function showBoardTargetPicker(opts, onConfirm) {
 }
 
 // Zone-shaped picker: shows the real zone with ownership rows and cell slots.
-function showZonePicker(z, prompt, entries, maxCount, viewerP, onConfirm, filter, onCancel, sourceCard) {
+function showZonePicker(z, prompt, entries, maxCount, viewerP, onConfirm, filter, onCancel, sourceCard, minCount=1) {
   const wait = (typeof getInteractionAnimationDelayMs === 'function' ? getInteractionAnimationDelayMs() : getPlacementUiDelayMs());
   if(wait > 0){
-    setTimeout(()=>showZonePicker(z, prompt, entries, maxCount, viewerP, onConfirm, filter, onCancel, sourceCard), wait);
+    setTimeout(()=>showZonePicker(z, prompt, entries, maxCount, viewerP, onConfirm, filter, onCancel, sourceCard, minCount), wait);
     return;
   }
   const pickerEntries = (entries || []).filter(function(entry){ return entry && entry.card; });
@@ -8327,6 +8327,7 @@ function showZonePicker(z, prompt, entries, maxCount, viewerP, onConfirm, filter
   showBoardTargetPicker({
     title:getMultiplayerBoardPromptTitle(sourceCard),
     prompt:prompt,
+    minCount:Math.max(0, Number(minCount) || 0),
     maxCount:Math.max(1, Math.min(maxCount || 1, pickerEntries.length)),
     confirmLabel:'Confirm',
     viewerPlayerIndex:viewerP,
@@ -8334,7 +8335,8 @@ function showZonePicker(z, prompt, entries, maxCount, viewerP, onConfirm, filter
     entries:pickerEntries,
     showZoneTitles:true,
     emptyMessage:'No valid targets in this zone',
-    onCancel:onCancel
+    onCancel:onCancel,
+    sourceCard:sourceCard
   }, function(chosen){
     onConfirm(chosen);
   });

@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import {normalizeMultiplayerPhoto} from '../../shared/profile-photo.mjs';
 import {createRequire} from 'node:module';
 import {
   ENGINE_VERSION,
@@ -40,7 +41,7 @@ function validatePlayer(player, seat){
   const testDeckTopCardIds = Array.isArray(player?.testDeckTopCardIds)
     ? player.testDeckTopCardIds.map(String).filter(Boolean).slice(0, 2)
     : [];
-  return {id, name:String(player?.name || `Player ${seat + 1}`).slice(0, 80), photoURL:String(player?.photoURL || '').slice(0, 2048), rankElo:Math.max(0, Math.round(Number(player?.rankElo) || 600)), deckIds, testOpeningCardIds, testDeckCardIds, testDeckTopCardIds};
+  return {id, name:String(player?.name || `Player ${seat + 1}`).slice(0, 80), photoURL:normalizeMultiplayerPhoto(player?.photoURL), rankElo:Math.max(0, Math.round(Number(player?.rankElo) || 600)), deckIds, testOpeningCardIds, testDeckCardIds, testDeckTopCardIds};
 }
 
 function forceTestOpeningCards(state, players){

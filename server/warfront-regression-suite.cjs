@@ -1,6 +1,10 @@
 const {spawnSync}=require('node:child_process');
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 const tests=[
+  'warfront-sync-race-regression-test.cjs',
+  'warfront-result-recovery-regression-test.cjs',
+  'warfront-auth-recovery-regression-test.cjs',
+  'authoritative-v3/warfront-map-reset-regression-test.mjs',
   'warfront-routing-regression-test.cjs',
   'warfront-queue-recovery-regression-test.cjs',
   'authoritative-v3/warfront-queue-entry-regression-test.mjs',

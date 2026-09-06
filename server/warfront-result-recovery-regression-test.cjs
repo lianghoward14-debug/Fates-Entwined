@@ -1,0 +1,16 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const source=fs.readFileSync('server/authoritative-v3/fly-data-api.mjs','utf8');
+const fn=source.slice(source.indexOf('  function settleWarfrontResult('),source.indexOf('  function refreshWarfrontForfeits('));
+const zone={id:'front',a:{uid:'alpha'},b:{uid:'bravo'},matches:[],activeMatch:{matchId:'match'}};
+let writes=0;
+const c={warfrontBindings:new Map([['match',{mapCode:'map',zoneId:'front',uids:['bravo','alpha']}]]),warfrontEvent:{mapCode:'map',zones:[zone]},persist:()=>writes++};
+vm.createContext(c);vm.runInContext(fn,c);
+const match={matchId:'match',outcome:{winner:1,totalFate:[10,30]},warfrontConsolidations:[2,3]};
+assert.equal(c.settleWarfrontResult(match,{consumedMs:[5000,7000]}),true);
+assert.equal(zone.matches[0].winnerTeam,'a');assert.equal(zone.matches[0].playerStats.a.durationMs,7000);assert.equal(zone.matches[0].playerStats.a.fateDifferential,20);assert.equal(zone.activeMatch,null);
+c.settleWarfrontResult(match);assert.equal(zone.matches.length,1);assert.equal(writes,1,'repeated reads do not duplicate results');
+zone.matches=[];zone.activeMatch={matchId:'match'};match.outcome={winner:null,type:'DRAW'};
+c.settleWarfrontResult(match);assert.equal(zone.matches.length,0);assert.equal(zone.activeMatch,null,'draw releases the queue without a star');
+c.warfrontBindings.get('match').mapCode='old';zone.activeMatch={matchId:'match'};
+assert.equal(c.settleWarfrontResult(match),false);assert(zone.activeMatch,'old campaigns cannot mutate the current zone');
+console.log('Warfront missing-client result recovery, seat mapping, idempotency, draws and campaign isolation passed');

@@ -19,8 +19,13 @@
   let sellCardPage = 0;
   let shareDeckPage = 0;
   let marketplaceLoaded = false;
+  let marketplaceRefreshPromise = null;
+  let marketplacePollTimer = 0;
+  let marketplaceLastRefreshAt = 0;
   let publicDecksLoaded = false;
   const MARKETPLACE_FEED_LIMIT = 80;
+  const MARKETPLACE_ACTIVE_REFRESH_MS = 4000;
+  const ECONOMY_REQUEST_TIMEOUT_MS = 12000;
   // Matches the deployed RTDB query rule (`limitToLast <= 60`).
   const PUBLIC_DECK_FEED_LIMIT = 60;
   // Public decks are paginated and do not need a forced uncached 60-deck fetch
@@ -327,27 +332,36 @@
     if(token) headers.authorization = 'Bearer ' + token;
     const directRequest = async function(){
       const init = {method, headers};
+      const controller = new AbortController();
+      init.signal = controller.signal;
       if(method === 'GET') init.cache = 'no-store';
       if(opts.body !== undefined){
         headers['content-type'] = 'application/json';
         init.body = JSON.stringify(opts.body || {});
       }
-      const res = await fetch(base + path, init);
-      if(!res.ok){
-        const bodyText = await res.text().catch(()=> '');
-        throw new Error('Fly economy API failed: ' + res.status + (bodyText ? ' ' + bodyText.slice(0, 160) : ''));
-      }
-      return await res.json();
+      const timer=setTimeout(()=>controller.abort(),ECONOMY_REQUEST_TIMEOUT_MS);
+      try{
+        const res = await fetch(base + path, init);
+        if(!res.ok){
+          const bodyText = await res.text().catch(()=> '');
+          throw new Error('Fly economy API failed: ' + res.status + (bodyText ? ' ' + bodyText.slice(0, 160) : ''));
+        }
+        return await res.json();
+      }catch(error){
+        if(error?.name === 'AbortError') throw new Error('Marketplace request timed out. Please try again.');
+        throw error;
+      }finally{ clearTimeout(timer); }
     };
     const electronApi = window.FateElectronFlyApi;
     if(electronApi && typeof electronApi.request === 'function'){
       try{
-        const bridged = await electronApi.request({
+        let bridgeTimer;
+        const bridged = await Promise.race([electronApi.request({
           route:path,
           method,
           authorization:token ? 'Bearer ' + token : '',
           body:opts.body
-        });
+        }),new Promise((_,reject)=>{bridgeTimer=setTimeout(()=>reject(new Error('Marketplace bridge timed out')),ECONOMY_REQUEST_TIMEOUT_MS);})]).finally(()=>clearTimeout(bridgeTimer));
         if(bridged?.ok) return bridged.data || {};
         const bridgeStatus = Number(bridged?.status || 0);
         // A real HTTP response (auth, validation, ownership, and so on) is
@@ -367,16 +381,33 @@
     marketplaceListings = Array.isArray(data?.listings) ? data.listings : [];
     marketplaceTransactions = Array.isArray(data?.transactions) ? data.transactions : [];
     marketplaceLoaded = true;
+    marketplaceLastRefreshAt = Date.now();
     window.FATE_ONLINE_MARKETPLACE_LISTINGS = marketplaceListings;
     window.FATE_ONLINE_MARKETPLACE_TRANSACTIONS = marketplaceTransactions;
     updateMarketplaceRedeemButton();
   }
   async function refreshFlyMarketplace(){
     if(!flyEconomyEnabled()) return null;
-    const data = await flyApiRequest(`/api/marketplace/listings?limit=${MARKETPLACE_FEED_LIMIT}`);
-    applyFlyMarketplacePayload(data);
-    try{ if(document.getElementById('marketplace-listings')) renderMarketplaceListings(); }catch(e){ console.warn('Marketplace render failed', e); }
-    return data;
+    if(marketplaceRefreshPromise) return marketplaceRefreshPromise;
+    marketplaceRefreshPromise = (async function(){
+      const before=JSON.stringify(marketplaceListings.map(l=>[l.listingId,l.status,l.createdAt,l.soldAt,l.redeemedAt]));
+      const data = await flyApiRequest(`/api/marketplace/listings?limit=${MARKETPLACE_FEED_LIMIT}&fresh=${Date.now()}`);
+      applyFlyMarketplacePayload(data);
+      const after=JSON.stringify(marketplaceListings.map(l=>[l.listingId,l.status,l.createdAt,l.soldAt,l.redeemedAt]));
+      try{ if(before!==after && document.getElementById('marketplace-listings')) renderMarketplaceListings(); }catch(e){ console.warn('Marketplace render failed', e); }
+      return data;
+    })();
+    try{ return await marketplaceRefreshPromise; }
+    finally{ marketplaceRefreshPromise=null; }
+  }
+  function scheduleMarketplacePoll(){
+    clearTimeout(marketplacePollTimer);marketplacePollTimer=0;
+    if(!flyEconomyEnabled()||!document.getElementById('marketplace-listings'))return;
+    marketplacePollTimer=setTimeout(async function(){
+      if(!document.getElementById('marketplace-listings'))return;
+      await refreshFlyMarketplace().catch(e=>console.warn('Fly marketplace live refresh failed',e));
+      scheduleMarketplacePoll();
+    },MARKETPLACE_ACTIVE_REFRESH_MS);
   }
   async function refreshFlyPublicDecks(){
     if(!publicDeckApiEnabled()) return null;
@@ -449,7 +480,8 @@
   }
   function watchMarketplace(){
     if(flyEconomyEnabled()){
-      if(!marketplaceLoaded) refreshFlyMarketplace().catch(e=>console.warn('Fly marketplace refresh failed', e));
+      if(!marketplaceLoaded||Date.now()-marketplaceLastRefreshAt>=1000) refreshFlyMarketplace().catch(e=>console.warn('Fly marketplace refresh failed', e));
+      scheduleMarketplacePoll();
       return;
     }
     if(!canUseFirebase() || marketplaceUnsub) return;
@@ -505,6 +537,9 @@
     marketplaceUnsub = null;
     publicDecksUnsub = null;
     clearTimeout(publicDecksPollTimer);
+    clearTimeout(marketplacePollTimer);
+    marketplacePollTimer = 0;
+    marketplaceLastRefreshAt = 0;
     publicDecksPollTimer = 0;
     publicDecksLastRefreshAt = 0;
     marketplaceLoaded = false;
@@ -593,7 +628,8 @@
     const c = cardById(cardId);
     if(!c){ if(window.toast) toast('Card not found'); return null; }
     if(!removeOwned(cardId, 1)){ if(window.toast) toast('You no longer own that card'); return null; }
-    const sellerProfile = await FO.syncPublicProfile().catch(()=>profile());
+    const sellerProfile = publicDeckProfilePayload(profile());
+    FO.syncPublicProfile?.().catch(()=>{});
     if(flyEconomyEnabled()){
       try{
         const data = await flyApiRequest('/api/marketplace/listings', {
@@ -651,7 +687,8 @@
     if(!id){ if(window.toast) toast('Profile picture not found'); return null; }
     if(!flyEconomyEnabled() && !canUseFirebase()){ if(window.toast) toast('Online marketplace is not ready'); return null; }
     if(!takeOwnedPfp(id)){ if(window.toast) toast('You no longer own that profile picture'); return null; }
-    const sellerProfile = await FO.syncPublicProfile().catch(()=>profile());
+    const sellerProfile = publicDeckProfilePayload(profile());
+    FO.syncPublicProfile?.().catch(()=>{});
     if(flyEconomyEnabled()){
       try{
         const data = await flyApiRequest('/api/marketplace/listings', {
@@ -811,7 +848,7 @@
         }
         const listingId = await listMarketplaceCard(cardId, price).catch(err=>{
           console.error('List card failed', err);
-          if(window.toast) toast('Could not list card');
+          if(window.toast) toast(String(err?.message || 'Could not list card').slice(0, 180));
           return null;
         });
         if(!listingId){
@@ -882,7 +919,7 @@
         if(btn){ btn.disabled = true; btn.textContent = 'Listing...'; }
         const listingId = await listMarketplacePfp(id, price).catch(err=>{
           console.error('List profile picture failed', err);
-          if(window.toast) toast('Could not list profile picture');
+          if(window.toast) toast(String(err?.message || 'Could not list profile picture').slice(0, 180));
           return null;
         });
         if(!listingId){

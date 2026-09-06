@@ -250,6 +250,12 @@ export function collectTriggeredOperations(state, event){
       const amount = 2 + coordinatorAuraPotencyBoost(state, source);
       operations.push({
         type:'SET_CARD_COUNTER', targetIid:source.card.iid,
+        counterKey:'bh08ProcCount',
+        value:Math.max(0, Number(source.card.counters?.bh08ProcCount) || 0) + 1,
+        sourceIid:source.card.iid, sourceController:reactingPlayer
+      });
+      operations.push({
+        type:'SET_CARD_COUNTER', targetIid:source.card.iid,
         counterKey:'triggeredFateHistoryTotal',
         value:Math.max(0, Number(source.card.counters?.triggeredFateHistoryTotal) || 0) + amount,
         sourceIid:source.card.iid, sourceController:reactingPlayer
@@ -259,6 +265,14 @@ export function collectTriggeredOperations(state, event){
         && controllerOf(entry.card) === reactingPlayer
         && !isEffectImmutable(entry.card)
       )){
+        operations.push({
+          type:'SET_CARD_COUNTER',
+          targetIid:entry.card.iid,
+          counterKey:'wintertideTriggerCount',
+          value:Math.max(0, Number(entry.card.counters?.wintertideTriggerCount) || 0) + 1,
+          sourceIid:entry.card.iid,
+          sourceController:Number(event.playerIndex)
+        });
         operations.push({
           type:'MODIFY_FATE',
           targetIid:target.card.iid,

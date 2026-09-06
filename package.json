@@ -7,6 +7,7 @@
   "main": "electron/main.js",
   "scripts": {
     "smoke:warfront": "node server/warfront-regression-suite.cjs",
+    "smoke:marketplace": "node server/marketplace-client-regression-test.cjs && node server/authoritative-v3/marketplace-cross-account-regression-test.mjs",
     "start": "electron .",
     "electron": "electron .",
     "electron:p1": "electron . --allow-multiple-instances --session=player1",

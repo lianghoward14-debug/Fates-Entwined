@@ -1,4 +1,5 @@
 import {ENGINE_VERSION, RULESET_VERSION, SCHEMA_VERSION} from './constants.mjs';
+import {normalizeMultiplayerPhoto} from '../profile-photo.mjs';
 import {createRngState, nextInt, shuffleInPlace} from './rng.mjs';
 import {cloneSerializable} from './serialization.mjs';
 import {
@@ -82,7 +83,7 @@ export function createInitialState(input = {}){
     return {
       id:playerIds[playerIndex],
       name:String(player.name || `Player ${playerIndex + 1}`),
-      ...(player.photoURL ? {photoURL:String(player.photoURL).slice(0, 2048)} : {}),
+      ...(player.photoURL ? {photoURL:normalizeMultiplayerPhoto(player.photoURL)} : {}),
       rankElo:Math.max(0, Math.round(Number(player.rankElo) || 600)),
       deck,
       hand,

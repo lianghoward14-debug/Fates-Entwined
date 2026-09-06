@@ -9,6 +9,9 @@ const esc=v=>String(v==null?'':v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;'
 const landscapes=()=>window.LANDSCAPES?Object.values(window.LANDSCAPES):[],cards=()=>typeof CARDS!=='undefined'&&Array.isArray(CARDS)?CARDS:(window.CARDS||[]);
 let loadedStorageKey=storageKey(KEY),state=load(),selectedTeam=null,selectedZoneId='heartland',warPage='briefing',drawer='',archiveCode='',banSearch='',ticker=null,replayTicker=null,selectedMatchId='',replayView=null,replayGameBackup=null,replaySessionGame=null,replayPhase7Controller=null,replayPhase7AdapterView=null,remotePushTimer=null,remotePushBusy=false,remotePushQueued=false,remotePullBusy=false,lastUiSnapshot=null,postWarMap=false,renderFx={zones:{},scoreA:false,scoreB:false,newDispatch:false};
 let deploymentPending=null;
+let remoteWriteVersion=0,remoteAcknowledgedVersion=0;
+let remoteWriteGeneration=0;
+function resetRemoteWritesIfNeeded(){if(remoteWriteGeneration===remoteGeneration)return;remoteWriteGeneration=remoteGeneration;remoteWriteVersion=0;remoteAcknowledgedVersion=0;remotePushQueued=false;if(remotePushTimer)clearTimeout(remotePushTimer);remotePushTimer=null;}
 let remoteGeneration=0,remoteLastSuccess=0,remoteError='',simulationSession=false,acceptedRemoteRevision=-1;
 async function warfrontRequest(route,options={}){
   const controller=new AbortController();let timer;
@@ -19,7 +22,7 @@ async function warfrontRequest(route,options={}){
 }
 function warfrontSyncNotice(){
   if(simulationSession)return '<div role="status">SIMULATION · Local preview only <button onclick="exitWarfrontSimulation()">Return to live Warfront</button></div>';
-  if(remoteError)return '<div role="status">Warfront connection interrupted · Displayed map may be out of date. <button onclick="refreshFateWarfrontState()">Reconnect</button></div>';
+  if(remoteError)return '<div role="status">Warfront connection interrupted · '+esc(remoteError)+' <button onclick="refreshFateWarfrontState()">Reconnect</button></div>';
   if(!remoteLastSuccess)return '<div role="status">Connecting to live Warfront…</div>';
   return '';
 }
@@ -33,24 +36,31 @@ function remoteEligible(){const api=window.FateOnline,u=onlineIdentity();return!
 function remoteCopy(value){const next=clone(value),compactMatch=m=>{if(!m||typeof m!=='object'||!m.replay)return;const replay=m.replay;if(!Array.isArray(replay.actions)){delete m.replay;return;}/* Keep every action; server storage enforces the byte limit. */},strip=r=>{if(r&&typeof r==='object'){delete r.localReward;(r.zones||[]).forEach(z=>(z.matches||[]).forEach(compactMatch));}};(next.zones||[]).forEach(z=>(z.matches||[]).forEach(compactMatch));strip(next.lastResult);(next.archives||[]).forEach(strip);return next;}
 function adoptRemoteState(value){if(!remoteEligible())return false;const next=normalize(clone(value));if(!next)return false;if(Number(next._syncRevision||0)<acceptedRemoteRevision)return false;acceptedRemoteRevision=Number(next._syncRevision||0);if(JSON.stringify(remoteCopy(next))===JSON.stringify(remoteCopy(state)))return false;const localReplays=new Map();const remember=zones=>(zones||[]).forEach(z=>(z.matches||[]).forEach(m=>{if(m&&m.id&&m.replay)localReplays.set(String(m.id),m.replay);}));remember(state.zones);(state.archives||[]).forEach(r=>remember(r.zones));const restore=zones=>(zones||[]).forEach(z=>(z.matches||[]).forEach(m=>{const replay=localReplays.get(String(m&&m.id||''));if(replay)m.replay=replay;}));restore(next.zones);(next.archives||[]).forEach(r=>restore(r.zones));if(next.lastResult)next.lastResult.localReward=reward(next.lastResult);(next.archives||[]).forEach(r=>{if(!r.localReward)r.localReward=reward(r);});state=next;try{localStorage.setItem(storageKey(KEY),JSON.stringify(state));}catch(e){}window.dispatchEvent(new CustomEvent('fate-war-event-updated',{detail:{state,remote:true}}));rerender();return true;}
 async function pushRemoteState(){
+  resetRemoteWritesIfNeeded();
   if(!remoteEligible())return false;
   if(remotePushBusy){remotePushQueued=true;return false;}
-  remotePushBusy=true;const generation=remoteGeneration,uid=onlineIdentity().uid;
+  if(remotePushTimer)clearTimeout(remotePushTimer);remotePushTimer=null;
+  remotePushBusy=true;const generation=remoteGeneration,uid=onlineIdentity().uid,writeVersion=remoteWriteVersion;
   try{
     const r=await warfrontRequest('/api/warfront/state',{method:'POST',body:{uid,state:remoteCopy(state)}});
     if(generation!==remoteGeneration||onlineIdentity()?.uid!==uid)return false;
-    if(r?.state){const noticeChanged=!!remoteError||!remoteLastSuccess;remoteLastSuccess=Date.now();remoteError='';const changed=adoptRemoteState(r.state);if(!changed&&noticeChanged)rerender();}
+    if(r?.ok)remoteAcknowledgedVersion=writeVersion;
+    if(r?.state&&writeVersion===remoteWriteVersion){const noticeChanged=!!remoteError||!remoteLastSuccess;remoteLastSuccess=Date.now();remoteError='';const changed=adoptRemoteState(r.state);if(!changed&&noticeChanged)rerender();}
     return !!r?.ok;
   }catch(e){if(generation===remoteGeneration){remoteError=e.message;rerender();}return false;}
-  finally{remotePushBusy=false;if(remotePushQueued){remotePushQueued=false;scheduleRemotePush();}}
+  finally{remotePushBusy=false;if(generation===remoteGeneration&&(remotePushQueued||remoteAcknowledgedVersion<remoteWriteVersion)){remotePushQueued=false;queueRemotePush(remoteError?2000:120);}}
 }
-function scheduleRemotePush(){if(!remoteEligible())return;if(remotePushTimer)clearTimeout(remotePushTimer);remotePushTimer=setTimeout(()=>{remotePushTimer=null;pushRemoteState();},120);}
+function queueRemotePush(delay){if(!remoteEligible())return;if(remotePushTimer)clearTimeout(remotePushTimer);remotePushTimer=setTimeout(()=>{remotePushTimer=null;pushRemoteState();},delay);}
+function scheduleRemotePush(){resetRemoteWritesIfNeeded();if(!remoteEligible())return;remoteWriteVersion++;queueRemotePush(120);}
 async function pullRemoteState(){
-  if(!remoteEligible()||remotePullBusy)return false;
-  remotePullBusy=true;const generation=remoteGeneration,uid=onlineIdentity().uid;
+  resetRemoteWritesIfNeeded();
+  if(!remoteEligible()||remotePullBusy||remotePushBusy||remotePushTimer)return false;
+  if(remoteAcknowledgedVersion<remoteWriteVersion)return pushRemoteState();
+  remotePullBusy=true;const generation=remoteGeneration,uid=onlineIdentity().uid,writeVersion=remoteWriteVersion;
   try{
     const r=await warfrontRequest('/api/warfront/state',{method:'GET'});
     if(generation!==remoteGeneration||onlineIdentity()?.uid!==uid)return false;
+    if(writeVersion!==remoteWriteVersion||remotePushBusy||remotePushTimer)return false;
     if(r?.state){const noticeChanged=!!remoteError||!remoteLastSuccess;remoteLastSuccess=Date.now();remoteError='';const changed=adoptRemoteState(r.state);if(!changed&&noticeChanged)rerender();return changed;}
     if(r?.ok&&!r.state)scheduleRemotePush();
     return false;
@@ -645,6 +655,6 @@ window.cancelMatchmaking=()=>{if(window.FATE_PENDING_WAR_MATCH){window.fateAutho
 window.openWarRules=()=>{warSfx('dossier','rules',160);drawer='rules';rerender();};
 window.fateClanEventChatCommand=c=>{const cmd=String(c||'').trim().toLowerCase();if(cmd==='/event deployment'){startFreshDeployment();return true;}if(cmd==='/eventsimulation'){simulation();return true;}if(cmd==='/event end simulation'){endSplashSimulation();return true;}if(cmd==='/eventrandom'){randomEvent();return true;}if(cmd==='/eventreset'){resetSimulation();return true;}if(cmd==='/match replay'){simulateMatchReplay();return true;}if(cmd==='/archive simulation'){archiveSimulation();return true;}if(cmd==='/archiveclear'){clearArchive();return true;}if(cmd==='/medals')return testMedals(true);if(cmd==='/medalsreset')return testMedals(false);if(cmd==='/event end'){runWarfrontServerCommand('end');return true;}if(cmd!=='/event 1 2 3')return false;runWarfrontServerCommand('start');return true;};
 window.fateClanEventReportMatch=p=>{p=p||{};lifecycle();const z=state.zones.find(x=>x.id===p.zoneId);if(state.status!=='active'||!z||!z.a||!z.b||!['a','b'].includes(p.winnerTeam)||score(z).played>=5)return false;const id=String(p.matchId||'war-'+Date.now());if(z.matches.some(m=>m.id===id))return false;const legacy={totalFateGenerated:Math.max(0,+p.totalFateGenerated||+p.stats?.totalFateGenerated||0),fateDifferential:Math.max(0,+p.fateDifferential||+p.stats?.fateDifferential||0),durationMs:Math.max(0,+p.durationMs||+p.stats?.durationMs||0),consolidations:Math.max(0,+p.consolidations||+p.stats?.consolidations||0)},source=p.playerStats||p.stats?.players||{},clean=s=>({totalFateGenerated:Math.max(0,+s?.totalFateGenerated||+s?.totalFate||0),fateDifferential:Math.max(0,+s?.fateDifferential||0),durationMs:Math.max(0,+s?.durationMs||0),consolidations:Math.max(0,+s?.consolidations||0)}),playerStats={a:clean(source.a),b:clean(source.b)};if(!source[p.winnerTeam])playerStats[p.winnerTeam]=legacy;const replay=p.replay&&Array.isArray(p.replay.actions)?clone(p.replay):null;z.activeMatch=null;z.matches.push({id,winnerTeam:p.winnerTeam,completedAt:+p.completedAt||Date.now(),stats:legacy,playerStats,bans:clone(z.bans),replayId:p.replayId||null,replay,forfeitSweep:!!p.forfeitSweep,starValue:Math.max(1,Math.min(5,+p.starValue||1))});z.bans={a:[],b:[]};z.bansLocked={a:false,b:false};save();warSfx(+p.starValue>=5?'commendation':'deploy','result-'+id,700);if(allComplete()){if(!simulationSession)pushRemoteState().then(()=>pullRemoteState());else finish('all-matchups',{remote:false});}rerender();return true;};
-window.getFateClanEventState=()=>{lifecycle();return clone(state);};window.forceFinishFateClanEvent=()=>{if(state.status==='active')runWarfrontServerCommand('end');};window.renderChWarEventTab=render;window.addEventListener('storage',e=>{if(e.key===storageKey(KEY)){state=load();loadedStorageKey=storageKey(KEY);rerender();}});window.addEventListener('fate-online-auth',()=>{const next=storageKey(KEY);if(next!==loadedStorageKey){remoteGeneration++;acceptedRemoteRevision=-1;remoteLastSuccess=0;remoteError='';simulationSession=false;loadedStorageKey=next;state=load();drawer='';archiveCode='';selectedTeam=null;rerender();}pullRemoteState();});window.addEventListener('focus',pullRemoteState);document.addEventListener?.('visibilitychange',()=>{if(!document.hidden)pullRemoteState();});document.readyState==='loading'?document.addEventListener('DOMContentLoaded',installReplayIsolationGuard,{once:true}):installReplayIsolationGuard();setTimeout(()=>{if(!simulationSession&&localStorage.getItem(storageKey(SIMBACKUP)))resetSimulation();else pullRemoteState();},700);setInterval(()=>{if(!document.hidden)pullRemoteState();},4000);
+window.getFateClanEventState=()=>{lifecycle();return clone(state);};window.forceFinishFateClanEvent=()=>{if(state.status==='active')runWarfrontServerCommand('end');};window.renderChWarEventTab=render;window.addEventListener('storage',e=>{if(e.key===storageKey(KEY)){state=load();loadedStorageKey=storageKey(KEY);rerender();}});window.addEventListener('fate-online-auth',()=>{const next=storageKey(KEY);if(next!==loadedStorageKey){remoteGeneration++;acceptedRemoteRevision=-1;remoteLastSuccess=0;remoteError='';simulationSession=false;loadedStorageKey=next;state=load();drawer='';archiveCode='';selectedTeam=null;rerender();}pullRemoteState();});window.addEventListener('focus',pullRemoteState);document.addEventListener?.('visibilitychange',()=>{if(!document.hidden)pullRemoteState();});document.readyState==='loading'?document.addEventListener('DOMContentLoaded',installReplayIsolationGuard,{once:true}):installReplayIsolationGuard();setTimeout(()=>{if(!simulationSession&&localStorage.getItem(storageKey(SIMBACKUP)))resetSimulation();else pullRemoteState();},700);let backgroundPollTicks=0;setInterval(()=>{if(document.hidden)return;const watching=document.getElementById('s-challenger')?.classList.contains('active')&&document.querySelector('#ch-content > .ch-tab-pane.active[data-tab="war"]');if(watching||++backgroundPollTicks>=4){backgroundPollTicks=0;pullRemoteState();}},1000);
 window.addEventListener('keydown',e=>{if(e.key!=='Escape')return;const warTab=document.querySelector('.ch-tab[data-tab="war"].active'),screen=document.getElementById('s-challenger');if(!warTab||!screen||getComputedStyle(screen).display==='none')return;e.preventDefault();e.stopImmediatePropagation();if(drawer==='zone-history')return window.openWarZone(selectedZoneId);if(drawer==='match-detail')return window.openWarMatches();if(drawer)return window.closeWarDrawer();if(warPage==='map')return window.openWarBriefing();},true);
 })();

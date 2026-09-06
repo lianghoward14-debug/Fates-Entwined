@@ -1,6 +1,12 @@
 // The established authoritative service owns the shared live queue.  Keep
 // the release client on this protocol until a coordinated server migration
 // can preserve one queue for every installed client.
+function normalizeMultiplayerPhoto(value){
+  if(typeof value!=='string')return '';
+  const src=value.trim();
+  const limit=/^data:image\/(?:png|jpeg|webp|gif);base64,/i.test(src)?512*1024:2048;
+  return src.length<=limit&&src!=='[object Object]'?src:'';
+}
 const CLIENT_VERSION = '1.39.0-phase7-beta.1';
 const params = new URLSearchParams(globalThis.location?.search || '');
 const ISOLATED_LOCAL_AUTHORITY_TEST = params.get('electron') === '1'
@@ -449,7 +455,7 @@ async function startUnrankedMatchmaking({deckIds, name = '', photoURL = '', rank
   const matchmakingPayload = {
       deckIds:normalizedDeck,
       name:String(name || '').slice(0, 80),
-      photoURL:String(photoURL || '').slice(0, 2048),
+      photoURL:normalizeMultiplayerPhoto(photoURL),
       rankElo:Math.max(0, Math.round(Number(rankElo) || 600)),
       queueMode:normalizedQueueMode,
       matchmakingKey:normalizedQueueMode === 'warfront' ? String(matchmakingKey || '').slice(0, 180) : '',

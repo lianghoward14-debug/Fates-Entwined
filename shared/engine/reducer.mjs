@@ -2706,6 +2706,7 @@ function performCommand(state, ctx, command, actorIndex, options){
   if(command.type === 'END_TURN'){
     ctx.events.push({type:RULE_EVENT_TYPES.TURN_ENDING, playerIndex:actorIndex, turn:state.turn});
     if(openTimedLandscapeEndTurnFrame(state, ctx, actorIndex, command.commandId)) return;
+    if(openBh18EndTurnFrame(state, ctx, actorIndex, command.commandId)) return;
     completeEndTurn(state, ctx, actorIndex);
     return;
   }

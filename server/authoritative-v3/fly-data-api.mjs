@@ -148,6 +148,7 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
   }
   function settleWarfrontForfeit(match, clock={}){
     const lock=match?.warfrontForfeit;
+    if(match?.warfrontMatch&&!lock&&match.outcome)return settleWarfrontResult(match,clock);
     if(!match?.warfrontMatch || !lock || !warfrontEvent) return false;
     const id=String(match.matchId),recordId=id+'-forfeit';
     const binding=warfrontBindings.get(id);
@@ -195,6 +196,24 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
     if(before===JSON.stringify(zone)) return true;
     warfrontEvent._syncRevision=Number(warfrontEvent._syncRevision||0)+1;
     persist();
+    return true;
+  }
+  function settleWarfrontResult(match,clock={}){
+    const binding=warfrontBindings.get(String(match.matchId));
+    if(!binding||binding.mapCode!==warfrontEvent?.mapCode)return false;
+    const zone=warfrontEvent.zones.find(z=>z.id===binding.zoneId);
+    if(!zone?.a||!zone?.b)return false;
+    const teamASeat=binding.uids?.indexOf(zone.a.uid);
+    if((teamASeat!==0&&teamASeat!==1)||binding.uids[1-teamASeat]!==zone.b.uid)return false;
+    const before=JSON.stringify(zone),winner=match.outcome.winner;
+    if(zone.activeMatch?.matchId===match.matchId)zone.activeMatch=null;
+    if((winner===0||winner===1)&&!zone.matches.some(m=>m.id===String(match.matchId))&&zone.matches.reduce((n,m)=>n+(m.voidedByForfeit?0:Number(m.starValue)||1),0)<5){
+      const totals=match.outcome.totalFate||[0,0],winnerTeam=winner===teamASeat?'a':'b',playerStats={};
+      for(const team of ['a','b']){const seat=team==='a'?teamASeat:1-teamASeat;playerStats[team]={totalFateGenerated:Math.max(0,Number(totals[seat])||0),fateDifferential:seat===winner?Math.max(0,(Number(totals[seat])||0)-(Number(totals[1-seat])||0)):0,consolidations:Number(match.warfrontConsolidations?.[seat])||0,durationMs:Number(clock.consumedMs?.[seat])||0};}
+      zone.matches.push({id:String(match.matchId),winnerTeam,teamASeat,completedAt:Date.now(),starValue:1,playerStats,replayId:String(match.matchId)});
+      zone.bans={a:[],b:[]};zone.bansLocked={a:false,b:false};
+    }
+    if(before!==JSON.stringify(zone)){warfrontEvent._syncRevision=Number(warfrontEvent._syncRevision||0)+1;warfrontEvent._updatedAt=Date.now();persist();}
     return true;
   }
   function refreshWarfrontForfeits(){
@@ -599,7 +618,9 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
         if(p[3]==='comments'){const comment={id:'comment_'+Date.now(),uid,username:cleanId(body.username,80),text:cleanId(body.text,240),createdAt:Date.now()};deck.comments=(deck.comments||[]).concat(comment).slice(-80);deck.updatedAt=Date.now();decks.set(id,deck);persist();writeJson(res,200,{ok:true,deck:deckPublic(deck),comment});return true;}
       }
       if(p[1]==='marketplace'){
-        if(req.method==='GET'&&p[2]==='listings'){await verifiedUid(req);const active=[...listings.values()].filter(x=>x.status==='active').sort((a,b)=>Number(b.createdAt)-Number(a.createdAt));writeJson(res,200,{ok:true,listings:active.map(clone),transactions:marketplaceTransactions.slice(-80).map(clone)});return true;}
+        // Listings are a public storefront. Requiring account restoration for
+        // this read left other players on an empty cached feed after login.
+        if(req.method==='GET'&&p[2]==='listings'){const limit=Math.min(160,Math.max(1,Number(url.searchParams.get('limit'))||80)),active=[...listings.values()].filter(x=>x.status==='active').sort((a,b)=>Number(b.createdAt)-Number(a.createdAt)).slice(0,limit);writeJson(res,200,{ok:true,listings:active.map(clone),transactions:marketplaceTransactions.slice(-80).map(clone)});return true;}
         const body=await readBody(req),uid=await requireSelf(req,body.uid);
         if(req.method==='POST'&&p[2]==='listings'&&!p[3]){if(body.profile)mergeProfile(uid,body.profile);const pr=profile(uid),listingId='listing_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);const listing={listingId,type:body.type==='pfp'?'pfp':'card',cardId:cleanId(body.cardId),pfpId:Number(body.pfpId)||0,sellerUid:uid,seller:pr.chosenUsername||pr.displayName||'Player',sellerPhotoURL:pr.photoURL||pr.profileImg||null,price:Math.max(10,Number(body.price)||100),status:'active',createdAt:Date.now()};listings.set(listingId,listing);persist();writeJson(res,200,{ok:true,listing:clone(listing)});return true;}
         if(req.method==='POST'&&p[2]==='listings'&&p[3]){const listing=listings.get(cleanId(p[3]));if(!listing)throw Object.assign(new Error('listing not found'),{status:404});if(p[4]==='buy'){if(listing.sellerUid===uid)throw new Error('cannot buy own listing');listing.status='sold';listing.buyerUid=uid;listing.soldAt=Date.now();marketplaceTransactions.push(clone(listing));listings.set(listing.listingId,listing);}if(p[4]==='cancel'){if(listing.sellerUid!==uid)throw Object.assign(new Error('not listing owner'),{status:403});listing.status='cancelled';listings.set(listing.listingId,listing);}persist();writeJson(res,200,{ok:true,listing:clone(listing)});return true;}
@@ -608,7 +629,15 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
       return false;
     }catch(error){ writeJson(res,Number(error?.status)||400,{ok:false,error:String(error?.message||error)});return true; }
   }
-  if(resetWarfrontForAuthorityUpgrade){snapshot.warfrontAuthorityBaseline=warfrontAuthorityBaseline;newWarfrontDeployment();flush();}
+  const requestedMapReset=String(process.env.FATE_WARFRONT_MAP_RESET_ID||'').replace(/[^A-Za-z0-9_-]/g,'').slice(0,80);
+  if(requestedMapReset&&warfrontEvent&&snapshot.warfrontMapResetId!==requestedMapReset){
+    // Back up all persisted data before resetting only the current campaign.
+    const backupPath=SNAPSHOT_PATH+'.warfront-reset-'+requestedMapReset+'.bak';
+    if(fs.existsSync(SNAPSHOT_PATH)&&!fs.existsSync(backupPath))fs.copyFileSync(SNAPSHOT_PATH,backupPath,fs.constants.COPYFILE_EXCL);
+    snapshot.warfrontMapResetId=requestedMapReset;
+    snapshot.warfrontAuthorityBaseline=warfrontAuthorityBaseline;
+    newWarfrontDeployment();flush();
+  }else if(resetWarfrontForAuthorityUpgrade){snapshot.warfrontAuthorityBaseline=warfrontAuthorityBaseline;newWarfrontDeployment();flush();}
   return {
     handle,
     settleWarfrontForfeit,

@@ -1,0 +1,11 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const source=fs.readFileSync('src/scripts/20-online-economy.js','utf8');
+assert.match(source,/MARKETPLACE_ACTIVE_REFRESH_MS = 4000/,'visible Store must poll the shared marketplace');
+assert.match(source,/scheduleMarketplacePoll\(\)/,'marketplace polling must be scheduled');
+assert.match(source,/marketplaceRefreshPromise/,'overlapping refreshes must be deduplicated');
+assert.match(source,/fresh=\$\{Date\.now\(\)\}/,'marketplace reads must bypass stale intermediary caches');
+assert.match(source,/controller\.abort\(\)/,'direct marketplace requests must have a timeout');
+assert.match(source,/Marketplace bridge timed out/,'desktop bridge requests must have a timeout');
+assert.doesNotMatch(source.slice(source.indexOf('async function listMarketplaceCard'),source.indexOf('async function listMarketplacePfp')),/await FO\.syncPublicProfile/,'card listing must not wait for a separate profile request');
+console.log('Marketplace live refresh, cache bypass, request timeout and immediate listing checks passed');

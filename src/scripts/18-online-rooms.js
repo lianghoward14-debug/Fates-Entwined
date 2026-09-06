@@ -3186,6 +3186,12 @@
       if(String(card.id || '') === 'bh02'){
         next._joieProcCount = Math.max(0, Math.floor(Number(card.counters?.joieProcCount) || 0));
       }
+      if(String(card.id || '') === 'bh08'){
+        next._bh08ProcCount = Math.max(0, Math.floor(Number(card.counters?.bh08ProcCount) || 0));
+      }
+      if(String(card.id || '') === '100'){
+        next._wintertideTriggerCount = Math.max(0, Math.floor(Number(card.counters?.wintertideTriggerCount) || 0));
+      }
       const permanentFateCeiling = Number(card.counters?.permanentFateCeiling);
       if(Number.isFinite(permanentFateCeiling)){
         // Preserve legacy save metadata while the actual overflow reduction is
@@ -3228,6 +3234,9 @@
         next.usesLeft = Math.max(0, 1 - reactionUses);
         next._seculesUsed = reactionUses > 0;
       }
+      const effectUses = Math.max(0, Number(card.counters?.effectUses) || 0);
+      const trackedMaxUses = ({'20':2,'40':2,'bh16':2})[String(card.id || '')];
+      if(Number.isFinite(trackedMaxUses)) next.usesLeft = Math.max(0, trackedMaxUses - effectUses);
       if(card.counters?.pierogiCounter === true){
         next.pierogiCounter = true;
         next._pierogiCreator = Number(card.counters.pierogiCreator);
@@ -3690,6 +3699,18 @@
       _phase7Outcome:cloneOnlinePlain(projected.outcome || null),
       _phase7Geometry:cloneOnlinePlain(projected.geometry || null),
       _phase7Statuses:cloneOnlinePlain(projected.statuses || []),
+      usMarinesUses:[0,1].map(function(playerIndex){
+        return Math.max(0, Number((projected.statuses || []).find(function(status){
+          return status?.type === 'RULE_USE_COUNTER'
+            && status.statusId === 'rule-use:semper_fidelis:p' + playerIndex;
+        })?.uses || 0) || 0);
+      }),
+      _snowyVillageUses:[0,1].map(function(playerIndex){
+        return Math.max(0, Number((projected.statuses || []).find(function(status){
+          return status?.type === 'RULE_USE_COUNTER'
+            && status.statusId === 'rule-use:snowy_village:p' + playerIndex;
+        })?.uses || 0) || 0);
+      }),
       // Canonical statuses own Ballad in authoritative matches. Always clear
       // the legacy mirror when projecting a snapshot so a reused G object
       // cannot carry Kvetka's status banner into the next match.
@@ -5491,6 +5512,12 @@
         if(entry) positionMap.set([entry.z, entry.r, entry.c].join(':'), entry);
       });
     });
+    if(!opts.squareTargets && Array.isArray(prompt?.eligibleIids)){
+      prompt.eligibleIids.forEach(function(iid){
+        const entry = phase7FindBoardCard(iid);
+        if(entry) positionMap.set([entry.z, entry.r, entry.c].join(':'), entry);
+      });
+    }
     if(opts.squareTargets && !positionMap.size && Array.isArray(prompt?.eligible)){
       prompt.eligible.forEach(function(value){
         const entry = {z:Number(value?.z), r:Number(value?.r), c:Number(value?.c), squareOnly:true};
@@ -5541,17 +5568,22 @@
       const eligible = new Set((livePrompt?.eligible || []).map(function(destination){
         return [Number(destination?.z), Number(destination?.r), Number(destination?.c)].join(':');
       }));
+      const eligibleIids = new Set((livePrompt?.eligibleIids || []).map(String));
       const minCount = Math.max(0, Number(opts.minCount) || 0);
       const maxCount = Math.max(1, Number(opts.maxCount) || 1);
-      const promptLegal = !!promptId && opts.squareTargets && selected.length >= minCount
-        && selected.length <= maxCount && selected.every(function(destination){
-          return eligible.has([Number(destination?.z), Number(destination?.r), Number(destination?.c)].join(':'));
-        });
+      const promptLegal = !!promptId && selected.length >= minCount && selected.length <= maxCount
+        && (opts.squareTargets
+          ? selected.every(function(destination){
+              return eligible.has([Number(destination?.z), Number(destination?.r), Number(destination?.c)].join(':'));
+            })
+          : new Set(selected).size === selected.length && selected.every(function(iid){ return eligibleIids.has(String(iid)); }));
       phase7CurrentUiSession.pickerKey = '';
       if(promptLegal){
         phase7SubmitCommand({
           type:'ANSWER_PROMPT',
-          payload:Object.assign({promptId}, livePrompt?.multi ? {destinations:selected.slice()} : {destination:selected[0]})
+          payload:Object.assign({promptId}, opts.squareTargets
+            ? (livePrompt?.multi ? {destinations:selected.slice()} : {destination:selected[0]})
+            : (Number(livePrompt?.max || 1) === 1 ? {selectedIid:String(selected[0] || '')} : {selectedIids:selected.slice()}))
         });
       }else if(window.toast) toast('That target combination is not legal.');
     };

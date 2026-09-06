@@ -1959,11 +1959,23 @@ const PRESSURE_REWORK_REGISTRY = Object.freeze({
   '73':{timings:['PASSIVE'],operations:[],prompts:[]}
 });
 
+// Keep authoritative Havano eligibility aligned with the shipping browser
+// metadata. These effects can target the opponent or an opponent-owned card.
+const HAVANO_TARGETING_SOURCE_IDS = new Set([
+  '04','10','14','16','17','18','21','26','30','31','34','36','39','47','50',
+  '52','53','61','62','64','71','72','81','91','93','97','bh04','bh16','bh18'
+]);
+
 export function cardRule(cardId, state = null){
   const id = String(cardId || '');
-  if(['20','34','64','73'].includes(id) && PRESSURE_REWORK_REGISTRY[id]) return PRESSURE_REWORK_REGISTRY[id];
-  if(state?.gameSettings?.pressureCardReworks === true && PRESSURE_REWORK_REGISTRY[id]) return PRESSURE_REWORK_REGISTRY[id];
-  return REGISTRY[id] || null;
+  let rule = null;
+  if(['20','34','64','73'].includes(id) && PRESSURE_REWORK_REGISTRY[id]) rule = PRESSURE_REWORK_REGISTRY[id];
+  else if(state?.gameSettings?.pressureCardReworks === true && PRESSURE_REWORK_REGISTRY[id]) rule = PRESSURE_REWORK_REGISTRY[id];
+  else rule = REGISTRY[id] || null;
+  if(rule && HAVANO_TARGETING_SOURCE_IDS.has(id) && rule.havanoTargeting !== 'OPPONENT'){
+    return {...rule, havanoTargeting:'OPPONENT'};
+  }
+  return rule;
 }
 
 export function hasTiming(cardId, timing, state = null){

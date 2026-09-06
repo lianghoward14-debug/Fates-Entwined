@@ -324,7 +324,7 @@ function authorityHttpBaseUrl(){
   return (configured || 'https://fates-entwined-main.fly.dev').replace(/\/+$/, '');
 }
 async function flyApiRequest(route, options={}){
-  const accountToken = await auth.currentUser?.getIdToken?.().catch(()=>'');
+  const accountToken = await auth.currentUser?.getIdToken?.(options.refreshToken===true);
   const headers = {
     'accept':'application/json',
     'authorization':`Bearer ${accountToken || `session:${identity}`}`
@@ -343,10 +343,22 @@ async function flyApiRequest(route, options={}){
   const baseUrl = route.startsWith('/api/warfront/')
     ? (window.fateAuthorityV3Beta?.apiBaseUrl || 'https://fates-entwined-main.fly.dev')
     : authorityHttpBaseUrl();
-  const response = await fetch(baseUrl + route, init);
+  let response;
+  try{response = await fetch(baseUrl + route, init);}
+  catch(error){
+    // The installed app can recover a renderer transport failure through its
+    // existing native bridge, using the same account and production authority.
+    if(options.signal?.aborted || baseUrl!=='https://fates-entwined-main.fly.dev' || !window.FateElectronFlyApi?.request)throw error;
+    const result=await window.FateElectronFlyApi.request({route,method:init.method,authorization:headers.authorization,body:options.body});
+    response={ok:result.ok,status:result.status,text:async()=>result.text||result.error||'',json:async()=>result.data};
+  }
+  if(response.status===401 && auth.currentUser && options.refreshToken!==true){
+    return flyApiRequest(route,{...options,refreshToken:true});
+  }
   if(!response.ok){
     const message = await response.text().catch(()=>'');
-    throw new Error(`Fate authority API failed: ${response.status}${message ? ` ${message.slice(0, 160)}` : ''}`);
+    let reason=message;try{reason=JSON.parse(message).error||message;}catch(_){}
+    throw Object.assign(new Error(response.status===401?'Your Google session needs to be refreshed. Please sign in again.':`Fate authority API failed: ${response.status}${reason ? ` ${reason.slice(0, 160)}` : ''}`),{status:response.status});
   }
   return response.json();
 }

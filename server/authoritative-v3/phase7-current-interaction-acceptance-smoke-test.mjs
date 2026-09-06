@@ -129,6 +129,14 @@ assert.match(online, /const submittedPromptId = String\(command\?\.type[\s\S]{0,
 assert.match(online, /phase7CurrentUiSession\.submittingPromptId === promptId[\s\S]{0,180}setTimeout\(check, 80\)/);
 assert.match(online, /phase7CurrentUiSession\.submittingPromptId === String\(prompt\.promptId \|\| ''\)[\s\S]{0,220}Resolving your selection/);
 
+// Isaac's optional two-card window must preserve zero as a legal choice in
+// single player and accept server-eligible card batches in multiplayer even if
+// a refreshed legal-command catalogue does not contain that exact batch.
+assert.match(rendering, /function pickMultipleInZone\([^)]*minCount=1\)[\s\S]{0,420}sourceCard, minCount\)/);
+assert.match(gameplay, /case '22':[\s\S]{0,1500}pickMultipleInZone\([^;]+card,0\)/);
+assert.match(online, /const eligibleIids = new Set\([^;]+eligibleIids[\s\S]{0,700}selected\.every\(function\(iid\)\{ return eligibleIids\.has/);
+assert.match(online, /opts\.squareTargets[\s\S]{0,260}selectedIids:selected\.slice\(\)/);
+
 // The production full-UI driver knows both the visual picker and the card-
 // specific Wodny overlay; neither is accepted as a server-only rule result.
 assert.match(harness, /['"]93['"]\s*:\s*['"]snowball['"]/);

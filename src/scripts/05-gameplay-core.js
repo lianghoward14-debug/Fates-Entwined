@@ -8677,10 +8677,13 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
     case '13': // Johnathan Kirby: search deck for 2 supporters
       searchDeckForType(cp,'Supporter','Search for up to 2 Supporters:',2,{sourceCardId:'13'}); break;
     case '22': // Isaac Perez: choose up to 2 controlled cards in this zone; +3 Fate permanently
-      pickMultipleInZone(z,2,'Isaac Perez: Select up to 2 cards you control in this zone to gain +3 Fate permanently:',(targets)=>{
-        if(!targets || !targets.length){toast('No cards selected');return;}
+      {
+      let isaacResolved = false;
+      const resolveIsaacSelection = (targets)=>{
+        if(isaacResolved) return;
+        isaacResolved = true;
         const isaacTargets = [];
-        targets.forEach(function(t, idx){
+        (targets || []).forEach(function(t, idx){
           const target = t && (t.card || t);
           if(target && target.owner === cp) {
             isaacTargets.push({target:target, index:idx});
@@ -8692,10 +8695,21 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
             });
           }
         });
-        toast('Isaac increased '+isaacTargets.length+' card'+(isaacTargets.length===1?'':'s')+' by +3 Fate permanently');
+        if(isaacTargets.length) toast('Isaac increased '+isaacTargets.length+' card'+(isaacTargets.length===1?'':'s')+' by +3 Fate permanently');
+        else toast('Isaac selected no cards');
         markInitialEffectResolved(card);
         renderEffectResolutionForPlayer(cp, {hand:false});
-      },c=>c.owner===cp, null, card); break;
+      };
+      const skipIsaacSelection = ()=>{
+        if(isaacResolved) return;
+        isaacResolved = true;
+        toast('Isaac selected no cards');
+        markInitialEffectResolved(card);
+        renderEffectResolutionForPlayer(cp, {hand:false});
+      };
+      pickMultipleInZone(z,2,'Isaac Perez: Select up to 2 cards you control in this zone to gain +3 Fate permanently:',resolveIsaacSelection,c=>c.owner===cp,skipIsaacSelection,card,0);
+      break;
+      }
     case '81': { // Wojciech: counters equal opponent placements last turn
       ensureWojciechPlacementCounts();
       const count = Math.max(0, Number(G._wojciechLastTurnPlacementCounts[opp]) || 0);

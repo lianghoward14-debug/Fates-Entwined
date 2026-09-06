@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import {createRequire} from 'node:module';
 import {createInitialState, reduceCommand} from '../../shared/engine/index.mjs';
 import {cardRule} from '../../shared/engine/cards/registry.mjs';
@@ -6,9 +7,31 @@ import {command} from './test-helpers.mjs';
 
 const require = createRequire(import.meta.url);
 const {getCardCatalog} = require('../fate-card-catalog.js');
+const {HAVANO_TARGETING_SOURCE_IDS} = require('../../src/scripts/02-effect-rule-metadata.js');
+const onlineRooms = fs.readFileSync(new URL('../../src/scripts/18-online-rooms.js', import.meta.url), 'utf8');
 const DEFINITIONS = getCardCatalog().cards.filter(card=>
   card.retired !== true && card.temporarilyDisabled !== true
 );
+
+for(const sourceId of HAVANO_TARGETING_SOURCE_IDS){
+  assert.equal(cardRule(sourceId)?.havanoTargeting, 'OPPONENT', `${sourceId} must share Havano targeting eligibility in authority and browser rules`);
+}
+
+// Authoritative counters must be projected into the legacy fields consumed by
+// the same match-tracker UI used in single-player.
+assert.match(onlineRooms, /rule-use:semper_fidelis:p/);
+assert.match(onlineRooms, /usMarinesUses:\[0,1\]\.map/);
+assert.match(onlineRooms, /rule-use:snowy_village:p/);
+assert.match(onlineRooms, /_snowyVillageUses:\[0,1\]\.map/);
+for(const [cardId, maxUses] of [['20', 2], ['40', 2], ['bh16', 2]]){
+  assert.match(
+    onlineRooms,
+    new RegExp(`['"]${cardId}['"]\\s*:\\s*${maxUses}`),
+    `${cardId} remaining-effect uses must be projected for multiplayer trackers`
+  );
+}
+assert.match(onlineRooms, /_bh08ProcCount\s*=\s*Math\.max\([^;]+card\.counters\?\.bh08ProcCount/);
+assert.match(onlineRooms, /_wintertideTriggerCount\s*=\s*Math\.max\([^;]+card\.counters\?\.wintertideTriggerCount/);
 
 function takeCard(state, playerIndex, cardId){
   for(const pile of ['hand', 'deck', 'discard']){
@@ -49,7 +72,7 @@ function sourceFixture(sourceId, reactorId = '79'){
   return {state, source, reactor, timing};
 }
 
-for(const sourceId of ['81', '93', '97', 'bh04', 'bh16']){
+for(const sourceId of ['18', '72', '81', '93', '97', 'bh04', 'bh16']){
   const value = sourceFixture(sourceId);
   const type = value.timing === 'ACTIVATE' ? 'ACTIVATE_EFFECT' : 'FLIP_CARD';
   const payload = value.timing === 'ACTIVATE'
@@ -83,15 +106,11 @@ for(const sourceId of ['81', '97', 'bh04']){
   assert(option && option.reactionIid === value.reactor.iid, `${sourceId} must expose Secules`);
 }
 
-// Post-Cynthia Jimmy triggers at the opponent's turn ending, not when Jimmy is
-// set. Havano interrupts each Jimmy source separately and can prevent that
-// source's random deck discard.
+// Post-Cynthia Jimmy triggers at the opponent's turn ending. Havano interrupts
+// each Jimmy source separately and can prevent that source's random deck discard.
 {
   const state = createInitialState({
-    matchId:'HAVANO-EXPANDED-BH18',
-    seed:'havano-expanded-bh18',
-    handSize:1,
-    activePlayer:0,
+    matchId:'HAVANO-EXPANDED-BH18', seed:'havano-expanded-bh18', handSize:1, activePlayer:0,
     cardDefinitions:DEFINITIONS,
     players:[
       {id:'p0', deckIds:['79', ...Array(16).fill('32')]},
@@ -101,33 +120,19 @@ for(const sourceId of ['81', '97', 'bh04']){
   const jimmy = putOnBoard(state, 1, 'bh18', {z:1,r:0,c:0});
   const havano = takeCard(state, 0, '79');
   state.players[0].hand.push(havano);
-  let result = reduceCommand(
-    state,
-    command(state, 'p0', 1, 'END_TURN', {}),
-    {playerId:'p0'}
-  );
+  let result = reduceCommand(state, command(state, 'p0', 1, 'END_TURN', {}), {playerId:'p0'});
   assert.equal(result.prompt?.type, 'REACTION');
   const option = result.prompt.options.find(candidate=>candidate.kind === 'HAVANO');
   assert(option && option.reactionIid === havano.iid, 'BH18 turn-end discard must expose Havano');
-  result = reduceCommand(
-    result.state,
-    command(result.state, 'p0', 2, 'ANSWER_PROMPT', {
-      promptId:result.state.pendingPrompt.promptId,
-      choice:'NEGATE',
-      reactionIid:havano.iid
-    }),
-    {playerId:'p0'}
-  );
+  result = reduceCommand(result.state, command(result.state, 'p0', 2, 'ANSWER_PROMPT', {
+    promptId:result.state.pendingPrompt.promptId, choice:'NEGATE', reactionIid:havano.iid
+  }), {playerId:'p0'});
   assert(result.events.some(event=>event.type === 'EFFECT_REACTED' && event.sourceIid === jimmy.iid));
   assert.equal(result.prompt?.context, 'HAVANO_SET');
-  result = reduceCommand(
-    result.state,
-    command(result.state, 'p0', 3, 'ANSWER_PROMPT', {
-      promptId:result.state.pendingPrompt.promptId,
-      destination:result.state.pendingPrompt.eligible[0]
-    }),
-    {playerId:'p0'}
-  );
+  result = reduceCommand(result.state, command(result.state, 'p0', 3, 'ANSWER_PROMPT', {
+    promptId:result.state.pendingPrompt.promptId,
+    destination:result.state.pendingPrompt.eligible[0]
+  }), {playerId:'p0'});
   assert.equal(result.ok, true);
   assert(!result.events.some(event=>event.reason === 'GENESIS_OF_ALL_INCELDOM'), 'negated BH18 must not discard from deck');
 }

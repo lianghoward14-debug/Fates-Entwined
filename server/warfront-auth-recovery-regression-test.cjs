@@ -1,0 +1,20 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const source=fs.readFileSync('src/scripts/15-online-auth.js','utf8');
+const fn=source.slice(source.indexOf('async function flyApiRequest('),source.indexOf('// Compatibility shims'));
+(async()=>{
+  let forced=[],calls=0;
+  const c={auth:{currentUser:{getIdToken:async force=>{forced.push(force);return force?'fresh':'expired';}}},safe:String,identity:'local',window:{},authorityHttpBaseUrl:()=>'',fetch:async()=>{calls++;return calls===1?{ok:false,status:401,text:async()=>'{"error":"expired token"}'}:{ok:true,status:200,json:async()=>({ok:true})};}};
+  vm.createContext(c);vm.runInContext(fn,c);
+  assert.equal((await c.flyApiRequest('/api/warfront/state')).ok,true);
+  assert.deepEqual(forced,[false,true]);assert.equal(calls,2);
+  c.fetch=async()=>({ok:false,status:401,text:async()=>''});forced=[];
+  await assert.rejects(c.flyApiRequest('/api/warfront/state'),/Google session/);assert.equal(forced.length,2,'refresh only once');
+  let bridge;
+  c.fetch=async()=>{throw new Error('Failed to fetch');};
+  c.window.FateElectronFlyApi={request:async input=>{bridge=input;return {ok:true,status:200,data:{ok:true,state:{mapCode:'live'}}};}};
+  assert.equal((await c.flyApiRequest('/api/warfront/state')).state.mapCode,'live');
+  assert.equal(bridge.authorization,'Bearer expired');assert.equal(bridge.route,'/api/warfront/state');
+  c.window.fateAuthorityV3Beta={apiBaseUrl:'http://127.0.0.1:8787'};bridge=null;
+  await assert.rejects(c.flyApiRequest('/api/warfront/state'),/Failed to fetch/);assert.equal(bridge,null,'isolated tests cannot fall back to live');
+  console.log('Warfront token refresh and desktop transport recovery passed');
+})().catch(error=>{console.error(error);process.exitCode=1;});
