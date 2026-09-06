@@ -270,16 +270,6 @@ export function effectiveFate(state, entryOrCard){
     && (Number(state.supporterEffectsActivated[targetController]) || 0) < 10){
     modifier += 7;
   }
-  if(state?.gameSettings?.pressureCardReworks !== true && activeAuraSource(state, entry) && selfId === '64' && duelistTarget(state, entry)){
-    modifier += 3 * adjacencyMultiplier;
-  }
-  if(state?.gameSettings?.pressureCardReworks !== true){
-    for(const duelist of boardEntries(state)){
-      if(runtimeRuleId(duelist.card) !== '64') continue;
-      const target = duelistTarget(state, duelist);
-      if(target && String(target.card.iid) === String(card.iid)) modifier -= 3;
-    }
-  }
   for(const flowerKing of boardEntries(state)){
     if(runtimeRuleId(flowerKing.card) !== 'bh12' || !activeAuraSource(state, flowerKing)) continue;
     if(controllerOf(flowerKing.card) !== targetController || isEffectImmutable(card)) continue;

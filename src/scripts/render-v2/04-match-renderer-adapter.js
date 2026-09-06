@@ -3122,6 +3122,7 @@
   }
 
   const CARD_EFFECT_FLASH_PALETTE = Object.freeze({
+    jake_taco:{color:'rgba(255,236,176,.99)',glow:'rgba(235,173,62,.72)',tint:'rgba(139,86,28,.20)'},
     specter_ghost:{color:'rgba(224,239,255,.98)',glow:'rgba(140,184,255,.58)',tint:'rgba(104,126,174,.16)'},
     kvetka_ballad:{color:'rgba(255,202,238,.98)',glow:'rgba(244,94,184,.60)',tint:'rgba(142,42,104,.16)'},
     marie_deterrence:{color:'rgba(255,225,211,.98)',glow:'rgba(225,105,78,.52)',tint:'rgba(170,78,64,.14)'},
@@ -3398,7 +3399,13 @@
     const circle = function(x,y,r){ ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.stroke(); };
     const dot = function(x,y,r){ ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill(); };
 
-    if(kind === 'mark_menz_reality') {
+    if(kind === 'jake_taco') {
+      ctx.lineWidth = 3.8;
+      line([[-20,8],[-12,-8],[0,-15],[12,-8],[20,8],[17,18],[0,23],[-17,18],[-20,8]],true);
+      ctx.lineWidth = 4;
+      line([[-16,7],[-8,1],[0,8],[8,1],[16,7]],false);
+      dot(-9,12,2.5); dot(8,13,2.5); dot(0,17,2.5);
+    } else if(kind === 'mark_menz_reality') {
       ctx.lineWidth = 3.4;
       circle(32,32,12);
       line([[32,8],[32,18]],false); line([[32,46],[32,56]],false);

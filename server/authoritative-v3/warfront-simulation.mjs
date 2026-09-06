@@ -14,7 +14,7 @@ export function warfrontAiDeck(){
 
 export function simulateWarfrontMatch(input){
   return new Promise((resolve,reject)=>{
-    const worker = new Worker(new URL(import.meta.url), {workerData:input});
+    const worker = new Worker(new URL(import.meta.url), {workerData:{...input,warfrontSimulation:true}});
     const timer = setTimeout(()=>{worker.terminate();reject(new Error('Warfront simulation timed out'));},120000);
     worker.once('message',result=>{clearTimeout(timer);resolve(result);});
     worker.once('error',error=>{clearTimeout(timer);reject(error);});
@@ -22,24 +22,32 @@ export function simulateWarfrontMatch(input){
   });
 }
 
-if(!isMainThread){
+if(!isMainThread && workerData?.warfrontSimulation){
   let state = createInitialState({matchId:workerData.id, seed:workerData.id,
     landscapeId:workerData.landscapeId, cardDefinitions:getCardCatalog().cards,
     players:['a','b'].map(team=>({id:team,deckIds:warfrontAiDeck()}))});
-  const plans=[{},{}], actions=[];
+  const plans=[{},{}], actions=[], consolidations=[0,0];
+  const initialState=structuredClone(state);
   const started=Date.now();
   for(let index=0; index<12000 && !state.outcome; index++){
     const seat=Number(state.pendingHandLimit?.playerIndex ?? state.pendingPrompt?.playerIndex ?? state.activePlayer);
     const legal=legalCommandTemplates(state,seat).filter(command=>command.type!=='CONCEDE');
     const choice=chooseStrategicV3AiCommand(legal,state,{playerIndex:seat,playerId:state.players[seat].id,canonicalState:state,difficulty:'medium',planningDepth:1,planCache:plans[seat]});
     if(!choice)throw new Error('Warfront simulation has no legal action');
-    const command={...choice,matchId:state.matchId,expectedRevision:state.revision,commandId:`simulation:${index}`};
+    const command={type:choice.type,payload:choice.payload||{},matchId:state.matchId,expectedRevision:state.revision,commandId:`simulation:${index}`};
     const result=reduceCommand(state,command,{playerId:state.players[seat].id});
     if(!result.ok)throw new Error('Warfront simulation rejected '+result.rejection?.code);
-    actions.push({playerIndex:seat,command});state=result.state;
+    actions.push({playerIndex:seat,command});
+    for(const event of result.events||[])if(event.type==='CARD_CONSOLIDATED')consolidations[seat]++;
+    state=result.state;
   }
   if(!state.outcome)throw new Error('Warfront simulation did not finish');
   parentPort.postMessage({id:workerData.id,winnerTeam:state.outcome.winner===0?'a':state.outcome.winner===1?'b':null,
     completedAt:Date.now(),simulated:true,simulationKind:'full-match',outcome:state.outcome,
-    engineActions:actions,stats:{durationMs:Date.now()-started},playerStats:{}});
+    engineActions:actions,initialState,stats:{durationMs:Date.now()-started},
+    playerStats:Object.fromEntries(['a','b'].map((team,seat)=>[team,{
+      totalFateGenerated:Number(state.outcome.totalFate?.[seat])||0,
+      fateDifferential:Math.max(0,(Number(state.outcome.totalFate?.[seat])||0)-(Number(state.outcome.totalFate?.[1-seat])||0)),
+      consolidations:consolidations[seat],durationMs:Date.now()-started
+    }]))});
 }

@@ -3,7 +3,7 @@ const source=fs.readFileSync('server/authoritative-v3/fly-data-api.mjs','utf8');
 const fn=source.slice(source.indexOf('  function settleWarfrontResult('),source.indexOf('  function refreshWarfrontForfeits('));
 const zone={id:'front',a:{uid:'alpha'},b:{uid:'bravo'},matches:[],activeMatch:{matchId:'match'}};
 let writes=0;
-const c={warfrontBindings:new Map([['match',{mapCode:'map',zoneId:'front',uids:['bravo','alpha']}]]),warfrontEvent:{mapCode:'map',zones:[zone]},persist:()=>writes++};
+const c={warfrontBindings:new Map([['match',{mapCode:'map',zoneId:'front',uids:['bravo','alpha']}]]),warfrontEvent:{mapCode:'map',zones:[zone]},persist:()=>writes++,applyChallengerResult:()=>{}};
 vm.createContext(c);vm.runInContext(fn,c);
 const match={matchId:'match',outcome:{winner:1,totalFate:[10,30]},warfrontConsolidations:[2,3]};
 assert.equal(c.settleWarfrontResult(match,{consumedMs:[5000,7000]}),true);

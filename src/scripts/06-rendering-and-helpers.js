@@ -4219,7 +4219,7 @@ function getAuthoritativeEffectOverlayDescriptor(event, source, target) {
     '15':{kind:'coord_zsofia_river',label:'Blue Danube Waltz'},'19':{kind:'coord_kvetka_bloom',label:'National Flower'},
     '22':{kind:'isaac_beaker',label:'Scientific Inquiry'},'23':{kind:'coord_cathy_cardigan',label:'Cardigan Onslaught'},
     '31':{kind:'oathbound_crescent',label:'Oathbound Blade'},'34':{kind:'rozsi_dance',label:'Hungarian Dance'},
-    '36':{kind:'marie_deterrence',label:'Deterrance'},'41':{kind:'jimmy_wrath',label:"A True Incel's Wrath"},
+    '36':{kind:'marie_deterrence',label:'Deterrance'},'38':{kind:'jake_taco',label:'Fat Fuck'},'41':{kind:'jimmy_wrath',label:"A True Incel's Wrath"},
     '44':{kind:'soviet_grenadiers',label:'The Bears of Russia'},'51':{kind:'rivera_crest',label:'Rivera Affiliation Bonus'},
     '57':{kind:'coord_jeremiah_snowseal',label:'ALPINE, The Future'},'61':{kind:'maria_target',label:'Precise Shot Target'},
     '65':{kind:'west_caribbea_marines',label:'Sea-Men'},'77':{kind:'coord_heyward_compass',label:'Declared Affiliation'},
@@ -4232,7 +4232,7 @@ function getAuthoritativeEffectOverlayDescriptor(event, source, target) {
     'bh25':{kind:'alpine_engineer_proc',label:"An Engineer's Ambition"}
   };
   if(type === 'EFFECT_ACTIVATED'){
-    if(['93','31','05','22','83','bh24'].includes(sourceId)) return null;
+    if(['38','93','31','05','22','83','bh24'].includes(sourceId)) return null;
     return bySourceId[sourceId] || null;
   }
   if(type !== 'FATE_CHANGED') return null;
@@ -7569,7 +7569,7 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
         act.className='btn sm pri';
         act.textContent=String(bc.id || '') === 'bh01'
           ? 'Brave Horizons'
-          : (String(bc.id || '') === 'bh16' ? 'Storm of Ten Thousand Blades' : (String(bc.id || '') === '20' ? 'Shield Wall' : 'Activate Effect'));
+          : (String(bc.id || '') === '38' ? 'Fat Fuck' : (String(bc.id || '') === 'bh16' ? 'Storm of Ten Thousand Blades' : (String(bc.id || '') === '20' ? 'Shield Wall' : 'Activate Effect')));
         act.onclick=()=>{playEffectActivationButtonSound(); closeModal(); triggerCharacterEffect(bc,z,r,c);};
         acts.appendChild(act);
       }
@@ -8976,7 +8976,7 @@ function pickFromDiscard(player, type, prompt, callback, searchOptions={}) {
   if(!matches.length && typeof isDiscardRecoveryBlockedByLandscape === 'function' && isDiscardRecoveryBlockedByLandscape()){
     toast('Zion Canyon prevents recovering discarded cards.');
   }
-  pickCardsVisual(matches, {title:prompt, subtitle:'Pick from discard pile', maxCount:1, confirmLabel:'Choose', immediate:true, opponentSearch:true, searchingPlayer:player, searchSourceCardId:String(searchOptions.sourceCardId || '')},
+  pickCardsVisual(matches, {title:prompt, subtitle:searchOptions.subtitle || 'Pick from discard pile', minCount:searchOptions.minCount == null ? 1 : searchOptions.minCount, maxCount:1, confirmLabel:'Choose', immediate:true, opponentSearch:true, searchingPlayer:player, searchSourceCardId:String(searchOptions.sourceCardId || '')},
     (chosen)=>{
       if(!chosen.length) return;
       queueSearchToHandMotion(player, chosen[0], 'discard', G.players[player].hand.length, 0, 1);

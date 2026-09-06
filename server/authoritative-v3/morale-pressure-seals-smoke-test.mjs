@@ -17,7 +17,8 @@ const definitions = [
   {id:'init', name:'Initiator', type:'Initiator', aff:'reality', fate:6, cost:1},
   {id:'down', name:'Dauntless', type:'Dauntless', aff:'eventide', fate:9, cost:1},
   {id:'support', name:'Known Supporter', type:'Supporter', aff:'expanded_worlds', fate:2, cost:0},
-  {id:'64', name:'Cook Islands Duelist', type:'Supporter', aff:'eventide', fate:1, cost:0}
+  {id:'64', name:'Cook Islands Duelist', type:'Supporter', aff:'eventide', fate:1, cost:0},
+  {id:'58', name:'Crossroads Worker', type:'Supporter', aff:'reality', fate:1, cost:0}
 ];
 
 const experimental = createInitialState({
@@ -38,6 +39,8 @@ const experimental = createInitialState({
   }
 });
 const ctx = {state:experimental, events:[], ruleEvents:[]};
+assert.equal(cardRule('64', experimental).timings.includes('WHEN_SET'),true,'Cook Islands Duelist arms Blade Dance even when pressure-card reworks are disabled');
+assert.equal(cardRule('64', experimental).timings.includes('PASSIVE'),false,'Cook Islands Duelist never exposes the retired Fate aura');
 assert.equal(experimental.moralePressure.maxMorale, 200);
 assert.deepEqual(experimental.moralePressure.morale, [200, 200]);
 
@@ -121,6 +124,24 @@ duelistState.turn=4;
 resolveMoralePressureCycle(duelistCtx);
 assert.equal(duelistState.moralePressure.morale[1],196,'Cook Islands Duelist doubles the complete 2-damage zone Morale calculation to 4');
 assert.equal(duelistState.board[0][2][0].counters.doubleNextMoraleDamage,false,'Cook Islands Duelist consumes its next-calculation double');
+
+let crossroadsState=createInitialState({
+  matchId:'crossroads-morale-cost-smoke',seed:'crossroads-morale-cost-smoke',
+  players:[{id:'p0',deckIds:['58','support']},{id:'p1',deckIds:['init']}],
+  cardDefinitions:definitions,handSize:2,activePlayer:0,
+  gameSettings:{healthPressureSeals:true,pressureCardReworks:true,zoneControlRework:true,expandedContestedRow:true}
+});
+const crossroadsWorker=crossroadsState.players[0].hand.find(card=>card.id==='58');
+const crossroadsSupporter=crossroadsState.players[0].hand.find(card=>card.id==='support');
+crossroadsState.players[0].hand=crossroadsState.players[0].hand.filter(card=>card.iid!==crossroadsSupporter.iid);
+crossroadsState.players[0].discard.push(crossroadsSupporter);
+let crossroadsResult=reduceCommand(crossroadsState,command(crossroadsState,'p0',1,'SET_CARD',{cardIid:crossroadsWorker.iid,destination:{z:0,r:2,c:0}}),{playerId:'p0'});
+assert.equal(crossroadsResult.ok,true);
+assert.equal(crossroadsResult.prompt.min,1,'Crossroads recovery requires a real Supporter selection');
+crossroadsState=crossroadsResult.state;
+crossroadsResult=reduceCommand(crossroadsState,command(crossroadsState,'p0',2,'ANSWER_PROMPT',{promptId:crossroadsState.pendingPrompt.promptId,selectedIid:crossroadsSupporter.iid}),{playerId:'p0'});
+assert.equal(crossroadsResult.state.moralePressure.morale[0],185,'Crossroads pays 15 Morale when its recovery resolves');
+assert.equal(crossroadsResult.state.players[0].hand.some(card=>card.iid===crossroadsSupporter.iid),true,'Crossroads returns the selected Supporter to hand');
 
 const lowMorale = createInitialState({
   matchId:'morale-40-discard-smoke',

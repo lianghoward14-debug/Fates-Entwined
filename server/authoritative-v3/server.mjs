@@ -244,7 +244,7 @@ function betaQueueOpponent(entry){
 }
 
 function completeBetaQueueMatch(queued){
-  const ai=queued.queueMode==='warfront'?flyDataApi?.warfrontAiOpponent(queued.matchmakingKey,queued.uid):null;
+  const ai=queued.queueMode==='warfront'?flyDataApi?.warfrontAiOpponent(queued.matchmakingKey,queued.authUid||queued.uid):null;
   const opponent = ai ? {...queued,uid:ai.uid,name:ai.name,photoURL:ai.photo,rankElo:ai.elo,deckIds:warfrontAiDeck(),isAI:true} : betaQueueOpponent(queued);
   if(!opponent) return null;
   const matchId = `BETA_${Date.now().toString(36)}_${crypto.randomBytes(5).toString('hex')}`;
@@ -270,7 +270,10 @@ function completeBetaQueueMatch(queued){
     ]
   });
   const opponentCredential = betaCredentialFor(result, opponent.uid, queueMode);
-  if(opponent.isAI)scheduleAuthorityTimers(manager.actor(matchId));
+  if(opponent.isAI){
+    flyDataApi.bindWarfrontAiMatch(matchId,queued.authUid||queued.uid,queued.uid,queued.matchmakingKey);
+    scheduleAuthorityTimers(manager.actor(matchId));
+  }
   const ownCredential = betaCredentialFor(result, queued.uid, queueMode);
   betaQueue.delete(opponent.uid);
   betaQueue.delete(queued.uid);

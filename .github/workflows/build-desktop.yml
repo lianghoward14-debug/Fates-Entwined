@@ -44,6 +44,7 @@ jobs:
           done
           npm run smoke:marketplace
           npm run smoke:archive-medals
+          npm run smoke:jake-presentation
 
   build-windows:
     needs: verify-online-systems

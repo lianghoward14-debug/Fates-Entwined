@@ -141,7 +141,7 @@ function fateApplyServerProfileStats(profile, opts={}) {
   USER_PROFILE.challengerHumanLosses = Math.max(0, Math.round(Number(profile.challengerHumanLosses ?? profile.humanLosses ?? USER_PROFILE.challengerHumanLosses ?? 0) || 0));
   USER_PROFILE.challengerAIWins = Math.max(0, Math.round(Number(profile.challengerAIWins ?? (nextWins - USER_PROFILE.challengerHumanWins)) || 0));
   USER_PROFILE.challengerAILosses = Math.max(0, Math.round(Number(profile.challengerAILosses ?? (nextLosses - USER_PROFILE.challengerHumanLosses)) || 0));
-  for(const field of ['warfrontWins','warfrontLosses','warfrontDraws','warfrontMatchWins','warfrontMatchLosses','warfrontHumanWins','warfrontHumanLosses']){
+  for(const field of ['warfrontParticipations','warfrontWins','warfrontLosses','warfrontDraws','warfrontMatchWins','warfrontMatchLosses','warfrontHumanWins','warfrontHumanLosses']){
     USER_PROFILE[field]=Math.max(0,Math.round(Number(profile[field] ?? USER_PROFILE[field] ?? 0)||0));
   }
   USER_PROFILE.matchesPlayed = Math.max(

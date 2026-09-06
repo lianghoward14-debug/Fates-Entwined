@@ -433,10 +433,11 @@ const REGISTRY = Object.freeze({
     ]
   },
   '64':{
-    effectLabels:['ADJACENCY_BONUS'],
-    timings:['PASSIVE'],
-    operations:[],
-    prompts:[]
+    timings:['WHEN_SET'],
+    operations:['SET_CARD_COUNTER'],
+    prompts:['REACTION'],
+    havanoTargeting:'OPPONENT',
+    program:[{kind:'OPERATION',operation:{type:'SET_CARD_COUNTER',targetIid:'$sourceIid',counterKey:'doubleNextMoraleDamage',value:true}}]
   },
   '70':{
     timings:['PASSIVE'],
@@ -1138,16 +1139,19 @@ const REGISTRY = Object.freeze({
   },
   '58':{
     timings:['WHEN_SET'],
-    operations:['TRANSFER_CARDS'],
+    operations:['MODIFY_MORALE', 'TRANSFER_CARDS'],
     prompts:['CARD_SELECTION'],
     program:[
       {
         kind:'SELECT_CARDS',
         local:'targetIid',
-        min:0,
+        min:1,
         max:1,
-        optional:true,
         filter:{locations:['discard'], playerIndex:'controller', type:'Supporter'}
+      },
+      {
+        kind:'OPERATION',
+        operation:{type:'MODIFY_MORALE',playerIndex:'$controller',sourceIid:'$sourceIid',amount:-15,reason:'CROSSROADS_WORKER_COST'}
       },
       {
         kind:'OPERATION',

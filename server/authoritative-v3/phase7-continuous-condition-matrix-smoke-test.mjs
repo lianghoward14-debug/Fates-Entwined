@@ -263,12 +263,12 @@ function put(state, playerIndex, cardId, z, r, c){
   const state = scenario(['64'], ['char']);
   const duelist = put(state, 0, '64', 0, 2, 0);
   const target = put(state, 1, 'char', 0, 0, 2);
-  assert.equal(effectiveFate(state, duelist), 1, 'Duelist must be inactive without an adjacent opposing card');
+  assert.equal(effectiveFate(state, duelist), 1, 'Duelist never changes Fate');
   assert.equal(effectiveFate(state, target), 4, 'a non-adjacent opposing card must not be penalized');
   state.board[0][0][2] = null;
   state.board[0][2][1] = target;
-  assert.equal(effectiveFate(state, duelist), 4, 'Duelist must gain 3 Fate after acquiring a legal adjacent target');
-  assert.equal(effectiveFate(state, target), 1, 'Duelist must subtract 3 Fate from that target');
+  assert.equal(effectiveFate(state, duelist), 1, 'Duelist must not gain Fate from an adjacent opponent');
+  assert.equal(effectiveFate(state, target), 4, 'Duelist must not reduce an adjacent opponent\'s Fate');
 }
 
 {

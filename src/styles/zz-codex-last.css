@@ -1568,6 +1568,12 @@ html body #s-game .bc.fate-effect-flash::after{
   animation:fate-card-effect-icon-flash var(--effect-flash-duration) ease-out both!important;
 }
 html body #s-game .bc.fate-effect-flash .bc-fate{z-index:7!important;opacity:1!important;filter:none!important;}
+.bc.effect-flash-jake_taco{
+  --effect-flash-color:rgba(255,236,176,.99);--effect-flash-glow:rgba(235,173,62,.72);
+  --effect-flash-tint:rgba(139,86,28,.20);--effect-flash-inset:rgba(255,205,112,.14);
+  --effect-flash-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 36Q32 5 54 36Q45 56 32 57Q19 56 10 36Z' stroke-width='4'/%3E%3Cpath d='M14 35Q32 20 50 35M21 38l-3 7M32 35v10M43 38l3 7' stroke-width='3.5'/%3E%3Ccircle cx='24' cy='36' r='2' fill='black'/%3E%3Ccircle cx='40' cy='36' r='2' fill='black'/%3E%3C/svg%3E");
+}
+html body #s-game .bc.effect-flash-jake_taco::after{animation:none!important;}
 
 /* Mark Menz — four exact declaration crests in the established full-card
    effect-flash language. Colours mirror the affiliation picker. */

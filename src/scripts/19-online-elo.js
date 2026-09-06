@@ -889,6 +889,7 @@
             profile:publicProfile,
             didWin,
             isDraw,
+            isAI,
             opponentUid,
             opponentElo,
             roomCode,

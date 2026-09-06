@@ -43,6 +43,7 @@ jobs:
           npm run smoke:warfront
           npm run smoke:marketplace
           npm run smoke:archive-medals
+          npm run smoke:jake-presentation
 
       - name: Deploy to Fly
         env:

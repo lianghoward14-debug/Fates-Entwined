@@ -1836,7 +1836,8 @@ async function nextPlayerTurn() {
     stopTurnTimer();
     startAITurnVisualTimer();
     G._aiTurnToken = (G._aiTurnToken || 0) + 1;
-    setTimeout(runAITurn, 900);
+    if(typeof scheduleAITurnWithRecovery==='function') scheduleAITurnWithRecovery(900);
+    else setTimeout(runAITurn, 900);
   } else {
     G._aiRunning = false;
     G._aiAbort = false;
@@ -7746,12 +7747,27 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
         toast('No supporters in discard');break;
       }
       pickFromDiscard(cp,'Supporter','Add a Supporter from discard to hand:',(c)=>{
+        const system=G._moralePressure;
+        const freeMoraleCost=typeof isLandscapeActive==='function'&&isLandscapeActive('igb23');
+        if(system&&Array.isArray(system.morale)){
+          const before=Math.max(0,Number(system.morale[cp]||0));
+          system.morale[cp]=Math.max(0,before-(freeMoraleCost?0:15));
+          if(typeof window.presentLegacyMoraleDelta==='function') window.presentLegacyMoraleDelta({playerIndex:cp,before:before,after:system.morale[cp],sourceIid:String(inst?.iid||''),semanticSourceCardId:'58',reason:'CROSSROADS_WORKER_COST'});
+          else if(typeof window.refreshLegacyMoralePressure==='function') window.refreshLegacyMoralePressure({announce:true});
+        }
+        c.effectUsedInitial=false;
+        c._effectTurnLocked=false;
+        c._effectNegatedByReaction=false;
+        c.whenSetActivated=false;
+        delete c._effectActivationInFlight;
+        delete c._pendingWhenSetEffect;
+        delete c._pendingWhenSetActivationInFlight;
         if(typeof addCardToHand==='function') addCardToHand(cp, c);
         else G.players[cp].hand.push(c);
         G.players[cp].discard=G.players[cp].discard.filter(d=>d.iid!==c.iid);
         renderHand();
-        toast('Added '+c.name+' to hand');
-      }, {sourceCardId:'58'}); break;
+        toast((freeMoraleCost?'La Helena waived the Morale cost. Added ':'Paid 15 Morale and added ')+c.name+' to hand');
+      }, {sourceCardId:'58',minCount:1,subtitle:'Pay 15 Morale, then choose a Supporter from your discard.'}); break;
     case '60': // IB Student: search deck for supporter
       searchDeckForType(cp,'Supporter','Search deck for a Supporter:',1,{sourceCardId:'60'}); break;
     case '75': // Ledger-keepers: copy a supporter effect
@@ -9030,6 +9046,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
             : card;
           discardBoardCard(liveSpent, spent.z, spent.r, spent.c);
           modifyFate(jake, 4, 'permanent', cp);
+          if(typeof flashCardEffect === 'function') flashCardEffect(jake, 'jake_taco', {label:'Fat Fuck'});
           jake.effectUsedThisTurn = true;
           if(jake !== card) card.effectUsedThisTurn = true;
           toast('Jake gained 4 Fate!');
@@ -10430,24 +10447,6 @@ function getEffectiveFate(card, z) {
       bonus+=3*getSuperiorMarksMultiplier(z,source.owner);
     }
   }));
-  if(!pressureCardReworkTimingActive() && cardActsAsPassive(card, '64') && !isSupporterEffectSuppressed(card)) {
-    const targetInfo = getCookIslandsDuelistTarget(card, z);
-    if(targetInfo) {
-      bonus += 3 * adjacencyMultiplier;
-      noteCookIslandsDuelistContinuousSource(card);
-    }
-  }
-  if(!pressureCardReworkTimingActive()) {
-    G.board[z].forEach((row, r)=>row.forEach((cell, c)=>{
-      if(!cell || isInvisible(cell) || !cardActsAsPassive(cell, '64') || isSupporterEffectSuppressed(cell)) return;
-      const targetInfo = getCookIslandsDuelistTarget(cell, z);
-      if(targetInfo && targetInfo.card && targetInfo.card.iid === card.iid) {
-        bonus -= 3;
-        noteCookIslandsDuelistContinuousSource(cell);
-      }
-    }));
-  }
-
   // --- Coordinator passive buffs ---
   // Jeremiah Jones (57) boosts each friendly coordinator aura by 1 potency.
   let jeremiahBoost = typeof getFieldWideWhisperJeremiahBoost === 'function'

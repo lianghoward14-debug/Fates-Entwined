@@ -251,6 +251,7 @@ async function runAITurn() {
   G._aiTurnToken = aiTurnToken;
   const aiTurnNumber = G.turn;
   G._aiRunning = true;
+  G._aiLastProgressAt = Date.now();
   // Abort state belongs to the previous controller lifecycle. A newly
   // scheduled AI turn must always begin clean or it exits before endTurn().
   G._aiAbort = false;
@@ -271,6 +272,7 @@ async function runAITurn() {
       if(G._aiAborted || G._aiAbort) { G._aiRunning = false; return; }
       if(G.currentPlayer !== G.aiPlayer || G.turn !== aiTurnNumber || G._aiTurnToken !== aiTurnToken) { G._aiRunning = false; return; }
       actionsThisTurn++;
+      G._aiLastProgressAt = Date.now();
       await aiSleep(Math.max(thinkTime, AI_VISUAL_PAUSE_THINK));
       if(G._aiAborted || G._aiAbort) { G._aiRunning = false; return; }
       if(G.currentPlayer !== G.aiPlayer || G.turn !== aiTurnNumber || G._aiTurnToken !== aiTurnToken) { G._aiRunning = false; return; }
@@ -320,6 +322,7 @@ async function runAITurn() {
         else if(bestMove.type==='consolidate') await aiDoConsolidate(bestMove);
         else break;
       } finally {
+        G._aiLastProgressAt = Date.now();
         if(recorderBridge) recorderBridge.finishAction(recorderToken);
       }
       }
@@ -361,6 +364,34 @@ async function runAITurn() {
     endTurn({aiCompletion:true, skipEffectWarning:true, skipModalDeferral:true});
   }
 }
+
+// A backgrounded renderer can occasionally lose the one-shot timer that
+// starts an AI turn. Keep one lightweight owner-aware watchdog alive for the
+// current turn, and replace a genuinely stalled task without allowing the old
+// async continuation to end the replacement turn.
+function scheduleAITurnWithRecovery(delayMs=900) {
+  if(typeof G==='undefined'||!G||!G.aiEnabled)return false;
+  const expectedTurn=Number(G.turn);
+  if(G._aiKickoffTimer)clearTimeout(G._aiKickoffTimer);
+  G._aiKickoffTimer=setTimeout(function(){
+    G._aiKickoffTimer=null;
+    if(G.aiEnabled&&G.currentPlayer===G.aiPlayer&&Number(G.turn)===expectedTurn&&!G._aiRunning)runAITurn();
+  },Math.max(0,Number(delayMs)||0));
+  if(G._aiRecoveryTimer)clearInterval(G._aiRecoveryTimer);
+  G._aiRecoveryTimer=setInterval(function(){
+    if(!G.aiEnabled||G.currentPlayer!==G.aiPlayer){clearInterval(G._aiRecoveryTimer);G._aiRecoveryTimer=null;return;}
+    if(!G._aiRunning){runAITurn();return;}
+    if(Date.now()-Math.max(0,Number(G._aiLastProgressAt)||0)<20000)return;
+    G._aiTurnToken=(G._aiTurnToken||0)+1;
+    G._aiAbort=true;G._aiAborted=true;G._aiRunning=false;
+    setTimeout(function(){
+      if(!G.aiEnabled||G.currentPlayer!==G.aiPlayer)return;
+      G._aiAbort=false;G._aiAborted=false;runAITurn();
+    },0);
+  },2000);
+  return true;
+}
+window.scheduleAITurnWithRecovery=scheduleAITurnWithRecovery;
 
 function aiSleep(ms){
   const corpusParams = new URLSearchParams(window.location.search || '');
@@ -4485,6 +4516,20 @@ async function aiTriggerWhenSet(inst, z, r, c) {
           : [];
         let best = aiPickByPriority(sups, priorities);
         if(!best) { sups.sort((a,b)=>(b.fate||0)-(a.fate||0)); best = sups[0]; }
+        const system=G._moralePressure;
+        if(system&&Array.isArray(system.morale)){
+          const freeMoraleCost=typeof isLandscapeActive==='function'&&isLandscapeActive('igb23');
+          const before=Math.max(0,Number(system.morale[cp]||0));
+          system.morale[cp]=Math.max(0,before-(freeMoraleCost?0:15));
+          if(typeof window.presentLegacyMoraleDelta==='function') window.presentLegacyMoraleDelta({playerIndex:cp,before:before,after:system.morale[cp],sourceIid:String(inst?.iid||''),semanticSourceCardId:'58',reason:'CROSSROADS_WORKER_COST'});
+        }
+        best.effectUsedInitial=false;
+        best._effectTurnLocked=false;
+        best._effectNegatedByReaction=false;
+        best.whenSetActivated=false;
+        delete best._effectActivationInFlight;
+        delete best._pendingWhenSetEffect;
+        delete best._pendingWhenSetActivationInFlight;
         if(typeof addCardToHand==='function') addCardToHand(cp, best, { announce:false, arrivalKind:'search' });
         else G.players[cp].hand.push(best);
         G.players[cp].discard = G.players[cp].discard.filter(c=>c.iid!==best.iid);
@@ -4558,7 +4603,8 @@ async function aiTriggerWhenSet(inst, z, r, c) {
         }
       }
       break;
-    case '64': // Cook Islands Duelist: passive handled in getEffectiveFate
+    case '64': // Cook Islands Duelist: double the next Morale Damage Calculation
+      inst._doubleNextMoraleDamage = true;
       break;
     case '66': { // Mark Menz: pick majority own affiliation in zone
       const affCounts = {};

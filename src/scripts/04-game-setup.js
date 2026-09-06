@@ -2239,7 +2239,8 @@ function chooseTurn(goFirst) {
         G._aiTurnTimeoutRequested = false;
         startTurnTimer();
         G._aiTurnToken = (G._aiTurnToken || 0) + 1;
-        setTimeout(runAITurn, 1000);
+        if(typeof scheduleAITurnWithRecovery==='function') scheduleAITurnWithRecovery(1000);
+        else setTimeout(runAITurn, 1000);
       } else {
         startTurnTimer();
       }

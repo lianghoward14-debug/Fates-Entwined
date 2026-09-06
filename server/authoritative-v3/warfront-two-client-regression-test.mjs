@@ -114,7 +114,9 @@ try{
     finished=await request('alpha','/api/warfront/state',{method:'POST',body:{uid:'alpha',state:next}});
     await Promise.all([a.war.pull(),b.war.pull()]);same(`full campaign ${zoneIndex}/${battle}`);
   }
-  assert.equal(finished.state.lastResult.matches,25);assert.equal(a.state().status,'enrollment');
+  assert.equal(a.state().status,'active','completing all battles cannot shorten the battle phase');
+  await a.war.command('end');await b.war.pull();finished={state:a.state()};
+  assert.equal(finished.state.lastResult.matches,25);assert.equal(a.state().status,'results');
   assert.equal(a.state().lastResult.score.match.a,20);assert.equal(a.state().lastResult.score.match.b,10);
   assert.equal(a.state().lastResult.score.award.a,2);assert.equal(a.state().lastResult.winner,'a');
   assert.match(a.pane.innerHTML,/22/);assert.match(b.pane.innerHTML,/22/);
@@ -123,9 +125,11 @@ try{
   await a.war.command('deployment');
   await request('alpha','/api/warfront/deploy',{method:'POST',body:{uid:'alpha',zoneId:'heartland',team:'a'}});
   await a.war.command('start');
+  const settled=a.state();for(const zone of settled.zones)zone.matches=Array.from({length:5},(_,i)=>({id:zone.id+'-clock-'+i,winnerTeam:'a',completedAt:Date.now()}));
+  await request('alpha','/api/warfront/state',{method:'POST',body:{uid:'alpha',state:settled}});
   const now=Date.now;try{
-    const expiry=a.state().endsAt;Date.now=()=>expiry+1;
-    await Promise.all([a.war.pull(),b.war.pull()]);same('48-hour expiry');assert(a.state().lastResult);
+    const expiry=a.state().endsAt;Date.now=()=>expiry+1;await api.tickWarfront();
+    await Promise.all([a.war.pull(),b.war.pull()]);same('24-hour expiry');assert(a.state().lastResult);
   }finally{Date.now=now;}
   console.log('Two real Warfront client runtimes: concurrent deployment, start, stale responses, stalled poll recovery, simulation exit, end/archive, old upload rejection, reset and restart passed');
-}finally{server?.closeAllConnections();if(server)await new Promise(resolve=>server.close(resolve));api?.flush();globalThis.fetch=originalFetch;fs.rmSync(dir,{recursive:true,force:true});}
+}finally{server?.closeAllConnections();if(server)await new Promise(resolve=>server.close(resolve));api?.close();globalThis.fetch=originalFetch;fs.rmSync(dir,{recursive:true,force:true});}

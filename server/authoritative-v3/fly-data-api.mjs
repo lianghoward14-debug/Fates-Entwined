@@ -3,7 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import {resolveWarfrontPhoto} from '../../shared/profile-photo.mjs';
 import {warfrontReportStats} from './warfront-report.mjs';
-import {WARFRONT_PHASE_MS, startWarfrontBattle, warfrontDueMatch} from './warfront-lifecycle.mjs';
+import {WARFRONT_PHASE_MS, startWarfrontBattle, warfrontDueMatch, warfrontPlayed} from './warfront-lifecycle.mjs';
 import {simulateWarfrontMatch} from './warfront-simulation.mjs';
 
 const FIREBASE_PROJECT_ID = String(process.env.FATE_FIREBASE_PROJECT_ID || 'fates-entwined-41491');
@@ -214,6 +214,12 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
       const totals=match.outcome.totalFate||[0,0],winnerTeam=winner===teamASeat?'a':'b',playerStats={};
       for(const team of ['a','b']){const seat=team==='a'?teamASeat:1-teamASeat;playerStats[team]={totalFateGenerated:Math.max(0,Number(totals[seat])||0),fateDifferential:seat===winner?Math.max(0,(Number(totals[seat])||0)-(Number(totals[1-seat])||0)):0,consolidations:Number(match.warfrontConsolidations?.[seat])||0,durationMs:Number(clock.consumedMs?.[seat])||0};}
       zone.matches.push({id:String(match.matchId),winnerTeam,teamASeat,completedAt:Date.now(),starValue:1,playerStats,replayId:String(match.matchId)});
+      for(const team of ['a','b']){
+        if(zone[team].isAI)continue;
+        const opponent=zone[team==='a'?'b':'a'];
+        applyChallengerResult(zone[team].uid,{source:'warfront',roomCode:String(match.matchId),didWin:team===winnerTeam,
+          isAI:!!opponent.isAI,opponentUid:opponent.uid,opponentElo:opponent.elo,eloGainMultiplier:3});
+      }
       zone.bans={a:[],b:[]};zone.bansLocked={a:false,b:false};
     }
     if(before!==JSON.stringify(zone)){warfrontEvent._syncRevision=Number(warfrontEvent._syncRevision||0)+1;warfrontEvent._updatedAt=Date.now();persist();}
@@ -261,6 +267,7 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
     for(const player of players){
       if(player.isAI)continue;
       const value=profile(player.uid);
+      value.warfrontParticipations=(Number(value.warfrontParticipations)||0)+1;
       const field=report.winner==='draw'?'warfrontDraws':report.winner===player.team?'warfrontWins':'warfrontLosses';
       value[field]=(Number(value[field])||0)+1;
       profiles.set(player.uid,value);
@@ -291,15 +298,26 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
         startWarfrontBattle(warfrontEvent,now);
         warfrontEvent._syncRevision=Number(warfrontEvent._syncRevision||0)+1;persist();
       }
+      refreshWarfrontForfeits();
       const due=warfrontDueMatch(warfrontEvent,now);
       if(due){
-        const event=warfrontEvent, zone=due.zone;
+        const event=warfrontEvent,zone=due.zone;
         const id=`WF_AI_${event.sequence}_${event.zones.indexOf(zone)}_${due.index}`;
-        const match=due.deadline
-          ? {id,winnerTeam:Math.random()<.5?'a':'b',completedAt:now,simulated:true,simulationKind:'deadline',stats:{},playerStats:{}}
-          : await simulateWarfrontMatch({id,landscapeId:zone.landscape?.id});
+        if(Number(zone.aiRetryAt||0)>now)return;
+        let match;
+        try{
+          match=due.deadline
+            ? {id,winnerTeam:Math.random()<.5?'a':'b',completedAt:now,simulated:true,simulationKind:'deadline',commendationExcluded:true,stats:{},playerStats:{}}
+            : await simulateWarfrontMatch({id,landscapeId:zone.landscape?.id});
+        }catch(error){zone.aiRetryAt=Date.now()+60000;persist();throw error;}
         if(warfrontEvent!==event || event.status!=='active' || zone.activeMatch)return;
-        if(!zone.matches.some(row=>row.id===id))zone.matches.push(match);
+        if(!zone.matches.some(row=>row.id===id)){
+          zone.matches.push(match);
+          for(const team of ['a','b'])if(zone[team]&&!zone[team].isAI){
+            const value=profile(zone[team].uid),field=match.winnerTeam===team?'warfrontMatchWins':'warfrontMatchLosses';
+            value[field]=(Number(value[field])||0)+1;profiles.set(zone[team].uid,value);
+          }
+        }
         event._syncRevision=Number(event._syncRevision||0)+1;persist();
       }
       if(warfrontEvent.status==='active' && now>=warfrontEvent.endsAt && !warfrontDueMatch(warfrontEvent,now))finishWarfrontEvent();
@@ -586,6 +604,11 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
         binding.uids[seat]=uid;
         binding.playerIds=Array.isArray(binding.playerIds)?binding.playerIds:[null,null];
         binding.playerIds[seat]=String(c.playerId);
+        const opponent=zone[team==='a'?'b':'a'];
+        if(opponent?.isAI && match.warfrontAiSeats?.includes(1-seat) && match.players[1-seat]?.id===opponent.uid){
+          binding.uids[1-seat]=opponent.uid;
+          binding.playerIds[1-seat]=opponent.uid;
+        }
         warfrontBindings.set(c.matchId,binding);
         zone.activeMatch={matchId:c.matchId,teamASeat:team==='a'?seat:1-seat,startedAt:zone.activeMatch?.startedAt||Date.now()};
         warfrontEvent._syncRevision=Number(warfrontEvent._syncRevision||0)+1;warfrontEvent._updatedAt=Date.now();
@@ -598,7 +621,7 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
         writeJson(res,200,{ok:true,profiles:found});return true;
       }
       if(p[1]==='warfront'&&p[2]==='state'){
-        if(req.method==='GET'){await verifiedUid(req);writeJson(res,200,{ok:true,state:warfrontStateForClient()});return true;}
+        if(req.method==='GET'){const uid=await verifiedUid(req);writeJson(res,200,{ok:true,state:warfrontStateForClient(),profile:profile(uid)});return true;}
         const body=await readBody(req);await requireSelf(req,body.uid);const incoming=sanitizeWarfrontState(body.state);
         if(!incoming)throw new Error('invalid Warfront event state');
         // A delayed upload from the previous campaign must not import its
@@ -690,10 +713,22 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
   }else if(resetWarfrontForAuthorityUpgrade){snapshot.warfrontAuthorityBaseline=warfrontAuthorityBaseline;newWarfrontDeployment();flush();}
   return {
     handle,
+    close(){clearInterval(lifecycleTimer);flush();},
     tickWarfront,
+    bindWarfrontAiMatch(matchId,uid,playerId,key){
+      const match=resolveMatchState(matchId);
+      const zone=warfrontEvent?.zones.find(zone=>['a','b'].some(team=>zone[team]?.uid===uid));
+      if(!zone||!match?.warfrontAiSeats?.includes(0)||match.warfrontMatchmakingKey!==key)return false;
+      const team=zone.a.uid===uid?'a':'b',opponent=zone[team==='a'?'b':'a'];
+      if(!opponent?.isAI||match.players[0]?.id!==opponent.uid||match.players[1]?.id!==playerId)return false;
+      warfrontBindings.set(matchId,{matchId,mapCode:warfrontEvent.mapCode,zoneId:zone.id,uids:[opponent.uid,uid],playerIds:[opponent.uid,playerId]});
+      zone.activeMatch={matchId,teamASeat:team==='a'?1:0,startedAt:Date.now()};
+      warfrontEvent._syncRevision=Number(warfrontEvent._syncRevision||0)+1;persist();return true;
+    },
     warfrontAiOpponent(key,uid){
-      if(warfrontEvent?.status!=='active')return null;
+      if(warfrontEvent?.status!=='active'||Date.now()>=warfrontEvent.endsAt)return null;
       for(const zone of warfrontEvent.zones){
+        if(zone.activeMatch||warfrontPlayed(zone)>=5)continue;
         const team=['a','b'].find(team=>zone[team]?.uid===uid);
         if(!team)continue;
         const opponent=zone[team==='a'?'b':'a'];

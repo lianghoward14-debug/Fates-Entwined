@@ -53,8 +53,8 @@ const repeatedResult=api.testApplyChallengerResult(receiptUid,{didWin:true,oppon
 assert.equal(firstResult.idempotent,false,'the first authoritative match result must be applied');
 assert.equal(repeatedResult.idempotent,true,'a repeated authoritative match result must return its stored receipt');
 assert.equal(repeatedResult.profile.challengerElo,firstResult.profile.challengerElo,'a duplicate result must not grant ELO twice');
-assert.equal(repeatedResult.profile.challengerWins,1,'a duplicate result must not increment wins twice');
+assert.equal(repeatedResult.profile.warfrontMatchWins,1,'a duplicate result must not increment wins twice');
 const secondResult=api.testApplyChallengerResult(receiptUid,{didWin:true,opponentElo:600,source:'warfront',roomCode:'authoritative-match-2',eloGainMultiplier:3});
-assert.equal(secondResult.profile.challengerWins,2,'a different authoritative match id must still grant its result');
+assert.equal(secondResult.profile.warfrontMatchWins,2,'a different authoritative match id must still grant its result');
 
 console.log('Warfront shared-state synchronization smoke test passed');

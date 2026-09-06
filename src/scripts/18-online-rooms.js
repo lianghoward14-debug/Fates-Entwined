@@ -4642,6 +4642,7 @@
   function phase7ActivationActionPresentation(card){
     // Match the named single-player board action. Other repeatable activations
     // intentionally retain the single-player "Activate Effect" label.
+    if(String(card?.id || '') === '38') return {label:'Fat Fuck', prompt:'Fat Fuck'};
     if(String(card?.id || '') === '93') return {label:'Snowball Fight', prompt:'Snowball Fight'};
     if(String(card?.id || '') === 'bh16') return {label:'Storm of Ten Thousand Blades', prompt:'Storm of Ten Thousand Blades'};
     if(String(card?.id || '') === '20') return {label:'Shield Wall', prompt:'Shield Wall'};
@@ -6228,6 +6229,7 @@
       '31':{kind:'oathbound_crescent', label:'oathbound blade'},
       '34':{kind:'rozsi_dance', label:'Hungarian Dance'},
       '36':{kind:'marie_deterrence', label:'Deterrance'},
+      '38':{kind:'jake_taco', label:'Fat Fuck'},
       '41':{kind:'jimmy_wrath', label:"A True Incel's Wrath"},
       '51':{kind:'rivera_crest', label:'Rivera affiliation bonus'},
       '57':{kind:'coord_jeremiah_snowseal', label:'ALPINE, The Future'},
@@ -6252,7 +6254,7 @@
       // The 17th Regiment and Isaac Perez follow the same rule: their icon
       // describes the selected card's Fate result, never the source card's
       // activation. Their subsequent FATE_CHANGED event owns the target icon.
-      if(sourceId === '93' || sourceId === '31' || sourceId === '05' || sourceId === '22' || sourceId === '83' || sourceId === 'bh24') return null;
+      if(sourceId === '38' || sourceId === '93' || sourceId === '31' || sourceId === '05' || sourceId === '22' || sourceId === '83' || sourceId === 'bh24') return null;
       return bySourceId[sourceId] || null;
     }
     if(type !== 'FATE_CHANGED') return null;

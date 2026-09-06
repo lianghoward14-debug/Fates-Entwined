@@ -290,7 +290,7 @@ const CARDS = [
     flavor:'"Through Science and technology, ALPINE will become the future hope for all of mankind"',img:'57.png'},
   {id:'58',name:'Crossroads Worker',ability:'Picking Up the Scraps',type:'Supporter',aff:'reality',
     fate:1,cost:0,rarity:'circle',
-    effect:'When set, add a Supporter from the discard to your hand.',
+    effect:'When set, pay 15 Morale, then search for any Supporter in your discard and add it to your hand.',
     flavor:'"Truly, nothing matches the brain numbing agony of DRA..."',img:'58.png'},
   {id:'59',name:'Czechoslovak "Maroon Knights"',ability:'Heraldry of the Lion',type:'Supporter',aff:'third_great_war',
     fate:1,cost:0,rarity:'circle',
