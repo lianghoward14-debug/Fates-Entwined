@@ -64,7 +64,6 @@ jobs:
           if-no-files-found: error
 
   release-windows-update:
-    needs: verify-warfront
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: windows-latest
     steps:
