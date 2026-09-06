@@ -35,6 +35,9 @@ jobs:
         with:
           node-version: 20
 
+      - name: Install dependencies
+        run: npm ci
+
       - name: Verify shared online systems before deployment
         run: |
           npm run smoke:warfront
