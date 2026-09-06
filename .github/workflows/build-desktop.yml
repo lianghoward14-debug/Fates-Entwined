@@ -26,7 +26,17 @@ jobs:
         with:
           node-version: 20
       - name: Verify Warfront before building installers
-        run: npm run smoke:warfront
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            echo "Warfront verification attempt ${attempt}/3"
+            if npm run smoke:warfront; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then sleep 5; fi
+          done
+          echo "Warfront verification failed after 3 attempts"
+          exit 1
 
   build-windows:
     needs: verify-warfront
