@@ -373,17 +373,16 @@ function recordChallengerResult(didWin, opponentElo=1000, isAI=false, opts={}) {
   change = typeof applyMinimumEloDelta === 'function' ? applyMinimumEloDelta(change, didWin) : Math.round(change);
   if(didWin) change = Math.max(1, Math.round(change * eloGainMultiplier));
   USER_PROFILE.challengerElo = Math.max(0, myElo + change);
-  if(didWin) USER_PROFILE.challengerWins = (USER_PROFILE.challengerWins||0)+1;
-  else USER_PROFILE.challengerLosses = (USER_PROFILE.challengerLosses||0)+1;
-  USER_PROFILE.matchesPlayed = (Number(USER_PROFILE.matchesPlayed) || 0) + 1;
-  if(!isAI) {
-    if(didWin) USER_PROFILE.humanWins = (Number(USER_PROFILE.humanWins) || 0) + 1;
-    else USER_PROFILE.humanLosses = (Number(USER_PROFILE.humanLosses) || 0) + 1;
-    if(didWin) USER_PROFILE.challengerHumanWins = (Number(USER_PROFILE.challengerHumanWins) || 0) + 1;
-    else USER_PROFILE.challengerHumanLosses = (Number(USER_PROFILE.challengerHumanLosses) || 0) + 1;
-  } else {
-    if(didWin) USER_PROFILE.challengerAIWins = (Number(USER_PROFILE.challengerAIWins) || 0) + 1;
-    else USER_PROFILE.challengerAILosses = (Number(USER_PROFILE.challengerAILosses) || 0) + 1;
+  const recordPrefix=opts.source==='warfront'?'warfrontMatch':'challenger';
+  const recordField=recordPrefix+(didWin?'Wins':'Losses');
+  USER_PROFILE[recordField]=(Number(USER_PROFILE[recordField])||0)+1;
+  USER_PROFILE.matchesPlayed=(Number(USER_PROFILE.matchesPlayed)||0)+1;
+  if(opts.source==='warfront'){
+    if(!isAI){const field='warfrontHuman'+(didWin?'Wins':'Losses');USER_PROFILE[field]=(Number(USER_PROFILE[field])||0)+1;}
+  }else{
+    const field='challenger'+(isAI?'AI':'Human')+(didWin?'Wins':'Losses');
+    USER_PROFILE[field]=(Number(USER_PROFILE[field])||0)+1;
+    if(!isAI){const field=didWin?'humanWins':'humanLosses';USER_PROFILE[field]=(Number(USER_PROFILE[field])||0)+1;}
   }
   // Check for new division reward
   if(typeof checkDivisionReward === 'function') checkDivisionReward(USER_PROFILE.challengerElo);

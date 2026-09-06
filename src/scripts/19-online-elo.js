@@ -848,7 +848,7 @@
     setTimeout(tick, 2500);
     sharedAISimulationTimer = setInterval(tick, 60 * 60 * 1000);
   }
-  async function submitChallengerResult({didWin, isDraw=false, opponentUid=null, opponentElo=1000, roomCode='', source='client', eloGainMultiplier=1, oldElo:givenOldElo=null, newElo:givenNewElo=null, delta:givenDelta=null, wins:givenWins=null, losses:givenLosses=null}={}){
+  async function submitChallengerResult({didWin, isDraw=false, isAI=false, opponentUid=null, opponentElo=1000, roomCode='', source='client', eloGainMultiplier=1, oldElo:givenOldElo=null, newElo:givenNewElo=null, delta:givenDelta=null, wins:givenWins=null, losses:givenLosses=null}={}){
     const u=user(); if(!u) return;
     await FO.syncPublicProfile().catch(()=>{});
     const p=profile();

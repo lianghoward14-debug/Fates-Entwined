@@ -300,8 +300,17 @@ function recordChallengerResult(didWin, opponentElo=1000, isAI=false, opts={}) {
   let change = K * (actual - expected);
   change = typeof applyMinimumEloDelta === 'function' ? applyMinimumEloDelta(change, didWin) : Math.round(change);
   USER_PROFILE.challengerElo = Math.max(0, myElo + change);
-  if(didWin) USER_PROFILE.challengerWins = (USER_PROFILE.challengerWins||0)+1;
-  else USER_PROFILE.challengerLosses = (USER_PROFILE.challengerLosses||0)+1;
+  const recordPrefix=opts.source==='warfront'?'warfrontMatch':'challenger';
+  const recordField=recordPrefix+(didWin?'Wins':'Losses');
+  USER_PROFILE[recordField]=(Number(USER_PROFILE[recordField])||0)+1;
+  USER_PROFILE.matchesPlayed=(Number(USER_PROFILE.matchesPlayed)||0)+1;
+  if(opts.source==='warfront'){
+    if(!isAI){const field='warfrontHuman'+(didWin?'Wins':'Losses');USER_PROFILE[field]=(Number(USER_PROFILE[field])||0)+1;}
+  }else{
+    const field='challenger'+(isAI?'AI':'Human')+(didWin?'Wins':'Losses');
+    USER_PROFILE[field]=(Number(USER_PROFILE[field])||0)+1;
+    if(!isAI){const field=didWin?'humanWins':'humanLosses';USER_PROFILE[field]=(Number(USER_PROFILE[field])||0)+1;}
+  }
   // Check for new division reward
   if(typeof checkDivisionReward === 'function') checkDivisionReward(USER_PROFILE.challengerElo);
   // Log match to history
