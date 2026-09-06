@@ -22,6 +22,7 @@
   let marketplaceRefreshPromise = null;
   let marketplacePollTimer = 0;
   let marketplaceLastRefreshAt = 0;
+  const marketplacePurchasesInFlight = new Set();
   let publicDecksLoaded = false;
   const MARKETPLACE_FEED_LIMIT = 80;
   const MARKETPLACE_ACTIVE_REFRESH_MS = 4000;
@@ -940,12 +941,16 @@
   window.buyListing = async function buyListing(i){
     const l = marketplaceListings[i] || USER_PROFILE?.marketplace?.listings?.[i];
     if(!l) return;
+    const purchaseKey = String(l.listingId || i);
+    if(marketplacePurchasesInFlight.has(purchaseKey)) return;
     const price = Number(l.price || 0);
     if((USER_PROFILE.starlight || 0) < price){ if(window.toast) toast('Not enough Starlight'); return; }
     const isPfp = String(l.type || '') === 'pfp';
     const c = isPfp ? null : cardById(l.cardId);
     if(!isPfp && !c) return;
     if(isPfp && ownedPfps().includes(Number(l.pfpId || 0))){ if(window.toast) toast('You already own that profile picture'); return; }
+    marketplacePurchasesInFlight.add(purchaseKey);
+    showMarketplacePurchaseProgress(l, isPfp ? null : c);
     if(flyEconomyEnabled() && l.listingId){
       USER_PROFILE.starlight -= price;
       if(isPfp) addOwnedPfp(Number(l.pfpId || 0));
@@ -953,7 +958,9 @@
       try{
         const data = await flyApiRequest(`/api/marketplace/listings/${encodeURIComponent(l.listingId)}/buy`, {
           method:'POST',
-          body:{uid:user()?.uid || '', profile:profile()}
+          // Buying only needs identity. Sending the full collection and every
+          // deck made this request much larger and delayed its result.
+          body:{uid:user()?.uid || ''}
         });
         marketplaceListings = marketplaceListings.filter(item=>item.listingId !== l.listingId);
         marketplaceTransactions = [data.listing, ...marketplaceTransactions.filter(item=>item.listingId !== l.listingId)].slice(0, 80);
@@ -964,13 +971,16 @@
         if(isPfp) takeOwnedPfp(Number(l.pfpId || 0));
         else removeOwned(l.cardId, 1);
         console.warn('Fly marketplace buy failed', e);
-        if(window.toast) toast('Marketplace purchase failed');
+        if(window.toast) toast(String(e?.message || 'Marketplace purchase failed').slice(0, 180));
+        showMarketplacePurchaseFailure(e);
+        marketplacePurchasesInFlight.delete(purchaseKey);
         return;
       }
       if(typeof saveProfile === 'function') saveProfile();
       if(typeof playSfx === 'function') playSfx('starPlace');
       if(typeof switchChTab === 'function') switchChTab('store');
-      setTimeout(()=>isPfp ? showMarketplacePfpPurchaseNotice(Number(l.pfpId || 0), price) : showMarketplacePurchaseNotice(c, price), 120);
+      marketplacePurchasesInFlight.delete(purchaseKey);
+      isPfp ? showMarketplacePfpPurchaseNotice(Number(l.pfpId || 0), price) : showMarketplacePurchaseNotice(c, price);
       return;
     }
     USER_PROFILE.starlight -= price;
@@ -990,12 +1000,30 @@
     if(typeof saveProfile === 'function') saveProfile();
     if(typeof playSfx === 'function') playSfx('starPlace');
     if(typeof switchChTab === 'function') switchChTab('store');
-    setTimeout(()=>isPfp ? showMarketplacePfpPurchaseNotice(Number(l.pfpId || 0), price) : showMarketplacePurchaseNotice(c, price), 120);
+    marketplacePurchasesInFlight.delete(purchaseKey);
+    isPfp ? showMarketplacePfpPurchaseNotice(Number(l.pfpId || 0), price) : showMarketplacePurchaseNotice(c, price);
   };
+
+  function purchaseModalCloseButton(){
+    return '<button class="market-purchase-close" type="button" aria-label="Close purchase window" onclick="closeModal()">&times;</button>';
+  }
+  function applyMarketplacePurchaseModalChrome(extraClass){
+    const modalBox = document.querySelector('#modal .modal');
+    if(modalBox) modalBox.classList.add('market-purchase-modal', extraClass || '');
+  }
+  function showMarketplacePurchaseProgress(listing, card){
+    const name = String(listing?.type || '') === 'pfp' ? `Profile Picture ${Number(listing?.pfpId || 0)}` : (card?.name || 'card');
+    showModal('Completing Purchase', `${purchaseModalCloseButton()}<div class="market-purchase-progress"><span class="market-purchase-spinner" aria-hidden="true"></span><div><b>Purchasing ${esc(name)}…</b><span>Confirming with the marketplace.</span></div></div>`, [{label:'Close', action:closeModal}], {immediate:true, skipDecorate:true});
+    applyMarketplacePurchaseModalChrome('market-purchase-pending');
+  }
+  function showMarketplacePurchaseFailure(error){
+    showModal('Purchase Failed', `${purchaseModalCloseButton()}<div class="market-purchase-failure">${esc(String(error?.message || 'The marketplace could not complete this purchase.').slice(0,180))}</div>`, [{label:'Back to Store', pri:true, action:closeModal}], {immediate:true, skipDecorate:true});
+    applyMarketplacePurchaseModalChrome('market-purchase-error');
+  }
 
   function showMarketplacePfpPurchaseNotice(pfpId, price){
     const src = typeof PFP_PATH === 'function' ? PFP_PATH(pfpId, 'square') : `pfp/pfp${Number(pfpId || 1)}.png`;
-    showModal('Purchase Complete', `
+    showModal('Purchase Complete', `${purchaseModalCloseButton()}
       <div class="market-purchase-notice" style="--rarity-color:rgba(232,196,82,.7);">
         <div class="market-purchase-card"><img src="${esc(src)}" alt="Profile picture ${Number(pfpId || 0)}"></div>
         <div class="market-purchase-copy">
@@ -1005,7 +1033,8 @@
           <div class="market-purchase-note">The profile picture has been added to your collection.</div>
         </div>
       </div>`,
-      [{label:'Back to Store', pri:true, action:()=>{ closeModal(); if(typeof switchChTab === 'function') switchChTab('store'); }}]
+      [{label:'Back to Store', pri:true, action:()=>{ closeModal(); if(typeof switchChTab === 'function') switchChTab('store'); }}],
+      {immediate:true, skipDecorate:true}
     );
     const modalBox = document.querySelector('#modal .modal');
     if(modalBox) modalBox.classList.add('market-purchase-modal');
@@ -1013,7 +1042,7 @@
 
   function showMarketplacePurchaseNotice(card, price){
     const rarityColor = (typeof RARITY_COLOR !== 'undefined' && RARITY_COLOR[card.rarity]) || 'rgba(232,196,82,.55)';
-    showModal('Purchase Complete', `
+    showModal('Purchase Complete', `${purchaseModalCloseButton()}
       <div class="market-purchase-notice" style="--rarity-color:${rarityColor};">
         <div class="market-purchase-card">${card.img ? `<img src="${esc(card.img)}" alt="${esc(card.name)}">` : ''}</div>
         <div class="market-purchase-copy">
@@ -1023,14 +1052,11 @@
           <div class="market-purchase-note">The card has been added to your collection and is ready for deck building.</div>
         </div>
       </div>`,
-      [{label:'Back to Store', pri:true, action:()=>{ closeModal(); if(typeof switchChTab === 'function') switchChTab('store'); }}]
+      [{label:'Back to Store', pri:true, action:()=>{ closeModal(); if(typeof switchChTab === 'function') switchChTab('store'); }}],
+      {immediate:true, skipDecorate:true}
     );
     const modalBox = document.querySelector('#modal .modal');
     if(modalBox) modalBox.classList.add('market-purchase-modal');
-    window.setTimeout(()=>{
-      const activePurchaseModal = document.querySelector('#modal.on .modal.market-purchase-modal');
-      if(activePurchaseModal && typeof closeModal === 'function') closeModal();
-    }, 2200);
   }
 
   window.redeemMarketplaceStarlight = async function redeemMarketplaceStarlight(){

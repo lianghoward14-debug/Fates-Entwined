@@ -8,4 +8,10 @@ assert.match(source,/fresh=\$\{Date\.now\(\)\}/,'marketplace reads must bypass s
 assert.match(source,/controller\.abort\(\)/,'direct marketplace requests must have a timeout');
 assert.match(source,/Marketplace bridge timed out/,'desktop bridge requests must have a timeout');
 assert.doesNotMatch(source.slice(source.indexOf('async function listMarketplaceCard'),source.indexOf('async function listMarketplacePfp')),/await FO\.syncPublicProfile/,'card listing must not wait for a separate profile request');
+assert.match(source,/showMarketplacePurchaseProgress\(l, isPfp \? null : c\)/,'buying must show progress before waiting for the server');
+assert.match(source,/market-purchase-close/,'purchase result must have a dedicated close control');
+assert.doesNotMatch(source,/setTimeout\(\(\)=>isPfp \? showMarketplace/,'purchase results must not be artificially delayed');
+const buyBlock=source.slice(source.indexOf('window.buyListing = async function'),source.indexOf('function purchaseModalCloseButton'));
+assert.doesNotMatch(buyBlock,/body:\{uid:user\(\)\?\.uid \|\| '', profile:profile\(\)\}/,'buy requests must not upload the full profile');
+assert.match(source,/\{immediate:true, skipDecorate:true\}/,'purchase feedback must bypass gameplay animation delays');
 console.log('Marketplace live refresh, cache bypass, request timeout and immediate listing checks passed');

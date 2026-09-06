@@ -56,6 +56,8 @@ export function collectTriggeredOperations(state, event){
     if(placed && !isEffectImmutable(placed.card)){
       for(const anicka of boardEntries(state).filter(entry=>
         entry.z === placed.z
+        && placed.r >= 3
+        && state.geometry.playableExtraSquares.some(square=>square.z===placed.z&&square.r===placed.r&&square.owner===Number(event.playerIndex)&&square.sourceIid===entry.card.iid)
         && runtimeRuleId(entry.card) === '02'
         && controllerOf(entry.card) === Number(event.playerIndex)
         && String(entry.card.iid) !== String(placed.card.iid)

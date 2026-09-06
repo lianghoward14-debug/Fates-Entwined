@@ -318,6 +318,7 @@ const REGISTRY = Object.freeze({
     prompts:[]
   },
   '36':{
+    havanoPassiveEntry:true,
     timings:['PASSIVE'],
     operations:['CREATE_MATCH_STATUS'],
     prompts:[],
@@ -1757,6 +1758,7 @@ const REGISTRY = Object.freeze({
     triggerSubscriptions:['CARD_CONSOLIDATED']
   },
   'bh18':{
+    havanoPassiveEntry:true,
     effectLabels:['MORALE_CALCULATION_ZONE_FATE_REDUCTION'],
     timings:['PASSIVE'],
     operations:['CREATE_MATCH_STATUS'],

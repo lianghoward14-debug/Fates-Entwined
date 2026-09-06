@@ -165,6 +165,8 @@ async function matchmakingIdentityToken(){
 }
 
 async function matchmakingRequest(route, {method = 'GET', body} = {}){
+  const spectatorAccount=route.includes('/spectator-snapshot')?(globalThis.FateOnline?.auth?.currentUser||globalThis.FATE_ONLINE?.user):null;
+  const spectatorToken=await spectatorAccount?.getIdToken?.();
   const response = await fetch(API_URL + route, {
       signal:AbortSignal.timeout(12000),
       method,
@@ -173,6 +175,7 @@ async function matchmakingRequest(route, {method = 'GET', body} = {}){
         'content-type':'application/json',
         'x-fate-client-version':CLIENT_VERSION,
         'x-fate-client-session':matchmakingClientSession(),
+        ...(spectatorToken?{'x-fate-spectator-account-token':spectatorToken}:{}),
         ...(ORGANIC_TEST_IDENTITY_ENABLED ? {'x-fate-organic-fixture':'1'} : {})
       },
       body:body === undefined ? undefined : JSON.stringify(body)

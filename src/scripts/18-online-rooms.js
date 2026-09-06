@@ -131,7 +131,15 @@
   }
   function pName(p){ return FO.profileName ? FO.profileName(p) : (p?.chosenUsername||p?.displayName||p?.username||p?.baseCode||'Player'); }
   function pPhoto(p){ return FO.profilePhoto ? FO.profilePhoto(p) : (p?.photoURL||p?.profileImg||'blank.png'); }
-  async function profile(){ return await FO.syncPublicProfile().catch(()=>window.FATE_ONLINE?.profile || {}); }
+  async function profile(){
+    const local=window.USER_PROFILE||(typeof USER_PROFILE!=='undefined'?USER_PROFILE:{});
+    const current={...local,...(window.FATE_ONLINE?.profile||{})};
+    const localPhoto=pPhoto(local);
+    if(localPhoto&&localPhoto!=='blank.png'){current.profileImg=localPhoto;current.photoURL=localPhoto;}
+    // Profile publication must not hold the multiplayer queue behind cloud saves.
+    Promise.resolve(FO.syncPublicProfile()).catch(()=>{});
+    return current;
+  }
   function hasUsableProfilePhoto(p){
     const src = pPhoto(p || {});
     return !!(src && src !== 'blank.png' && src !== '[object Object]');
@@ -3187,6 +3195,7 @@
         next._joieProcCount = Math.max(0, Math.floor(Number(card.counters?.joieProcCount) || 0));
       }
       if(String(card.id || '') === 'bh08'){
+        next._bh18FateReduced = Math.max(0, Number(card.counters?.bh18FateReduced)||0);
         next._bh08ProcCount = Math.max(0, Math.floor(Number(card.counters?.bh08ProcCount) || 0));
       }
       if(String(card.id || '') === '100'){

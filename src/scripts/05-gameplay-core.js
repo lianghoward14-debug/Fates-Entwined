@@ -1516,44 +1516,9 @@ function activateHighTForTurn(card, playerIndex) {
 }
 window.activateHighTForTurn = activateHighTForTurn;
 
-async function resolveGenesisOfAllInceldomAtTurnEnd(endingPlayer) {
-  if(!G || !G.players || !G.players[endingPlayer]) return [];
-  const sourceOwner = Number(endingPlayer) === 0 ? 1 : 0;
-  const sources = [];
-  forEachBoardCard(function(card, z, r, c){
-    if(!card || card.owner !== sourceOwner || !cardActsAsPassive(card, 'bh18') || isFaceDownCard(card)) return;
-    if(typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(card, z, r, c)) return;
-    sources.push(card);
-  });
-  const discarded = [];
-  for(let index = 0; index < sources.length; index++){
-    const source = sources[index];
-    const deck = G.players[endingPlayer].deck;
-    if(!Array.isArray(deck) || !deck.length) continue;
-    const proceed = typeof checkReactions === 'function'
-      ? await checkReactions('targeting_effect', {
-          card:source,
-          sourceOwner,
-          affectedOwners:[Number(endingPlayer)],
-          lydiaEligible:false
-        })
-      : true;
-    if(!proceed) continue;
-    const deckIndex = Math.floor(Math.random() * deck.length);
-    const card = deck.splice(deckIndex, 1)[0];
-    if(!card) continue;
-    fatePushDiscard(endingPlayer, card, {sound:false});
-    discarded.push(card);
-    flashCardEffect(source, 'bh18_genesis_inceldom', {
-      label:'The Genesis of all Inceldom',
-      soundKey:['bh18', String(source.iid || source.id), Number(G.turn), index].join(':')
-    });
-    setTimeout(function(){
-      toast('The Genesis of all Inceldom sent ' + (card.name || 'a card') + ' from the deck to the discard pile.');
-    }, index * 260);
-  }
-  if(discarded.length && typeof playDiscardSfx === 'function') playDiscardSfx();
-  return discarded;
+async function resolveGenesisOfAllInceldomAtTurnEnd() {
+  // Retired: BH18 now applies its zone Fate reduction during Morale resolution.
+  return [];
 }
 window.resolveGenesisOfAllInceldomAtTurnEnd = resolveGenesisOfAllInceldomAtTurnEnd;
 
@@ -4178,9 +4143,11 @@ async function clickCell(z,r,c) {
   }
   markCommit('characterSetCinematic');
 
-  // Anicka Konvicka (02) Starlit Path: any card placed in her zone by her controller gains 4 Fate.
-  G.board[z].forEach((row, r)=>row.forEach((cell, c)=>{
-    if(cell && cardActsAsPassive(cell, '02') && cell.owner===G.currentPlayer && cell.iid!==inst.iid && !isFaceDownCard(cell)){
+  // Starlit Path grants Fate only in the extra safe row created by this source.
+  G.board[z].forEach((row, r)=>row.forEach(cell=>{
+    if(cell && cardActsAsPassive(cell, '02') && cell.owner===G.currentPlayer && cell.iid!==inst.iid && !isFaceDownCard(cell)
+      && r>=3 && (G.anickaSafeRows||[]).some(entry=>entry.z===z&&entry.r===r&&entry.owner===inst.owner&&entry.sourceIid===cell.iid)
+      && !(typeof isCardEffectSuppressed==='function'&&isCardEffectSuppressed(cell))){
       modifyFate(inst,4,'permanent');
     }
   }));
@@ -11675,6 +11642,7 @@ function applyHavanoPlacementRules(inst, sourceCard, z, r, c, owner) {
   zone.forEach(function(row){
     (row || []).forEach(function(aura){
       if(!aura || aura.owner !== owner || aura.iid === inst.iid || !cardActsAsPassive(aura, '02') || isFaceDownCard(aura)) return;
+      if(r<3||!(G.anickaSafeRows||[]).some(entry=>entry.z===z&&entry.r===r&&entry.owner===owner&&entry.sourceIid===aura.iid))return;
       if(typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(aura)) return;
       modifyFate(inst, 4, 'permanent', owner);
     });

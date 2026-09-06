@@ -592,7 +592,7 @@ function readFrames(ws, chunk){
 
 function setCors(res){
   res.setHeader('access-control-allow-origin', '*');
-  res.setHeader('access-control-allow-headers', 'authorization, content-type, x-fate-client-version, x-fate-client-session, x-fate-organic-fixture');
+  res.setHeader('access-control-allow-headers', 'authorization, content-type, x-fate-client-version, x-fate-client-session, x-fate-organic-fixture, x-fate-spectator-account-token');
   res.setHeader('access-control-allow-methods', 'GET, POST, OPTIONS');
 }
 
@@ -859,7 +859,11 @@ const server = http.createServer(async (req, res)=>{
         return;
       }
       const spectatorPlayerId=phase7QueuePlayerId(req,identity);
-      const teammateIndex=flyDataApi.warfrontSpectatorSeat?.(matchId,identity.uid,spectatorPlayerId);
+      let spectatorUid=identity.uid;
+      if(req.headers['x-fate-spectator-account-token']){
+        spectatorUid=await flyDataApi.verifiedUid({...req,headers:{...req.headers,authorization:'Bearer '+req.headers['x-fate-spectator-account-token']}});
+      }
+      const teammateIndex=flyDataApi.warfrontSpectatorSeat?.(matchId,spectatorUid,spectatorPlayerId);
       const requestedPerspective=Number(url.searchParams.get('perspective'))===1?1:0;
       const perspective=teammateIndex===0||teammateIndex===1?teammateIndex:requestedPerspective;
       writeJson(res, 200, {ok:true, playerIndex:perspective, ...actor.snapshotForSpectator(teammateIndex)});

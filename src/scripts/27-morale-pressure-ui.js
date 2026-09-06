@@ -829,6 +829,7 @@
         const key=['bh18',String(entry.card.iid||entry.card.id),String(system.cycle||0),'p'+String(1-player),'z'+String(entry.z)].join('_');
         if(!state.fateModifiers||typeof state.fateModifiers!=='object')state.fateModifiers={};
         state.fateModifiers[key]=Number(state.fateModifiers[key]||0)-3;
+        entry.card._bh18FateReduced=(Number(entry.card._bh18FateReduced)||0)+3;
         bh18ZoneFateReductions.push({sourceIid:String(entry.card.iid||''),sourceCardId:'bh18',sourceController:player,playerIndex:1-player,zone:Number(entry.z),value:-3,reason:'GENESIS_OF_ALL_INCELDOM'});
       });
     }

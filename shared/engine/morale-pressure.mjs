@@ -646,6 +646,8 @@ function resolveZoneFateMoraleDamage(ctx){
       if(!Array.isArray(state.statuses)) state.statuses = [];
       state.statuses.push(status);
       bh18ZoneFateReductions.push(cloneSerializable(status));
+      entry.card.counters=entry.card.counters||{};
+      entry.card.counters.bh18FateReduced=(Number(entry.card.counters.bh18FateReduced)||0)+3;
       pushEvent(ctx,{type:'STATUS_CREATED',status:cloneSerializable(status)});
     }
   }

@@ -37,7 +37,7 @@
     const candidates = [p?.profileImg, p?.photoURL, p?.img, p?.pfp];
     for(const value of candidates){
       const resolved = resolvePhotoValue(value);
-      if(resolved) return resolved;
+      if(resolved&&resolved!=='blank.png') return resolved;
     }
     return 'blank.png';
   }

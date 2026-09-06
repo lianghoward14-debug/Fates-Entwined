@@ -18,7 +18,7 @@
   // continuous/automatic damage can begin. Hybrid WHEN_SET cards (such as
   // Rozsi) remain in the activation list above so their normal reaction frame
   // is not bypassed.
-  const HAVANO_PASSIVE_ENTRY_SOURCE_IDS = Object.freeze(['10', '35', '65']);
+  const HAVANO_PASSIVE_ENTRY_SOURCE_IDS = Object.freeze(['10', '35', '36', '65', 'bh18']);
   const havanoPassiveEntrySources = new Set(HAVANO_PASSIVE_ENTRY_SOURCE_IDS);
 
   const BOARD_ACTIVATION_CLASSES = Object.freeze({

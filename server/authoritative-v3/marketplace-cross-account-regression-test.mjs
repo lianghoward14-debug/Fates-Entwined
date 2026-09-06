@@ -29,5 +29,9 @@ try{
   api.flush();api=makeApi();
   const restarted=await request('buyer','GET','/api/marketplace/listings?limit=80');
   assert.equal(restarted.listings[0].listingId,created.listing.listingId,'listing survives authority restart');
-  console.log('Marketplace listing is immediately shared across accounts, readable during login restoration, and durable after restart');
+  const bought=await request('buyer','POST',`/api/marketplace/listings/${created.listing.listingId}/buy`,{uid:'buyer'});
+  assert.equal(bought.listing.status,'sold');
+  response=null;await api.handle({method:'POST',headers:{authorization:`Bearer ${token('other-buyer')}`},body:{uid:'other-buyer'}},{},new URL(`http://localhost/api/marketplace/listings/${created.listing.listingId}/buy`));
+  assert.equal(response?.status,409,'a sold listing cannot be bought twice');
+  console.log('Marketplace listing is immediately shared across accounts, durable after restart, and protected from duplicate purchases');
 }finally{api?.flush();globalThis.fetch=originalFetch;fs.rmSync(dir,{recursive:true,force:true});}

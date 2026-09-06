@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import {resolveWarfrontPhoto} from '../../shared/profile-photo.mjs';
 import {warfrontReportStats} from './warfront-report.mjs';
 
 const FIREBASE_PROJECT_ID = String(process.env.FATE_FIREBASE_PROJECT_ID || 'fates-entwined-41491');
@@ -231,6 +232,7 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
       const player = zone[team];
       if(!player) continue;
       const stored = profiles.get(cleanId(player.uid,128));
+      player.photo=resolveWarfrontPhoto(stored||{},player.photo);
       const rating = stored?.challengerElo ?? stored?.elo;
       player.elo = rating != null && Number.isFinite(Number(rating))
         ? Math.max(0,Number(rating)) : null;
@@ -569,7 +571,7 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
         if(warfrontEvent.zones.some(row=>row.a?.uid===uid||row.b?.uid===uid))throw new Error('Player is already deployed');
         if(zone[team])throw new Error('That command post is occupied');
         if(body.profile)mergeProfile(uid,body.profile);const stored=profile(uid);
-        zone[team]={uid,name:cleanId(stored.chosenUsername||stored.displayName||stored.username||body.profile?.name||'Player',80),photo:stored.photoURL||stored.profileImg||body.profile?.photo||'blank.png',elo:Number(stored.challengerElo??stored.elo??body.profile?.elo??600),joinedAt:Date.now()};
+        zone[team]={uid,name:cleanId(stored.chosenUsername||stored.displayName||stored.username||body.profile?.name||'Player',80),photo:resolveWarfrontPhoto(stored,body.profile?.photo),elo:Number(stored.challengerElo??stored.elo??body.profile?.elo??600),joinedAt:Date.now()};
         warfrontEvent._syncRevision=Number(warfrontEvent._syncRevision||0)+1;warfrontEvent._updatedAt=Date.now();persist();writeJson(res,200,{ok:true,state:warfrontStateForClient()});return true;
       }
       if(req.method==='POST' && p[1]==='friends'){
@@ -623,7 +625,7 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
         if(req.method==='GET'&&p[2]==='listings'){const limit=Math.min(160,Math.max(1,Number(url.searchParams.get('limit'))||80)),active=[...listings.values()].filter(x=>x.status==='active').sort((a,b)=>Number(b.createdAt)-Number(a.createdAt)).slice(0,limit);writeJson(res,200,{ok:true,listings:active.map(clone),transactions:marketplaceTransactions.slice(-80).map(clone)});return true;}
         const body=await readBody(req),uid=await requireSelf(req,body.uid);
         if(req.method==='POST'&&p[2]==='listings'&&!p[3]){if(body.profile)mergeProfile(uid,body.profile);const pr=profile(uid),listingId='listing_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);const listing={listingId,type:body.type==='pfp'?'pfp':'card',cardId:cleanId(body.cardId),pfpId:Number(body.pfpId)||0,sellerUid:uid,seller:pr.chosenUsername||pr.displayName||'Player',sellerPhotoURL:pr.photoURL||pr.profileImg||null,price:Math.max(10,Number(body.price)||100),status:'active',createdAt:Date.now()};listings.set(listingId,listing);persist();writeJson(res,200,{ok:true,listing:clone(listing)});return true;}
-        if(req.method==='POST'&&p[2]==='listings'&&p[3]){const listing=listings.get(cleanId(p[3]));if(!listing)throw Object.assign(new Error('listing not found'),{status:404});if(p[4]==='buy'){if(listing.sellerUid===uid)throw new Error('cannot buy own listing');listing.status='sold';listing.buyerUid=uid;listing.soldAt=Date.now();marketplaceTransactions.push(clone(listing));listings.set(listing.listingId,listing);}if(p[4]==='cancel'){if(listing.sellerUid!==uid)throw Object.assign(new Error('not listing owner'),{status:403});listing.status='cancelled';listings.set(listing.listingId,listing);}persist();writeJson(res,200,{ok:true,listing:clone(listing)});return true;}
+        if(req.method==='POST'&&p[2]==='listings'&&p[3]){const listing=listings.get(cleanId(p[3]));if(!listing)throw Object.assign(new Error('listing not found'),{status:404});if(p[4]==='buy'){if(listing.sellerUid===uid)throw new Error('cannot buy own listing');if(listing.status!=='active')throw Object.assign(new Error('listing is no longer available'),{status:409});listing.status='sold';listing.buyerUid=uid;listing.soldAt=Date.now();marketplaceTransactions.push(clone(listing));listings.set(listing.listingId,listing);}if(p[4]==='cancel'){if(listing.sellerUid!==uid)throw Object.assign(new Error('not listing owner'),{status:403});listing.status='cancelled';listings.set(listing.listingId,listing);}persist();writeJson(res,200,{ok:true,listing:clone(listing)});return true;}
         if(req.method==='POST'&&p[2]==='redeem'){const redeemed=marketplaceTransactions.filter(x=>x.sellerUid===uid&&x.status==='sold'&&!x.sellerRedeemed);for(const row of redeemed){row.sellerRedeemed=true;row.redeemedAt=Date.now();}persist();writeJson(res,200,{ok:true,redeemedStarlight:redeemed.reduce((n,x)=>n+Number(x.price||0),0),listings:clone(redeemed)});return true;}
       }
       return false;
@@ -640,6 +642,7 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
   }else if(resetWarfrontForAuthorityUpgrade){snapshot.warfrontAuthorityBaseline=warfrontAuthorityBaseline;newWarfrontDeployment();flush();}
   return {
     handle,
+    verifiedUid,
     settleWarfrontForfeit,
     warfrontSpectatorSeat(matchId, uid, playerId){
       const binding=warfrontBindings.get(String(matchId));

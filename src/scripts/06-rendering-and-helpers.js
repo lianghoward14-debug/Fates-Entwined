@@ -7035,6 +7035,11 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
     label = 'Opponent Supporters Placed';
     value = String(opponentSets);
     sub = '+1 Fate Each';
+  } else if(card.id === 'bh18') {
+    const total=Math.max(0,Number(card._bh18FateReduced??card.counters?.bh18FateReduced)||0);
+    label='Zone Fate Reduced';
+    value=String(total);
+    sub='−3 per applied reduction · '+Math.floor(total/3)+' triggers';
   } else if(card.id === '36') {
     const pos = typeof getBoardCardPosition === 'function' ? getBoardCardPosition(card) : null;
     if(pos) {

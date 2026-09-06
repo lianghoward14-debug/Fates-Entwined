@@ -106,35 +106,22 @@ for(const sourceId of ['81', '97', 'bh04']){
   assert(option && option.reactionIid === value.reactor.iid, `${sourceId} must expose Secules`);
 }
 
-// Post-Cynthia Jimmy triggers at the opponent's turn ending. Havano interrupts
-// each Jimmy source separately and can prevent that source's random deck discard.
+// Passive sources must offer suppression as soon as they are revealed.
+for(const id of ['36','bh18']){
+  const {state,source,reactor}=sourceFixture(id);
+  let result=reduceCommand(state,command(state,'p0',1,'FLIP_CARD',{cardIid:source.iid}),{playerId:'p0'});
+  assert.equal(result.ok,true);
+  assert.equal(result.prompt?.type,'REACTION',id+' offers suppression on entry');
+  result=reduceCommand(result.state,command(result.state,'p1',2,'ANSWER_PROMPT',{promptId:result.prompt.promptId,choice:'SUPPRESS',reactionIid:reactor.iid}),{playerId:'p1'});
+  assert.equal(result.ok,true);
+  assert(result.state.board[0][2][1].statuses.includes('EFFECTS_SUPPRESSED'),id+' stays suppressed');
+}
 {
-  const state = createInitialState({
-    matchId:'HAVANO-EXPANDED-BH18', seed:'havano-expanded-bh18', handSize:1, activePlayer:0,
-    cardDefinitions:DEFINITIONS,
-    players:[
-      {id:'p0', deckIds:['79', ...Array(16).fill('32')]},
-      {id:'p1', deckIds:['bh18', ...Array(8).fill('32')]}
-    ]
-  });
-  const jimmy = putOnBoard(state, 1, 'bh18', {z:1,r:0,c:0});
-  const havano = takeCard(state, 0, '79');
-  state.players[0].hand.push(havano);
-  let result = reduceCommand(state, command(state, 'p0', 1, 'END_TURN', {}), {playerId:'p0'});
-  assert.equal(result.prompt?.type, 'REACTION');
-  const option = result.prompt.options.find(candidate=>candidate.kind === 'HAVANO');
-  assert(option && option.reactionIid === havano.iid, 'BH18 turn-end discard must expose Havano');
-  result = reduceCommand(result.state, command(result.state, 'p0', 2, 'ANSWER_PROMPT', {
-    promptId:result.state.pendingPrompt.promptId, choice:'NEGATE', reactionIid:havano.iid
-  }), {playerId:'p0'});
-  assert(result.events.some(event=>event.type === 'EFFECT_REACTED' && event.sourceIid === jimmy.iid));
-  assert.equal(result.prompt?.context, 'HAVANO_SET');
-  result = reduceCommand(result.state, command(result.state, 'p0', 3, 'ANSWER_PROMPT', {
-    promptId:result.state.pendingPrompt.promptId,
-    destination:result.state.pendingPrompt.eligible[0]
-  }), {playerId:'p0'});
-  assert.equal(result.ok, true);
-  assert(!result.events.some(event=>event.reason === 'GENESIS_OF_ALL_INCELDOM'), 'negated BH18 must not discard from deck');
+  const {state}=sourceFixture('bh18');
+  const deckSize=state.players[1].deck.length;
+  const result=reduceCommand(state,command(state,'p0',1,'END_TURN',{}),{playerId:'p0'});
+  assert.equal(result.ok,true);
+  assert(!result.events.some(e=>e.type==='CARD_DISCARDED'&&e.reason==='GENESIS_OF_ALL_INCELDOM'));
 }
 
 console.log('expanded Havano source coverage smoke test passed');

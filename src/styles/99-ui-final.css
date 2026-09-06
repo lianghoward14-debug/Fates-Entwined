@@ -10150,21 +10150,22 @@ html body #s-game .zone-title{
   line-height:1.25!important;
 }
 #modal .modal.market-purchase-modal{
-  width:min(680px,92vw)!important;
+  position:relative!important;
+  width:min(500px,90vw)!important;
   border:1.8px solid rgba(232,196,82,.5)!important;
   background:linear-gradient(180deg,rgba(14,18,29,.98),rgba(4,6,11,.99))!important;
   box-shadow:0 28px 86px rgba(0,0,0,.82),0 0 34px rgba(232,196,82,.13)!important;
 }
 .market-purchase-notice{
   display:grid!important;
-  grid-template-columns:150px minmax(0,1fr)!important;
-  gap:1rem!important;
+  grid-template-columns:108px minmax(0,1fr)!important;
+  gap:.85rem!important;
   align-items:center!important;
   padding:.4rem .25rem!important;
 }
 .market-purchase-card{
-  width:150px!important;
-  height:210px!important;
+  width:108px!important;
+  height:152px!important;
   border:2px solid var(--rarity-color,rgba(232,196,82,.55))!important;
   border-radius:9px!important;
   overflow:hidden!important;
@@ -10188,7 +10189,7 @@ html body #s-game .zone-title{
   margin:.28rem 0!important;
   color:#fff2aa!important;
   font-family:'Cinzel',serif!important;
-  font-size:1.75rem!important;
+  font-size:1.35rem!important;
   line-height:1.04!important;
 }
 .market-purchase-meta{
@@ -10320,6 +10321,18 @@ html body #s-game .zone-title{
   appearance:textfield!important;
   -moz-appearance:textfield!important;
 }
+.market-purchase-close{
+  position:absolute!important;top:.55rem!important;right:.6rem!important;z-index:3!important;
+  width:30px!important;height:30px!important;border:1px solid rgba(232,196,82,.45)!important;border-radius:5px!important;
+  background:rgba(3,5,10,.8)!important;color:#fff2aa!important;font-size:1.35rem!important;line-height:1!important;cursor:pointer!important;
+}
+.market-purchase-progress{display:flex!important;align-items:center!important;gap:.8rem!important;padding:.65rem .15rem!important;min-height:64px!important;}
+.market-purchase-progress div{display:flex!important;flex-direction:column!important;gap:.2rem!important;}
+.market-purchase-progress b{color:#fff2aa!important;font-family:'Cinzel',serif!important;font-size:.92rem!important;}
+.market-purchase-progress span:not(.market-purchase-spinner){color:#aebfca!important;font-size:.76rem!important;}
+.market-purchase-spinner{width:28px!important;height:28px!important;border:3px solid rgba(232,196,82,.2)!important;border-top-color:#e8c452!important;border-radius:50%!important;animation:marketPurchaseSpin .75s linear infinite!important;}
+.market-purchase-failure{padding:.6rem .1rem!important;color:#f1c4c4!important;line-height:1.45!important;}
+@keyframes marketPurchaseSpin{to{transform:rotate(360deg)}}
 
 
 .fate-loading-panel::before{

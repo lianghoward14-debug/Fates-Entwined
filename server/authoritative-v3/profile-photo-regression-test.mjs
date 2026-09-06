@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {normalizeMultiplayerPhoto} from '../../shared/profile-photo.mjs';
+import {normalizeMultiplayerPhoto,resolveWarfrontPhoto} from '../../shared/profile-photo.mjs';
 import {testState,TEST_DEFINITIONS} from './test-helpers.mjs';
 import {createInitialState} from '../../shared/engine/state.mjs';
 const photo='data:image/png;base64,'+Buffer.alloc(160000,123).toString('base64');
 assert.equal(normalizeMultiplayerPhoto(photo),photo,'full cropped avatar survives normalization');
+assert.equal(resolveWarfrontPhoto({profileImg:{dataUrl:photo},photoURL:'blank.png'}),photo);
+assert.equal(resolveWarfrontPhoto({profileImg:'blank.png',photoURL:'pfp/pfp12.png'}),'pfp/pfp12.png');
+assert.equal(resolveWarfrontPhoto({}, {pfpId:12}),'pfp/pfp12.png');
 assert.equal(normalizeMultiplayerPhoto('pfp/pfp12.png'),'pfp/pfp12.png');
 assert.equal(normalizeMultiplayerPhoto({dataUrl:photo}),'','objects cannot become broken object URLs');
 assert.equal(normalizeMultiplayerPhoto('data:image/png;base64,'+'A'.repeat(512*1024)),'','oversized images are rejected whole');

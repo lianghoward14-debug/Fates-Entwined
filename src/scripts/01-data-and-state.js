@@ -66,7 +66,7 @@ const CARDS = [
     flavor:'"There is no leader in the world, whether of democracies or monarchies, more humble than the Queen of Poland-Lithuania"',img:'1.png'},
   {id:'02',name:'Anicka Konvicka',ability:'The Starlit Path',type:'Initiator',aff:'eventide',
     fate:6,cost:3,rarity:'star',
-    effect:'Create an extra safe row for yourself in this zone. Any card placed in this zone gains 4 Fate and 2 less Reinforcement cost.',
+    effect:'Create an extra safe row for yourself in this zone. Your cards placed in that generated row gain 4 Fate, and consolidating into that row costs 2 less Reinforcement.',
     flavor:'"These Seas were not always feared - Once, they were called Pacifique"',img:'2.png?v=20260831a'},
   {id:'03',name:'Howard',ability:'Moffitt Inspiration',type:'Initiator',aff:'reality',
     fate:5,cost:2,rarity:'star',
