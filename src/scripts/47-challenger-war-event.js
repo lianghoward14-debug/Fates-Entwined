@@ -264,6 +264,25 @@ function replayAuthoritativeViewAt(rp,step){
   for(let i=index+1;i<actions.length;i++)if(actions[i]?.view?.state)return restore(actions[i]);
   return null;
 }
+function revealReplayPerspectiveHand(view,rp,perspective){
+  if(!view?.state||!Array.isArray(view.state.players))return view;
+  const teamASeat=Number(rp.teamASeat)===1?1:0;
+  const selectedTeam=perspective==='b'?'b':'a';
+  const selectedSeat=selectedTeam==='a'?teamASeat:1-teamASeat;
+  const hiddenSeat=1-selectedSeat;
+  const recordedHand=Array.isArray(rp.hands?.[selectedTeam])?rp.hands[selectedTeam]:[];
+  const hydrate=(raw,index)=>{
+    const def=cards().find(card=>String(card.id)===String(raw?.id))||{};
+    return {...def,...raw,owner:selectedSeat,controller:selectedSeat,iid:String(raw?.iid||('war-replay-hand-'+selectedTeam+'-'+index)),currentFate:+raw?.fate||+raw?.currentFate||+def.fate||0};
+  };
+  view.playerIndex=selectedSeat;
+  view.state.players[selectedSeat].hand=recordedHand.map(hydrate);
+  view.state.players[selectedSeat].handCount=recordedHand.length;
+  delete view.state.players[hiddenSeat].hand;
+  view.privateActionCards=[];
+  view.legalCommands=[];
+  return view;
+}
 const replayWait=ms=>new Promise(resolve=>setTimeout(resolve,Math.max(20,ms/Math.max(1,+replayView?.speed||1))));
 function replayEntryByIid(list,iid){return(list||[]).find(entry=>String(entry&&entry.iid||'')===String(iid||''))||null;}
 async function presentWarReplayAction(action,previous,currentBoard){
@@ -334,8 +353,7 @@ function renderFullWarReplay(options={}){
   const m=findMatch(selectedMatchId),v=replayView;if(!m||!v||!m.replay)return;
   const rp=m.replay,action=replayActionAt(rp,v.step),replayAuthoritativeView=replayAuthoritativeViewAt(rp,v.step);
   if(replayAuthoritativeView&&window.FatePhase7CurrentMultiplayerUi?.mountReplay){
-    const teamASeat=Number(rp.teamASeat)===1?1:0;
-    replayAuthoritativeView.playerIndex=v.perspective==='b'?1-teamASeat:teamASeat;
+    revealReplayPerspectiveHand(replayAuthoritativeView,rp,v.perspective);
     if(options.present!==true){
       if(replayAuthoritativeView.state.phase!=='coin')showScreen('s-game');
       replayAuthoritativeView.presentationBatch=null;
@@ -486,7 +504,7 @@ function beginReplayCapture(req){
     recordView(typeof beta.replayView==='function'?beta.replayView():message);
   });
 }
-window.FATE_ONLINE_JOIN_WAR_QUEUE=async req=>{const beta=window.fateAuthorityV3Beta;if(!beta||typeof beta.startUnrankedMatchmaking!=='function'){window.toast&&toast('Authoritative Warfront matchmaking is still loading.');return{ok:false,status:'loading'};}const mine=seat(me().uid),uids=[mine&&mine.player.uid,req.opponentUid].map(String).sort(),key=[req.mapCode,req.zoneId,...uids].join('|');beginReplayCapture(req);window.toast&&toast('Entering the exclusive Warfront queue…');try{const result=await beta.startUnrankedMatchmaking({deckIds:req.deckIds,name:me().name,photoURL:me().photo,rankElo:+profile()?.challengerElo||600,queueMode:'warfront',matchmakingKey:key,landscapeId:req.landscapeId,gameSettings:{landscapeMode:'selected',landscapeId:req.landscapeId,turnTimerMinutes:3,zoneControlRework:true,expandedContestedRow:true,zoneLayout444:true},onStatus:s=>{if(s.message){const label=document.getElementById('mm-status')||document.querySelector('#s-matchmaking .mm-status');if(label)label.textContent=s.message;}if(s.status==='matched'){const z=state.zones.find(x=>x.id===req.zoneId);if(z&&s.matchId){z.activeMatch={matchId:String(s.matchId),startedAt:Date.now()};save();}window.toast&&toast('Warfront opponent found.');}}});const z=state.zones.find(x=>x.id===req.zoneId),seatIndex=Number(result?.connection?.playerIndex);if(z&&result?.credential?.matchId&&(seatIndex===0||seatIndex===1)){z.activeMatch={matchId:String(result.credential.matchId),startedAt:+z.activeMatch?.startedAt||Date.now(),teamASeat:mine?.team==='a'?seatIndex:1-seatIndex};save();}return result;}catch(e){window.FATE_WAR_REPLAY_CAPTURE=null;window.FATE_PENDING_WAR_MATCH=null;window.toast&&toast(e&&e.message||'Warfront queue failed.');return{ok:false,error:String(e&&e.message||e)};}};
+window.FATE_ONLINE_JOIN_WAR_QUEUE=async req=>{const beta=window.fateAuthorityV3Beta;if(!beta||typeof beta.startUnrankedMatchmaking!=='function'){window.toast&&toast('Authoritative Warfront matchmaking is still loading.');return{ok:false,status:'loading'};}const mine=seat(me().uid),uids=[mine&&mine.player.uid,req.opponentUid].map(String).sort(),key=[req.mapCode,req.zoneId,...uids].join('|');beginReplayCapture(req);window.toast&&toast('Entering the exclusive Warfront queue…');try{const result=await beta.startUnrankedMatchmaking({deckIds:req.deckIds,name:me().name,photoURL:me().photo,rankElo:+profile()?.challengerElo||600,queueMode:'warfront',matchmakingKey:key,landscapeId:req.landscapeId,gameSettings:{landscapeMode:'selected',landscapeId:req.landscapeId,turnTimerMinutes:3,healthPressureSeals:true,pressureCardReworks:window.FATE_PRESSURE_CARD_REWORKS_ENABLED===true,zoneControlRework:true,expandedContestedRow:true,zoneLayout444:true},onStatus:s=>{if(s.message){const label=document.getElementById('mm-status')||document.querySelector('#s-matchmaking .mm-status');if(label)label.textContent=s.message;}if(s.status==='matched'){const z=state.zones.find(x=>x.id===req.zoneId);if(z&&s.matchId){z.activeMatch={matchId:String(s.matchId),startedAt:Date.now()};save();}window.toast&&toast('Warfront opponent found.');}}});const z=state.zones.find(x=>x.id===req.zoneId),seatIndex=Number(result?.connection?.playerIndex);if(z&&result?.credential?.matchId&&(seatIndex===0||seatIndex===1)){z.activeMatch={matchId:String(result.credential.matchId),startedAt:+z.activeMatch?.startedAt||Date.now(),teamASeat:mine?.team==='a'?seatIndex:1-seatIndex};save();}return result;}catch(e){window.FATE_WAR_REPLAY_CAPTURE=null;window.FATE_PENDING_WAR_MATCH=null;window.toast&&toast(e&&e.message||'Warfront queue failed.');return{ok:false,error:String(e&&e.message||e)};}};
 
 window.spectateWarfrontMatch=async id=>{const mine=seat(me().uid),z=state.zones.find(x=>x.id===id),beta=window.fateAuthorityV3Beta;if(!z?.activeMatch?.matchId)return window.toast&&toast('There is no live match in this zone.');if(!beta||typeof beta.startSpectating!=='function')return window.toast&&toast('Live Warfront spectating is still loading.');warSfx('deploy','spectate-'+id,250);drawer='';const teamASeat=Number(z.activeMatch.teamASeat)===1?1:0,perspective=mine?(mine.team==='a'?teamASeat:1-teamASeat):(Math.random()<.5?0:1);try{const joined=await beta.startSpectating({matchId:z.activeMatch.matchId,playerIndex:perspective});if(joined)window.toast&&toast(mine?('Spectating '+(z[mine.team]?.name||'your teammate')+' · opposing perspective locked.'):'Spectating live match · perspective locked.');else{z.activeMatch=null;save();rerender();}}catch(e){window.toast&&toast(e?.message||'Could not spectate this match.');}};
 function warMatchReward(view,outcome,req){const matchId=String(view?.state?.matchId||'');if(!matchId)return null;let receipts={};try{receipts=JSON.parse(localStorage.getItem(storageKey(MATCH_RECEIPTS))||'{}')||{};}catch(e){}if(receipts[matchId])return receipts[matchId];const localIndex=Number(view.playerIndex)===1?1:0,winner=Number.isInteger(+outcome.winner)?+outcome.winner:null,draw=String(outcome.type||'').toUpperCase()==='DRAW'||winner===null,won=!draw&&winner===localIndex,opponent=view.state?.players?.[1-localIndex]||{},opponentElo=Math.max(0,+opponent.rankElo||600);let result={eloChange:0,xpGained:0,levelsGained:0,newLevel:+profile()?.level||1,drops:[]};if(draw){const p=profile();if(p){const xp=typeof awardXp==='function'?awardXp(36):{xpGained:0,levelsGained:0,newLevel:+p.level||1};if(!window.FateOnline?.submitChallengerResult)p.matchesPlayed=(+p.matchesPlayed||0)+1;if(typeof saveProfile==='function')saveProfile();result={eloChange:0,xpGained:+xp.xpGained||0,levelsGained:+xp.levelsGained||0,newLevel:+xp.newLevel||+p.level||1,drops:[],isDraw:true};}if(window.FateOnline?.submitChallengerResult)window.FateOnline.submitChallengerResult({didWin:false,isDraw:true,opponentUid:req.opponentUid,opponentElo,roomCode:matchId,source:'warfront'}).catch(()=>{});}else if(typeof recordChallengerResult==='function'){result=recordChallengerResult(won,opponentElo,false,{source:'warfront',eloGainMultiplier:3,xpMultiplier:3,dropMultiplier:3});}const receipt={matchId,won,draw,opponentElo,eloChange:+result?.eloChange||0,xpGained:+result?.xpGained||0,levelsGained:+result?.levelsGained||0,newLevel:+result?.newLevel||+profile()?.level||1,drops:Array.isArray(result?.drops)?result.drops:[],createdAt:Date.now()};receipts[matchId]=receipt;try{localStorage.setItem(storageKey(MATCH_RECEIPTS),JSON.stringify(receipts));}catch(e){}return receipt;}

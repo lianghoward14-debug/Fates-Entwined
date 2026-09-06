@@ -461,7 +461,7 @@ async function startUnrankedMatchmaking({deckIds, name = '', photoURL = '', rank
         landscapeMode:gameSettings.landscapeMode === 'selected' ? 'selected' : 'random',
         landscapeId:String(gameSettings.landscapeId || 'igb1'),
         turnTimerMinutes:Math.max(1, Math.min(10, Math.round(Number(gameSettings.turnTimerMinutes) || 3))),
-        healthPressureSeals:gameSettings.healthPressureSeals === true,
+        healthPressureSeals:gameSettings.healthPressureSeals !== false,
         pressureCardReworks:gameSettings.healthPressureSeals === true
           && gameSettings.pressureCardReworks === true,
         zoneControlRework:gameSettings.zoneControlRework !== false,

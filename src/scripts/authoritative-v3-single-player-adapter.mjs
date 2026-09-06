@@ -341,7 +341,7 @@ export function createFateV3SinglePlayerState(input = {}){
     activePlayer:input.activePlayer,
     landscapeId,
     gameSettings:{
-      healthPressureSeals:input.healthPressureSeals === true,
+      healthPressureSeals:input.healthPressureSeals !== false,
       pressureCardReworks:input.healthPressureSeals === true && input.pressureCardReworks === true,
       zoneControlRework:input.zoneControlRework !== false,
       expandedContestedRow:input.zoneControlRework !== false

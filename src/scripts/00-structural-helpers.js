@@ -1470,7 +1470,6 @@ function resetMatchTransientState() {
   G._suppressEffectPrompt = false;
   G._tutorialTurnLimit = null;
   G._westCaribNext = false;
-  G._zimbabweUsedThisTurn = false;
   G.landscape = null;
   G.landscapeId = null;
   G.landscapeBgNum = null;

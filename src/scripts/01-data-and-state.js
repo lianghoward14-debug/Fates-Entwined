@@ -158,7 +158,7 @@ const CARDS = [
       flavor:'"An unprecedented master of cart pushing, bagging, and floor sweeps"',img:'24.png?v=card24-1784050604'},
   {id:'25',name:'Zimbabwean Honor Guard',ability:'Africa, United',type:'Supporter',aff:'third_great_war',
     fate:1,cost:0,rarity:'circle',
-    effect:'When set, you can (at no extra cost) set another copy of this card from the hand or deck (once a turn).',
+    effect:'While active, each card you control that is adjacent to another card you control of the same affiliation gains 1 Fate.',
     flavor:'"It is time for Africa to take to the world stage - No more will it be the plaything of foreign powers"',img:'25.png'},
   {id:'26',name:'UCPD',ability:'A Safer Community',type:'Supporter',aff:'reality',
     fate:1,cost:0,rarity:'circle',

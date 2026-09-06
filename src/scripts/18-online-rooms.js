@@ -504,7 +504,6 @@
       _serverPendingMove:cloneOnlinePlain(g._serverPendingMove),
       _serverPendingCardPick:cloneOnlinePlain(g._serverPendingCardPick),
       _westCaribNext:cloneOnlinePlain(g._westCaribNext),
-      _zimbabweUsedThisTurn:!!g._zimbabweUsedThisTurn,
       _consolidating:cloneOnlinePlain(g._consolidating),
       _wolfCreekMoving:cloneOnlinePlain(g._wolfCreekMoving),
       _expMoving:cloneOnlinePlain(g._expMoving),
@@ -2925,7 +2924,7 @@
       '_artilleryEffectBlockLifted','_cardFateMap','_fortCalvinActive','_linaFreeIids','_serverFreePlacement','_polishUsedThisTurn',
       '_revealedCards','_riveraBuffs','_riveraActiveEffects','_skipImprovisorCheck','_skipReactions','pendingInteraction','_serverReactionSeq','_serverPendingReaction',
       '_serverPendingModalAction','_serverPendingZonePick','_serverPendingMove','_serverPendingCardPick','_westCaribNext',
-      '_zimbabweUsedThisTurn','_consolidating','_wolfCreekMoving','_expMoving','_berkeleyMoving','_bh01Moving',
+      '_consolidating','_wolfCreekMoving','_expMoving','_berkeleyMoving','_bh01Moving',
       '_landscapeMoving','_busserMoving','_busserMovingCard','_markSelecting','_havanoDeploying','_boardTargeting',
       '_phase7CoinFlip','_phase7PendingPrompt','_phase7PendingHandLimit','_phase7Outcome','_phase7Geometry','_phase7Statuses','_phase7Revision','_phase7ViewerIndex','_moralePressure'
     ].forEach(function(k){

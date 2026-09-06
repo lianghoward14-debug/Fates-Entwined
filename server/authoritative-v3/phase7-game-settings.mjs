@@ -1,8 +1,6 @@
 const LANDSCAPE_IDS = Object.freeze(Array.from({length:24}, (_, index)=>`igb${index + 1}`));
-// These experimental systems are retained, but classic multiplayer is the
-// shipped default. A server operator may opt into both with explicit `1`
-// values without affecting the independent zone-control rework.
-const MORALE_PRESSURE_SEALS_DEFAULT = process.env.FATE_MORALE_PRESSURE_SEALS === '1';
+// Morale is the standard match ruleset. Retain an explicit operator test override.
+const MORALE_PRESSURE_SEALS_DEFAULT = process.env.FATE_MORALE_PRESSURE_SEALS !== '0';
 const MORALE_CARD_REWORKS_DEFAULT = MORALE_PRESSURE_SEALS_DEFAULT
   && process.env.FATE_MORALE_CARD_REWORKS !== '0';
 const ZONE_CONTROL_REWORK_DEFAULT = process.env.FATE_ZONE_CONTROL_REWORK !== '0';
@@ -37,7 +35,7 @@ export function normalizePhase7GameSettings(value, legacyLandscapeId = ''){
     landscapeMode:source.landscapeMode === 'selected' ? 'selected' : 'random',
     landscapeId:validLandscapeId(source.landscapeId),
     turnTimerMinutes:boundedTimerMinutes(source.turnTimerMinutes),
-    healthPressureSeals:source.healthPressureSeals === true,
+    healthPressureSeals:source.healthPressureSeals === undefined ? MORALE_PRESSURE_SEALS_DEFAULT : source.healthPressureSeals === true,
     pressureCardReworks:source.healthPressureSeals === true && source.pressureCardReworks === true,
     zoneControlRework:ZONE_CONTROL_REWORK_DEFAULT && source.zoneControlRework !== false,
     expandedContestedRow:ZONE_CONTROL_REWORK_DEFAULT && source.zoneControlRework !== false

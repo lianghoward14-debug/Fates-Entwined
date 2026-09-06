@@ -4233,54 +4233,8 @@ async function aiTriggerWhenSet(inst, z, r, c) {
         log('p2', `AI: Liberators of Rwanda +3 Fate to ${target.name}`);
       } break;
     }
-    case '25': { // Zimbabwean Honor Guard: continuous +1 Fate affiliation-adjacency aura
-      if(window.FATE_PRESSURE_CARD_REWORKS_ENABLED === true){
-        break;
-      }
-      if(G._zimbabweUsedThisTurn) break;
-      const handCopy = G.players[cp].hand.find(c=>c.id==='25');
-      const deckCopy = G.players[cp].deck.find(c=>c.id==='25');
-      const copy = handCopy || deckCopy;
-      if(!copy) break;
-      const rows = [1, getSafeRowForPlayer(cp)];
-      const zones = [z, 0, 1, 2].filter((value, index, arr)=>arr.indexOf(value)===index);
-      const slots = [];
-      zones.forEach(zi=>{
-        rows.forEach(ri=>{
-          const row = G.board[zi]?.[ri];
-          if(!row) return;
-          const cap = getBoardRowCapacity(zi, ri);
-          for(let ci=0; ci<cap; ci++){
-            if(!row[ci] && !isBlocked(zi, ri, ci)) slots.push({z:zi,r:ri,c:ci});
-          }
-        });
-      });
-      if(!slots.length) break;
-      G._zimbabweUsedThisTurn = true;
-      G.players[cp].hand = G.players[cp].hand.filter(c=>c.iid!==copy.iid);
-      G.players[cp].deck = G.players[cp].deck.filter(c=>c.iid!==copy.iid);
-      const extra = newInstance(copy);
-      extra.owner = cp;
-      extra.currentFate = getPlacedCardFate(extra);
-      if(typeof preparePlacementFateReveal === 'function') preparePlacementFateReveal(extra, copy, 'set');
-      const slot = slots[0];
-      await aiRunBoardPlacementPresentation({
-        sourceCard:copy,
-        inst:extra,
-        owner:cp,
-        source:handCopy ? 'hand' : 'deck',
-        recipe:handCopy ? 'PLAY_CARD' : 'DECK_TO_BOARD',
-        target:{z:slot.z, r:slot.r, c:slot.c},
-        commit:function(){
-          G.board[slot.z][slot.r][slot.c] = extra;
-          log('p2','AI: Zimbabwean Honor Guard set another copy for free');
-          if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:!!handCopy, blocks:false, topbar:false, effects:false, hover:false});
-          else renderGame({board:true, scores:true, oppHand:!!handCopy, blocks:true, topbar:true});
-        }
-      });
-      await aiTriggerWhenSet(extra, slot.z, slot.r, slot.c);
+    case '25': // Zimbabwean Honor Guard's Africa, United effect is a continuous aura.
       break;
-    }
     case '32': await drawCard(cp,1,{afterSetOrCinematic:true, activatedDrawEffect:true, effectSource:inst}); break;
     case '42': { // draw 2, discard 2
       await drawCard(cp,2,{afterSetOrCinematic:true, activatedDrawEffect:true, effectSource:inst, deferJoiePassive:true});

@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
 import {
   normalizePhase7GameSettings,
   PHASE7_MULTIPLAYER_LANDSCAPE_IDS,
@@ -38,10 +40,12 @@ assert([...randomResults].some(id=>id !== 'igb1'));
 // production setting is random and therefore cannot silently mean Pacifica.
 assert.deepEqual(normalizePhase7GameSettings(null, 'igb17'), {
   landscapeMode:'selected', landscapeId:'igb17', turnTimerMinutes:3,
-  healthPressureSeals:false, pressureCardReworks:false,
+  healthPressureSeals:true, pressureCardReworks:true,
   zoneControlRework:true, expandedContestedRow:true, zoneLayout444:true
 });
 assert.equal(normalizePhase7GameSettings(null, '').landscapeMode, 'random');
+assert.equal(normalizePhase7GameSettings({}).healthPressureSeals,true,'normal matchmaking defaults to Morale');
+assert.equal(normalizePhase7GameSettings({landscapeMode:'selected',landscapeId:'igb1',turnTimerMinutes:3}).healthPressureSeals,true,'Warfront settings without a flag still enable Morale');
 assert.equal(
   normalizePhase7GameSettings({healthPressureSeals:true}).healthPressureSeals,
   true,
@@ -50,3 +54,14 @@ assert.equal(
 assert.equal(normalizePhase7GameSettings({healthPressureSeals:false}).healthPressureSeals, false);
 
 console.log('authoritative-v3 Phase 7 game settings smoke test passed');
+
+// The shipping page and Warfront queue must actually request the ruleset.
+const page=fs.readFileSync(new URL('../../index.html',import.meta.url),'utf8');
+const assignment=page.match(/window\.FATE_MORALE_PRESSURE_RULES_ENABLED = [^;]+;/)[0];
+for(const [query,expected] of [['',true],['fateMoralePressureRules=0',false],['fateMoralePressureRules=1',true]]){
+  const context={window:{},params:new URLSearchParams(query)};
+  vm.runInNewContext(assignment,context);
+  assert.equal(context.window.FATE_MORALE_PRESSURE_RULES_ENABLED,expected);
+}
+const war=fs.readFileSync(new URL('../../src/scripts/47-challenger-war-event.js',import.meta.url),'utf8');
+assert.match(war,/gameSettings:\{landscapeMode:'selected'[^}]*healthPressureSeals:true/,'Warfront explicitly requests Morale');

@@ -1714,7 +1714,6 @@ async function nextPlayerTurn() {
       card._landscapeEventideMovedTurn = null;
     }
   });
-  G._zimbabweUsedThisTurn = false;
   G._polishUsedThisTurn = false;
   tickRiveraBuffsForCurrentPlayer();
   if(typeof tickMailDeliveriesForCurrentPlayer === 'function') tickMailDeliveriesForCurrentPlayer();
@@ -8083,30 +8082,8 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
     case '20': // Shield Wall is now player-activated, not a when-set effect.
       renderEffectResolutionForPlayer(cp, {hand:false, blocks:false});
       break;
-    case '25':
-      if(window.FATE_PRESSURE_CARD_REWORKS_ENABLED === true){
-        renderEffectResolutionForPlayer(cp,{hand:false,topbar:true});break;
-      }
-      {
-        const dupes = G.players[cp].hand.filter(c=>c.id==='25');
-        const deckDupes = G.players[cp].deck.filter(c=>c.id==='25');
-        const allDupes = [...dupes,...deckDupes];
-        if(allDupes.length>0 && !G._zimbabweUsedThisTurn){
-          G._zimbabweUsedThisTurn = true;
-          const extra = allDupes[0];
-          G.players[cp].hand = G.players[cp].hand.filter(c=>c.iid!==extra.iid);
-          G.players[cp].deck = G.players[cp].deck.filter(c=>c.iid!==extra.iid);
-          if(typeof addCardToHand==='function') addCardToHand(cp, extra, { announce:false });
-          else G.players[cp].hand.push(extra);
-          beginImmediateFreePlacement(cp, extra, 'Place the extra Zimbabwean Honor Guard for free.', {
-            key:'zimbabwean-honor-guard-free-set',
-            name:'Zimbabwean Honor Guard',
-            ability:'Africa, United',
-            text:'Africa, United: this extra copy can be set immediately for free.'
-          });
-          toast('Another Zimbabwean Honor Guard is ready to set immediately for free!');
-        }
-      } break;
+    case '25': // Zimbabwean Honor Guard's Africa, United effect is a continuous aura.
+      break;
     case '28': // 2nd Polish-Lithuanian Army: once-per-turn free set from deck
       // The deck action marks _polishUsedThisTurn and does not consume a
       // Supporter set. The flag resets when the next turn begins.
