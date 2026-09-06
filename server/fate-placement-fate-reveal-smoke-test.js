@@ -11,6 +11,18 @@ const tutorial = read('src/scripts/11-tutorial.js');
 const snapshot = read('src/scripts/render-v2/01-render-snapshot.js');
 const adapter = read('src/scripts/render-v2/04-match-renderer-adapter.js');
 const rooms = read('src/scripts/18-online-rooms.js');
+const structuralHelpers = read('src/scripts/00-structural-helpers.js');
+
+assert.doesNotMatch(
+  structuralHelpers,
+  /isAlpineInfantryCard\(card\)\) return printedFate \+ 4/,
+  'ALPINE Infantry must not retain the retired intrinsic +4 placement bonus in addition to its current +5 when-set effect'
+);
+assert.match(
+  core,
+  /case '76':[\s\S]{0,500}getPlacedCardFate\(inst\)[\s\S]{0,120}\+ 5/,
+  'ALPINE Infantry must receive exactly its current +5 when-set gain'
+);
 
 assert.match(
   core,

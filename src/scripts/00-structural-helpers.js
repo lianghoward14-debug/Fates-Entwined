@@ -900,7 +900,6 @@ function getPlacedCardFate(card, options = {}) {
   if (!card) return 0;
   applyPermanentEffectImmunity(card);
   const printedFate = typeof card.fate === 'number' ? card.fate : 0;
-  if (isAlpineInfantryCard(card)) return printedFate + 4;
   const tributeCount = typeof options.tributeCount === 'number' ? options.tributeCount : 0;
   const bonusFate = typeof options.bonusFate === 'number' ? options.bonusFate : 0;
   const carriedDelta = getLiveCardFate(card) - printedFate;
