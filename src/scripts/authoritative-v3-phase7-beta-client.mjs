@@ -133,10 +133,11 @@ function clearCredential(){
   try{ sessionStorage.removeItem(CREDENTIAL_KEY); }catch(_){}
 }
 
+let fallbackMatchmakingSession='';
 function matchmakingClientSession(){
-  const electronSession = String(params.get('electronSession') || '').replace(/[^A-Za-z0-9_.:@-]/g, '-').slice(0, 80);
-  if(electronSession) return `electron:${electronSession}`;
-  const key = 'fateAuthorityV3MatchmakingClientSession';
+  // Profile labels such as "default" or "player1" are shared by unrelated
+  // installations. They must never identify a player in the global queue.
+  const key = 'fateAuthorityV3MatchmakingClientSessionV2';
   try{
     let value = String(sessionStorage.getItem(key) || '');
     if(!value){
@@ -145,7 +146,8 @@ function matchmakingClientSession(){
     }
     return value.replace(/[^A-Za-z0-9_.:@-]/g, '-').slice(0, 80);
   }catch(_){
-    return `web:${Math.random().toString(36).slice(2)}`;
+    if(!fallbackMatchmakingSession)fallbackMatchmakingSession=`web:${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+    return fallbackMatchmakingSession;
   }
 }
 
@@ -158,6 +160,7 @@ async function matchmakingIdentityToken(){
 
 async function matchmakingRequest(route, {method = 'GET', body} = {}){
   const response = await fetch(API_URL + route, {
+      signal:AbortSignal.timeout(12000),
       method,
       headers:{
         authorization:`Bearer ${await matchmakingIdentityToken()}`,

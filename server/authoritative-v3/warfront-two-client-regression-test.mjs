@@ -35,7 +35,7 @@ try{
   }
   function client(uid){
     const data=new Map(),timers=new Map(),events={},toasts=[];let nextTimer=0;
-    const pane={innerHTML:'',classList:{contains:()=>true}};
+    let html='',writes=0;const pane={get innerHTML(){return html;},set innerHTML(value){html=value;writes++;},get writes(){return writes;},classList:{contains:()=>true}};
     const c={console,Date,Math,JSON,AbortController,CustomEvent:class{constructor(type,options){this.type=type;this.detail=options?.detail;}},
       localStorage:{getItem:k=>data.get(k)||null,setItem:(k,v)=>data.set(k,v),removeItem:k=>data.delete(k)},
       document:{readyState:'loading',hidden:false,addEventListener(){},getElementById:()=>null,querySelector:selector=>selector.startsWith('#ch-content >')?pane:null},
@@ -54,6 +54,9 @@ try{
   const shared=c=>JSON.parse(JSON.stringify(c.state(),(key,value)=>key==='localReward'?undefined:value));
   const same=label=>assert.deepEqual(shared(a),shared(b),label);
   same('initial campaign');
+  a.c.openWarZone('heartland');const writes=a.pane.writes;
+  await a.war.pull();await a.war.pull();assert.equal(a.pane.writes,writes,'unchanged polls must not rebuild the open zone drawer');
+  a.c.closeWarDrawer();
   a.war.select('a');b.war.select('b');
   await Promise.all([a.c.joinWarEventZone('heartland','a'),b.c.joinWarEventZone('heartland','b')]);
   await Promise.all([a.war.pull(),b.war.pull()]);same('concurrent deployments');
