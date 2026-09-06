@@ -28610,6 +28610,28 @@ html body #s-challenger #coll-grid .coll-card.rarity-star::after{
   animation:fateJeweledDom 7.2s ease-in-out infinite!important;
 }
 
+/* Keep Public Decks stat pills above the fixed action footer. */
+html body #modal .pd-library-v3 .pd-v3-grid .pdx-info{
+  gap:.3rem!important;
+  padding:.72rem 1.3rem .52rem!important;
+}
+html body #modal .pd-library-v3 .pd-v3-grid .pdx-desc{
+  min-height:2.55em!important;
+  max-height:2.55em!important;
+  line-height:1.28!important;
+}
+html body #modal .pd-library-v3 .pd-v3-grid .pdx-rating{
+  flex:1 1 62px!important;
+  min-height:62px!important;
+  gap:.32rem!important;
+  margin:.05rem 0 0!important;
+  padding:.42rem .85rem!important;
+}
+html body #modal .pd-library-v3 .pd-v3-grid .pdx-stats{
+  flex:0 0 44px!important;
+  margin:.08rem 0 0!important;
+}
+
 /* Match card information: tighten only the audio button's circle while
    preserving the music glyph at its existing size. */
 html body #modal.card-detail-overlay .card-voice-btn{

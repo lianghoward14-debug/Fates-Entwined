@@ -1766,9 +1766,18 @@ async function nextPlayerTurn() {
     });
   }
 
-  // Phil (46) — Monarchist Manifesto: gains 2 Fate per draw phase after being set
+  // Phil (46) — Monarchist Manifesto: gains 2 Fate per draw phase after being set.
+  // Authoritative projections persist the entry turn in counters; older local
+  // games used _philSetTurn.  Accept both so the passive survives every client
+  // path, including multiplayer state reconciliation.
   forEachBoardCard((card)=>{
-    if(cardActsAsPassive(card, '46') && card.owner===currentPlayer && typeof card._philSetTurn==='number') {
+    const philSetTurn = Number(card?._philSetTurn ?? card?._setTurn ?? card?.counters?.fieldEnteredTurn);
+    const philController = coercePlayerIndex(card?.controller, coercePlayerIndex(card?.owner, -1));
+    if(cardActsAsPassive(card, '46')
+      && !isFaceDownCard(card)
+      && philController===currentPlayer
+      && Number.isFinite(philSetTurn)
+      && philSetTurn < Number(G.turn)) {
       applyPairedOverlayFateGain(card, 2, currentPlayer, {
         kind:'phil_crown',
         label:'Monarchist Manifesto',
@@ -2051,6 +2060,8 @@ function currentTurnTimerPauseKey() {
 
 function isTurnTimerInteractionPaused() {
   if(!G) return false;
+  const authorityClock = getAuthoritativeTurnClock();
+  if(authorityClock) return authorityClock.paused;
   if(isImprovisorTurnTimerPaused()) return true;
   // Authoritative prompts are gameplay windows even on the waiting player's
   // client. Both seats must display and enforce the same suspended turn.
@@ -2104,7 +2115,22 @@ function getOnlineActiveImprovisorPauseMs(now) {
   return Math.min(timeoutMs + 2000, Math.max(0, Number(now) - openedAt));
 }
 
+function getAuthoritativeTurnClock() {
+  if(!G?._phase7CurrentMultiplayer) return null;
+  return window.fateAuthorityV3Beta?.readTurnClock?.(G._onlineRoomCode, G.turn, G.currentPlayer) || null;
+}
+
+function refreshAuthoritativeTurnTimer() {
+  const clock = getAuthoritativeTurnClock();
+  if(!clock) return;
+  _turnTimerRemaining = clock.remaining;
+  updateTimerDisplay();
+}
+if(typeof window !== 'undefined') window.refreshAuthoritativeTurnTimer = refreshAuthoritativeTurnTimer;
+
 function getOnlineSyncedTurnRemaining(limit) {
+  const authorityClock = getAuthoritativeTurnClock();
+  if(authorityClock) return authorityClock.remaining;
   if(!G || !G._onlineRoomCode || !Number.isFinite(Number(G._turnStartedAt))) return null;
   const now = (typeof window !== 'undefined' && typeof window.fateAuthorityServerNow === 'function')
     ? window.fateAuthorityServerNow()
@@ -2116,6 +2142,7 @@ function getOnlineSyncedTurnRemaining(limit) {
 }
 
 function repairStaleOnlineTurnStartedAt(limit) {
+  if(G?._phase7CurrentMultiplayer) return false;
   if(!G || !G._onlineRoomCode) return false;
   const now = (typeof window !== 'undefined' && typeof window.fateAuthorityServerNow === 'function')
     ? window.fateAuthorityServerNow()
@@ -2216,11 +2243,17 @@ function startTurnTimer() {
   repairStaleOnlineTurnStartedAt(limit);
   _turnTimerRemaining = limit;
   const syncedRemaining = getOnlineSyncedTurnRemaining(limit);
-  if(syncedRemaining !== null) _turnTimerRemaining = Math.max(1, syncedRemaining);
+  if(syncedRemaining !== null) _turnTimerRemaining = Math.max(0, syncedRemaining);
   _lastTurnWarnSecond = null;
   updateTurnTimerPauseState(turnTimerPauseNow());
   updateTimerDisplay();
   _turnTimerInterval = setInterval(()=>{
+    const authorityClock = getAuthoritativeTurnClock();
+    if(authorityClock){
+      _turnTimerRemaining = authorityClock.remaining;
+      updateTimerDisplay();
+      return; // Only the server expires this turn, including at 0:00.
+    }
     if(updateTurnTimerPauseState(turnTimerPauseNow())){
       updateTimerDisplay();
       return;
@@ -2229,6 +2262,7 @@ function startTurnTimer() {
     _turnTimerRemaining = liveSyncedRemaining !== null ? liveSyncedRemaining : (_turnTimerRemaining - 1);
     updateTimerDisplay();
     if(_turnTimerRemaining <= 0){
+      if(G?._phase7CurrentMultiplayer) return;
       if(isOnlineRemoteTurnTimer()) {
         stopTurnTimer();
         updateTimerDisplay();

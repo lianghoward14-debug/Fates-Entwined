@@ -498,11 +498,17 @@ export function collectTriggeredOperations(state, event){
     }
   }
   if(event.type === 'DRAW_PHASE_COMPLETED'){
+    // Phil starts counting only once a Draw phase occurs after he entered the
+    // field.  `fieldEnteredTurn` is canonical state, so this works identically
+    // for local single-player sessions and authoritative multiplayer rooms.
+    const drawTurn = Number(event.turn ?? state.turn);
     for(const entry of boardEntries(state).filter(item=>
       runtimeRuleId(item.card) === '46'
       && controllerOf(item.card) === Number(event.playerIndex)
       && item.card.faceDown !== true
       && !isEffectSourceSuppressed(state, item)
+      && (!Number.isFinite(Number(item.card.counters?.fieldEnteredTurn))
+        || Number(item.card.counters.fieldEnteredTurn) < drawTurn)
     )){
       operations.push({
         type:'MODIFY_FATE',

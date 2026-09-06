@@ -112,7 +112,7 @@
   function medalIcon(id, selected){
     const n = clamp(Math.round(number(id, 1)), 1, 50);
     const src = 'assets/medals/cropped/medal-' + String(n).padStart(2, '0') + '.png';
-    return '<span class="profile-medal-icon' + (selected ? ' is-selected' : '') + '" style="--medal-src:url(&quot;' + src + '&quot;)" aria-hidden="true"></span>';
+    return '<span class="profile-medal-icon' + (selected ? ' is-selected' : '') + '" aria-hidden="true"><img src="' + src + '" alt="" loading="eager"></span>';
   }
 
   function medalsMarkup(model){

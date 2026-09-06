@@ -3212,7 +3212,13 @@
       }
       const statuses = Array.isArray(card.statuses) ? card.statuses.map(String) : [];
       const fieldEnteredTurn = Number(card.counters?.fieldEnteredTurn);
-      if(Number.isFinite(fieldEnteredTurn)) next._setTurn = fieldEnteredTurn;
+      if(Number.isFinite(fieldEnteredTurn)) {
+        next._setTurn = fieldEnteredTurn;
+        // Phil's legacy passive historically read this dedicated marker. Keep
+        // it in sync with canonical entry timing so a reconciled multiplayer
+        // card cannot silently lose its Monarchist Manifesto trigger.
+        if(String(card.id || '') === '46') next._philSetTurn = fieldEnteredTurn;
+      }
       if(card.counters?.igb24DawnFateGranted === true) next._igb24DawnFateGranted = true;
       if(statuses.includes('IMMUNE_TO_OPPONENT_EFFECTS')) next._igb24OpponentEffectImmune = true;
       if(statuses.includes('IMMUNE_TO_ALL_EFFECTS') || statuses.includes('EFFECT_IMMUTABLE')){
@@ -5411,7 +5417,7 @@
       };
     });
     if(isReaction){
-      const reactionChoices = choices.filter(function(command){ return !!command?.payload?.reactionIid; });
+      const reactionChoices = phase7VisibleReactionChoices(choices, prompt);
       const declineCommand = choices.find(function(command){
         const payload = command?.payload || {};
         return payload.cancel === true || String(payload.choice || '').toUpperCase() === 'DECLINE';
@@ -5428,7 +5434,8 @@
         const mode = String(payload.choice || 'NEGATE').toUpperCase();
         const modeLabel = kind === 'LYDIA'
           ? 'Negate effect & suppress source'
-          : (mode === 'SUPPRESS' ? 'Suppress the source' : 'Negate the effect');
+          : (kind === 'HAVANO' ? (mode === 'SUPPRESS' ? 'Suppress' : 'Negate')
+            : (mode === 'SUPPRESS' ? 'Suppress the source' : 'Negate the effect'));
         const location = phase7FindCardLocation(payload.reactionIid);
         const locationLabel = location?.zone === 'hand'
           ? 'From your hand'
@@ -5484,6 +5491,22 @@
       button.dataset.phase7PromptId = promptId;
       if(command.payload?.choice !== undefined) button.dataset.phase7PromptChoice = String(command.payload.choice);
       if(command.payload?.zone !== undefined) button.dataset.phase7PromptZone = String(command.payload.zone);
+    });
+  }
+  function phase7VisibleReactionChoices(choices, prompt){
+    return choices.filter(function(command){
+      const iid = command?.payload?.reactionIid;
+      if(!iid) return false;
+      const option = (prompt?.options || []).find(function(value){ return value.reactionIid === iid; });
+      if(option?.kind !== 'HAVANO') return true;
+      // Show one response per Havano. Passive-entry prompts already supply
+      // SUPPRESS; explicit effect resolutions supply NEGATE. Keep the exact
+      // server-issued command so this is only a presentation choice.
+      const preferred = prompt?.phase === 'PASSIVE_TARGET' ? 'SUPPRESS' : 'NEGATE';
+      const preferredExists = choices.some(function(value){
+        return value?.payload?.reactionIid === iid && value.payload.choice === preferred;
+      });
+      return command.payload.choice === (preferredExists ? preferred : 'SUPPRESS');
     });
   }
   function phase7OpenBoardPromptPicker(key, commands, options){
@@ -7312,18 +7335,17 @@
     g._onlineGameSong = 'board' + legacy.landscapeBgNum;
     g._onlineMatchPlayable = true;
     const projectedPlayers = Array.isArray(view.state.players) ? view.state.players : [];
-    const previousProfiles = g.playerProfiles || {};
     g.playerProfiles = {};
     [0,1].forEach(function(playerIndex){
       const player = projectedPlayers[playerIndex] || {};
-      g.playerProfiles[playerIndex] = Object.assign({}, previousProfiles[playerIndex] || {}, {
+      g.playerProfiles[playerIndex] = {
         name:String(player.name || ('Player ' + (playerIndex + 1))),
-        photoURL:String(player.photoURL || previousProfiles[playerIndex]?.photoURL || ''),
-        profileImg:String(player.photoURL || previousProfiles[playerIndex]?.profileImg || ''),
-        img:String(player.photoURL || previousProfiles[playerIndex]?.img || ''),
+        photoURL:String(player.photoURL || 'blank.png'),
+        profileImg:String(player.photoURL || 'blank.png'),
+        img:String(player.photoURL || 'blank.png'),
         elo:Math.max(0, Math.round(Number(player.rankElo) || 600)),
         challengerElo:Math.max(0, Math.round(Number(player.rankElo) || 600))
-      });
+      };
     });
     // Mark authority before rendering the projection. Shared rendering calls
     // enforceHandLimit(), which must not open the legacy client-owned modal.

@@ -141,11 +141,24 @@ try{
   assert.equal(accepted0.revision, 1);
   assert.equal(accepted1.revision, 1);
   assert.equal(Object.hasOwn(accepted1.state.players[0], 'hand'), false);
+  const [clock0, clock1] = await Promise.all([
+    p0.waitFor(message=>message.kind === 'turn-clock' && message.revision === 1),
+    p1.waitFor(message=>message.kind === 'turn-clock' && message.revision === 1)
+  ]);
+  assert.deepEqual(clock0, clock1, 'both seats must receive the same authoritative clock');
+  assert.equal(clock0.matchId, 'NETWORKV3');
+  assert(Number.isFinite(clock0.remainingMs));
 
   p0.messages.splice(0);
   p0.socket.send(JSON.stringify({kind:'command', protocolVersion:3, command:acceptedCommand}));
   const replay = await p0.waitFor(message=>message.kind === 'accepted' && message.commandId === acceptedCommand.commandId);
-  assert.deepEqual(replay, accepted0, 'duplicate delivery must return the original accepted response');
+  // Runtime clock usage is a transport sidecar, not part of the persisted
+  // idempotent engine response. Compare every canonical field and event.
+  const canonicalAccepted = structuredClone(accepted0);
+  delete canonicalAccepted.state.turnClockUsage;
+  const canonicalReplay = structuredClone(replay);
+  delete canonicalReplay.state.turnClockUsage;
+  assert.deepEqual(canonicalReplay, canonicalAccepted, 'duplicate delivery must return the original canonical accepted response');
 
   const forbiddenCommand = {
     commandId:'p0:network:forbidden',

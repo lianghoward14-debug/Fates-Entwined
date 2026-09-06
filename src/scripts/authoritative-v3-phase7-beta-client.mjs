@@ -72,6 +72,7 @@ let playerIndex = null;
 let legalCommands = [];
 let privateActionCards = [];
 let presentationBatch = null;
+let turnClock = null;
 let reconnectTimer = null;
 let reconnectAttempts = 0;
 let intentionallyClosed = false;
@@ -214,6 +215,7 @@ function resetForNextMatch(nextCredential){
   socket = null;
   try{ previousSocket?.close(); }catch(_){ }
   state = null;
+  turnClock = null;
   revision = 0;
   stateHash = '';
   playerIndex = null;
@@ -257,7 +259,24 @@ function updateTakeoverNotice(state, playerIndex){
   takeoverNoticeTimer=setTimeout(()=>notice.remove(),5000);
   globalThis.refreshFateWarfrontState?.();
 }
+function readTurnClock(matchId, turn, activePlayer){
+  if(!turnClock || turnClock.matchId !== String(matchId)
+    || Number(turnClock.turn) !== Number(turn)
+    || Number(turnClock.activePlayer) !== Number(activePlayer)) return null;
+  const elapsed = turnClock.paused || !turnClock.active ? 0 : Math.max(0, performance.now() - turnClock.receivedAt);
+  return {paused:turnClock.paused || !turnClock.active,
+    remaining:Math.ceil(Math.max(0, turnClock.remainingMs - elapsed) / 1000)};
+}
+
 function applyServerMessage(message){
+  if(message.kind === 'turn-clock'){
+    if(String(message.matchId) !== String(credential?.matchId)
+      || !Number.isFinite(message.remainingMs) || message.remainingMs < 0
+      || (turnClock && Number(message.revision) < Number(turnClock.revision))) return;
+    turnClock = {...message, receivedAt:performance.now()};
+    globalThis.refreshAuthoritativeTurnTimer?.();
+    return;
+  }
   if(message.kind === 'hello-ok'){
     playerIndex = Number(message.playerIndex);
   }
@@ -363,6 +382,7 @@ function disconnect({forget = false} = {}){
   try{ socket?.close(); }catch(_){}
   socket = null;
   if(forget){
+    turnClock = null;
     credential = null;
     state = null;
     revision = 0;
@@ -379,7 +399,13 @@ async function sendCommand(type, payload = {}){
   if(containsForbiddenPostState(payload)){
     throw new Error('Phase 7 commands cannot contain client postState');
   }
-  await connect();
+  // Established matches already have validated credentials. Reconnecting on
+  // every click also persists them and clones the whole match via report(),
+  // only to discard that report before sending the command.
+  if(fatalError) throw new Error(fatalError);
+  if(!credential || intentionallyClosed || socket?.readyState !== WebSocket.OPEN){
+    await connect();
+  }
   if(socket?.readyState !== WebSocket.OPEN) throw new Error('Phase 7 beta socket is not open');
   const commandId = `${credential.playerId}:${Date.now()}:${crypto.randomUUID?.() || Math.random().toString(36).slice(2)}`;
   const command = {
@@ -704,6 +730,7 @@ async function startSpectating({matchId, playerIndex:requestedPerspective = 0} =
 }
 
 globalThis.fateAuthorityV3Beta = Object.freeze({
+  readTurnClock,
   apiBaseUrl:API_URL,
   connect,
   disconnect,

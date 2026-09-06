@@ -10,6 +10,7 @@ import {SQLiteAuthorityStore} from './storage.mjs';
 import {normalizePhase7GameSettings, resolvePhase7GameSettings} from './phase7-game-settings.mjs';
 import {createFlyDataApi} from './fly-data-api.mjs';
 import {createWarfrontTakeoverDriver} from './warfront-takeover.mjs';
+import {warfrontAiDeck} from './warfront-simulation.mjs';
 
 if(process.env.FATE_SERVER_AUTHORITATIVE_V3_ENABLED !== '1'){
   throw new Error(
@@ -243,13 +244,15 @@ function betaQueueOpponent(entry){
 }
 
 function completeBetaQueueMatch(queued){
-  const opponent = betaQueueOpponent(queued);
+  const ai=queued.queueMode==='warfront'?flyDataApi?.warfrontAiOpponent(queued.matchmakingKey,queued.uid):null;
+  const opponent = ai ? {...queued,uid:ai.uid,name:ai.name,photoURL:ai.photo,rankElo:ai.elo,deckIds:warfrontAiDeck(),isAI:true} : betaQueueOpponent(queued);
   if(!opponent) return null;
   const matchId = `BETA_${Date.now().toString(36)}_${crypto.randomBytes(5).toString('hex')}`;
   const gameSettings = resolvePhase7GameSettings(opponent.gameSettings, matchId);
   const queueMode = ['ranked','warfront'].includes(queued.queueMode) ? queued.queueMode : 'freeplay';
   const result = manager.createMatch({
     mode:queueMode,
+    aiSeats:opponent.isAI?[0]:[],
     warfrontMatchmakingKey:queueMode==='warfront'?queued.matchmakingKey:'',
     matchId,
     seed:matchId,
@@ -267,6 +270,7 @@ function completeBetaQueueMatch(queued){
     ]
   });
   const opponentCredential = betaCredentialFor(result, opponent.uid, queueMode);
+  if(opponent.isAI)scheduleAuthorityTimers(manager.actor(matchId));
   const ownCredential = betaCredentialFor(result, queued.uid, queueMode);
   betaQueue.delete(opponent.uid);
   betaQueue.delete(queued.uid);
@@ -484,11 +488,35 @@ function scheduleTurnTimer(actor){
   armTurnTimer(actor, timeout, timeout.timeoutMs);
 }
 
+function turnClockMessage(actor){
+  const state = actor.state;
+  const signature = `${state.matchId}:${state.turn}:${state.activePlayer}`;
+  const entry = turnTimers.get(state.matchId);
+  const current = entry?.signature === signature ? entry : null;
+  const serverTime = Date.now();
+  const paused = !!(state.pendingPrompt || state.pendingHandLimit || current?.suspended);
+  const active = state.phase === 'main' && !state.outcome;
+  const initialMs = actor.turnTimeoutCommand()?.timeoutMs
+    || (String(state.landscapeId) === 'igb14' ? 30000 : (Number(state.turnTimerSeconds) || 180) * 1000);
+  return {kind:'turn-clock', protocolVersion:3, matchId:state.matchId,
+    revision:state.revision, turn:state.turn, activePlayer:state.activePlayer,
+    serverTime, paused, active,
+    remainingMs:!active ? 0 : current
+      ? Math.max(0, paused ? current.remainingMs : current.deadlineAt - serverTime)
+      : initialMs};
+}
+
 function scheduleAuthorityTimers(actor){
   scheduleTakeover(actor);
   schedulePromptTimer(actor);
   if(actor.state.pendingPrompt || actor.state.pendingHandLimit) suspendTurnTimer(actor.state.matchId);
   else scheduleTurnTimer(actor);
+  // Publish only after the existing scheduler has settled its pause/deadline.
+  // This sidecar never enters deterministic state or the presentation queue.
+  const clock = turnClockMessage(actor);
+  for(const peers of matchSockets.get(actor.state.matchId)?.values() || []){
+    for(const ws of peers) send(ws, clock);
+  }
 }
 
 async function handleSocketMessage(ws, message){
@@ -929,7 +957,12 @@ server.on('upgrade', (req, socket)=>{
 });
 
 const pingTimer = setInterval(()=>{
-  for(const socket of sockets) send(socket, {kind:'ping', protocolVersion:3, time:Date.now()});
+  for(const socket of sockets){
+    send(socket, {kind:'ping', protocolVersion:3, time:Date.now()});
+    const matchId = socket.authorityV3Session?.matchId;
+    const actor = matchId ? manager.actor(matchId) : null;
+    if(actor) send(socket, turnClockMessage(actor));
+  }
 }, 45000);
 pingTimer.unref?.();
 

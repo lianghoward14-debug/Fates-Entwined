@@ -130,8 +130,15 @@
     }
     return '';
   }
-  function playerPortraitArt(playerIndex,legacyId){
-    const profile=window.G?.playerProfiles?.[playerIndex]||null;
+  function playerPortraitArt(playerIndex,legacyId,authorityView){
+    const gameState=invoke('getFateGameState')||window.FATE_GAME_STATE||null;
+    // G is a lexical global, not window.G. In multiplayer, each portrait
+    // belongs to its authoritative seat, including when we are player 1.
+    if(gameState?._phase7CurrentMultiplayer){
+      const src=authorityView?.state?.players?.[playerIndex]?.photoURL||'blank.png';
+      return `url("${String(src).replace(/"/g,'\\"')}")`;
+    }
+    const profile=gameState?.playerProfiles?.[playerIndex]||null;
     let src='';
     if(profile){
       src=window.FateOnline?.profilePhoto
@@ -139,7 +146,8 @@
         : (profile.img||profile.photoURL||profile.profileImg||profile.pfp||'');
     }
     // The local profile is available before multiplayer identity hydration.
-    if(!src&&playerIndex===0&&typeof window.getProfileImgSrc==='function')src=window.getProfileImgSrc()||'';
+    const localSeat=Number(gameState?._onlinePlayerIndex ?? 0);
+    if(!src&&playerIndex===localSeat&&typeof window.getProfileImgSrc==='function')src=window.getProfileImgSrc()||'';
     if(src&&src!=='blank.png')return `url("${String(src).replace(/"/g,'\\"')}")`;
     return findArt($(legacyId));
   }
@@ -268,7 +276,7 @@
       // The old inline URL resolved from the document and left this pile blank.
       discardArt.style.removeProperty('--archive-card-image');
     }
-    [['my-pic',self,'my-pic'],['opp-pic',rival,'opp-pic']].forEach(([key,seat,id])=>{const out=root.querySelector(`[data-art="${key}"]`),art=playerPortraitArt(seat,id);if(out&&art)out.style.backgroundImage=art});
+    [['my-pic',self,'my-pic'],['opp-pic',rival,'opp-pic']].forEach(([key,seat,id])=>{const out=root.querySelector(`[data-art="${key}"]`),art=playerPortraitArt(seat,id,authorityView);if(out&&art&&out.style.backgroundImage!==art)out.style.backgroundImage=art});
     const land=$('landscape-panel'),landOut=root.querySelector('[data-land]');
     if(land&&landOut){
       const landscapeClass=[...land.classList].find(cls=>/^landscape-id-/.test(cls));
