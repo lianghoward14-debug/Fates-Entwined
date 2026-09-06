@@ -71,7 +71,9 @@ jobs:
           if-no-files-found: error
 
   release-windows-update:
-    needs: verify-online-systems
+    # A main-branch push must always attempt to publish the desktop update.
+    # The online-system checks run independently so a remote-service failure
+    # cannot suppress latest.yml, the blockmap, or the Windows installer.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: windows-latest
     steps:
