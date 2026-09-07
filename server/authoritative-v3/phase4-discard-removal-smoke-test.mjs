@@ -147,9 +147,9 @@ result = reduceCommand(
 assert.equal(result.ok, false);
 assert.equal(result.rejection.code, 'USE_LIMIT_REACHED');
 
-// West German Soldier draws two, then requires one atomic batch containing
-// exactly the lesser of two and the current hand size.
-state = stateFor('P4DISCARD42', ['42', '32', '32']);
+// West German Soldier draws three, then requires one atomic batch containing
+// exactly the lesser of three and the current hand size.
+state = stateFor('P4DISCARD42', ['42', '32', '32', '32']);
 const westGerman = takeCard(state, 0, '42');
 result = reduceCommand(
   state,
@@ -161,8 +161,8 @@ result = reduceCommand(
 );
 assert.equal(result.ok, true);
 assert.equal(result.prompt.type, 'HAND_SELECTION');
-assert.equal(result.prompt.min, 2);
-assert.equal(result.prompt.max, 2);
+assert.equal(result.prompt.min, 3);
+assert.equal(result.prompt.max, 3);
 const forcedDiscards = [...result.prompt.eligibleIids];
 const forcedState = result.state;
 result = reduceCommand(
@@ -187,8 +187,8 @@ result = reduceCommand(
 );
 assert.equal(result.ok, true);
 assert.equal(result.state.players[0].hand.length, 0);
-assert.equal(result.state.players[0].discard.length, 2);
-assert.equal(result.events.filter(event=>event.type === 'CARD_DISCARDED').length, 2);
+assert.equal(result.state.players[0].discard.length, 3);
+assert.equal(result.events.filter(event=>event.type === 'CARD_DISCARDED').length, 3);
 
 state = stateFor('P4DISCARD42IMMUNE', ['42', '76', '32']);
 const immutableWestGermanCost = state.players[0].deck.find(card=>card.id === '76');

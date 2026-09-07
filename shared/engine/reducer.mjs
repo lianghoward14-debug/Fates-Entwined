@@ -820,7 +820,9 @@ function openInstructionPrompt(state, frame, instruction, ctx){
     const filter = instruction.kind === 'SELECT_HAND'
       ? {...instruction.filter, locations:['hand']}
       : instruction.filter;
-    const eligibleIids = eligibleCardTargets(state, frame, filter);
+    const eligibleIids = instruction.reorderTopCount
+      ? state.players[frame.controller].deck.slice(0, instruction.reorderTopCount).map(card=>card.iid)
+      : eligibleCardTargets(state, frame, filter);
     const exactAvailableLimit = Number(instruction.exactUpToAvailable);
     const exactAvailable = Number.isInteger(exactAvailableLimit) && exactAvailableLimit >= 0
       ? Math.min(exactAvailableLimit, eligibleIids.length)
@@ -866,6 +868,12 @@ function openInstructionPrompt(state, frame, instruction, ctx){
       cancelBehavior:instruction.cancelBehavior || 'END_EFFECT',
       timeoutPolicy:min === 0 ? 'CANCEL' : 'FIRST_ELIGIBLE'
     };
+    if(instruction.reorderTopCount){
+      state.pendingPrompt.ordered = true;
+      state.pendingPrompt.cancellable = false;
+      ctx.events.push({type:'DECK_TOP_REVEALED', playerIndex:frame.controller,
+        sourceIid:frame.sourceIid, cards:cloneSerializable(state.pendingPrompt.eligibleCards)});
+    }
     if(instruction.title) state.pendingPrompt.title = String(instruction.title);
     if(instruction.prompt) state.pendingPrompt.prompt = String(instruction.prompt);
     return true;
@@ -1033,6 +1041,20 @@ function runEffectStack(state, ctx){
     if(!instruction){
       state.effectStack.pop();
       ctx.events.push({type:'EFFECT_RESOLVED', sourceIid:frame.sourceIid, frameId:frame.frameId});
+      continue;
+    }
+    if(instruction.kind === 'APPLY_DECK_ORDER'){
+      const deck = state.players[frame.controller].deck;
+      const top = deck.slice(0, instruction.count);
+      const value = frame.locals[instruction.local];
+      const ordered = (Array.isArray(value) ? value : [value]).filter(Boolean).map(String);
+      const byIid = new Map(top.map(card=>[String(card.iid), card]));
+      if(ordered.length !== top.length || new Set(ordered).size !== top.length || ordered.some(iid=>!byIid.has(iid))){
+        throw Object.assign(new Error('deck order must contain each revealed card exactly once'), {code:'INVALID_CHOICE'});
+      }
+      deck.splice(0, top.length, ...ordered.map(iid=>byIid.get(iid)));
+      ctx.events.push({type:'DECK_REORDERED', playerIndex:frame.controller, sourceIid:frame.sourceIid, count:top.length});
+      frame.instructionIndex += 1;
       continue;
     }
     if(instruction.kind === 'COLLECT_BOARD'){

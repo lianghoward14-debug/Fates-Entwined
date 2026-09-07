@@ -4267,10 +4267,10 @@ async function aiTriggerWhenSet(inst, z, r, c) {
     case '25': // Zimbabwean Honor Guard's Africa, United effect is a continuous aura.
       break;
     case '32': await drawCard(cp,1,{afterSetOrCinematic:true, activatedDrawEffect:true, effectSource:inst}); break;
-    case '42': { // draw 2, discard 2
-      await drawCard(cp,2,{afterSetOrCinematic:true, activatedDrawEffect:true, effectSource:inst, deferJoiePassive:true});
+    case '42': { // draw 3, discard 3
+      await drawCard(cp,3,{afterSetOrCinematic:true, activatedDrawEffect:true, effectSource:inst, deferJoiePassive:true});
       const h = G.players[cp].hand;
-      // Discard worst 2 cards (lowest fate supporters)
+      // Discard worst 3 cards (lowest fate supporters)
       const strat = G._selectedAI?._deckStrategy || '';
       const sorted = [...h].sort((a,b)=>{
         if(strat === 'ai_alis_handcuffs' || strat === 'ai_hand_quarantine') {
@@ -4304,7 +4304,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
         }
         return (a.fate||0)-(b.fate||0);
       });
-      for(let i=0;i<2&&sorted[i];i++){
+      for(let i=0;i<3&&sorted[i];i++){
         const c = sorted[i];
         G.players[cp].hand = G.players[cp].hand.filter(x=>x.iid!==c.iid);
         fatePushDiscard(cp, c);
@@ -4424,7 +4424,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
         G.players[cp][zoneName] = list.filter(c=>c.iid!==pick.iid);
         searchedCardsAdded.push(pick);
       });
-      shuffle(G.players[cp].deck);
+      // Preserve draw order after searching.
       if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:true, piles:true, blocks:false, topbar:false, effects:false, hover:false});
       else renderGame({board:true, scores:true, oppHand:true, piles:true, blocks:true, topbar:true});
       if(searchedCardsAdded.length && typeof resolveBoleslawAfterSearchSelection === 'function') {
@@ -4552,7 +4552,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
         if(typeof addCardToHand==='function') addCardToHand(cp, pick, { announce:false, arrivalKind:'search' });
         else G.players[cp].hand.push(pick);
         G.players[cp].deck = G.players[cp].deck.filter(c=>c.iid!==pick.iid);
-        shuffle(G.players[cp].deck);
+        // Preserve draw order after searching.
         if(typeof resolveBoleslawAfterSearchSelection === 'function') {
           await resolveBoleslawAfterSearchSelection(cp, [pick], {sourceCardId:'60'});
         }
@@ -4651,7 +4651,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
         if(typeof addCardToHand==='function') addCardToHand(cp, pick, { announce:false, arrivalKind:'search' });
         else G.players[cp].hand.push(pick);
         G.players[cp].deck = G.players[cp].deck.filter(c=>c.iid!==pick.iid);
-        shuffle(G.players[cp].deck);
+        // Preserve draw order after searching.
         if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:true, piles:true, blocks:false, topbar:false, effects:false, hover:false});
         else renderGame({board:true, scores:true, oppHand:true, piles:true, blocks:true, topbar:true});
         if(typeof resolveBoleslawAfterSearchSelection === 'function') {
@@ -4682,51 +4682,9 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       if(tf>0) modifyFate(inst,tf,'permanent');
       inst._canMoveOncePerTurn=true; break;
     }
-    case '75': { // Ledger-keepers: copy a useful supporter when-set effect
-      const copyableIds = ['05','16','25','31','32','33','42','43','50','58','60','68','69','71','72','73','76','80'];
-      const candidates = [];
-      forEachBoardCard((card,bz,br,bc)=>{
-        if((typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, card.owner) : card.type==='Supporter') && card.iid!==inst.iid && copyableIds.includes(card.id) && !isFaceDownCard(card)){
-          candidates.push({card,z:bz,r:br,c:bc});
-        }
-      });
-      if(candidates.length){
-        const strat = G._selectedAI?._deckStrategy || '';
-        const deckPriority = aiDeckSearchPriority(strat, 'supporter');
-        let priority = deckPriority.length
-          ? deckPriority.concat(['68','60','58','05','25','50','42','32','72','16','31','64','73','80','76','71','33','69'])
-          : ['68','60','58','05','25','50','42','32','72','16','31','64','73','80','76','71','33','69'];
-        if(strat === 'ai_last_mohicans_ledger') {
-          const westArmed = !!(G._westCaribNext && G._westCaribNext.owner === cp);
-          const chingAvailable = G.players[cp].hand.some(c=>c.id==='45') || G.players[cp].deck.some(c=>c.id==='45');
-          priority = !westArmed && chingAvailable ? ['33','58','05','60','32','42'] : ['58','05','60','32','42','33'];
-        }
-        if(strat === 'ai_great_oak_salvo') {
-          priority = G.players[cp].discard.some(c=>c.id==='47') ? ['58','60','05','32','42','33'] : ['60','58','05','32','42','33'];
-        }
-        if(strat === 'ai_selva_tidal_strike') {
-          const westArmed = !!(G._westCaribNext && G._westCaribNext.owner === cp);
-          const selvaAvailable = G.players[cp].hand.some(c=>c.id==='bh04') || G.players[cp].deck.some(c=>c.id==='bh04');
-          priority = !westArmed && selvaAvailable ? ['33','58','05','32'] : ['58','33','05','32'];
-        }
-        candidates.sort((a,b)=>{
-          const ap = priority.indexOf(a.card.id);
-          const bp = priority.indexOf(b.card.id);
-          return (ap<0?999:ap) - (bp<0?999:bp);
-        });
-        if(typeof activateLedgerCopiedSupporterEffect === 'function') {
-          await activateLedgerCopiedSupporterEffect(cp, z, candidates[0], inst);
-        } else {
-          const originalId = inst.id;
-          inst._ledgerCopiedSourceId = String(candidates[0].card.id || '');
-          inst.id = candidates[0].card.id;
-          await aiTriggerWhenSet(inst, z, r, c);
-          inst.id = originalId;
-        }
-        log('p2','AI: Ledger-keepers copied '+candidates[0].card.name);
-      }
+    case '75': // The Hidden Archive uses the same physical deck as human draws.
+      await resolveLedgerArchive(cp, inst, {ai:true});
       break;
-    }
     case '80': { // Apparition: discard a character, draw 2
       const chars=[];
       G.board[z].forEach((row,ri)=>row.forEach((cell,ci)=>{
@@ -5109,7 +5067,7 @@ async function aiRunEffect(card, z, r, c) {
         if(typeof addCardToHand==='function') addCardToHand(cp, pick, { announce:false, arrivalKind:'search' });
         else G.players[cp].hand.push(pick);
         G.players[cp].deck = G.players[cp].deck.filter(c=>c.iid!==pick.iid);
-        shuffle(G.players[cp].deck);
+        // Preserve draw order after searching.
         if(typeof resolveBoleslawAfterSearchSelection === 'function') {
           await resolveBoleslawAfterSearchSelection(cp, [pick], {sourceCardId:'06'});
         }
@@ -5268,7 +5226,6 @@ async function aiRunEffect(card, z, r, c) {
       }
       G.extraSupportsThisTurn = (Number(G.extraSupportsThisTurn) || 0) + 2;
       G._majaSupportBoost = {owner:cp, turn:Number(G.turn), extraSupports:2, sourceIid:String(inst.iid || '')};
-      if(added) shuffle(G.players[cp].deck);
       if(searchedCardsAdded.length && typeof resolveBoleslawAfterSearchSelection === 'function') {
         await resolveBoleslawAfterSearchSelection(cp, searchedCardsAdded, {sourceCardId:'07'});
       }
@@ -5460,7 +5417,7 @@ async function aiRunEffect(card, z, r, c) {
       if(searchedCardsAdded.length && typeof resolveBoleslawAfterSearchSelection === 'function') {
         await resolveBoleslawAfterSearchSelection(cp, searchedCardsAdded, {sourceCardId:'13'});
       }
-      if(added) { shuffle(G.players[cp].deck); log('p2',`AI: Kirby searched ${added} supporters`); }
+      if(added) log('p2',`AI: Kirby searched ${added} supporters`);
       break;
     }
     case '21': { // Henry Dong: choose adjacent suppression squares

@@ -1047,39 +1047,11 @@ function getSupportReinforcementValue(card) {
   return value;
 }
 
-function ensureUsMarinesUses() {
-  if (typeof G === 'undefined' || !G) return [0, 0];
-  if (!Array.isArray(G.usMarinesUses)) G.usMarinesUses = [0, 0];
-  G.usMarinesUses[0] = Math.max(0, Number(G.usMarinesUses[0]) || 0);
-  G.usMarinesUses[1] = Math.max(0, Number(G.usMarinesUses[1]) || 0);
-  return G.usMarinesUses;
-}
-
-function getUsMarinesUses(player) {
-  const uses = ensureUsMarinesUses();
-  return Math.max(0, Number(uses[player]) || 0);
-}
-
-function canActivateUsMarinesEffect(player) {
-  return getUsMarinesUses(player) < 3;
-}
-
-function recordUsMarinesEffectUse(player) {
-  const uses = ensureUsMarinesUses();
-  uses[player] = Math.min(3, getUsMarinesUses(player) + 1);
-  return uses[player];
-}
-
 function activateUsMarinesSuppressionEffect(player, opponent, options) {
   options = options || {};
-  if (!canActivateUsMarinesEffect(player)) {
-    if (!options.silent && typeof toast === 'function') toast('1st US Marines effect has already been activated three times this game.');
-    return false;
-  }
-  const used = recordUsMarinesEffectUse(player);
   G.oppSuppressedNextTurn = true;
   G.suppressTarget = opponent;
-  if (!options.silent && typeof toast === 'function') toast('Opponent supporter effects suppressed next turn! (' + used + '/3)');
+  if (!options.silent && typeof toast === 'function') toast('Opponent Supporter effects suppressed next turn!');
   if (typeof updateTopBar === 'function') updateTopBar();
   if (typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
   return true;
@@ -1425,7 +1397,6 @@ function resetMatchTransientState() {
   G._wojciechLastTurnPlacementCounts = [0, 0];
   G._whisperLandscapeUses = [0, 0];
   G._serverRngCounter = 0;
-  G.usMarinesUses = [0, 0];
   G.polishArmyUses = [0, 0];
   G.oppSuppressedNextTurn = false;
   G.suppressTarget = null;

@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1040" viewBox="0 0 1600 1040">
+<defs>
+ <linearGradient id="page" x2="0" y2="1"><stop stop-color="#071018"/><stop offset="1" stop-color="#020509"/></linearGradient>
+ <filter id="glow"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+ <clipPath id="cardClip"><rect x="5" y="5" width="250" height="320" rx="6"/></clipPath>
+ <g id="shell"><rect width="260" height="330" rx="9" fill="#081318" stroke="#b7923f" stroke-width="2"/><image href="38.png" x="5" y="5" width="250" height="320" preserveAspectRatio="xMidYMid slice" clip-path="url(#cardClip)"/><rect x="5" y="5" width="250" height="320" rx="6" fill="#07151dcc" stroke="#fff0b055"/><rect x="13" y="13" width="234" height="304" rx="4" fill="none" stroke="#e1bd5c88"/></g>
+</defs>
+<rect width="1600" height="1040" fill="url(#page)"/>
+<text x="800" y="43" text-anchor="middle" fill="#f2dfb7" font-family="Georgia" font-size="27" font-weight="700" letter-spacing="4">JAKE · BURGER OVERLAY STUDIES</text>
+<text x="800" y="71" text-anchor="middle" fill="#8da0a4" font-family="Arial" font-size="13">Ten distinct burger silhouettes · actual card · final overlay scale and treatment</text>
+<g fill="none" stroke="#fff0b0" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)">
+<!-- 01 classic -->
+<g transform="translate(40 115)"><use href="#shell" filter="none"/><text x="130" y="-14" text-anchor="middle" fill="#d9c98d" stroke="none" font-family="Arial" font-size="13">01 · CLASSIC</text><g transform="translate(130 146)"><path d="M-70-20Q-58-69 0-72Q58-69 70-20Z" stroke-width="8"/><path d="M-72-6H72" stroke-width="8"/><path d="M-67 10L-35 26L0 9L35 26L67 10" stroke-width="8"/><path d="M-70 43Q0 70 70 43L62 65H-62Z" stroke-width="8"/><circle cx="-27" cy="-43" r="3"/><circle cx="6" cy="-52" r="3"/><circle cx="31" cy="-35" r="3"/></g></g>
+<!-- 02 double -->
+<g transform="translate(350 115)"><use href="#shell" filter="none"/><text x="130" y="-14" text-anchor="middle" fill="#d9c98d" stroke="none" font-family="Arial" font-size="13">02 · DOUBLE STACK</text><g transform="translate(130 146)"><path d="M-66-48Q-53-82 0-83Q53-82 66-48Z" stroke-width="7"/><path d="M-70-36H70M-65-21Q0-2 65-21M-69-4H69M-62 10Q0 30 62 10M-68 29H68" stroke-width="8"/><path d="M-67 45Q0 67 67 45L59 65H-59Z" stroke-width="8"/></g></g>
+<!-- 03 smash -->
+<g transform="translate(660 115)"><use href="#shell" filter="none"/><text x="130" y="-14" text-anchor="middle" fill="#d9c98d" stroke="none" font-family="Arial" font-size="13">03 · SMASH BURGER</text><g transform="translate(130 146)"><path d="M-76-20Q-51-64 0-62Q51-64 76-20Z" stroke-width="7"/><path d="M-79-6Q-50 10-21-4Q8 12 37-3Q59 8 79-5" stroke-width="10"/><path d="M-73 15Q-46 31-17 17Q9 35 38 18Q57 28 72 16" stroke-width="9"/><path d="M-78 42Q0 73 78 42" stroke-width="10"/><path d="M-48 49L-56 66M43 50l7 18" stroke-width="5"/></g></g>
+<!-- 04 drip -->
+<g transform="translate(970 115)"><use href="#shell" filter="none"/><text x="130" y="-14" text-anchor="middle" fill="#d9c98d" stroke="none" font-family="Arial" font-size="13">04 · CHEESE DRIP</text><g transform="translate(130 143)"><path d="M-68-28Q-51-70 0-72Q51-70 68-28Z" stroke-width="8"/><path d="M-72-14H72" stroke-width="8"/><path d="M-67 1L-39 17L-11 0L18 17L65 0V36Q54 56 44 35V18Q27 42 13 23Q-3 54-15 24Q-39 45-51 22Q-61 32-67 28Z" stroke-width="8"/><path d="M-68 52Q0 73 68 52" stroke-width="10"/></g></g>
+<!-- 05 bitten -->
+<g transform="translate(1280 115)"><use href="#shell" filter="none"/><text x="130" y="-14" text-anchor="middle" fill="#d9c98d" stroke="none" font-family="Arial" font-size="13">05 · BITTEN</text><g transform="translate(130 146)"><path d="M-69-21Q-56-69 0-72Q41-69 58-43Q42-37 55-22Q42-9 61 0Q49 17 68 25Q63 49 48 61H-55Q-70 42-70 18Z" stroke-width="8"/><path d="M-68-7H42M-65 12L-32 28L2 11L36 28M-62 43H49" stroke-width="7"/><circle cx="-22" cy="-43" r="3"/><circle cx="10" cy="-51" r="3"/></g></g>
+<!-- 06 crown -->
+<g transform="translate(40 600)"><use href="#shell" filter="none"/><text x="130" y="-14" text-anchor="middle" fill="#d9c98d" stroke="none" font-family="Arial" font-size="13">06 · BURGER KING</text><g transform="translate(130 146)"><path d="M-60-38L-67-76L-28-56L0-83L28-56L67-76L60-38Z" stroke-width="7"/><path d="M-69-18Q-55-49 0-50Q55-49 69-18Z" stroke-width="7"/><path d="M-71-5H71M-64 12L-32 28L0 11L32 28L64 12M-68 44Q0 67 68 44" stroke-width="8"/></g></g>
+<!-- 07 side profile -->
+<g transform="translate(350 600)"><use href="#shell" filter="none"/><text x="130" y="-14" text-anchor="middle" fill="#d9c98d" stroke="none" font-family="Arial" font-size="13">07 · SIDE PROFILE</text><g transform="translate(130 146) rotate(-10)"><path d="M-71-19Q-52-69 13-65Q58-62 72-28Z" stroke-width="8"/><path d="M-72-12L70-21M-68 4L-27 19L19 1L67 10M-65 28L-16 43L62 28M-66 49Q3 72 65 45" stroke-width="8"/><path d="M49 7q28 12 8 33" stroke-width="5"/></g></g>
+<!-- 08 badge -->
+<g transform="translate(660 600)"><use href="#shell" filter="none"/><text x="130" y="-14" text-anchor="middle" fill="#d9c98d" stroke="none" font-family="Arial" font-size="13">08 · DINER BADGE</text><g transform="translate(130 146)"><circle r="79" stroke-width="6"/><circle r="67" stroke-width="3"/><path d="M-50-13Q-39-44 0-46Q39-44 50-13Z" stroke-width="6"/><path d="M-53-2H53M-48 12L-23 25L0 11L25 25L48 12M-50 39Q0 55 50 39" stroke-width="6"/><path d="M0-79V-65M0 65V79M-79 0H-65M65 0H79" stroke-width="5"/></g></g>
+<!-- 09 collapsing -->
+<g transform="translate(970 600)"><use href="#shell" filter="none"/><text x="130" y="-14" text-anchor="middle" fill="#d9c98d" stroke="none" font-family="Arial" font-size="13">09 · COLLAPSING STACK</text><g transform="translate(130 146)"><g transform="rotate(9)"><path d="M-65-52Q-45-80 4-78Q49-75 65-47Z" stroke-width="7"/><path d="M-68-37H66M-61-21L-25-7L8-24L61-7" stroke-width="8"/></g><g transform="translate(-4 11) rotate(-8)"><path d="M-67-6H67M-60 10L-30 25L2 8L61 24M-65 42Q0 64 65 42" stroke-width="8"/></g><path d="M-61 61q-15 14-5 28M54 58q16 12 7 28" stroke-width="5"/></g></g>
+<!-- 10 giant -->
+<g transform="translate(1280 600)"><use href="#shell" filter="none"/><text x="130" y="-14" text-anchor="middle" fill="#d9c98d" stroke="none" font-family="Arial" font-size="13">10 · GIANT DINER BURGER</text><g transform="translate(130 146)"><path d="M-81-25Q-64-77 0-80Q64-77 81-25Z" stroke-width="10"/><path d="M-84-9H84" stroke-width="10"/><path d="M-79 9L-42 29L0 7L42 29L79 9" stroke-width="10"/><path d="M-81 46Q0 79 81 46L70 70H-70Z" stroke-width="10"/><circle cx="-37" cy="-48" r="4"/><circle cx="0" cy="-60" r="4"/><circle cx="37" cy="-43" r="4"/></g></g>
+</g>
+</svg>

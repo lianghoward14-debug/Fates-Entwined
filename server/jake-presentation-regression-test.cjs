@@ -7,10 +7,12 @@ const canvas=fs.readFileSync('src/scripts/render-v2/04-match-renderer-adapter.js
 const css=fs.readFileSync('src/styles/zz-codex-last.css','utf8');
 assert.match(renderer,/String\(bc\.id \|\| ''\) === '38' \? 'Fat Fuck'/,'single-player Jake action uses the requested label');
 assert.match(online,/String\(card\?\.id \|\| ''\) === '38'\) return \{label:'Fat Fuck', prompt:'Fat Fuck'\}/,'multiplayer Jake action uses the requested label');
-assert.match(single,/modifyFate\(jake, 4[\s\S]{0,180}flashCardEffect\(jake, 'jake_taco', \{label:'Fat Fuck'\}\)/,'single-player overlay begins after successful resolution');
-assert.match(renderer,/'38':\{kind:'jake_taco',label:'Fat Fuck'\}/,'shared authoritative renderer maps Jake result to himself');
-assert.match(online,/'38':\{kind:'jake_taco', label:'Fat Fuck'\}/,'multiplayer maps Jake result to himself');
+assert.match(single,/modifyFate\(jake, 4[\s\S]{0,180}flashCardEffect\(jake, 'jake_burger', \{label:'Fat Fuck'\}\)/,'single-player overlay begins after successful resolution');
+assert.match(renderer,/'38':\{kind:'jake_burger',label:'Fat Fuck'\}/,'shared authoritative renderer maps Jake result to himself');
+assert.match(online,/'38':\{kind:'jake_burger', label:'Fat Fuck'\}/,'multiplayer maps Jake result to himself');
 assert.match(online,/sourceId === '38' \|\| sourceId === '93'/,'multiplayer suppresses the pre-result Jake overlay');
-assert.match(canvas,/kind === 'jake_taco'[\s\S]{0,400}line\(\[\[-20,8\]/,'canvas renderer shows the taco mark');
-assert.match(css,/effect-flash-jake_taco[\s\S]{0,700}effect-flash-mask/,'DOM renderer has matching taco overlay styling');
-console.log('Jake Fat Fuck action and post-cinematic self-overlay passed in single-player and multiplayer');
+assert.match(canvas,/kind === 'jake_burger'[\s\S]{0,800}line\(\[\[-22,-5\]/,'canvas renderer shows the connected clean burger');
+assert.match(css,/effect-flash-jake_burger[\s\S]{0,1000}M10 27Q14 8 32 8Q50 8 54 27/,'DOM renderer has the matching connected clean burger');
+assert.doesNotMatch(renderer,/jake_taco/,'shared renderer no longer references the discarded taco');
+assert.doesNotMatch(online,/jake_taco/,'multiplayer renderer no longer references the discarded taco');
+console.log('Jake Fat Fuck action and post-cinematic clean burger self-overlay passed in single-player and multiplayer');

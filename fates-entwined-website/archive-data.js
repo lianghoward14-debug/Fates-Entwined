@@ -286,9 +286,9 @@ window.FATES_ARCHIVE_DATA = {
       "set": "core",
       "token": false,
       "retired": false,
-      "effect": "When set, your opponent's supporters next turn cannot activate their effects. You can only activate this effect three times a game",
+      "effect": "When set, your opponent's Supporters next turn cannot activate their effects.",
       "flavor": "\"The de-facto shock troops of America - Loyal, brave, and true\"",
-      "img": "../18.png"
+      "img": "../18.png?v=20260907-marines"
     },
     {
       "id": "19",
@@ -1573,7 +1573,7 @@ window.FATES_ARCHIVE_DATA = {
     {
       "id": "75",
       "name": "The Ledger-keepers",
-      "ability": "The Silent Watchers",
+      "ability": "The Hidden Archive",
       "type": "Supporter",
       "aff": "eventide",
       "fate": 1,
@@ -1582,9 +1582,9 @@ window.FATES_ARCHIVE_DATA = {
       "set": "core",
       "token": false,
       "retired": false,
-      "effect": "When set, you can copy the effect of any Supporter on the field with a when set effect and immediately activate it.",
+      "effect": "When set, reveal the top five cards of your deck and rearrange them in any order.",
       "flavor": "\"Everyone who has ever lived and died in Pacifica - Has an archival record kept and maintained by the Ledger Keepers\"",
-      "img": "../75.png"
+      "img": "../75.png?v=20260907-ledger"
     },
     {
       "id": "76",
@@ -1662,9 +1662,9 @@ window.FATES_ARCHIVE_DATA = {
       "set": "brave_horizons",
       "token": false,
       "retired": false,
-      "effect": "Declare a Card type-all cards your opponent controls in this zone of that card type losses 20 Fate split evenly, permanently",
+      "effect": "Declare a card type. All cards your opponent controls in this zone of that type lose 24 Fate split evenly, permanently.",
       "flavor": "\"Everything I do...its all to find Kazumi and bring her home\"",
-      "img": "../bh4.png"
+      "img": "../bh4.png?v=20260907-selva"
     },
     {
       "id": "bh05",

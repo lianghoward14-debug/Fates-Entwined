@@ -22,8 +22,7 @@ function getFrenchFusiliersCopiedPassiveId(card) {
   if(!card) return '';
   const id = String(card.id || '');
   const isFrenchCopyShell = id === '37'
-    || (id === 'bh05' && String(card._bh05CopiedPassiveId || '') === '37')
-    || (id === '75' && String(card._ledgerCopiedSourceId || '') === '37');
+    || (id === 'bh05' && String(card._bh05CopiedPassiveId || '') === '37');
   if(!isFrenchCopyShell) return '';
   const copiedId = card._copiedPassiveId || card.copiedPassiveId;
   return copiedId == null ? '' : String(copiedId);
@@ -48,15 +47,13 @@ function cardActsAsPassive(card, sourceId) {
   const id = String(card.id || '');
   return id === wanted
     || frenchFusiliersCopies(card, wanted)
-    || (id === 'bh05' && String(card._bh05CopiedPassiveId || '') === wanted)
-    || (id === '75' && String(card._ledgerCopiedSourceId || '') === wanted);
+    || (id === 'bh05' && String(card._bh05CopiedPassiveId || '') === wanted);
 }
 
 function getCardRuntimeEffectId(card) {
   if(!card) return '';
   const id = String(card.id || '');
   if(id === 'bh05' && card._bh05CopiedPassiveId) return String(card._bh05CopiedPassiveId);
-  if(id === '75' && card._ledgerCopiedSourceId) return String(card._ledgerCopiedSourceId);
   return id;
 }
 
@@ -550,6 +547,7 @@ function shouldWarnBeforeEndingTurn(opts) {
 }
 
 function endTurn(opts) {
+  if(G && G._ledgerArchivePending) return false;
   // Authoritative v3 single-player has its own reducer-backed turn owner.
   // Legacy endTurn must not mutate the retired G state underneath that screen.
   const v3LocalScreen = window.FateAuthorityV3SinglePlayer?.currentScreen?.();
@@ -6383,7 +6381,7 @@ async function runWhenSetEffect(inst, z, r, c, opts = {}) {
   const opp = 1-cp;
   const id = inst.id;
   const instIsSupporterForRules = typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(inst, inst.owner) : inst.type === 'Supporter';
-  const ledgerCopiedSupporterEffect = !!inst._ledgerCopiedSupporterEffect;
+  const ledgerCopiedSupporterEffect = id !== '75' && !!inst._ledgerCopiedSupporterEffect;
   const supporterActivationOptions = ledgerCopiedSupporterEffect
     ? {allowRepeat:true, skipLandscapeCount:true}
     : undefined;
@@ -6925,7 +6923,7 @@ function applyDestructionOfParadise(sourceCard, zoneIndex, sourceOwner, declared
     toast('The Destruction of Paradise found no eligible ' + declaredType + ' cards in this zone.');
     return {targets:0, lossEach:0};
   }
-  const lossEach = Math.max(0, Math.round(20 / targets.length));
+  const lossEach = Math.max(0, Math.round(24 / targets.length));
   G._bh04SelvaSeq = (Number(G._bh04SelvaSeq) || 0) + 1;
   const flashKeyBase = ['bh04-selva', String(sourceCard && (sourceCard.iid || sourceCard.id) || 'bh04'), String(declaredType || 'type'), Number(G.turn) || 0, G._bh04SelvaSeq].join(':');
   targets.forEach(function(target){
@@ -6962,10 +6960,10 @@ function chooseDestructionOfParadiseType(sourceCard, z, sourceOwner, authoritati
       if(typeof isTargetImmuneToEffectOwner === 'function' && isTargetImmuneToEffectOwner(card, sourceOwner)) return;
       count += 1;
     }); });
-    typeStats[type] = { count:count, lossEach:count ? Math.max(0, Math.round(20 / count)) : 0 };
+    typeStats[type] = { count:count, lossEach:count ? Math.max(0, Math.round(24 / count)) : 0 };
   });
   const body = '<div class="bh04-type-picker">' +
-    '<p class="bh04-picker-prompt">Choose one card type. <span>Zone ' + (Number(z) + 1) + ' - 20 Fate split evenly, permanently</span></p>' +
+    '<p class="bh04-picker-prompt">Choose one card type. <span>Zone ' + (Number(z) + 1) + ' - 24 Fate split evenly, permanently</span></p>' +
     '<div class="bh04-type-grid">' +
       BRAVE_HORIZONS_DECLARABLE_CARD_TYPES.map(function(type){
         const stat = typeStats[type];
@@ -7630,14 +7628,14 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       await drawCard(cp,1,{afterSetOrCinematic:true, activatedDrawEffect:true, effectSource:inst});
       toast('Drew 1 card');
       renderHand(); break;
-    case '42': // West German Soldier: draw 2, discard 2 (FORCED)
-      await drawCard(cp,2,{afterSetOrCinematic:true, activatedDrawEffect:true, effectSource:inst, deferJoiePassive:true});
+    case '42': // West German Soldier: draw 3, discard 3 (FORCED)
+      await drawCard(cp,3,{afterSetOrCinematic:true, activatedDrawEffect:true, effectSource:inst, deferJoiePassive:true});
       await waitForEffectPresentationBeforeChoice();
-      toast('Drew 2 cards. You must discard 2.');
+      toast('Drew 3 cards. You must discard 3.');
       renderHand();
       {
         const hand42 = G.players[cp].hand;
-        const discardCount = Math.min(2, hand42.length);
+        const discardCount = Math.min(3, hand42.length);
         if(discardCount > 0) {
           await new Promise(function(resolve){
             pickCardsVisual(hand42, {
@@ -7770,8 +7768,8 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       }, {sourceCardId:'58',minCount:1,subtitle:'Pay 15 Morale, then choose a Supporter from your discard.'}); break;
     case '60': // IB Student: search deck for supporter
       searchDeckForType(cp,'Supporter','Search deck for a Supporter:',1,{sourceCardId:'60'}); break;
-    case '75': // Ledger-keepers: copy a supporter effect
-      pickBoardSupporterEffect(cp,z,inst); break;
+    case '75': // The Hidden Archive: reorder the actual deck once on set.
+      await resolveLedgerArchive(cp, inst); break;
     case '76': // ALPINE Infantry: gains 5 Fate, immune, can't consolidate or discard
       if(typeof applyPermanentEffectImmunity === 'function') applyPermanentEffectImmunity(inst);
       inst._suppressNextFatePulse = true;
@@ -8664,7 +8662,6 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
               G.players[cp].deck = G.players[cp].deck.filter(x=>x.iid!==c.iid);
               addedCards.push(c);
             });
-            if(chosen.length) shuffle(G.players[cp].deck);
             if(chosen.length) toast('Maja added '+chosen.length+' Supporter'+(chosen.length===1?'':'s')+' with +4 Fate!');
             renderEffectResolutionForPlayer(cp, {hand:true, piles:true});
             if(addedCards.length && typeof resolveBoleslawAfterSearchSelection === 'function') {
@@ -8826,7 +8823,6 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
               addedCards.push(c);
             });
             if(chosen.length) toast(`Added ${chosen.length} card(s) to hand`);
-            shuffle(G.players[cp].deck);
             renderEffectResolutionForPlayer(cp, {hand:true, piles:true});
             if(addedCards.length && typeof resolveBoleslawAfterSearchSelection === 'function') {
               return resolveBoleslawAfterSearchSelection(cp, addedCards, {sourceCardId:'29'});
@@ -8948,7 +8944,6 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
           else G.players[cp].hand.push(found);
         });
         toast('Catch of the Day added '+chosen.length+' '+(AFF_LABEL[aff]||aff)+' card'+(chosen.length===1?'':'s')+' and gave '+(chosen.length===1?'it':'them')+' +3 Fate.');
-        shuffle(G.players[cp].deck);
         card.effectUsedInitial = true;
         renderEffectResolutionForPlayer(cp, {hand:true, piles:true});
       });
@@ -9046,7 +9041,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
             : card;
           discardBoardCard(liveSpent, spent.z, spent.r, spent.c);
           modifyFate(jake, 4, 'permanent', cp);
-          if(typeof flashCardEffect === 'function') flashCardEffect(jake, 'jake_taco', {label:'Fat Fuck'});
+          if(typeof flashCardEffect === 'function') flashCardEffect(jake, 'jake_burger', {label:'Fat Fuck'});
           jake.effectUsedThisTurn = true;
           if(jake !== card) card.effectUsedThisTurn = true;
           toast('Jake gained 4 Fate!');

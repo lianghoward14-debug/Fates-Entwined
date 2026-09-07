@@ -1568,12 +1568,12 @@ html body #s-game .bc.fate-effect-flash::after{
   animation:fate-card-effect-icon-flash var(--effect-flash-duration) ease-out both!important;
 }
 html body #s-game .bc.fate-effect-flash .bc-fate{z-index:7!important;opacity:1!important;filter:none!important;}
-.bc.effect-flash-jake_taco{
+.bc.effect-flash-jake_burger{
   --effect-flash-color:rgba(255,236,176,.99);--effect-flash-glow:rgba(235,173,62,.72);
   --effect-flash-tint:rgba(139,86,28,.20);--effect-flash-inset:rgba(255,205,112,.14);
-  --effect-flash-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 36Q32 5 54 36Q45 56 32 57Q19 56 10 36Z' stroke-width='4'/%3E%3Cpath d='M14 35Q32 20 50 35M21 38l-3 7M32 35v10M43 38l3 7' stroke-width='3.5'/%3E%3Ccircle cx='24' cy='36' r='2' fill='black'/%3E%3Ccircle cx='40' cy='36' r='2' fill='black'/%3E%3C/svg%3E");
+  --effect-flash-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 27Q14 8 32 8Q50 8 54 27M10 27Q8 37 10 48M54 27Q56 37 54 48M10 30H54M11 34L21 40L32 34L43 40L53 34M10 48Q32 52 54 48L51 57H13Z'/%3E%3Ccircle cx='23' cy='17' r='1.7' fill='black' stroke='none'/%3E%3Ccircle cx='34' cy='13' r='1.7' fill='black' stroke='none'/%3E%3Ccircle cx='43' cy='20' r='1.7' fill='black' stroke='none'/%3E%3C/g%3E%3C/svg%3E");
 }
-html body #s-game .bc.effect-flash-jake_taco::after{animation:none!important;}
+html body #s-game .bc.effect-flash-jake_burger::after{animation:none!important;}
 
 /* Mark Menz — four exact declaration crests in the established full-card
    effect-flash language. Colours mirror the affiliation picker. */
@@ -24665,6 +24665,16 @@ html body #modal .pd-library-v3 .pd-v3-grid .pdx-info > strong{
   font-size:1.42rem!important;
   line-height:1.14!important;
 }
+html body #modal .pd-library-v3 .pd-v3-grid .pdx-info > strong.pdx-deck-name{
+  display:block!important;
+  max-width:100%!important;
+  overflow:visible!important;
+  text-overflow:clip!important;
+  white-space:normal!important;
+  overflow-wrap:anywhere!important;
+}
+html body #modal .pd-library-v3 .pd-v3-grid .pdx-info > strong.pdx-deck-name.is-long{font-size:1.12rem!important;line-height:1.12!important;}
+html body #modal .pd-library-v3 .pd-v3-grid .pdx-info > strong.pdx-deck-name.is-very-long{font-size:.92rem!important;line-height:1.1!important;}
 html body #modal .pd-library-v3 .pd-v3-grid .pdx-desc{
   min-height:2.9em!important;
   max-height:2.9em!important;

@@ -1331,11 +1331,13 @@
         const publishedAt = publicDeckPublishedAt(d);
         const dateLabel = publishedAt ? new Date(publishedAt).toLocaleDateString([], {month:'short', day:'numeric'}) : 'Recent';
         const own = ownsPublicDeck(d);
+        const deckName = String(d.name || 'Shared Deck');
+        const deckNameClass = deckName.length > 34 ? ' is-very-long' : (deckName.length > 22 ? ' is-long' : '');
         html += `<div class="pdx-card" data-public-deck-id="${esc(d.id)}">
           <span class="pdx-art" data-public-deck-art="${esc(d.id)}">${faceImg ? `<img src="${faceImg}" alt="" decoding="async" loading="eager" fetchpriority="low" draggable="false">` : '<span>Deck</span>'}</span>
           <span class="pdx-info">
             <span class="pdx-author"><span>By ${esc(d.username)}</span><em class="pdx-date">${esc(dateLabel)}</em></span>
-            <strong>${esc(d.name || 'Shared Deck')}</strong>
+            <strong class="pdx-deck-name${deckNameClass}" title="${esc(deckName)}">${esc(deckName)}</strong>
             <span class="pdx-desc">${esc(d.description || 'No description yet.')}</span>
             <span class="pdx-rating">
               <span class="pdx-rating-score">${rating.toFixed(1)}</span>

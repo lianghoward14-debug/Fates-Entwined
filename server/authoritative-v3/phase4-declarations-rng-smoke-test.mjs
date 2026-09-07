@@ -115,7 +115,7 @@ assert.deepStrictEqual(result.prompt.options.map(option=>option.value), [
 ]);
 assert.equal(
   legalCommandTemplates(result.state, 0).filter(item=>item.type === 'ANSWER_PROMPT').length,
-  4
+  5
 );
 state = JSON.parse(stableStringify(result.state));
 result = answer(state, 'p0', 2, {choice:'eventide'});
@@ -375,12 +375,12 @@ state = JSON.parse(stableStringify(result.state));
 result = answer(state, 'p0', 2, {choice:'Initiator'});
 assert.equal(result.ok, true);
 for(const target of splitTargets){
-  assert.equal(boardCard(result.state, target.iid).currentFate, 3);
+  assert.equal(boardCard(result.state, target.iid).currentFate, 2);
 }
 assert.equal(boardCard(result.state, immuneSplitTarget.iid).currentFate, 10);
 assert.equal(boardCard(result.state, opponentImmuneSplitTarget.iid).currentFate, 10);
 const splitEvent = result.events.find(event=>event.type === 'SPLIT_FATE_LOSS_RESOLVED');
-assert.equal(splitEvent.lossEach, 7);
+assert.equal(splitEvent.lossEach, 8);
 assert.equal(splitEvent.targetIids.length, 3);
 assertInvariants(result.state);
 

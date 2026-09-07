@@ -174,7 +174,16 @@ export function legalCommandTemplates(state, playerIndex){
       const eligible = prompt.eligibleIids || [];
       const min = Number(prompt.min || 0);
       const max = Number(prompt.max || 1);
-      if(max === 1){
+      if(prompt.ordered){
+        function arrange(prefix, remaining){
+          if(!remaining.length){
+            commands.push({type:'ANSWER_PROMPT', payload:{promptId:prompt.promptId, selectedIids:prefix}});
+            return;
+          }
+          remaining.forEach((iid,index)=>arrange([...prefix,iid], remaining.filter((_,i)=>i !== index)));
+        }
+        arrange([], eligible);
+      }else if(max === 1){
         for(const selectedIid of eligible){
           commands.push({type:'ANSWER_PROMPT', payload:{promptId:prompt.promptId, selectedIid}});
         }

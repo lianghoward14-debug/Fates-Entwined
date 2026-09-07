@@ -160,7 +160,6 @@
     model.actions.forEach(function(action, index){
       if(action && action.label) actions.push({id:'external-' + index, label:String(action.label), primary:!!action.primary});
     });
-    if(model.code) actions.push({id:'copy-code', label:'Copy Player ID'});
     return actions.map(function(action){
       return '<button type="button" class="btn sm profile-view-action' + (action.primary ? ' pri' : '') + '" data-profile-command="' + escapeHtml(action.id) + '">' + escapeHtml(action.label) + '</button>';
     }).join('');
@@ -202,7 +201,7 @@
     const progress = rankProgress(model);
     const status = model.isSelf ? 'Your profile' : (model.isFriend ? 'Friend' : 'Player');
     body.innerHTML = '<div class="profile-view-main"><section class="profile-view-hero"><div class="profile-view-portrait" style="' + escapeHtml(activeContext.rankFrame || '') + '"><img src="' + escapeHtml(model.photoSrc) + '" alt="' + escapeHtml(model.name) + '" style="' + escapeHtml(model.photoStyle) + '" onerror="this.onerror=null;this.src=\'blank.png\'"></div>' +
-      '<div class="profile-view-identity"><div class="profile-view-status"><i aria-hidden="true"></i>' + escapeHtml(status) + '</div><h2>' + escapeHtml(model.name) + '</h2>' + (model.code ? '<button type="button" class="profile-view-code" data-profile-command="copy-code" title="Copy player ID">' + escapeHtml(model.code) + '</button>' : '') + '<div class="profile-view-badges">' + rankBadge(model) + levelBadge(model) + '</div><div class="profile-view-rank-progress"><div><span style="width:' + progress.percent + '%"></span></div><small>' + escapeHtml(progress.copy) + '</small></div></div>' +
+      '<div class="profile-view-identity"><div class="profile-view-status"><i aria-hidden="true"></i>' + escapeHtml(status) + '</div><h2>' + escapeHtml(model.name) + '</h2>' + (model.code ? '<div class="profile-view-code">' + escapeHtml(model.code) + '</div>' : '') + '<div class="profile-view-badges">' + rankBadge(model) + levelBadge(model) + '</div><div class="profile-view-rank-progress"><div><span style="width:' + progress.percent + '%"></span></div><small>' + escapeHtml(progress.copy) + '</small></div></div>' +
       medalsMarkup(model) + '<div class="profile-view-actions">' + actionButtons(model) + '</div></section><nav class="profile-view-tabs" role="tablist" aria-label="Profile sections"><button type="button" role="tab" aria-selected="' + (activeTab === 'overview') + '" class="' + (activeTab === 'overview' ? 'is-active' : '') + '" data-profile-tab="overview">Overview</button><button type="button" role="tab" aria-selected="' + (activeTab === 'record') + '" class="' + (activeTab === 'record' ? 'is-active' : '') + '" data-profile-tab="record">Match Record</button></nav><div class="profile-view-content">' + (activeTab === 'record' ? recordMarkup(model) : overviewMarkup(model)) + '</div></div>';
   }
 
@@ -350,10 +349,6 @@
   function runCommand(command){
     if(!activeContext) return;
     const model = activeContext.model;
-    if(command === 'copy-code'){
-      if(model.code && navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(model.code).then(function(){ if(window.toast) window.toast('Player ID copied'); }).catch(function(){});
-      return;
-    }
     if(command === 'edit'){
       openEditor();
       return;

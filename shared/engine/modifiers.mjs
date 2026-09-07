@@ -13,6 +13,7 @@ function rejection(code, reason, details = {}){
 }
 
 export function runtimeRuleId(card){
+  if(String(card?.id || '') === '75') return '75'; // Retired copy counters cannot revive the old effect.
   return String(
     card?.counters?.copiedPassiveId
     || card?.counters?.copiedEffectId

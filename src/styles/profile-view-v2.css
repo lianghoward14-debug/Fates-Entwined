@@ -1,8 +1,8 @@
 /* PROFILE-VIEW-V2: shared self/friend profile window, scoped for easy rollback. */
 #modal .modal.profile-view-modal-v2{
-  width:min(900px,calc(100vw - 2rem))!important;
-  max-width:900px!important;
-  max-height:min(680px,calc(100vh - 2rem))!important;
+  width:min(1020px,calc(100vw - 2rem))!important;
+  max-width:1020px!important;
+  max-height:min(820px,calc(100vh - 1rem))!important;
   display:flex!important;
   flex-direction:column!important;
   overflow:hidden!important;
@@ -143,10 +143,9 @@
   background:transparent;
   color:#8f9baa;
   font:400 .72rem ui-monospace,SFMono-Regular,Consolas,monospace;
-  cursor:pointer;
+  user-select:text;
 }
 
-#modal .profile-view-code:hover{color:#d9bf72;}
 #modal .profile-view-badges{display:flex;align-items:center;gap:.55rem;min-height:40px;flex-wrap:wrap;}
 #modal .profile-view-badges .rank-badge,#modal .profile-view-badges .level-badge{margin:0!important;}
 #modal .profile-view-badges .rank-badge{

@@ -4219,7 +4219,7 @@ function getAuthoritativeEffectOverlayDescriptor(event, source, target) {
     '15':{kind:'coord_zsofia_river',label:'Blue Danube Waltz'},'19':{kind:'coord_kvetka_bloom',label:'National Flower'},
     '22':{kind:'isaac_beaker',label:'Scientific Inquiry'},'23':{kind:'coord_cathy_cardigan',label:'Cardigan Onslaught'},
     '31':{kind:'oathbound_crescent',label:'Oathbound Blade'},'34':{kind:'rozsi_dance',label:'Hungarian Dance'},
-    '36':{kind:'marie_deterrence',label:'Deterrance'},'38':{kind:'jake_taco',label:'Fat Fuck'},'41':{kind:'jimmy_wrath',label:"A True Incel's Wrath"},
+    '36':{kind:'marie_deterrence',label:'Deterrance'},'38':{kind:'jake_burger',label:'Fat Fuck'},'41':{kind:'jimmy_wrath',label:"A True Incel's Wrath"},
     '44':{kind:'soviet_grenadiers',label:'The Bears of Russia'},'51':{kind:'rivera_crest',label:'Rivera Affiliation Bonus'},
     '57':{kind:'coord_jeremiah_snowseal',label:'ALPINE, The Future'},'61':{kind:'maria_target',label:'Precise Shot Target'},
     '65':{kind:'west_caribbea_marines',label:'Sea-Men'},'77':{kind:'coord_heyward_compass',label:'Declared Affiliation'},
@@ -7048,13 +7048,6 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
       value = String(reductions);
       sub = 'Zone ' + (pos.z + 1) + ', -' + (reductions * 4) + ' total Fate';
     }
-  } else if(card.id === '18') {
-    const used = typeof getUsMarinesUses === 'function'
-      ? getUsMarinesUses(owner)
-      : Math.max(0, Number(Array.isArray(G.usMarinesUses) ? G.usMarinesUses[owner] : 0) || 0);
-    label = 'Semper Fidelis Uses';
-    value = used + ' / 3';
-    sub = used < 3 ? 'Suppression Uses Available' : 'Effect Expended';
   } else if(card.id === '40') {
     const uses = Math.max(0, Number(card.usesLeft == null ? 2 : card.usesLeft) || 0);
     label = 'Hard Times Uses';
@@ -8911,7 +8904,7 @@ function searchDeckForType(player, type, prompt, maxCount=1, searchOptions={}) {
         else G.players[player].hand.push(c);
         G.players[player].deck = G.players[player].deck.filter(x=>x.iid!==c.iid);
       });
-      shuffle(G.players[player].deck);
+      // Searching removes only the selected instances; preserve the remaining draw order.
       if(typeof tutorialAfterDeckSearch === 'function') tutorialAfterDeckSearch(player, chosen);
       if(chosen.length && typeof playSfx === 'function') playSfx('searchFound');
       renderBoardActionForPlayer(player, {hand:true, piles:true});
@@ -8932,7 +8925,7 @@ function searchDeckForCard(player, filter, prompt, callback, searchOptions={}) {
       c._fateHandArrivalKind = 'search';
       queueSearchToHandMotion(player, c, 'deck', G.players[player].hand.length, 0, 1);
       G.players[player].deck = G.players[player].deck.filter(x=>x.iid!==c.iid);
-      shuffle(G.players[player].deck);
+      // Preserve the remaining draw order, including The Hidden Archive.
       if(typeof playSfx === 'function') playSfx('searchFound');
       const callbackResult = callback ? callback(c, 'deck') : undefined;
       renderBoardActionForPlayer(player, {hand:true, piles:true});
@@ -9049,7 +9042,7 @@ function addAffFromDeckDiscard(player, aff, searchOptions={}) {
     added++;
   };
   const finish = () => {
-    if(G.players[player].deck.length) shuffle(G.players[player].deck);
+    // An affiliation search does not shuffle the remaining deck.
     if(added && typeof playSfx === 'function') playSfx('searchFound');
     toast(`Added ${added} ${label} card(s) to hand`);
     renderBoardActionForPlayer(player, {hand:true, piles:true});
@@ -9332,95 +9325,10 @@ function showAffChangeOverlay(cardInstance, newAff) {
   document.head.appendChild(style);
 })();
 
-async function activateLedgerCopiedSupporterEffect(player, ledgerZone, sourceSupporterInfo, ledgerRef) {
-  const sourceSupporter = sourceSupporterInfo?.card || sourceSupporterInfo;
-  if(!sourceSupporter) return;
-  const requestedLedgerIid = String(ledgerRef && (ledgerRef.iid || ledgerRef) || '');
-  let ledger = null, ledgerRow = -1, ledgerCol = -1;
-  G.board[ledgerZone].forEach((row, r)=>row.forEach((cell, c)=>{
-    if(cell && cell.id === '75' && cell.owner === player && (!requestedLedgerIid || String(cell.iid || '') === requestedLedgerIid)){
-      ledger = cell;
-      ledgerRow = r;
-      ledgerCol = c;
-    }
-  }));
-  if(!ledger || isFaceDownCard(ledger)) return;
-
-  const previousPlayer = G.currentPlayer;
-  const previousSuppressPrompt = !!G._suppressEffectPrompt;
-  const originalId = ledger.id;
-  const originalWhenSetActivated = ledger.whenSetActivated;
-  const originalLedgerCopiedSupporterEffect = ledger._ledgerCopiedSupporterEffect;
-  ledger._ledgerCopiedSourceId = String(sourceSupporter.id || '');
-  ledger._ledgerCopiedSourceName = String(sourceSupporter.name || 'Supporter');
-  ledger._ledgerCopiedSourceAbility = String(sourceSupporter.ability || 'Copied Effect');
-  const copiedEffectText = String(sourceSupporter.effect || '').trim();
-  if(typeof shouldShowPlayerEffectFeedback !== 'function' || shouldShowPlayerEffectFeedback(player)) {
-    toast('Ledger-keepers copied ' + ledger._ledgerCopiedSourceName + ' — ' + ledger._ledgerCopiedSourceAbility + (copiedEffectText ? ': ' + copiedEffectText : ''), 5200);
-  }
-
-  G.currentPlayer = player;
-  G._suppressEffectPrompt = true;
-  try {
-    ledger.id = sourceSupporter.id;
-    ledger.whenSetActivated = false;
-    ledger._ledgerCopiedSupporterEffect = true;
-    // The AI must resolve the copied card through its auto-targeting path.
-    // Calling the human resolver here opened the copied card's modal (for
-    // example Oathbound's zone picker) on the local player's screen.
-    if(G.aiEnabled && Number(player) === Number(G.aiPlayer) && typeof aiTriggerWhenSet === 'function') {
-      await aiTriggerWhenSet(ledger, ledgerZone, ledgerRow, ledgerCol);
-    } else {
-      await runWhenSetEffect(ledger, ledgerZone, ledgerRow, ledgerCol);
-    }
-  } finally {
-    ledger.id = originalId;
-    ledger.whenSetActivated = originalWhenSetActivated;
-    if(originalLedgerCopiedSupporterEffect === undefined) delete ledger._ledgerCopiedSupporterEffect;
-    else ledger._ledgerCopiedSupporterEffect = originalLedgerCopiedSupporterEffect;
-    G._suppressEffectPrompt = previousSuppressPrompt;
-    G.currentPlayer = previousPlayer;
-  }
-}
-
-function pickBoardSupporterEffect(player, z, ledgerRef) {
-  // Remote replay must reproduce state and presentation, but it must never open
-  // the opponent's private Ledger-keepers choice on this client.
-  if(typeof G !== 'undefined' && G && (G._onlineRoomCode || G._onlineRole || G._isSpectator)) {
-    const localPlayer = Number(G._onlinePlayerIndex);
-    if(!Number.isInteger(localPlayer) || Number(player) !== localPlayer) return false;
-  }
-  // Ledger-keepers: copy a supporter effect — visual card picker
-  const fallbackWhenSetIds = ['02','05','14','16','17','18','22','25','26','27','31','32','33','37','42','43','50','51','52','58','60','62','68','69','71','72','73','76','80','91','94'];
-  const whenSetIds = (typeof WHEN_SET_IDS !== 'undefined' && WHEN_SET_IDS && typeof WHEN_SET_IDS.has === 'function')
-    ? WHEN_SET_IDS
-    : new Set(fallbackWhenSetIds);
-  const supporters=[];
-  forEachBoardCard((card,bz,r,c)=>{
-    const id = String(card && card.id || '');
-    if((typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, card.owner) : card.type==='Supporter') && id !== '75' && whenSetIds.has(id) && !isFaceDownCard(card)) supporters.push({card,z:bz,r,c});
-  });
-  if(!supporters.length){toast('No supporters on field');return;}
-  window._ledgerSups=supporters;window._ledgerZ=z;window._ledgerPlayer=player;window._ledgerIid=String(ledgerRef && (ledgerRef.iid || ledgerRef) || '');
-  const cards = supporters.map(s=>s.card);
-  pickCardsVisual(cards, {
-    title:'Ledger-keepers: Copy Effect',
-    subtitle:'Choose a Supporter on the field to copy its effect',
-    maxCount:1,
-    showOpponentOverlay:false,
-    confirmLabel:'Copy Effect'
-  }, (chosen)=>{
-    if(!chosen.length) return;
-    const idx = cards.indexOf(chosen[0]);
-    if(idx<0) return;
-    activateLedgerCopiedSupporterEffect(player, z, supporters[idx], ledgerRef);
-  });
-}
-window.ledgerCopy=function(i){
-  const s=window._ledgerSups[i];
-  closeModal();
-  activateLedgerCopiedSupporterEffect(window._ledgerPlayer, window._ledgerZ, s, window._ledgerIid);
-};
+// Retired Ledger Keeper copy entry points deliberately do nothing, including stale UI callbacks.
+async function activateLedgerCopiedSupporterEffect(){ return false; }
+function pickBoardSupporterEffect(){ return false; }
+window.ledgerCopy = function(){ return false; };
 
 function showMoveTarget(card, fromZ, fromR, fromC, targetZ, options={}) {
   const open=[];

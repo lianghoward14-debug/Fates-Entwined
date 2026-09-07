@@ -481,7 +481,6 @@
       _wojciechTurnPlacementCounts:cloneOnlinePlain(Array.isArray(g._wojciechTurnPlacementCounts) ? g._wojciechTurnPlacementCounts : [0, 0]),
       _wojciechLastTurnPlacementCounts:cloneOnlinePlain(Array.isArray(g._wojciechLastTurnPlacementCounts) ? g._wojciechLastTurnPlacementCounts : [0, 0]),
       _serverRngCounter:Math.max(0, Number(g._serverRngCounter) || 0),
-      usMarinesUses:cloneOnlinePlain(g.usMarinesUses),
       polishArmyUses:cloneOnlinePlain(g.polishArmyUses),
       oppSuppressedNextTurn:!!g.oppSuppressedNextTurn,
       suppressTarget:g.suppressTarget,
@@ -2927,7 +2926,7 @@
       'extraCells','extraRows','extraRowFullOwners','extraRowOwners','markSafeSquares','blockedCells','immuneCards','shieldWallZones',
       'fateModifiers','landscapeId','landscapeBgNum','_landscapeState','_turnTimerSeconds','_freePlayGameSettings','_makennaBirdCultActivated','currentPlayer','turn','turnNumber','maxTurns','phase','selectedHandCard','selectedBoardCard',
       'placing','blockingCell','_blockingEffectSourceIid','_blockingEffectZone','supportsPlacedThisTurn','supportersSetForCapThisTurn','maxSupportsPerTurn','extraSupportsThisTurn','pendingEffect','_turnStartedAt',
-      'instanceCounter','damageDoneP','supportersSetP','supporterReinforcementSetP','_pendingSelvaSupportBoost','_selvaSupportBoosts','_supporterEffectsActivatedP','_snowyVillageUses','_whisperLandscapeUses','_landscapeChangeLocks','_balladEffects','_mailDeliveries','_blameGameEffects','_administrativeBloatEffects','_wojciechTurnPlacementCounts','_wojciechLastTurnPlacementCounts','_serverRngCounter','usMarinesUses','polishArmyUses','oppSuppressedNextTurn','suppressTarget','erbsActive',
+      'instanceCounter','damageDoneP','supportersSetP','supporterReinforcementSetP','_pendingSelvaSupportBoost','_selvaSupportBoosts','_supporterEffectsActivatedP','_snowyVillageUses','_whisperLandscapeUses','_landscapeChangeLocks','_balladEffects','_mailDeliveries','_blameGameEffects','_administrativeBloatEffects','_wojciechTurnPlacementCounts','_wojciechLastTurnPlacementCounts','_serverRngCounter','polishArmyUses','oppSuppressedNextTurn','suppressTarget','erbsActive',
       'p1Deck','p2Deck','majaEffectThisTurn','_majaSupportBoost','_artilleryLockedZone','_artilleryLockOwner','_artilleryLockTurnsLeft',
       '_artilleryEffectBlockLifted','_cardFateMap','_fortCalvinActive','_linaFreeIids','_serverFreePlacement','_polishUsedThisTurn',
       '_revealedCards','_riveraBuffs','_riveraActiveEffects','_skipImprovisorCheck','_skipReactions','pendingInteraction','_serverReactionSeq','_serverPendingReaction',
@@ -3714,12 +3713,6 @@
       _phase7Outcome:cloneOnlinePlain(projected.outcome || null),
       _phase7Geometry:cloneOnlinePlain(projected.geometry || null),
       _phase7Statuses:cloneOnlinePlain(projected.statuses || []),
-      usMarinesUses:[0,1].map(function(playerIndex){
-        return Math.max(0, Number((projected.statuses || []).find(function(status){
-          return status?.type === 'RULE_USE_COUNTER'
-            && status.statusId === 'rule-use:semper_fidelis:p' + playerIndex;
-        })?.uses || 0) || 0);
-      }),
       _snowyVillageUses:[0,1].map(function(playerIndex){
         return Math.max(0, Number((projected.statuses || []).find(function(status){
           return status?.type === 'RULE_USE_COUNTER'
@@ -5810,6 +5803,7 @@
       phase7CurrentUiSession.submittingHandLimitKey = '';
     }
     if(phase7CurrentUiSession.promptKey !== promptKey){
+      if(typeof window.closeLedgerArchive === 'function') window.closeLedgerArchive();
       if(phase7CurrentUiSession.effectSquarePromptKey && phase7CurrentUiSession.effectSquarePromptKey !== promptKey){
         phase7ClearDestinationChoice();
       }
@@ -5835,6 +5829,10 @@
     const hint = document.getElementById('act-hint');
     const localIndex = Number(view.playerIndex);
     if(prompt?.waitingForOpponent || handLimit?.waitingForOpponent){
+      if(prompt?.revealedCards?.length && phase7CurrentUiSession.pickerKey !== promptKey){
+        phase7CurrentUiSession.pickerKey = promptKey;
+        window.openLedgerArchive(prompt.revealedCards.map(phase7PresentationCard), {key:promptKey,readOnly:true});
+      }
       if(hint) hint.textContent = 'Waiting for your opponent to resolve an effect';
       if(typeof window.clearPlaceHighlights === 'function') window.clearPlaceHighlights();
       if(prompt?.type === 'REACTION') phase7ShowOpponentReactionWaiting(prompt);
@@ -5931,6 +5929,20 @@
           if(hint) hint.textContent = 'Choose a card to resolve the effect';
         }
         phase7GuardOptionPrompt(promptKey, prompt);
+      }else if(prompt.type === 'CARD_SELECTION' && prompt.ordered){
+        if(phase7CurrentUiSession.pickerKey !== promptKey){
+          phase7CurrentUiSession.pickerKey = promptKey;
+          window.openLedgerArchive((prompt.eligibleCards || []).map(phase7PresentationCard), {
+            key:promptKey,
+            onConfirm:function(ordered){
+              if(phase7CurrentUiSession.promptKey !== promptKey) return false;
+              return phase7SubmitCommand({type:'ANSWER_PROMPT', payload:{
+                promptId:prompt.promptId, selectedIids:ordered.map(card=>String(card.iid))
+              }});
+            }
+          });
+        }
+        if(hint) hint.textContent = 'Arrange the revealed cards in draw order';
       }else if(['CARD_SELECTION', 'HAND_SELECTION'].includes(prompt.type)){
         const eligible = new Set((prompt.eligibleIids || []).map(String));
         const cards = (Array.isArray(prompt.eligibleCards) ? prompt.eligibleCards : [])
@@ -6229,7 +6241,7 @@
       '31':{kind:'oathbound_crescent', label:'oathbound blade'},
       '34':{kind:'rozsi_dance', label:'Hungarian Dance'},
       '36':{kind:'marie_deterrence', label:'Deterrance'},
-      '38':{kind:'jake_taco', label:'Fat Fuck'},
+      '38':{kind:'jake_burger', label:'Fat Fuck'},
       '41':{kind:'jimmy_wrath', label:"A True Incel's Wrath"},
       '51':{kind:'rivera_crest', label:'Rivera affiliation bonus'},
       '57':{kind:'coord_jeremiah_snowseal', label:'ALPINE, The Future'},
@@ -8733,7 +8745,6 @@
   }
   function serverZonePickTitle(pending){
     const kind = String(pending?.kind || '');
-    if(kind === 'ledgerKeepersCopyWhenSet') return 'Ledger-keepers';
     if(kind === 'frenchFusiliersCopyPassive') return 'French Fusiliers';
     if(kind === 'mariaSongCopies') return 'Maria Song';
     if(kind === 'vigilantesMark') return 'Vigilantes';
@@ -8747,7 +8758,6 @@
   }
   function serverZonePickPrompt(pending){
     const kind = String(pending?.kind || '');
-    if(kind === 'ledgerKeepersCopyWhenSet') return 'Choose a Supporter effect to copy';
     if(kind === 'frenchFusiliersCopyPassive') return 'Choose a Supporter passive to copy';
     if(kind === 'mariaSongCopies') return 'Choose a revealed opponent Character';
     if(kind === 'vigilantesMark') return 'Choose an opponent card in this zone';

@@ -17,10 +17,8 @@ for(const sourceId of HAVANO_TARGETING_SOURCE_IDS){
   assert.equal(cardRule(sourceId)?.havanoTargeting, 'OPPONENT', `${sourceId} must share Havano targeting eligibility in authority and browser rules`);
 }
 
-// Authoritative counters must be projected into the legacy fields consumed by
-// the same match-tracker UI used in single-player.
-assert.match(onlineRooms, /rule-use:semper_fidelis:p/);
-assert.match(onlineRooms, /usMarinesUses:\[0,1\]\.map/);
+// Only effects that still have limits are projected into match trackers.
+assert.doesNotMatch(onlineRooms, /usMarinesUses/, 'retired Marines match-use tracker must not be projected');
 assert.match(onlineRooms, /rule-use:snowy_village:p/);
 assert.match(onlineRooms, /_snowyVillageUses:\[0,1\]\.map/);
 for(const [cardId, maxUses] of [['20', 2], ['40', 2], ['bh16', 2]]){

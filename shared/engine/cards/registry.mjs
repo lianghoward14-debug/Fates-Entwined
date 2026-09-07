@@ -119,19 +119,11 @@ const REGISTRY = Object.freeze({
   '75':{
     timings:['WHEN_SET'],
     operations:[],
-    prompts:['BOARD_TARGET'],
+    prompts:['CARD_SELECTION'],
     program:[
-      {
-        kind:'SELECT_BOARD',
-        local:'targetIid',
-        optional:true,
-        filter:{supporter:true, ruleTiming:'WHEN_SET', excludeSource:true, copyEffectAvailable:true}
-      },
-      {
-        kind:'COPY_EFFECT',
-        cardIid:'$targetIid',
-        execute:true
-      }
+      {kind:'SELECT_CARDS', local:'orderedIids', reorderTopCount:5, exactUpToAvailable:5,
+        filter:{locations:['deck'], playerIndex:'controller'}, title:'The Hidden Archive'},
+      {kind:'APPLY_DECK_ORDER', local:'orderedIids', count:5}
     ]
   },
   '81':{
@@ -750,7 +742,6 @@ const REGISTRY = Object.freeze({
     timings:['WHEN_SET'],
     operations:['CREATE_TIMED_PLAYER_STATUS'],
     prompts:[],
-    sharedUseLimit:{key:'SEMPER_FIDELIS', maxUses:3},
     program:[
       {
         kind:'OPERATION',
@@ -759,9 +750,7 @@ const REGISTRY = Object.freeze({
           statusType:'SUPPORTER_EFFECTS_BLOCKED',
           playerIndex:'$opponent',
           targetTurns:1,
-          startsNextTargetTurn:true,
-          useCounterKey:'SEMPER_FIDELIS',
-          maxUses:3
+          startsNextTargetTurn:true
         }
       }
     ]
@@ -961,12 +950,12 @@ const REGISTRY = Object.freeze({
     program:[
       {
         kind:'OPERATION',
-        operation:{type:'DRAW_CARD', playerIndex:'$controller', count:2, activatedEffect:true}
+        operation:{type:'DRAW_CARD', playerIndex:'$controller', count:3, activatedEffect:true}
       },
       {
         kind:'SELECT_HAND',
         local:'targetIids',
-        exactUpToAvailable:2,
+        exactUpToAvailable:3,
         filter:{playerIndex:'controller', targetable:'DISCARD_CARD'}
       },
       {
@@ -1552,7 +1541,7 @@ const REGISTRY = Object.freeze({
         operation:{
           type:'SPLIT_FATE_LOSS_BY_TYPE',
           cardType:'$cardType',
-          total:20,
+          total:24,
           reason:'DESTRUCTION_OF_PARADISE'
         }
       }

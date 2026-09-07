@@ -65,10 +65,7 @@ assert(suppression);
 assert.equal(suppression.playerIndex, 1);
 assert.equal(suppression.activeFromTurn, 2);
 assert.equal(suppression.remainingTargetTurns, 1);
-assert.equal(
-  result.state.statuses.find(status=>status.ruleKey === 'SEMPER_FIDELIS').uses,
-  1
-);
+assert.equal(result.state.statuses.some(status=>status.ruleKey === 'SEMPER_FIDELIS'), false, 'Semper Fidelis must not create a match-use tracker');
 
 state = JSON.parse(stableStringify(result.state));
 assertInvariants(state);
@@ -87,10 +84,7 @@ assert.equal(
   1,
   'repeated Semper Fidelis must refresh one lock rather than stack durations'
 );
-assert.equal(
-  result.state.statuses.find(status=>status.ruleKey === 'SEMPER_FIDELIS').uses,
-  2
-);
+assert.equal(result.state.statuses.some(status=>status.ruleKey === 'SEMPER_FIDELIS'), false);
 
 state = JSON.parse(stableStringify(result.state));
 result = reduceCommand(state, command(state, 'p0', 3, 'END_TURN'), {playerId:'p0'});
@@ -129,7 +123,7 @@ result = reduceCommand(
 assert.equal(result.ok, true);
 assert.equal(
   result.state.board[1][0][0].currentFate,
-  5,
+  6,
   'an intrinsically effect-immune Supporter must ignore the opponent lock'
 );
 
@@ -156,7 +150,7 @@ result = reduceCommand(
   {playerId:'p0'}
 );
 assert.equal(result.ok, true);
-assert.equal(result.state.statuses.find(status=>status.ruleKey === 'SEMPER_FIDELIS').uses, 3);
+assert.equal(result.state.statuses.some(status=>status.ruleKey === 'SEMPER_FIDELIS'), false);
 
 state = result.state;
 const fourthMarine = state.players[0].hand.find(card=>card.id === '18');
@@ -168,13 +162,10 @@ result = reduceCommand(
   }),
   {playerId:'p0'}
 );
-assert.equal(result.ok, true, 'the fourth card may be set even though its limited effect cannot run');
-assert.equal(result.state.statuses.find(status=>status.ruleKey === 'SEMPER_FIDELIS').uses, 3);
-assert(result.events.some(event=>
-  event.type === 'EFFECT_SKIPPED'
-  && event.sourceIid === fourthMarine.iid
-  && event.reason === 'USE_LIMIT_REACHED'
-));
+assert.equal(result.ok, true, 'the fourth Marines effect must activate without a match limit');
+assert.equal(result.state.statuses.some(status=>status.ruleKey === 'SEMPER_FIDELIS'), false);
+assert(result.state.statuses.some(status=>status.statusType === 'SUPPORTER_EFFECTS_BLOCKED'));
+assert.equal(result.events.some(event=>event.type === 'EFFECT_SKIPPED' && event.sourceIid === fourthMarine.iid), false);
 
 const immunityState = createInitialState({
   matchId:'P4STATUS20',
@@ -189,16 +180,13 @@ const immunityState = createInitialState({
 const spearman = putOnBoard(immunityState, 0, '20', {z:0, r:2, c:0});
 const opponentSource = putOnBoard(immunityState, 1, '32', {z:0, r:0, c:0});
 const immunityCtx = {state:immunityState, events:[], ruleEvents:[]};
-assert.throws(
-  ()=>applyOperation(immunityCtx, {
-    type:'MODIFY_FATE',
-    targetIid:spearman.iid,
-    amount:-1,
-    sourceIid:opponentSource.iid,
-    sourceController:1
-  }),
-  error=>error.code === 'TARGET_IMMUNE'
-);
+applyOperation(immunityCtx, {
+  type:'MODIFY_FATE',
+  targetIid:spearman.iid,
+  amount:-1,
+  sourceIid:opponentSource.iid,
+  sourceController:1
+});
 applyOperation(immunityCtx, {
   type:'MODIFY_FATE',
   targetIid:spearman.iid,
@@ -206,7 +194,7 @@ applyOperation(immunityCtx, {
   sourceIid:spearman.iid,
   sourceController:0
 });
-assert.equal(spearman.currentFate, 3);
+assert.equal(spearman.currentFate, 2);
 assertInvariants(immunityState);
 
 let southWindState = createInitialState({
@@ -230,6 +218,13 @@ result = reduceCommand(
   {playerId:'p0'}
 );
 assert.equal(result.ok, true);
+southWindState = result.state;
+result = reduceCommand(
+  southWindState,
+  command(southWindState, 'p0', 2, 'ACTIVATE_EFFECT', {sourceIid:southWind.iid, userActivated:true}),
+  {playerId:'p0'}
+);
+assert.equal(result.ok, true);
 let moraleBlock = result.state.statuses.find(status=>status.statusType === 'MORALE_DAMAGE_INFLICTED_ZERO');
 assert(moraleBlock, 'South Wind Spearman must create its timed Morale Damage block');
 assert.equal(moraleBlock.playerIndex, 1);
@@ -238,14 +233,14 @@ assert.equal(moraleBlock.activeFromTurn, 2);
 assert.equal(moraleBlock.remainingTargetTurns, 1);
 
 southWindState = result.state;
-result = reduceCommand(southWindState, command(southWindState, 'p0', 2, 'END_TURN'), {playerId:'p0'});
+result = reduceCommand(southWindState, command(southWindState, 'p0', 3, 'END_TURN'), {playerId:'p0'});
 assert.equal(result.ok, true);
 assert.equal(result.state.activePlayer, 1);
 const moraleBeforeBlockedHit = result.state.moralePressure.morale[0];
 const oakScholar = result.state.players[1].hand.find(card=>card.id === '47');
 result = reduceCommand(
   result.state,
-  command(result.state, 'p1', 3, 'SET_CARD', {
+  command(result.state, 'p1', 4, 'SET_CARD', {
     cardIid:oakScholar.iid,
     destination:{z:0, r:0, c:0}
   }),
@@ -259,7 +254,7 @@ assert.equal(
 );
 
 southWindState = result.state;
-result = reduceCommand(southWindState, command(southWindState, 'p1', 4, 'END_TURN'), {playerId:'p1'});
+result = reduceCommand(southWindState, command(southWindState, 'p1', 5, 'END_TURN'), {playerId:'p1'});
 assert.equal(result.ok, true);
 assert.equal(
   result.state.statuses.some(status=>status.statusType === 'MORALE_DAMAGE_INFLICTED_ZERO'),
