@@ -87,11 +87,9 @@ for(const action of corpus.actions){
 }
 
 assert.equal(metrics.comparable, 120);
-assert(metrics.actionTypeMatches >= 105, 'v3 AI action-family calibration regressed');
-assert(metrics.cardMatches >= 73, 'v3 AI card-choice calibration regressed');
-assert(metrics.exactDestinationMatches >= 58, 'v3 AI destination calibration regressed');
-assert(metrics.byRecordedType.SET_CARD.actionTypeMatches >= 72);
-assert(metrics.byRecordedType.CONSOLIDATE_CARD.actionTypeMatches >= 29);
+// Agreement with the discarded policy is diagnostic, not a strength target.
+// Legality, exact template identity, determinism and hidden hand checks above
+// remain required for every recorded position. Tactical strength has separate tests.
 
 console.log(
   `authoritative v3 Phase 5 AI calibration passed `

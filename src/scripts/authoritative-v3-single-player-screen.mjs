@@ -148,18 +148,36 @@ export class FateAuthoritativeV3SinglePlayerScreen {
     this.window.showScreen?.('s-game');
     this.window.FateMatchRendererAdapter?.teardownScene?.('authoritative-v3-single-player');
     this.bindInputs();
+    const board=this.document.getElementById('board');
+    if(board){
+      this.boardHome={parent:board.parentElement,next:board.nextSibling};
+      this.document.getElementById('s-game')?.appendChild(board);
+      board.hidden=false;board.removeAttribute('aria-hidden');
+      for(const property of ['display','visibility','pointer-events'])board.style.removeProperty(property);
+    }
+    const actions=makeElement(this.document,'div','fate-v3-action-host');
+    actions.id='fate-v3-action-host';
+    this.document.getElementById('s-game')?.appendChild(actions);
     this.render(this.adapter.view());
+    this.queueAiIfNeeded();
     return this;
   }
 
   destroy(){
     this.stopTurnTimer();
+    const board=this.document?.getElementById('board');
+    if(board && this.boardHome?.parent){
+      const {parent,next}=this.boardHome;
+      parent.insertBefore(board,next?.parentElement===parent?next:null);
+      this.boardHome=null;
+    }
     if(this.endTurnElement && this.endTurnHandler){
       this.endTurnElement.removeEventListener('click', this.endTurnHandler, true);
       if(this.endTurnOnclick === null) this.endTurnElement.removeAttribute('onclick');
       else this.endTurnElement.setAttribute('onclick', this.endTurnOnclick);
     }
     this.document?.getElementById('fate-v3-local-actions')?.remove();
+    this.document?.getElementById('fate-v3-action-host')?.remove();
     if(this.visualPromptGuardTimer) this.window.clearTimeout?.(this.visualPromptGuardTimer);
     this.visualPromptGuardTimer = null;
     this.visualPromptKey = '';
@@ -261,6 +279,13 @@ export class FateAuthoritativeV3SinglePlayerScreen {
     const style = makeElement(this.document, 'style');
     style.id = STYLE_ID;
     style.textContent = `
+      html.${ACTIVE_CLASS} body.${ACTIVE_CLASS} #s-game>#board{display:grid!important;visibility:visible!important;pointer-events:auto!important;position:absolute!important;inset:125px 18px 190px!important;z-index:40!important;width:auto!important;height:auto!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:12px!important;overflow:auto!important}
+      .${ACTIVE_CLASS} #board .fate-v3-zone{min-width:0;display:flex;flex-direction:column;background:rgba(10,15,24,.88);border:1px solid #998450;border-radius:8px;padding:6px}
+      .${ACTIVE_CLASS} #board .zone-rows{display:flex;flex-direction:column;gap:5px;flex:1}
+      .${ACTIVE_CLASS} #board .brow{display:flex;flex-direction:column;flex:1;min-height:0}
+      .${ACTIVE_CLASS} #board .rcells{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;flex:1}
+      .${ACTIVE_CLASS} #board .fate-v3-cell{min-height:52px!important;min-width:0;background:rgba(35,43,56,.8);border:1px solid #786c51;color:#f6e8bd;padding:2px;overflow:hidden}
+      .${ACTIVE_CLASS} #fate-v3-action-host{position:absolute;left:25%;right:20%;bottom:155px;max-height:100px;overflow:auto;z-index:65;background:rgba(8,12,20,.94);border-radius:6px}
       .${ACTIVE_CLASS} #board .fate-v3-cell{min-height:74px;cursor:pointer}
       .${ACTIVE_CLASS} #board .fate-v3-cell.is-legal{outline:2px solid #e9c968;box-shadow:inset 0 0 18px rgba(233,201,104,.24)}
       .${ACTIVE_CLASS} #board .fate-v3-cell.is-chosen{outline:3px solid #7fd4ff}
@@ -472,10 +497,12 @@ export class FateAuthoritativeV3SinglePlayerScreen {
     if(!aiMustAct) return;
     this.aiQueued = true;
     const enqueue = this.window.queueMicrotask || (callback=>this.window.setTimeout(callback, 0));
-    enqueue(()=>{
+    enqueue(async ()=>{
       try{
-        const result = this.adapter.runAiTurn();
+        const result = this.adapter.runAiTurnAsync ? await this.adapter.runAiTurnAsync() : this.adapter.runAiTurn();
         if(!result.ok) this.window.toast?.(result.rejection?.reason || 'Authoritative v3 AI stopped');
+      }catch(error){
+        this.window.toast?.(error?.message || 'AI search failed');
       }finally{
         this.aiQueued = false;
       }
@@ -1076,7 +1103,7 @@ export class FateAuthoritativeV3SinglePlayerScreen {
   }
 
   renderActions(){
-    const bar = this.document.getElementById('actbar');
+    const bar = this.document.getElementById('fate-v3-action-host') || this.document.getElementById('actbar');
     const hint = this.document.getElementById('act-hint');
     if(!bar) return;
     let actions = this.document.getElementById('fate-v3-local-actions');
@@ -1131,7 +1158,10 @@ export class FateAuthoritativeV3SinglePlayerScreen {
       button.addEventListener('click', event=>{
         event.preventDefault();
         event.stopImmediatePropagation();
-        this.submit(command);
+        const submittedCommand = command.type === 'ACTIVATE_EFFECT' && command.manualOnly === true
+          ? {...command, payload:{...(command.payload || {}), userActivated:true}}
+          : command;
+        this.submit(submittedCommand);
       });
       actions.appendChild(button);
     });

@@ -12,9 +12,9 @@
 <link rel="icon" href="blank.png">
   <link rel="stylesheet" href="src/styles/game.css?v=2026083002">
 <link rel="stylesheet" href="src/styles/99-ui-final.css?v=2026090108">
-<link rel="stylesheet" href="src/styles/zz-codex-last.css?v=2026090701">
+<link rel="stylesheet" href="src/styles/zz-codex-last.css?v=2026090802">
 <link rel="stylesheet" href="src/styles/profile-view-v2.css?v=2026090701">
-<link rel="stylesheet" href="src/styles/ledger-archive.css?v=2026090701">
+<link rel="stylesheet" href="src/styles/ledger-archive.css?v=2026090801">
 <link rel="stylesheet" href="src/styles/profile-picker-performance.css?v=1788280003">
 <link rel="stylesheet" href="src/styles/match-scene-v2.css?v=1788000201">
 <link rel="stylesheet" href="src/styles/campaign-intro.css?v=1785023024">
@@ -26,7 +26,9 @@
 <link rel="stylesheet" href="src/styles/challenger-war-event-final.css?v=2026090420">
 <!-- The match shell is intentionally loaded last. It is a reversible, single
      authority layer; fateMatchUI=0 restores the retained legacy match UI. -->
-<link rel="stylesheet" href="src/styles/zzzzzzzzzzzzzzzzzzzzzzz-match-ui-svg-v20.css?v=2026090205">
+<link rel="stylesheet" href="src/styles/zzzzzzzzzzzzzzzzzzzzzzz-match-ui-svg-v20.css?v=2026090801">
+<link rel="stylesheet" href="src/styles/widescreen.css?v=2026090801">
+<script defer src="src/scripts/52-widescreen.js?v=2026090801"></script>
 <!-- Inline emergency overrides moved to src/styles/99-ui-final.css?v=208. -->
 </head>
 <body>
@@ -166,7 +168,7 @@
           <input type="range" min="0" max="100" value="80" id="vol-voice" style="width:120px;" oninput="setVoiceVolume(this.value)">
           <span class="vol-val" id="vol-voice-val">80</span>
         </div>
-        <button class="btn sm" id="music-toggle-btn" onclick="toggleMusic()" style="margin-top:.2rem;">Music On</button>
+        <button class="btn sm" id="widescreen-toggle-btn" onclick="FateWidescreen.toggle()" aria-pressed="false" title="Keep the interface centered in a 16:9 play area on ultrawide monitors, including 3440 × 1440." style="margin-top:.2rem;">Widescreen Off</button>
         <div id="game-version" class="btn sm title-version-badge" aria-label="Version" style="margin-top:.2rem;">Version 1.39.95</div>
       </div>
     </div>
@@ -615,16 +617,16 @@
 <div id="toast"></div>
 
   <script src="src/scripts/00-structural-helpers.js?v=2026090704"></script>
-  <script src="src/scripts/01-data-and-state.js?v=2026090704"></script>
+<script src="src/scripts/01-data-and-state.js?v=2026090705"></script>
   <script src="src/scripts/01a-pressure-card-reworks.js?v=2026083002"></script>
 <script src="src/scripts/02-screen-and-deckbuilder.js?v=2026083002"></script>
 <script src="src/scripts/02-effect-rule-metadata.js?v=2026083102"></script>
 <script src="src/scripts/13-svg-ui-enhancements.js?v=1780269000"></script>
   <script src="src/scripts/03-profile-and-progression.js?v=2026090106"></script>
-<script src="src/scripts/04-game-setup.js?v=2026083104"></script>
-<script src="src/scripts/05-gameplay-core.js?v=2026090704"></script>
-  <script src="src/scripts/06-rendering-and-helpers.js?v=2026090704"></script>
-  <script src="src/scripts/51-ledger-archive.js?v=2026090701"></script>
+<script src="src/scripts/04-game-setup.js?v=2026090801"></script>
+<script src="src/scripts/05-gameplay-core.js?v=2026090802"></script>
+  <script src="src/scripts/06-rendering-and-helpers.js?v=2026090802"></script>
+  <script src="src/scripts/51-ledger-archive.js?v=2026090801"></script>
 <script src="src/scripts/render-v2/00-render-v2-flags.js?v=1780590901"></script>
   <script src="src/scripts/render-v2/01-render-snapshot.js?v=1787980001"></script>
 <script src="src/scripts/render-v2/02-match-layout-engine.js?v=1788120601"></script>
@@ -635,7 +637,7 @@
 <script src="src/scripts/render-v2/15-vfx-audio-sync.js?v=1783222102"></script>
 <script src="src/scripts/render-v2/13-vfx-recipes.js?v=1788289101"></script>
 <script src="src/scripts/render-v2/11-vfx-director.js?v=1788289101"></script>
-<script src="src/scripts/render-v2/04-match-renderer-adapter.js?v=2026090103"></script>
+<script src="src/scripts/render-v2/04-match-renderer-adapter.js?v=2026090801"></script>
 <script src="src/scripts/render-v2/06-match-scene-input.js?v=1785686105"></script>
 <script src="src/scripts/render-v2/09-hand-drag-bridge.js?v=2026090502"></script>
 <script src="src/scripts/render-v2/10-card-motion-fx.js?v=1788129101"></script>
@@ -652,7 +654,7 @@
   <script src="src/scripts/08a-profile-performance.js?v=1788280005"></script>
   <script src="src/scripts/27-morale-pressure-ui.js?v=2026090502"></script>
   <script src="src/scripts/34-hand-viewer.js?v=1788073001"></script>
-  <script src="src/scripts/45-match-ui-codex.js?v=2026090604"></script>
+  <script src="src/scripts/45-match-ui-codex.js?v=2026090801"></script>
 <script src="src/scripts/46-bh21-hooks.js?v=1788372001"></script>
   <script src="src/scripts/25-profile-view-v2.js?v=2026090701"></script>
 <script src="src/scripts/09-challenger-mode.js?v=2026090501"></script>
@@ -679,7 +681,7 @@
     './src/scripts/15-online-auth.js?v=2026090604',
     './src/scripts/16-online-core.js?v=2026090501',
     './src/scripts/17-online-social.js?v=1788000401',
-    './src/scripts/18-online-rooms.js?v=2026090704&sync=2026090704',
+    './src/scripts/18-online-rooms.js?v=2026090802&sync=2026090802',
     './src/scripts/19-online-elo.js?v=2026090501',
     './src/scripts/20-online-economy.js?v=2026090701'
   ];
@@ -784,8 +786,8 @@
 </script>
 <script>
 (function(){
-  // Phase 5 single-player v3 is an independently flagged local authority
-  // system. Without this exact opt-in, its module is never loaded.
+  // The authoritative single-player screen is still an explicit test mode.
+  // Default local matches must keep the shipping renderer.
   var params = new URLSearchParams(location.search || '');
   if(params.get('fateV3SinglePlayer') !== '1') return;
   import('./src/scripts/authoritative-v3-single-player-adapter.mjs')

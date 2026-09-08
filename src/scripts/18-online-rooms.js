@@ -3434,7 +3434,7 @@
       ['img','runtimeImg','rarity','type','name','ability','effect','flavor','cost','xCost','xFate','set'].forEach(function(key){
         if((next[key] == null || next[key] === '') && definition[key] != null) next[key] = definition[key];
       });
-      // Jamie shipped while an older authority catalog still supplied another
+      // Jaime shipped while an older authority catalog still supplied another
       // card's subtitle. Her immutable local catalog text is authoritative for
       // presentation even when a stale server projection contains text.
       if(String(next.id || '') === 'bh22' && definition.flavor != null) next.flavor = definition.flavor;
@@ -3634,12 +3634,12 @@
       })
       .map(function(status){
         const zoe = ['CONSOLIDATION_BLOCKED','FIELD_LEAVE_LOCKED'].includes(String(status.type || ''));
-        const jamie = String(status.type || '') === 'MORALE_RECOVERY_SQUARE';
+        const jaime = String(status.type || '') === 'MORALE_RECOVERY_SQUARE';
         return {
           z:Number(status.z),
           r:Number(status.r),
           c:Number(status.c),
-          type:jamie ? 'jamie' : (zoe ? 'zoe' : 'carolyn'),
+          type:jaime ? 'jaime' : (zoe ? 'zoe' : 'carolyn'),
           owner:Number.isInteger(Number(status.sourceController)) ? Number(status.sourceController) : viewer,
           blockedPlayer:Number.isInteger(Number(status.blockedPlayer)) ? Number(status.blockedPlayer) : null,
           sourceIid:String(status.sourceIid || '')
@@ -3844,6 +3844,7 @@
       && phase7RequiresManualActivation(source, command);
   }
   function phase7RequiresManualActivation(card, command){
+    if(String(card?.id || '') === '38' || String(command?.cardId || '') === '38') return true;
     // These are repeatable player-timed abilities. They must never be fired by
     // the automatic set-resolution path: the player chooses when/if to spend
     // a use. Movement and flip families retain their existing buttons.
@@ -5862,20 +5863,20 @@
       }else if(['BOARD_DESTINATION'].includes(prompt.type)){
         const sourceCard = phase7FindAnyCard(prompt?.sourceIid);
         const sourceId = String(sourceCard?.id || prompt?.sourceCardId || '');
-        const boardHighlightKind = sourceId === '04' ? 'zoe' : (sourceId === 'bh22' ? 'jamie' : '');
+        const boardHighlightKind = sourceId === '04' ? 'zoe' : (sourceId === 'bh22' ? 'jaime' : '');
         if(boardHighlightKind){
           const highlighted = commands.filter(function(command){ return !!command?.payload?.destination; });
           if(phase7CurrentUiSession.effectSquarePromptKey !== promptKey){
             phase7CurrentUiSession.effectSquarePromptKey = promptKey;
             const g = gameState();if(g)g._phase7EffectSquareKind=boardHighlightKind;
-            phase7BeginDestinationChoice(highlighted, boardHighlightKind === 'jamie' ? 'Jamie: choose a highlighted safe-row square' : 'Zoe: choose a highlighted square');
+            phase7BeginDestinationChoice(highlighted, boardHighlightKind === 'jaime' ? 'Jaime: choose a highlighted safe-row square' : 'Zoe: choose a highlighted square');
             highlighted.forEach(function(command){
               const destination=command?.payload?.destination;if(!destination)return;
               const cell=document.querySelector('#board .cell[data-z="'+Number(destination.z)+'"][data-r="'+Number(destination.r)+'"][data-c="'+Number(destination.c)+'"]');
-              if(cell)cell.classList.add('block-target-choice',boardHighlightKind === 'jamie' ? 'jamie-heal-choice' : 'zoe-block-choice');
+              if(cell)cell.classList.add('block-target-choice',boardHighlightKind === 'jaime' ? 'jaime-heal-choice' : 'zoe-block-choice');
             });
           }
-          if(hint)hint.textContent=boardHighlightKind === 'jamie' ? 'Jamie: choose a highlighted safe-row square' : 'Zoe: choose a highlighted square';
+          if(hint)hint.textContent=boardHighlightKind === 'jaime' ? 'Jaime: choose a highlighted safe-row square' : 'Zoe: choose a highlighted square';
           return;
         }
         const multi = commands.filter(function(command){ return Array.isArray(command?.payload?.destinations); });

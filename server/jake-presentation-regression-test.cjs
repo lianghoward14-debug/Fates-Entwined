@@ -11,7 +11,7 @@ assert.match(single,/modifyFate\(jake, 4[\s\S]{0,180}flashCardEffect\(jake, 'jak
 assert.match(renderer,/'38':\{kind:'jake_burger',label:'Fat Fuck'\}/,'shared authoritative renderer maps Jake result to himself');
 assert.match(online,/'38':\{kind:'jake_burger', label:'Fat Fuck'\}/,'multiplayer maps Jake result to himself');
 assert.match(online,/sourceId === '38' \|\| sourceId === '93'/,'multiplayer suppresses the pre-result Jake overlay');
-assert.match(canvas,/kind === 'jake_burger'[\s\S]{0,800}line\(\[\[-22,-5\]/,'canvas renderer shows the connected clean burger');
+assert.match(canvas,/kind === 'jake_burger'[\s\S]{0,800}line\(\[\[10,27\]/,'canvas renderer shows the centered connected clean burger');
 assert.match(css,/effect-flash-jake_burger[\s\S]{0,1000}M10 27Q14 8 32 8Q50 8 54 27/,'DOM renderer has the matching connected clean burger');
 assert.doesNotMatch(renderer,/jake_taco/,'shared renderer no longer references the discarded taco');
 assert.doesNotMatch(online,/jake_taco/,'multiplayer renderer no longer references the discarded taco');

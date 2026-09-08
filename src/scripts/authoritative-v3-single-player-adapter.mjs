@@ -2,10 +2,12 @@ import {
   createInitialState,
   multiplayerEligibleCardIds,
   multiplayerEligibleLandscapeIds,
-  stableStringify
+  stableStringify,
+  zoneScore
 } from '../../shared/engine/index.mjs';
 import {FateAuthoritativeV3LocalSession} from './authoritative-v3-local-session.mjs';
 import {chooseStrategicV3AiCommand} from './authoritative-v3-ai-policy.mjs';
+import {AiSearchWorker} from './new-ai-worker-client.mjs';
 import {FateAuthoritativeV3SinglePlayerScreen} from './authoritative-v3-single-player-screen.mjs?v=2026083101';
 
 export const FATE_V3_SINGLE_PLAYER_QUERY_FLAG = 'fateV3SinglePlayer';
@@ -38,6 +40,11 @@ function commandPriority(command){
   return priorities[command?.type] ?? 50;
 }
 
+function commandWithActorActivationIntent(command){
+  if(command?.type !== 'ACTIVATE_EFFECT' || command?.manualOnly !== true) return command;
+  return {...command, payload:{...(command.payload || {}), userActivated:true}};
+}
+
 // The default Phase 5 policy is deliberately deterministic. It chooses only
 // from engine-generated legal commands and submits the chosen command back to
 // the local session; it never edits canonical state.
@@ -48,6 +55,15 @@ export function chooseDeterministicV3AiCommand(commands = []){
       commandPriority(left) - commandPriority(right)
       || stableStringify(left).localeCompare(stableStringify(right))
     )[0] || null;
+}
+
+// The first decision gets the full strategic search. After a command has
+// visibly resolved, keep replanning bounded so the final END_TURN decision
+// cannot leave the board sitting idle for several seconds.
+export function aiSearchContextForStep(context, completedCommands=0){
+  if(completedCommands < 1)return context;
+  const budgets={easy:100,medium:160,hard:220,extreme:300};
+  return {...context,samples:1,nodeBudget:budgets[context.difficulty] || budgets.medium};
 }
 
 function matchingTemplate(commands, type, payload){
@@ -158,10 +174,13 @@ export class FateAuthoritativeV3SinglePlayerAdapter {
       }
       return rejection('ILLEGAL_UI_COMMAND', 'UI action is not present in the engine legal-command projection');
     }
+    const submittedPayload = template.type === 'ACTIVATE_EFFECT' && payload?.userActivated === true
+      ? {...template.payload, userActivated:true}
+      : template.payload;
     return this.session.dispatchForPlayer(
       this.humanPlayerId,
       template.type,
-      template.payload,
+      submittedPayload,
       commandId
     );
   }
@@ -196,7 +215,7 @@ export class FateAuthoritativeV3SinglePlayerAdapter {
   }
 
   activateEffect(sourceIid, commandId = ''){
-    return this.dispatchHuman('ACTIVATE_EFFECT', {sourceIid:String(sourceIid || '')}, commandId);
+    return this.dispatchHuman('ACTIVATE_EFFECT', {sourceIid:String(sourceIid || ''), userActivated:true}, commandId);
   }
 
   activateLandscape(payload, commandId = ''){
@@ -211,6 +230,53 @@ export class FateAuthoritativeV3SinglePlayerAdapter {
 
   endTurn(commandId = ''){
     return this.dispatchHuman('END_TURN', {}, commandId);
+  }
+
+  dispose(){
+    this.disposed=true;
+    this.searchWorker?.dispose();
+  }
+
+  async runAiTurnAsync({maxCommands=128}={}){
+    if(this.aiRunning)return rejection('AI_ALREADY_RUNNING','AI search already running');
+    this.aiRunning=true;
+    const results=[];
+    try{
+      for(let index=0;index<maxCommands && !this.disposed;index++){
+        const canonical=this.session.state;
+        const aiIndex=this.session.playerIndex(this.aiPlayerId);
+        const actor=Number(canonical.pendingPrompt?.playerIndex ?? canonical.pendingHandLimit?.playerIndex ?? canonical.activePlayer);
+        if(canonical.outcome || actor!==aiIndex)return {ok:true,results};
+        const legal=this.session.legalCommandsFor(this.aiPlayerId);
+        const projection=this.session.projectionFor(this.aiPlayerId);
+        const context=aiSearchContextForStep({playerId:this.aiPlayerId,playerIndex:aiIndex,difficulty:this.aiDifficulty,style:this.aiStyle,canonicalState:canonical},results.length);
+        let selected;
+        if(this.aiPolicy!==chooseStrategicV3AiCommand){
+          selected=await this.aiPolicy(legal,projection,context);
+        }else{
+          this.searchWorker ||= new AiSearchWorker();
+          try{
+            const decision=await this.searchWorker.decide(legal,projection,context);
+            selected=decision.command;this.lastDecision=decision.trace;
+          }catch(error){
+            if(this.disposed)return {ok:true,results,cancelled:true};
+            console.warn('[Fate AI] worker unavailable; using bounded rules search',error);
+            await new Promise(resolve=>setTimeout(resolve,0));
+            selected=this.aiPolicy(legal,projection,{...context,samples:1,nodeBudget:120});
+          }
+        }
+        if(this.disposed)return {ok:true,results,cancelled:true};
+        if(this.session.state.revision!==canonical.revision)continue;
+        const template=selected && matchingTemplate(legal,selected.type,selected.payload);
+        if(!template)return rejection('AI_INVALID_COMMAND','AI search returned no legal move');
+        const submitted=commandWithActorActivationIntent(template);
+        const result=this.session.dispatchForPlayer(this.aiPlayerId,submitted.type,submitted.payload);
+        results.push(result);
+        if(!result.ok)return result;
+        await new Promise(resolve=>setTimeout(resolve,80));
+      }
+      return this.disposed ? {ok:true,results,cancelled:true} : rejection('AI_COMMAND_LIMIT','AI action limit reached');
+    }finally{this.aiRunning=false;}
   }
 
   runAiTurn({maxCommands = 128} = {}){
@@ -257,10 +323,11 @@ export class FateAuthoritativeV3SinglePlayerAdapter {
         if(!template){
           return rejection('AI_NO_LEGAL_COMMAND', 'authoritative v3 AI could not choose a legal command');
         }
+        const submitted = commandWithActorActivationIntent(template);
         const result = this.session.dispatchForPlayer(
           this.aiPlayerId,
-          template.type,
-          template.payload
+          submitted.type,
+          submitted.payload
         );
         results.push(result);
         if(!result.ok) return result;
@@ -331,9 +398,10 @@ export function createFateV3SinglePlayerState(input = {}){
   if(!multiplayerEligibleLandscapeIds().includes(landscapeId)){
     throw new Error(`landscape ${landscapeId || '(missing)'} is not eligible for single-player v3`);
   }
+  const matchId=String(input.matchId || `LOCALV3-${globalThis.crypto?.randomUUID?.() || Date.now()}`);
   return createInitialState({
-    matchId:String(input.matchId || `LOCALV3-${Date.now()}`),
-    seed:String(input.seed || input.matchId || 'fate-v3-local'),
+    matchId,
+    seed:String(input.seed || matchId),
     players,
     cardDefinitions:(input.cardDefinitions || []).map(compactCardDefinition),
     handSize:input.handSize,
@@ -354,7 +422,7 @@ export function createFateV3SinglePlayerState(input = {}){
 }
 
 export function installFateV3SinglePlayerBrowserAdapter(windowRef = globalThis.window){
-  if(!windowRef || !isFateV3SinglePlayerExplicitlyEnabled(windowRef.location?.search || '')) return null;
+  if(!windowRef) return null;
   const params = new URLSearchParams(windowRef.location?.search || '');
   if(params.get(RECORDER_QUERY_FLAG) === '1'){
     throw new Error('fateV3SinglePlayer and fateV3Recorder are mutually exclusive authority modes');
@@ -376,6 +444,7 @@ export function installFateV3SinglePlayerBrowserAdapter(windowRef = globalThis.w
     };
   }
   function stopActiveMatch({showTitle = false} = {}){
+    activeAdapter?.dispose();
     activeScreen?.destroy();
     activeScreen = null;
     activeAdapter = null;
@@ -443,9 +512,9 @@ export function installFateV3SinglePlayerBrowserAdapter(windowRef = globalThis.w
         handSize:options.handSize,
         maxTurns:options.maxTurns || game.maxTurns,
         activePlayer:options.activePlayer,
-        healthPressureSeals:windowRef.FATE_MORALE_PRESSURE_RULES_ENABLED === true,
+        healthPressureSeals:windowRef.FATE_MORALE_PRESSURE_RULES_ENABLED === true && game._freePlayGameSettings?.healthPressureSeals !== false,
         pressureCardReworks:windowRef.FATE_MORALE_PRESSURE_RULES_ENABLED === true
-          && windowRef.FATE_PRESSURE_CARD_REWORKS_ENABLED === true,
+          && windowRef.FATE_PRESSURE_CARD_REWORKS_ENABLED === true && game._freePlayGameSettings?.pressureCardReworks !== false,
         zoneControlRework:windowRef.FATE_ZONE_CONTROL_REWORK_ENABLED !== false,
         expandedContestedRow:windowRef.FATE_ZONE_CONTROL_REWORK_ENABLED !== false
           && windowRef.FATE_EXPANDED_CONTESTED_ROW_ENABLED !== false,
@@ -476,6 +545,8 @@ export function installFateV3SinglePlayerBrowserAdapter(windowRef = globalThis.w
       const game = windowRef.getFateGameState?.();
       const querySeconds = Number(new URLSearchParams(windowRef.location?.search || '').get('fateV3TurnSeconds'));
       const configuredSeconds = Number(game?._turnTimerSeconds);
+      let adapterCompletionQueued=false;
+      activeAdapter?.dispose();
       activeScreen?.destroy();
       activeScreen = null;
       const adapter = api.createFromLegacySelection({
@@ -486,6 +557,11 @@ export function installFateV3SinglePlayerBrowserAdapter(windowRef = globalThis.w
       }, {
         render(view){
           activeScreen?.render(view);
+          if(view.state.outcome && typeof options.onComplete === 'function' && !adapterCompletionQueued){
+            adapterCompletionQueued=true;
+            const completed={...view,finalZoneScores:[0,1,2].map(z=>[0,1].map(p=>zoneScore(view.state,z,p)))};
+            queueMicrotask(()=>options.onComplete(completed));
+          }
         },
         onEvents(events, metadata){
           activeScreen?.presentEvents?.(events, metadata);

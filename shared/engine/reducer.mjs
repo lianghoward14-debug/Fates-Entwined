@@ -2369,9 +2369,12 @@ function performCommand(state, ctx, command, actorIndex, options){
       const effectId = isWhisperToken ? runtimeRuleId(card) : card.id;
       const hasWhenSetEffect = hasTiming(effectId, 'WHEN_SET', state);
       const block = supporterEffectBlock(state, card, actorIndex);
+      // Ongoing field abilities are suppressed too. These five abilities
+      // operate outside the field and cannot be suppressed merely by setting.
+      const hasRelevantFieldEffect = !['28','70','74','79','98'].includes(String(effectId));
       if(block?.statusType === 'LUMBERJACK_SUPPRESSION'){
         applyLumberjackSuppression(state, ctx, card, block, actorIndex);
-      }else if(hasWhenSetEffect && block){
+      }else if(block && (hasWhenSetEffect || (block.statusType === 'SUPPORTER_EFFECTS_BLOCKED' && hasRelevantFieldEffect))){
         emitRuleEvent(ctx, {
           type:RULE_EVENT_TYPES.EFFECT_REACTED,
           sourceIid:card.iid,

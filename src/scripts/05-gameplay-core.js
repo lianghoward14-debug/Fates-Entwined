@@ -2211,6 +2211,9 @@ function startAITurnVisualTimer() {
 
 // Stop all game-related timers and flags when leaving game
 function cleanupGame() {
+  window.FateAuthorityV3SinglePlayer?.stopMatch?.();
+  G._rulesAiMatch=false;
+  G._canonicalAiResult=null;
   if(typeof window.invalidateFateRenderCaches === 'function') window.invalidateFateRenderCaches();
   stopTurnTimer();
   if(typeof cleanupLeavingGameScreenArtifacts === 'function') cleanupLeavingGameScreenArtifacts();
@@ -2639,7 +2642,7 @@ function isBlockedByAlondra(z,r,c,player) {
 function clearPlaceHighlights() {
   if(typeof G !== 'undefined' && G) G._singlePlayerPlacementOptions = null;
   document.querySelectorAll('#board .cell.placeable,#board .cell.move-target,#board .cell.landscape-move-target,#board .cell.brave-horizons-target').forEach(el=>el.classList.remove('placeable','move-target','landscape-move-target','brave-horizons-target'));
-  document.querySelectorAll('#board .cell.block-target-choice,#board .cell.carolyn-block-choice,#board .cell.zoe-block-choice,#board .cell.jamie-heal-choice,#board .cell.havano-deploy-choice,#board .cell.free-placement-choice,#board .cell.tutorial-target-square').forEach(el=>el.classList.remove('block-target-choice','carolyn-block-choice','zoe-block-choice','jamie-heal-choice','havano-deploy-choice','free-placement-choice','tutorial-target-square'));
+  document.querySelectorAll('#board .cell.block-target-choice,#board .cell.carolyn-block-choice,#board .cell.zoe-block-choice,#board .cell.jaime-heal-choice,#board .cell.havano-deploy-choice,#board .cell.free-placement-choice,#board .cell.tutorial-target-square').forEach(el=>el.classList.remove('block-target-choice','carolyn-block-choice','zoe-block-choice','jaime-heal-choice','havano-deploy-choice','free-placement-choice','tutorial-target-square'));
   document.querySelectorAll('#board .zone.busser-zone-target').forEach(el=>el.classList.remove('busser-zone-target'));
   if(typeof rendererV2OwnsBoardScene === 'function' && rendererV2OwnsBoardScene()) return;
   document.querySelectorAll('#board .bc.tribute-available,#board .bc.tribute-selected,#board .bc.tribute-ready').forEach(el=>{
@@ -3676,13 +3679,13 @@ async function clickCell(z,r,c) {
   // Handle Zoe's blocking effect (zone-specific) or Carolyn's (any zone)
   if(G.blockingCell) {
     const pendingBlockZone = Number.isInteger(Number(G._blockingEffectZone)) ? Number(G._blockingEffectZone) : Number(window._blockZone);
-    const blockType = G._blockingEffectType === 'jamie' ? 'jamie' : (pendingBlockZone===-1 ? 'carolyn' : 'zoe');
-    const blockZ = blockType === 'jamie' ? z : (pendingBlockZone===-1 ? z : pendingBlockZone);
+    const blockType = G._blockingEffectType === 'jaime' ? 'jaime' : (pendingBlockZone===-1 ? 'carolyn' : 'zoe');
+    const blockZ = blockType === 'jaime' ? z : (pendingBlockZone===-1 ? z : pendingBlockZone);
     const owner = G.currentPlayer;
     const blockedPlayer = blockType === 'zoe' ? 1 - owner : null;
     const occupiedCell = !!(G.board && G.board[blockZ] && G.board[blockZ][r] && G.board[blockZ][r][c]);
-    if(blockType === 'jamie' && !(typeof isOwnSafeRowSquare === 'function' && isOwnSafeRowSquare(blockZ, r, c, owner))) {
-      toast('Jamie must choose a square in your own safe row');
+    if(blockType === 'jaime' && !(typeof isOwnSafeRowSquare === 'function' && isOwnSafeRowSquare(blockZ, r, c, owner))) {
+      toast('Jaime must choose a square in your own safe row');
       playSfx('blocked');
       return;
     }
@@ -3719,7 +3722,7 @@ async function clickCell(z,r,c) {
       existingBlock.owner = owner;
       existingBlock.blockedPlayer = null;
     } else if(!existingBlock) {
-      G.blockedCells.push({z:blockZ,r,c,type:blockType,owner,blockedPlayer,sourceIid:(blockType === 'zoe' || blockType === 'jamie') ? G._blockingEffectSourceIid : null});
+      G.blockedCells.push({z:blockZ,r,c,type:blockType,owner,blockedPlayer,sourceIid:(blockType === 'zoe' || blockType === 'jaime') ? G._blockingEffectSourceIid : null});
     }
     if(typeof normalizeBlockedCells === 'function') normalizeBlockedCells();
     G.blockingCell=false;G.placing=false;
@@ -3731,8 +3734,8 @@ async function clickCell(z,r,c) {
     if(blockType==='carolyn') {
       playSfx('carolynBlock');
       toast('Cell permanently locked by Carolyn!');
-    } else if(blockType === 'jamie') {
-      toast('Jamie marked a safe-row square for Morale recovery.');
+    } else if(blockType === 'jaime') {
+      toast('Jaime marked a safe-row square for Morale recovery.');
     } else {
       playSfx('zoeBlock');
       toast('Zoe: opponent cards on this square cannot leave the field.');
@@ -3776,8 +3779,8 @@ async function clickCell(z,r,c) {
       toast('That square is not available');
       return;
     }
-    if(blockType === 'jamie' && !(typeof isOwnSafeRowSquare === 'function' && isOwnSafeRowSquare(blockZ, r, c, owner))) {
-      toast('Jamie must choose a square in your safe row');
+    if(blockType === 'jaime' && !(typeof isOwnSafeRowSquare === 'function' && isOwnSafeRowSquare(blockZ, r, c, owner))) {
+      toast('Jaime must choose a square in your safe row');
       playSfx('blocked');
       return;
     }
@@ -6304,14 +6307,17 @@ async function triggerWhenSet(inst, z, r, c, opts = {}) {
   // Rivera (51): active declared affiliation buff applies to cards as they are set.
   applyRiveraBuffToPlacedCard(inst, inst.owner);
 
-  // Suppress check: only if current player is the suppression target
-  if(G.oppSuppressedNextTurn && G.suppressTarget===cp && instIsSupporterForRules && !isEffectImmuneSource(inst)) {
+  // Match the authority: field abilities count, but abilities operating only
+  // in the opening hand, hand, deck or discard do not count on placement.
+  const _hasWhenSet = hasAuthoritativeWhenSetEffect(inst);
+  const placementEffectRelevant = !['28','70','74','79','98'].includes(String(typeof getCardRuntimeEffectId === 'function' ? getCardRuntimeEffectId(inst) : inst.id));
+  if(placementEffectRelevant && G.oppSuppressedNextTurn && G.suppressTarget===cp && instIsSupporterForRules && !isEffectImmuneSource(inst)) {
     if(typeof triggerMajaMischievousActivities === 'function') triggerMajaMischievousActivities(opp, {mode:'suppressed', sourceCard:inst});
     showBlockedAnimation('Effect SUPPRESSED - Semper Fidelis');
     markInitialEffectResolved(inst);
     return;
   }
-  if(!isEffectImmuneSource(inst) && ((typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(inst, z, r, c)) || (instIsSupporterForRules && typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(inst)))) {
+  if(placementEffectRelevant && !isEffectImmuneSource(inst) && ((typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(inst, z, r, c)) || (instIsSupporterForRules && typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(inst)))) {
     if(typeof triggerMajaMischievousActivities === 'function') triggerMajaMischievousActivities(opp, {mode:'suppressed', sourceCard:inst});
     showBlockedAnimation('Effect SUPPRESSED - The Last Revolution');
     markInitialEffectResolved(inst);
@@ -6324,7 +6330,6 @@ async function triggerWhenSet(inst, z, r, c, opts = {}) {
     return;
   }
 
-  const _hasWhenSet = hasAuthoritativeWhenSetEffect(inst);
   const isInitiatorWithEffect = _hasWhenSet
     && (inst.type === 'Initiator' || String(id || '') === '21')
     && !inst.effectUsedInitial;
@@ -8383,6 +8388,9 @@ function activateHenryDongSuppression(card, z, r, c, opts = {}) {
 }
 
 async function triggerCharacterEffect(card, z, r, c, opts = {}) {
+  // Jake is player-timed, including copied Jake abilities. Never enter his
+  // cinematic or picker from placement or the automatic board scheduler.
+  if(getCardRuntimeEffectId(card) === '38' && (opts.fromSet || opts.autoActivation)) return false;
   closeModal();
   const cp = G.currentPlayer;
   const opp = 1-cp;
@@ -8538,7 +8546,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
       break;
     }
     case 'bh22':
-      if(typeof highlightJamieHealingSquare === 'function') highlightJamieHealingSquare(card);
+      if(typeof highlightJaimeHealingSquare === 'function') highlightJaimeHealingSquare(card);
       break;
     case 'bh23': {
       const eligibleTriggerCoordinators = new Set(['15','bh02','bh08']);
@@ -10708,7 +10716,7 @@ function checkWin() {
   let p0wins=0, p1wins=0;
   const zResults=[];
   for(let z=0;z<3;z++){
-    const s0=getZoneScore(z,0), s1=getZoneScore(z,1);
+    const s0=G._canonicalAiResult?.zones?.[z]?.[0] ?? getZoneScore(z,0), s1=G._canonicalAiResult?.zones?.[z]?.[1] ?? getZoneScore(z,1);
     let ctrl = s0>s1?0:s1>s0?1:-1;
     if(ctrl===0) p0wins++;
     else if(ctrl===1) p1wins++;
@@ -10741,6 +10749,11 @@ function checkWin() {
     else { isDraw = true; }
   }
   if(winner < 0 && depleted.length > 0) isDraw = true;
+  if(G._canonicalAiResult?.outcome){
+    winner=G._canonicalAiResult.outcome.winner ?? -1;
+    isDraw=winner<0;
+    drawByFate=String(G._canonicalAiResult.outcome.reason || '').includes('FATE');
+  }
   if(!G._skipFinalZoneReveal && !G._finalZoneRevealActive && typeof showFinalZoneReveal === 'function'){
     G._finalZoneRevealActive = true;
     stopTurnTimer();

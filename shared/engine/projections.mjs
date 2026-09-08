@@ -16,6 +16,7 @@ function publicPlayer(player){
   return {
     id:player.id,
     name:player.name,
+    photoURL:player.photoURL || 'blank.png',
     rankElo:Math.max(0, Math.round(Number(player.rankElo) || 600)),
     deckCount:player.deck.length,
     handCount:player.hand.length,

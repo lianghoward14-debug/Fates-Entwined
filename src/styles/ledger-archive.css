@@ -27,3 +27,37 @@
 #ledger-archive .ledger-confirm{background:#9ad8d9;color:#10272e;border-color:#9ad8d9;padding-inline:24px}
 @media(max-width:700px){#ledger-archive{padding:10px}#ledger-archive .ledger-panel{padding:20px;max-height:calc(100dvh - 20px)}#ledger-archive h2{font-size:26px}#ledger-archive .ledger-cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}#ledger-archive footer{flex-direction:column;align-items:stretch}#ledger-archive footer>div{justify-content:flex-end}}
 @media(prefers-reduced-motion:reduce){#ledger-archive .ledger-card{transition:none}}
+
+/* Hidden Archive presentation: preserve the five-file workflow while giving it
+   the engraved, institutional character of the Ledger-keepers. */
+#ledger-archive{background:radial-gradient(circle at 50% 24%,rgba(28,77,82,.28),transparent 38%),linear-gradient(rgba(2,8,12,.9),rgba(1,4,7,.96));backdrop-filter:blur(14px) saturate(.72)}
+#ledger-archive .ledger-panel{position:relative;width:min(1160px,100%);border:1px solid #a88a43;border-radius:4px;padding:34px 38px 30px;background:linear-gradient(135deg,rgba(35,55,58,.97),rgba(9,19,24,.99) 54%,rgba(5,12,17,.99));box-shadow:0 34px 110px #000d,inset 0 0 0 1px #f1d78520,inset 0 0 0 7px #02080c99;overflow:auto}
+#ledger-archive .ledger-panel:before{content:"ARCHIVE · DRAW ORDER · AUTHORIZED ACCESS";position:absolute;right:38px;top:28px;color:#b79a5680;font:700 9px/1 Georgia,serif;letter-spacing:.2em}
+#ledger-archive .ledger-panel:after{content:"";position:absolute;inset:7px;pointer-events:none;border:1px solid #8eb2ad18;background:repeating-linear-gradient(135deg,transparent 0 10px,#d7c07a08 10px 11px);clip-path:polygon(0 0,100% 0,100% 17%,0 17%)}
+#ledger-archive header{position:relative;margin:-34px -38px 24px;padding:31px 38px 25px;border-bottom:1px solid #a88a43;background:linear-gradient(90deg,#172c31,#0b181e 72%,#071116)}
+#ledger-archive .ledger-eyebrow{display:flex;align-items:center;gap:10px;color:#d3b45f;font:700 10px Georgia,serif;letter-spacing:.24em}
+#ledger-archive .ledger-eyebrow:before{content:"◆";font-size:8px}.ledger-eyebrow:after{content:"";width:72px;height:1px;background:#a88a4370}
+#ledger-archive h2{margin:8px 0 5px;color:#f1e6c9;font:700 34px/1.08 Georgia,serif;letter-spacing:.015em;text-shadow:0 2px 18px #000}
+#ledger-archive header p{max-width:560px;color:#a9bdbe;font:12px/1.5 Inter,system-ui,sans-serif}
+#ledger-archive .ledger-direction{position:relative;margin:0 0 12px;padding:11px 15px;border:1px solid #78949738;background:#061116;color:#d9bd6e;font:700 9px Georgia,serif;letter-spacing:.18em}
+#ledger-archive .ledger-direction:after{content:"";position:absolute;left:20%;right:20%;top:50%;height:1px;background:linear-gradient(90deg,transparent,#9c864b66,transparent)}
+#ledger-archive .ledger-cards{gap:11px;counter-reset:ledger-file}
+#ledger-archive .ledger-card{counter-increment:ledger-file;position:relative;padding:9px 9px 11px;border:1px solid #53666a;border-radius:2px;background:linear-gradient(165deg,#26393d,#111f25 58%,#091319);box-shadow:0 10px 24px #0008,inset 0 1px #e8d39712;transition:border-color .15s,transform .15s,box-shadow .15s}
+#ledger-archive .ledger-card:before{content:"FILE 0" counter(ledger-file);position:absolute;z-index:2;left:-1px;top:-1px;width:72px;padding:5px 9px 4px;background:#a98a3e;color:#071116;clip-path:polygon(0 0,86% 0,100% 100%,0 100%);font:800 8px Georgia,serif;letter-spacing:.12em}
+#ledger-archive .ledger-card:first-child{border-color:#d4b55d;background:linear-gradient(165deg,#30464a,#17292e 58%,#0b171d);box-shadow:0 0 0 1px #d4b55d33,0 13px 30px #000a}
+#ledger-archive .ledger-card:hover{border-color:#d4b55d;transform:translateY(-4px);box-shadow:0 15px 32px #000b,0 0 18px #b99a3420}
+#ledger-archive .ledger-position{display:flex;justify-content:flex-end;align-items:center;height:27px;color:#a9c9c8;font:700 9px Georgia,serif;letter-spacing:.1em;text-transform:uppercase}
+#ledger-archive .ledger-card:first-child .ledger-position{color:#f0cf73}
+#ledger-archive .ledger-card img{border-radius:2px;border:1px solid #9f874766;background:#050b0f;box-shadow:0 8px 18px #0009;filter:saturate(.86) contrast(1.04)}
+#ledger-archive .ledger-card strong{min-height:40px;margin:9px 2px 5px;color:#efe6cf;font:700 12px/1.35 Georgia,serif;text-align:center}
+#ledger-archive .ledger-moves{gap:5px;border-top:1px solid #8e7b4838;padding-top:7px}
+#ledger-archive button{border-radius:2px;border-color:#71643f;background:linear-gradient(#1c2e34,#0b161c);color:#e7dcc0;font:700 10px Georgia,serif;letter-spacing:.08em;text-transform:uppercase}
+#ledger-archive button:hover:not(:disabled){background:linear-gradient(#2d454a,#122229);border-color:#d5b75e;color:#fff4d1}
+#ledger-archive .ledger-moves button{min-height:34px;padding:4px;font:700 18px Georgia,serif;color:#d6be79}
+#ledger-archive .ledger-announcement{min-height:35px;padding:10px 2px 0;color:#89c9cb;font:600 11px Inter,system-ui,sans-serif}
+#ledger-archive footer{border-top:1px solid #a88a4366;padding-top:17px}
+#ledger-archive footer>span{color:#849a9f;font:italic 11px Georgia,serif}
+#ledger-archive .ledger-reset{color:#adbdbe}.ledger-confirm{box-shadow:inset 0 0 0 1px #fff3b02e,0 7px 20px #0008}
+#ledger-archive .ledger-confirm{background:linear-gradient(#d7bd70,#9c7c35);border-color:#ecd98f;color:#091318;text-shadow:0 1px #fff7c966}
+#ledger-archive .ledger-confirm:hover:not(:disabled){background:linear-gradient(#efda94,#b79545);color:#050a0d}
+@media(max-width:700px){#ledger-archive .ledger-panel{padding:24px 18px 20px}#ledger-archive header{margin:-24px -18px 18px;padding:24px 18px 20px}#ledger-archive .ledger-panel:before{display:none}}

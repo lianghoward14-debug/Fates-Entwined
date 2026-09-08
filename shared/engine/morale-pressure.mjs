@@ -627,6 +627,10 @@ function resolveZoneFateMoraleDamage(ctx){
         outgoing[owner] = 0;
         outgoingSources[owner] = [];
       }
+      for(const zone of resolution.zoneResults.filter(zone=>zone.controller === owner)){
+        zone.damage = String(state.landscapeId || '') === 'igb1' || moraleDamageInflictionBlocked(state, owner)
+          ? 0 : Math.floor(zone.difference / 2) * Math.pow(2, doublers.length);
+      }
   }
   for(let owner = 0; owner < 2; owner += 1) resolution.damage[1 - owner] += outgoing[owner];
   const bh18ZoneFateReductions = [];

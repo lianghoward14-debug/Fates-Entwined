@@ -1573,7 +1573,7 @@ html body #s-game .bc.fate-effect-flash .bc-fate{z-index:7!important;opacity:1!i
   --effect-flash-tint:rgba(139,86,28,.20);--effect-flash-inset:rgba(255,205,112,.14);
   --effect-flash-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 27Q14 8 32 8Q50 8 54 27M10 27Q8 37 10 48M54 27Q56 37 54 48M10 30H54M11 34L21 40L32 34L43 40L53 34M10 48Q32 52 54 48L51 57H13Z'/%3E%3Ccircle cx='23' cy='17' r='1.7' fill='black' stroke='none'/%3E%3Ccircle cx='34' cy='13' r='1.7' fill='black' stroke='none'/%3E%3Ccircle cx='43' cy='20' r='1.7' fill='black' stroke='none'/%3E%3C/g%3E%3C/svg%3E");
 }
-html body #s-game .bc.effect-flash-jake_burger::after{animation:none!important;}
+html body #s-game .bc.effect-flash-jake_burger::after{animation:none!important;left:50%!important;top:50%!important;transform:translate(-50%,-50%)!important;}
 
 /* Mark Menz — four exact declaration crests in the established full-card
    effect-flash language. Colours mirror the affiliation picker. */
@@ -5962,14 +5962,14 @@ html body #s-game .cell.zoe-block-choice{
   outline-color:rgba(255,215,0,.34)!important;
 }
 
-html body #s-game .cell.jamie-heal-choice{
+html body #s-game .cell.jaime-heal-choice{
   border-color:rgba(211,188,255,.58)!important;
   outline-color:rgba(194,160,250,.48)!important;
   background:rgba(164,122,226,.10)!important;
   box-shadow:inset 0 0 12px rgba(190,151,242,.22),0 0 10px rgba(151,103,222,.12)!important;
 }
 
-html body #s-game .cell.jamie-heal-choice:hover{
+html body #s-game .cell.jaime-heal-choice:hover{
   outline-color:rgba(225,208,255,.72)!important;
   background:rgba(174,135,234,.16)!important;
   box-shadow:inset 0 0 14px rgba(205,177,250,.28),0 0 12px rgba(163,117,229,.18)!important;
@@ -8143,12 +8143,14 @@ html body #s-game .landscape-panel .landscape-supporter-limit{
   line-height:1.12!important;
   letter-spacing:.055em!important;
   text-transform:uppercase!important;
+  transform:translateY(4px)!important;
 }
 html body #s-game .landscape-panel .landscape-supporter-limit.is-spent{
   color:#9a2f3f!important;
   font-weight:700!important;
   text-shadow:0 0 8px rgba(154,47,63,.28)!important;
 }
+
 html body #s-game #landscape-panel.landscape-panel .landscape-supporter-limit.is-spent{
   color:#9a2f3f!important;
   font-weight:700!important;
@@ -28450,34 +28452,34 @@ html body #s-game .topbar>.morale-pressure-hud.mp-morale-only .mp-status-opponen
   0%, 100% { opacity: .38; filter: saturate(.82); }
   50% { opacity: .82; filter: saturate(1.14); }
 }
-.block-overlay.block-jamie{
+.block-overlay.block-jaime{
   display:grid;place-items:center;
   color:#e8dcff;
   background:rgba(156,122,220,.18);
   border:1px solid rgba(205,181,255,.42);
   box-shadow:inset 0 0 14px rgba(189,157,248,.20),0 0 10px rgba(137,96,218,.20);
 }
-.block-overlay.block-jamie .jamie-heal-icon{width:58%;height:58%;filter:drop-shadow(0 0 8px rgba(211,190,255,.82))}
-.block-overlay.block-jamie svg{display:block;width:100%;height:100%}
+.block-overlay.block-jaime .jaime-heal-icon{width:58%;height:58%;filter:drop-shadow(0 0 8px rgba(211,190,255,.82))}
+.block-overlay.block-jaime svg{display:block;width:100%;height:100%}
 
 /* Center Oktai's low-horizon glyph optically inside the circular status frame. */
 html body #s-game .effect-pill.effect-pill-oktai-conceal .effect-pill-icon svg,
 html body .status-overflow-dropdown .effect-pill.effect-pill-oktai-conceal .effect-pill-icon svg{transform:none!important}
-.bc.fate-jamie-healing-square{isolation:isolate}
-.bc .bc-jamie-healing-square{
+.bc.fate-jaime-healing-square{isolation:isolate}
+.bc .bc-jaime-healing-square{
   position:absolute;inset:0;z-index:4;display:grid;place-items:center;border-radius:inherit;pointer-events:none;
   color:#d9c3ff;background:radial-gradient(circle,rgba(131,92,184,.20),transparent 68%);
   box-shadow:inset 0 0 16px rgba(190,151,232,.18);
-  animation:fate-jamie-heal-pulse 2.8s ease-in-out infinite;
+  animation:fate-jaime-heal-pulse 2.8s ease-in-out infinite;
 }
-.bc .bc-jamie-heal-icon{display:block;width:54%;height:54%;filter:drop-shadow(0 0 8px rgba(211,182,255,.78))}
-.bc .bc-jamie-heal-icon svg{display:block;width:100%;height:100%}
-@keyframes fate-jamie-heal-pulse{0%,100%{opacity:.4;transform:scale(.94)}50%{opacity:.84;transform:scale(1.03)}}
+.bc .bc-jaime-heal-icon{display:block;width:54%;height:54%;filter:drop-shadow(0 0 8px rgba(211,182,255,.78))}
+.bc .bc-jaime-heal-icon svg{display:block;width:100%;height:100%}
+@keyframes fate-jaime-heal-pulse{0%,100%{opacity:.4;transform:scale(.94)}50%{opacity:.84;transform:scale(1.03)}}
 
 @media (prefers-reduced-motion: reduce) {
   .bc .bc-low-morale-expiry { animation: none; opacity: .82; }
   .bc .bc-zoe-field-lock { animation: none; opacity: .64; }
-  .bc .bc-jamie-healing-square { animation: none; opacity: .68; }
+  .bc .bc-jaime-healing-square { animation: none; opacity: .68; }
 }
 
 /* Moscow tenure marker. It shares the low-Morale icon position, shifting left

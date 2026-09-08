@@ -4284,17 +4284,17 @@ function createBoardCardEl(card, z, r, c, reuseMap) {
   const isZoeBlocked = statusState.primary === 'blocked';
   const zoeFieldLockedRaw = !isHidden && typeof isZoeFieldLeaveLockedAt === 'function'
     && isZoeFieldLeaveLockedAt(card, z, r, c);
-  const jamieHealingSquareRaw = !isHidden && (
-    !!(G.blockedCells || []).find(function(block){ return block && block.type === 'jamie' && block.z === z && block.r === r && block.c === c; })
+  const jaimeHealingSquareRaw = !isHidden && (
+    !!(G.blockedCells || []).find(function(block){ return block && block.type === 'jaime' && block.z === z && block.r === r && block.c === c; })
     || !!(G?._phase7Geometry?.squareStatuses || []).find(function(status){ return status && status.type === 'MORALE_RECOVERY_SQUARE' && Number(status.z) === z && Number(status.r) === r && Number(status.c) === c; })
   );
   const highTActive = !isHidden && isHighTSourceCardActive(card);
   const isFlowerBlessed = statusState.primary === 'flower';
   const lowMoraleExpiry = getLowMoraleSupporterExpiryState(card);
   // A card may qualify for several persistent pulse overlays, but only the
-  // highest-priority one is mounted: low Morale > Zoe > Jamie.
+  // highest-priority one is mounted: low Morale > Zoe > Jaime.
   const zoeFieldLocked = zoeFieldLockedRaw && !lowMoraleExpiry.active;
-  const jamieHealingSquare = jamieHealingSquareRaw && !lowMoraleExpiry.active && !zoeFieldLockedRaw;
+  const jaimeHealingSquare = jaimeHealingSquareRaw && !lowMoraleExpiry.active && !zoeFieldLockedRaw;
   const selected = !!(G.selectedBoardCard && G.selectedBoardCard.card && G.selectedBoardCard.card.iid === card.iid);
   const iidKey = String(card.iid || '');
   const domSig = boardCardDomSignature(card, z, r, c, visual, perspectivePlayer, isHidden, selected);
@@ -4334,7 +4334,7 @@ function createBoardCardEl(card, z, r, c, reuseMap) {
     +(showMarkedIcon?' fate-marked-death':'')
     +(isZoeBlocked?' fate-blocked-action':'')
     +(zoeFieldLocked?' fate-zoe-field-lock':'')
-    +(jamieHealingSquare?' fate-jamie-healing-square':'')
+    +(jaimeHealingSquare?' fate-jaime-healing-square':'')
     +(highTActive?' fate-high-t-beat':'')
     +(isImmune?' fate-immune':'')
     +(isFlowerBlessed?' fate-flower-blessed':'')
@@ -4367,7 +4367,7 @@ function createBoardCardEl(card, z, r, c, reuseMap) {
     ${affBadge}
     ${isFlowerBlessed?'<span class="flower-king-overlay" aria-hidden="true"></span>':''}
     ${zoeFieldLocked?'<span class="bc-zoe-field-lock" aria-hidden="true"><span class="bc-zoe-field-lock-icon">'+getStatusEffectIcon('zoe_overlay')+'</span></span>':''}
-    ${jamieHealingSquare?'<span class="bc-jamie-healing-square" aria-hidden="true"><span class="bc-jamie-heal-icon">'+getStatusEffectIcon('heal_outline')+'</span></span>':''}
+    ${jaimeHealingSquare?'<span class="bc-jaime-healing-square" aria-hidden="true"><span class="bc-jaime-heal-icon">'+getStatusEffectIcon('heal_outline')+'</span></span>':''}
     ${lowMoraleExpiry.active?'<span class="bc-low-morale-expiry" data-turns-left="'+lowMoraleExpiry.turnsLeft+'" aria-hidden="true"><span class="bc-low-morale-heart">♥</span></span>':''}
     <div class="bc-fate${fateStateCls}${changed?' pulse':''}">${visual.displayFate}</div>`;
   // Spawn mini floater on the card if fate changed
@@ -5784,17 +5784,17 @@ function renderTopbarEffects() {
       });
     });
   }
-  const jamieSquares = Array.isArray(G?._phase7Geometry?.squareStatuses)
+  const jaimeSquares = Array.isArray(G?._phase7Geometry?.squareStatuses)
     ? G._phase7Geometry.squareStatuses.filter(function(status){ return String(status?.type || '') === 'MORALE_RECOVERY_SQUARE'; })
     : [];
-  jamieSquares.forEach(function(status, index){
+  jaimeSquares.forEach(function(status, index){
     const card = phase7StatusCard('bh22');
     allEffects.push({
       icon:getStatusEffectIcon('heal'),label:card ? card.ability : 'A Moonlit Shore',
-      cardName:card ? card.name : 'Jamie',cardAbility:card ? card.ability : 'A Moonlit Shore',
+      cardName:card ? card.name : 'Jaime',cardAbility:card ? card.ability : 'A Moonlit Shore',
       cardEffect:card ? card.effect : 'At every Morale calculation, recover Morale equal to the Fate of the card on the selected safe-row square.',
       owner:Number(status.sourceController),sourceIid:status.sourceIid,
-      extraClass:'effect-pill-jamie-heal',statusInstanceKey:'jamie-square:' + String(status.sourceIid || index)
+      extraClass:'effect-pill-jaime-heal',statusInstanceKey:'jaime-square:' + String(status.sourceIid || index)
     });
   });
 
@@ -5919,15 +5919,15 @@ function renderTopbarEffects() {
         });
       });
     }
-    const jamieBlocks = jamieSquares.length ? [] : G.blockedCells.filter(b => b.type === 'jamie');
-    jamieBlocks.forEach(function(block, index){
+    const jaimeBlocks = jaimeSquares.length ? [] : G.blockedCells.filter(b => b.type === 'jaime');
+    jaimeBlocks.forEach(function(block, index){
       const card = CARDS.find(c => c.id === 'bh22');
       allEffects.push({
         icon:getStatusEffectIcon('heal'),label:card ? card.ability : 'A Moonlit Shore',
-        cardName:card ? card.name : 'Jamie',cardAbility:card ? card.ability : 'A Moonlit Shore',
+        cardName:card ? card.name : 'Jaime',cardAbility:card ? card.ability : 'A Moonlit Shore',
         cardEffect:card ? card.effect : 'Recover Morale equal to the Fate on the selected square at every Morale calculation.',
         owner:Number(block.owner),sourceIid:block.sourceIid,
-        extraClass:'effect-pill-jamie-heal',statusInstanceKey:'jamie:' + String(block.sourceIid || index)
+        extraClass:'effect-pill-jaime-heal',statusInstanceKey:'jaime:' + String(block.sourceIid || index)
       });
     });
   }
@@ -9439,13 +9439,13 @@ function highlightForBlock(z, sourceCard) {
   }
 }
 
-function highlightJamieHealingSquare(sourceCard) {
+function highlightJaimeHealingSquare(sourceCard) {
   const owner = sourceCard && typeof sourceCard.owner === 'number' ? sourceCard.owner : G.currentPlayer;
   const safeRow = owner === 0 ? 2 : 0;
-  toast('Jamie: choose a square in your safe row');
+  toast('Jaime: choose a square in your safe row');
   G.placing=true;
   G.blockingCell=true;
-  G._blockingEffectType='jamie';
+  G._blockingEffectType='jaime';
   G._blockingEffectSourceIid=sourceCard && sourceCard.iid;
   G._blockingEffectZone=-2;
   window._blockZone=-2;
@@ -9456,10 +9456,10 @@ function highlightJamieHealingSquare(sourceCard) {
     for(let c=0;c<row.length;c++){
       if((G.blockedCells||[]).some(function(block){return block&&block.z===z&&block.r===r&&block.c===c;}))continue;
       const el=document.querySelector('#board .cell[data-z="'+z+'"][data-r="'+r+'"][data-c="'+c+'"]');
-      if(el)el.classList.add('placeable','block-target-choice','jamie-heal-choice');
+      if(el)el.classList.add('placeable','block-target-choice','jaime-heal-choice');
     }
   }
-  if(window.FateMatchRendererAdapter&&typeof window.FateMatchRendererAdapter.scheduleRender==='function')window.FateMatchRendererAdapter.scheduleRender('jamie-square-selection');
+  if(window.FateMatchRendererAdapter&&typeof window.FateMatchRendererAdapter.scheduleRender==='function')window.FateMatchRendererAdapter.scheduleRender('jaime-square-selection');
 }
 
 function highlightAllOpenCells() {
@@ -11082,7 +11082,7 @@ function normalizeBlockedCells() {
     if(!b) return;
     const z = Number(b.z), r = Number(b.r), c = Number(b.c);
     if(!Number.isFinite(z) || !Number.isFinite(r) || !Number.isFinite(c)) return;
-    const type = b.type === 'carolyn' ? 'carolyn' : (b.type === 'jamie' ? 'jamie' : 'zoe');
+    const type = b.type === 'carolyn' ? 'carolyn' : (b.type === 'jaime' ? 'jaime' : 'zoe');
     const key = z + ':' + r + ':' + c;
     const prev = seen.get(key);
     // Carolyn is stronger; keep her if duplicate blocks ever exist.
@@ -11111,8 +11111,8 @@ function showBlockVisual(z, r, c, blockType) {
   if(blockType === 'carolyn') {
     overlay.innerHTML = '<div class="block-icon carolyn-lock-icon" aria-label="Carolyn lock"></div>';
     overlay.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:80;border-radius:4px;';
-  } else if(blockType === 'jamie') {
-    overlay.innerHTML = '<div class="block-icon jamie-heal-icon" aria-label="Jamie healing square">'+getStatusEffectIcon('heal_outline')+'</div>';
+  } else if(blockType === 'jaime') {
+    overlay.innerHTML = '<div class="block-icon jaime-heal-icon" aria-label="Jaime healing square">'+getStatusEffectIcon('heal_outline')+'</div>';
     overlay.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:81;border-radius:7px;';
   } else {
     overlay.innerHTML = '<div class="block-icon">−</div><div class="block-label">NO CONSOLIDATE</div>';

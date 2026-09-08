@@ -16,6 +16,9 @@ const storeV2 = read('src/scripts/09-challenger-v2.js');
 const css = read('src/styles/zz-codex-last.css');
 const adapter = read('src/scripts/render-v2/04-match-renderer-adapter.js');
 
+assert.match(css,/landscape-supporter-limit[\s\S]{0,700}transform:translateY\(4px\)!important/,
+  'Snow on the Carpathians supporter-effect state must sit four pixels lower');
+
 assert.match(rendering, /cardActsAsPassive\(bc, '93'\)[\s\S]{0,260}snowBtn\.textContent='Snowball Fight'/,
   'Wodny Potok Youth board action must be labelled Snowball Fight');
 assert.match(data, /For the next five turns, your opponent cannot change the current landscape\. You can only activate this effect twice a game'/,

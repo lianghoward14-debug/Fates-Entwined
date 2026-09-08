@@ -19,6 +19,8 @@
     const original = ordered.slice();
     const root = document.createElement('div');
     root.id = 'ledger-archive';
+    root.className = 'ledger-archive-v2';
+    root.dataset.ledgerUiVersion = '2';
     root.innerHTML = '<section class="ledger-panel" role="dialog" aria-modal="true" aria-labelledby="ledger-title" aria-describedby="ledger-help"><header><span class="ledger-eyebrow">THE LEDGER-KEEPERS</span><h2 id="ledger-title">The Hidden Archive</h2><p id="ledger-help">Arrange your next draws. Drag cards or use the arrow buttons.</p></header><div class="ledger-direction"><span>01 · DRAWS NEXT</span><span>LATER DRAWS →</span></div><div class="ledger-cards" role="list"></div><p class="ledger-announcement" aria-live="polite"></p><footer><span>The rest of your deck stays in order.</span><div><button type="button" class="ledger-reset">Reset order</button><button type="button" class="ledger-confirm">Confirm order</button></div></footer></section>';
     const list = root.querySelector('.ledger-cards');
     const announce = root.querySelector('.ledger-announcement');

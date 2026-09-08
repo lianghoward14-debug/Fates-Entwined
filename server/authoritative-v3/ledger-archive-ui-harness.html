@@ -5,7 +5,7 @@
 <h1>Ledger Archive verification</h1><button id="open">Open reorder window</button><pre id="result">No order submitted.</pre>
 <script src="src/scripts/51-ledger-archive.js"></script>
 <script>
-const samples = [{id:'75',name:'The Ledger-keepers',img:'75.png?v=20260907-ledger'},{id:'42',name:'West German Soldier',img:'42.png'},{id:'01',name:'Felicyta Janowicz',img:'1.png'},{id:'29',name:'Dylan Kirby',img:'29.png'},{id:'38',name:'Jake',img:'38.png'}].map((card,index)=>({...card,iid:'card-'+index}));
+const samples = [{id:'75',name:'The Ledger-keepers',img:'75.png?v=20260907-ledger2'},{id:'42',name:'West German Soldier',img:'42.png'},{id:'01',name:'Felicyta Janowicz',img:'1.png'},{id:'29',name:'Dylan Kirby',img:'29.png'},{id:'38',name:'Jake',img:'38.png'}].map((card,index)=>({...card,iid:'card-'+index}));
 document.getElementById('open').onclick = ()=>openLedgerArchive(samples,{key:'verification',onConfirm:ordered=>{document.getElementById('result').textContent='Saved draw order:\n'+ordered.map((card,i)=>(i+1)+'. '+card.name).join('\n');return true;}});
 document.getElementById('open').click();
 </script></body></html>

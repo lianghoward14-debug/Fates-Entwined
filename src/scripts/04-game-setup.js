@@ -249,6 +249,10 @@ function startGame(vsAI=false) {
   }
   initGameState();
   G._aiFateMultiplier = vsAI ? getAIFateMultiplier(G._selectedAI) : 1;
+  // The replacement authoritative screen is incomplete and remains an explicit
+  // test route. Ordinary AI matches continue through the shipping renderer.
+  G._rulesAiMatch = false;
+  G._canonicalAiResult = null;
   if(typeof applyGameBackground === 'function'){
     _lastGameSong = applyGameBackground(G._onlineGameSong || null);
   }
@@ -280,6 +284,8 @@ function startOnlineServerBootstrappedGame(options) {
   G.aiEnabled = false;
   G.aiPlayer = 1;
   initGameState();
+  G._rulesAiMatch = false;
+  G._canonicalAiResult = null;
   if(typeof applyGameBackground === 'function'){
     _lastGameSong = applyGameBackground(opts.song || G._onlineGameSong || null);
   }
@@ -2215,6 +2221,20 @@ function chooseTurn(goFirst) {
   const entryVeilStarted = showMatchEntryLoadingVeil();
   recordMatchEntryStep('choose-turn-start');
   G.currentPlayer = goFirst ? G._coinWinner : (1-G._coinWinner);
+  if(G._rulesAiMatch){
+    Promise.resolve(window.FateAIReady).then(()=>{
+      const authority=window.FateAuthorityV3SinglePlayer;
+      if(!authority)throw new Error('The AI game engine could not load. Please reload the game.');
+      stopTurnTimer();
+      authority.startFromLegacyUi({vsAI:true,activePlayer:G.currentPlayer,onComplete:finishRulesAiMatch});
+      hideMatchEntryLoadingVeil(entryVeilStarted);
+    }).catch(error=>{
+      hideMatchEntryLoadingVeil(entryVeilStarted);
+      console.error('[Fate AI] match entry failed',error);
+      toast(error.message);
+    });
+    return;
+  }
   if(typeof window.initializeLegacyMoralePressure === 'function') {
     window.initializeLegacyMoralePressure(G.currentPlayer);
   }
@@ -2246,6 +2266,23 @@ function chooseTurn(goFirst) {
       }
     }
   });
+}
+
+// Preserve the existing result screen, rewards and Challenger bookkeeping,
+// while accepting the winner and zone scores from the actual match authority.
+function finishRulesAiMatch(view){
+  if(!G._rulesAiMatch || G._canonicalAiResult)return;
+  const state=view.state;
+  G._canonicalAiResult={outcome:state.outcome,zones:view.finalZoneScores};
+  G.board=state.board.map(zone=>zone.map(row=>row.map(card=>card ? {...card,fate:card.baseFate,aff:card.affiliation} : null)));
+  G._moralePressure=state.moralePressure;
+  G.turn=state.turn;G.turnNumber=state.turn;G.maxTurns=state.maxTurns;
+  G.players.forEach((player,index)=>{
+    player.hand=state.completedHands?.[index] || state.players[index].hand || [];
+    player.discard=state.players[index].discard || [];
+  });
+  window.FateAuthorityV3SinglePlayer.stopMatch();
+  checkWin();
 }
 
 // ═══════════════════════════════════════════════════════

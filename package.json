@@ -102,7 +102,9 @@
     "dist:mac": "electron-builder --mac dmg",
     "dist:portable": "electron-builder --win portable",
     "dist:all": "electron-builder --win nsis portable",
-    "pack": "electron-builder --dir"
+    "pack": "electron-builder --dir",
+    "smoke:ai-replacement": "node server/authoritative-v3/new-ai-foundation-test.mjs && node server/authoritative-v3/new-ai-policy-test.mjs && node server/authoritative-v3/morale-ai-policy-smoke-test.mjs && node server/authoritative-v3/ai-tactical-benchmark.mjs && node server/authoritative-v3/phase5-local-session-smoke-test.mjs && node server/authoritative-v3/phase5-screen-routing-smoke-test.mjs && node server/authoritative-v3/phase5-screen-coverage-smoke-test.mjs",
+    "benchmark:ai-full": "node server/authoritative-v3/new-ai-full-game-test.mjs 2"
   },
   "build": {
     "appId": "com.fatesentwined.desktop",

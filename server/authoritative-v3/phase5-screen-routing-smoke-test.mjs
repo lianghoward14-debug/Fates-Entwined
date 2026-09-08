@@ -19,7 +19,8 @@ const screenSource = read('src/scripts/authoritative-v3-single-player-screen.mjs
 
 assert.match(
   indexSource,
-  /if\(params\.get\('fateV3SinglePlayer'\) !== '1'\) return;\s*import\('\.\/src\/scripts\/authoritative-v3-single-player-adapter\.mjs'\)/
+  /get\('fateV3SinglePlayer'\) !== '1'\) return;[\s\S]{0,120}import\('\.\/src\/scripts\/authoritative-v3-single-player-adapter\.mjs'\)/,
+  'unfinished authoritative screen must remain isolated behind its exact opt-in flag'
 );
 assert.match(
   setupSource,

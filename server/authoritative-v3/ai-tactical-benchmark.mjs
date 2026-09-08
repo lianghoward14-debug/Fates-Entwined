@@ -70,11 +70,12 @@ check('Visible reaction is searched and hidden hand is not consulted',()=>{
 check('Supporter setup precedes consolidation payoff',()=>{
   let state = fixture([['47','67'],['05']]);
   state.turn = 5;
-  const result = plan(state);
-  const setup = result.sequence.findIndex(c=>c.type === 'SET_CARD');
-  const payoff = result.sequence.findIndex(c=>c.type === 'CONSOLIDATE_CARD');
-  assert(setup >= 0 && payoff > setup,'develop reinforcement before spending it');
-  for(const command of result.sequence) state=apply(state,0,command);
+  let result = plan(state);
+  assert.equal(result.command.type,'SET_CARD','develop reinforcement before spending it');
+  state=apply(state,0,result.command);
+  result = plan(state);
+  assert.equal(result.command.type,'CONSOLIDATE_CARD','replan into the payoff after setup resolves');
+  state=apply(state,0,result.command);
   const payoffCard = state.board.flat(3).find(c=>c?.id === '67');
   assert(payoffCard && payoffCard.currentFate >= 4,'setup must produce the stronger board card');
 });

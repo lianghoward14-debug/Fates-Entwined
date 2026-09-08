@@ -1,4 +1,4 @@
-﻿//  CARD DATABASE
+//  CARD DATABASE
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // Affiliations: third_great_war | eventide | expanded_worlds | reality
 // Types: Supporter | Initiator | Coordinator | Dauntless | Improvisor
@@ -455,7 +455,7 @@ const CARDS = [
   {id:'75',name:'The Ledger-keepers',ability:'The Hidden Archive',type:'Supporter',aff:'eventide',
     fate:1,cost:0,rarity:'circle',
     effect:'When set, reveal the top five cards of your deck and rearrange them in any order.',
-    flavor:'"Everyone who has ever lived and died in Pacifica - Has an archival record kept and maintained by the Ledger Keepers"',img:'75.png?v=20260907-ledger'},
+    flavor:'"Everyone who has ever lived and died in Pacifica - Has an archival record kept and maintained by the Ledger Keepers"',img:'75.png?v=20260907-ledger2'},
   {id:'76',name:'ALPINE Infantry',ability:'Infiltration',type:'Supporter',aff:'expanded_worlds',
     fate:1,cost:0,rarity:'circle',
     effect:'When set, this card gains 5 Fate. However this card cannot be used for Consolidation, it cannot be discarded, it cannot be counted for any bonuses, and is immune to all effects.',
@@ -545,7 +545,7 @@ const CARDS = [
     fate:3,cost:3,rarity:'triangle',set:'brave_horizons',
     effect:'For the next four turns, your opponent can no longer see Fate values, Morale values, Hand Count, the Timer, the turn count, or Status Effect banners.',
     flavor:'"The Taklamakan is vast and unforgiving - just like my ex-wife"',img:'bh21.png?v=20260830d'},
-  {id:'bh22',name:'Jamie',ability:'A Moonlit Shore',type:'Initiator',aff:'expanded_worlds',
+  {id:'bh22',name:'Jaime',ability:'A Moonlit Shore',type:'Initiator',aff:'expanded_worlds',
     fate:5,cost:2,rarity:'triangle',set:'brave_horizons',
     effect:'Select a square in your safe row. At every Morale calculation, recover Morale equal to the Fate of the card on that square.',
     flavor:'"Do you see it? Serenity, painted in soaring streaks across the sky."',img:'bh22.png?v=20260830c'},

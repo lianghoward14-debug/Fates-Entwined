@@ -1,4 +1,4 @@
-﻿//  AI PLAYER (Smart Strategy)
+//  AI PLAYER (Smart Strategy)
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // Strategy:
 //  1. Analyze zone control — identify which 2 zones to fight for
@@ -241,6 +241,7 @@ function aiProjectedOpponentAction(hypoMy, hypoOp){
 }
 
 async function runAITurn() {
+  if(G._rulesAiMatch || window.FateAuthorityV3SinglePlayer?.currentScreen?.()) return;
   if(G.currentPlayer !== G.aiPlayer) return;
   if(G._aiRunning) return;
   if(typeof _tutorialActive !== 'undefined' && _tutorialActive && typeof runTutorialAITurn === 'function') {
@@ -5295,9 +5296,9 @@ async function aiRunEffect(card, z, r, c) {
       if(choices.length){
         choices.sort((a,b)=>b.score-a.score);
         const best=choices[0];
-        G.blockedCells.push({...best,type:'jamie',owner:cp,blockedPlayer:null,sourceIid:card.iid});
+        G.blockedCells.push({...best,type:'jaime',owner:cp,blockedPlayer:null,sourceIid:card.iid});
         effectNeedsBlocks=true;
-        if(typeof showBlockVisual==='function')showBlockVisual(best.z,best.r,best.c,'jamie');
+        if(typeof showBlockVisual==='function')showBlockVisual(best.z,best.r,best.c,'jaime');
         if(typeof refreshStatusEffectsNow==='function')refreshStatusEffectsNow();
       }
       break;

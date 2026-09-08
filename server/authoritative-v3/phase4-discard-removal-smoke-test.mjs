@@ -4,6 +4,7 @@ import {
   reduceCommand,
   stableStringify
 } from '../../shared/engine/index.mjs';
+import {legalCommandTemplates} from '../../shared/engine/legal-commands.mjs';
 import {command} from './test-helpers.mjs';
 
 const DEFINITIONS = [
@@ -108,15 +109,48 @@ assert(result.events.some(event=>
 assert.equal(result.events.some(event=>event.type === 'EFFECT_ACTIVATED'), false);
 assert.equal(result.events.some(event=>event.type === 'EFFECT_RESOLVED'), false);
 
-// Jake sacrifices a controlled Supporter anywhere on the field, gains 4 Fate,
-// and cannot resolve again in the same authoritative turn.
-state = stateFor('P4DISCARD38', ['38', '32', '76']);
-const jake = moveToBoard(state, 0, '38', {z:0, r:2, c:0});
+// Setting Jake never activates him. Only an explicit player activation can
+// sacrifice a controlled Supporter, grant 4 Fate, and consume the turn use.
+state = stateFor('P4DISCARD38', ['38', '32', '32', '32', '32', '76']);
+const jake = takeCard(state, 0, '38');
+const jakeTributes = [
+  moveToBoard(state, 0, '32', {z:0, r:2, c:0}),
+  moveToBoard(state, 0, '32', {z:0, r:2, c:1}),
+  moveToBoard(state, 0, '32', {z:0, r:2, c:2})
+];
 const jakeSacrifice = moveToBoard(state, 0, '32', {z:2, r:2, c:0});
 const immutableSacrifice = moveToBoard(state, 0, '76', {z:1, r:2, c:0});
 result = reduceCommand(
   state,
-  command(state, 'p0', 4, 'ACTIVATE_EFFECT', {sourceIid:jake.iid}),
+  command(state, 'p0', 4, 'CONSOLIDATE_CARD', {
+    cardIid:jake.iid,
+    tributeIids:jakeTributes.map(card=>card.iid),
+    destination:{z:0, r:2, c:0}
+  }),
+  {playerId:'p0'}
+);
+assert.equal(result.ok, true);
+assert.equal(result.prompt, null, 'setting Jake must not open his sacrifice picker');
+assert.equal(result.state.board[0][2][0].currentFate, 1);
+assert.equal(result.state.board[2][2][0].iid, jakeSacrifice.iid);
+assert.equal(result.events.some(event=>event.type === 'EFFECT_ACTIVATED' && event.sourceIid === jake.iid), false);
+state = result.state;
+const jakeManualCommand = legalCommandTemplates(state, 0).find(entry=>
+  entry.type === 'ACTIVATE_EFFECT' && String(entry.payload?.sourceIid || '') === String(jake.iid)
+);
+assert(jakeManualCommand, 'Jake should expose an explicit activation command');
+assert.equal(jakeManualCommand.manualOnly, true);
+assert.equal(jakeManualCommand.payload.userActivated, undefined, 'legal templates must not forge click intent');
+result = reduceCommand(
+  state,
+  command(state, 'p0', 5, 'ACTIVATE_EFFECT', {sourceIid:jake.iid}),
+  {playerId:'p0'}
+);
+assert.equal(result.ok, false);
+assert.equal(result.rejection.code, 'MANUAL_ACTIVATION_REQUIRED');
+result = reduceCommand(
+  state,
+  command(state, 'p0', 6, 'ACTIVATE_EFFECT', {sourceIid:jake.iid, userActivated:true}),
   {playerId:'p0'}
 );
 assert.equal(result.ok, true);
@@ -125,7 +159,7 @@ assert.equal(result.prompt.eligibleIids.includes(immutableSacrifice.iid), false)
 state = result.state;
 result = reduceCommand(
   state,
-  command(state, 'p0', 5, 'ANSWER_PROMPT', {
+  command(state, 'p0', 7, 'ANSWER_PROMPT', {
     promptId:state.pendingPrompt.promptId,
     selectedIid:jakeSacrifice.iid
   }),
@@ -141,7 +175,7 @@ assert.deepStrictEqual(
 state = result.state;
 result = reduceCommand(
   state,
-  command(state, 'p0', 6, 'ACTIVATE_EFFECT', {sourceIid:jake.iid}),
+  command(state, 'p0', 8, 'ACTIVATE_EFFECT', {sourceIid:jake.iid, userActivated:true}),
   {playerId:'p0'}
 );
 assert.equal(result.ok, false);

@@ -1,0 +1,172 @@
+[
+  {
+    "id": "ai_last_mohicans_ledger",
+    "name": "The Last Mohican's Ledger",
+    "enabled": true,
+    "characters": 10,
+    "supporters": 30,
+    "cost": 16,
+    "supply": 33,
+    "oldCost": 14
+  },
+  {
+    "id": "ai_hellenic_heartbreaker",
+    "name": "Hellenic Heartbreaker",
+    "enabled": true,
+    "characters": 10,
+    "supporters": 30,
+    "cost": 17,
+    "supply": 33,
+    "oldCost": 17
+  },
+  {
+    "id": "ai_hungarian_war_dance",
+    "name": "Hungarian War Dance",
+    "enabled": true,
+    "characters": 10,
+    "supporters": 30,
+    "cost": 13,
+    "supply": 30,
+    "oldCost": 31
+  },
+  {
+    "id": "ai_great_oak_salvo",
+    "name": "Great Oak Salvo",
+    "enabled": true,
+    "characters": 10,
+    "supporters": 30,
+    "cost": 16,
+    "supply": 30,
+    "oldCost": 19
+  },
+  {
+    "id": "ai_adjacency_doctrine",
+    "name": "Adjacency Doctrine",
+    "enabled": false,
+    "characters": 10,
+    "supporters": 30,
+    "cost": 19,
+    "supply": 33,
+    "oldCost": 52
+  },
+  {
+    "id": "ai_safe_row_sanctuary",
+    "name": "Safe-Row Sanctuary",
+    "enabled": true,
+    "characters": 10,
+    "supporters": 30,
+    "cost": 18,
+    "supply": 33,
+    "oldCost": 24
+  },
+  {
+    "id": "ai_reinforcement_exchange",
+    "name": "Reinforcement Exchange",
+    "enabled": true,
+    "characters": 10,
+    "supporters": 30,
+    "cost": 20,
+    "supply": 33,
+    "oldCost": 37
+  },
+  {
+    "id": "ai_alpine_furnace",
+    "name": "ALPINE Consolidation Engine",
+    "enabled": true,
+    "characters": 10,
+    "supporters": 30,
+    "cost": 14,
+    "supply": 33,
+    "oldCost": 32
+  },
+  {
+    "id": "ai_alpine_iron_line",
+    "name": "ALPINE Iron Line",
+    "enabled": true,
+    "characters": 10,
+    "supporters": 30,
+    "cost": 13,
+    "supply": 30,
+    "oldCost": 25
+  },
+  {
+    "id": "ai_eventide_blockade",
+    "name": "Eventide Blockade",
+    "enabled": true,
+    "characters": 10,
+    "supporters": 30,
+    "cost": 21,
+    "supply": 33,
+    "oldCost": 30
+  },
+  {
+    "id": "ai_hand_quarantine",
+    "name": "Hand Quarantine",
+    "enabled": true,
+    "characters": 10,
+    "supporters": 30,
+    "cost": 15,
+    "supply": 30,
+    "oldCost": 20
+  },
+  {
+    "id": "ai_high_t_draw_mill",
+    "name": "High-T Draw Mill",
+    "enabled": true,
+    "characters": 10,
+    "supporters": 30,
+    "cost": 20,
+    "supply": 33,
+    "oldCost": 41
+  },
+  {
+    "id": "ai_university_counterbattery",
+    "name": "University Counterbattery",
+    "enabled": true,
+    "characters": 10,
+    "supporters": 30,
+    "cost": 15,
+    "supply": 33,
+    "oldCost": 38
+  },
+  {
+    "id": "ai_selva_tidal_strike",
+    "name": "Selva Tidal Strike",
+    "enabled": true,
+    "characters": 10,
+    "supporters": 30,
+    "cost": 22,
+    "supply": 33,
+    "oldCost": 51
+  },
+  {
+    "id": "ai_crown_of_five",
+    "name": "Crown of Five",
+    "enabled": true,
+    "characters": 10,
+    "supporters": 30,
+    "cost": 22,
+    "supply": 33,
+    "oldCost": 40
+  },
+  {
+    "id": "ai_snowball_fight_club",
+    "name": "Snowball Fight Club",
+    "enabled": true,
+    "characters": 10,
+    "supporters": 30,
+    "cost": 17,
+    "supply": 30,
+    "oldCost": 22
+  },
+  {
+    "id": "ai_wintertide_family_reunion",
+    "name": "Wintertide Family Reunion",
+    "enabled": true,
+    "characters": 10,
+    "supporters": 30,
+    "cost": 26,
+    "supply": 33,
+    "oldCost": 55
+  }
+]

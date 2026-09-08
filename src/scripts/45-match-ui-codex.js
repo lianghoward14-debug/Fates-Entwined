@@ -242,7 +242,7 @@
   function update(){
     const root=$(ROOT),game=$('s-game');if(!root||!game)return;
     game.querySelectorAll(LEGACY_SOURCE_SELECTOR).forEach(suppressLegacyNode);
-    suppressLegacyNode($('board'));
+    if(!document.body.classList.contains('fate-authority-v3-single-player-active'))suppressLegacyNode($('board'));
     for(const cls of [...game.classList]){
       if((/^match-ui-v\d+-live$/.test(cls)&&cls!=='match-ui-v19-live')||cls==='poster-raster-live')game.classList.remove(cls);
     }

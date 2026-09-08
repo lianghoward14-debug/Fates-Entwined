@@ -1,0 +1,17 @@
+<!doctype html><meta charset="utf-8"><title>Replacement AI worker check</title>
+<h1>Replacement AI worker check</h1><pre id="result">Running worker search…</pre>
+<script type="module">
+import {createInitialState,legalCommandTemplates,projectStateForPlayer} from '../../shared/engine/index.mjs';
+import {AiSearchWorker} from '../../src/scripts/new-ai-worker-client.mjs';
+const output=document.getElementById('result');
+const worker=new AiSearchWorker();
+try{
+ const state=createInitialState({matchId:'worker-browser-check',seed:'fixed',handSize:1,
+  cardDefinitions:[{id:'05',name:'Supporter',type:'Supporter',fate:1,cost:0}],players:[{id:'p0',deckIds:['05']},{id:'p1',deckIds:[]}],gameSettings:{healthPressureSeals:true}});
+ state.turn=24;const card=state.players[0].hand.pop();card.currentFate=30;state.board[0][2][0]=card;state.moralePressure.morale[1]=1;
+ const result=await worker.decide(legalCommandTemplates(state,0),projectStateForPlayer(state,0),{canonicalState:state,playerIndex:0,style:'cautious',samples:1,nodeBudget:30});
+ if(result.command?.type!=='END_TURN')throw new Error('Worker failed guaranteed lethal');
+ if(result.trace?.personality?.name!=='cautious')throw new Error('Worker lost personality');
+ output.textContent='PASS: module worker loaded, returned legal lethal, and preserved cautious personality.\n'+JSON.stringify(result.trace,null,2);
+}catch(error){output.textContent='FAIL: '+error.stack;}finally{worker.dispose();}
+</script>

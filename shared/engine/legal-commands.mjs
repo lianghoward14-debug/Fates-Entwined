@@ -465,7 +465,7 @@ export function legalCommandTemplates(state, playerIndex){
           type:'ACTIVATE_EFFECT',
           cardId:runtimeRuleId(entry.card),
           manualOnly:rule.manualOnly === true,
-          payload:{sourceIid:entry.card.iid, ...(rule.manualOnly === true ? {userActivated:true} : {})}
+          payload:{sourceIid:entry.card.iid}
         });
       }
     }

@@ -889,6 +889,7 @@ const REGISTRY = Object.freeze({
   },
   '38':{
     timings:['ACTIVATE'],
+    manualOnly:true,
     operations:['DISCARD_CARD', 'MODIFY_FATE'],
     prompts:['BOARD_TARGET'],
     oncePerTurn:true,

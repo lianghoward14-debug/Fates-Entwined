@@ -1935,17 +1935,17 @@
 
   function drawBlockOverlay(ctx, r, block){
     if(!block) return;
-    const type = block.type === 'carolyn' ? 'carolyn' : (block.type === 'jamie' ? 'jamie' : 'zoe');
+    const type = block.type === 'carolyn' ? 'carolyn' : (block.type === 'jaime' ? 'jaime' : 'zoe');
     const isCarolyn = type === 'carolyn';
-    const isJamie = type === 'jamie';
+    const isJaime = type === 'jaime';
     const cx = r.x + r.w / 2;
     const cy = r.y + r.h / 2;
     ctx.save();
     roundedPath(ctx, r.x + 1, r.y + 1, Math.max(0, r.w - 2), Math.max(0, r.h - 2), 5);
-    ctx.fillStyle = isCarolyn ? 'rgba(88,12,18,.34)' : (isJamie ? 'rgba(235,143,204,.22)' : 'rgba(70,42,120,.22)');
+    ctx.fillStyle = isCarolyn ? 'rgba(88,12,18,.34)' : (isJaime ? 'rgba(235,143,204,.22)' : 'rgba(70,42,120,.22)');
     ctx.fill();
     ctx.lineWidth = isCarolyn ? 1.8 : 1.45;
-    ctx.strokeStyle = isCarolyn ? 'rgba(255,86,92,.72)' : (isJamie ? 'rgba(255,190,231,.78)' : 'rgba(190,150,255,.66)');
+    ctx.strokeStyle = isCarolyn ? 'rgba(255,86,92,.72)' : (isJaime ? 'rgba(255,190,231,.78)' : 'rgba(190,150,255,.66)');
     ctx.stroke();
     if(isCarolyn){
       const size = Math.max(30, Math.min(44, Math.min(r.w, r.h) * .32));
@@ -1985,7 +1985,7 @@
       ctx.strokeStyle = 'rgba(36,26,24,.90)';
       ctx.stroke();
       ctx.restore();
-    } else if(isJamie){
+    } else if(isJaime){
       const size=Math.max(12,Math.min(24,Math.min(r.w,r.h)*.24));
       ctx.strokeStyle='rgba(246,209,239,.96)';ctx.lineWidth=Math.max(1.8,size*.11);ctx.lineJoin='round';ctx.shadowColor='rgba(238,169,220,.9)';ctx.shadowBlur=10;
       ctx.beginPath();ctx.moveTo(cx-size*.22,cy-size*.62);ctx.lineTo(cx+size*.22,cy-size*.62);ctx.lineTo(cx+size*.22,cy-size*.22);ctx.lineTo(cx+size*.62,cy-size*.22);ctx.lineTo(cx+size*.62,cy+size*.22);ctx.lineTo(cx+size*.22,cy+size*.22);ctx.lineTo(cx+size*.22,cy+size*.62);ctx.lineTo(cx-size*.22,cy+size*.62);ctx.lineTo(cx-size*.22,cy+size*.22);ctx.lineTo(cx-size*.62,cy+size*.22);ctx.lineTo(cx-size*.62,cy-size*.22);ctx.lineTo(cx-size*.22,cy-size*.22);ctx.closePath();ctx.stroke();
@@ -2024,7 +2024,7 @@
       if(!b || Number(b.z) !== Number(z) || Number(b.r) !== Number(r) || Number(b.c) !== Number(c)) continue;
       if(!type || b.type === type) return true;
     }
-    if(type === 'jamie'){
+    if(type === 'jaime'){
       const statuses=G&&G._phase7Geometry&&Array.isArray(G._phase7Geometry.squareStatuses)?G._phase7Geometry.squareStatuses:[];
       return statuses.some(function(status){return status&&status.type==='MORALE_RECOVERY_SQUARE'&&Number(status.z)===Number(z)&&Number(status.r)===Number(r)&&Number(status.c)===Number(c);});
     }
@@ -2089,10 +2089,10 @@
       || squareMatchesOption(G._singlePlayerPlacementOptions, z, r, c)) return true;
     if(G.blockingCell){
       const rawBlockZone = typeof window !== 'undefined' ? window._blockZone : null;
-      const blockType = G._blockingEffectType === 'jamie' ? 'jamie' : (Number(rawBlockZone) === -1 ? 'carolyn' : 'zoe');
-      const blockZ = blockType === 'carolyn' || blockType === 'jamie' ? z : Number(rawBlockZone);
+      const blockType = G._blockingEffectType === 'jaime' ? 'jaime' : (Number(rawBlockZone) === -1 ? 'carolyn' : 'zoe');
+      const blockZ = blockType === 'carolyn' || blockType === 'jaime' ? z : Number(rawBlockZone);
       const owner = Number(G.currentPlayer) || 0;
-      if(blockType === 'jamie'){
+      if(blockType === 'jaime'){
         if(cellHasBlock(z, r, c)) return false;
         if(typeof isOwnSafeRowSquare === 'function') {
           try { return !!isOwnSafeRowSquare(z, r, c, owner); } catch(e) { return false; }
@@ -2161,8 +2161,8 @@
     const z = Number(cell.z);
     const r = Number(cell.r);
     const c = Number(cell.c);
-    if(G._phase7EffectSquareKind === 'jamie' || G._phase7EffectSquareKind === 'zoe') return G._phase7EffectSquareKind;
-    if(G.blockingCell && G._blockingEffectType === 'jamie') return 'jamie';
+    if(G._phase7EffectSquareKind === 'jaime' || G._phase7EffectSquareKind === 'zoe') return G._phase7EffectSquareKind;
+    if(G.blockingCell && G._blockingEffectType === 'jaime') return 'jaime';
     if(squareMatchesOption(G._phase7DestinationOptions, z, r, c)
       || squareMatchesOption(G._singlePlayerPlacementOptions, z, r, c)) return 'move';
     const optionStates = [G._wolfCreekMoving, G._berkeleyMoving, G._landscapeMoving, G._busserMoving];
@@ -2216,7 +2216,7 @@
   }
 
   function drawSquareSelectionCue(ctx, r, kind){
-    if(String(kind || '') === 'jamie') {
+    if(String(kind || '') === 'jaime') {
       const t = animationsOff() ? .5 : ((Math.sin(nowMs() / 240) + 1) / 2);
       ctx.save();
       roundedPath(ctx, r.x + 3, r.y + 3, Math.max(0, r.w - 6), Math.max(0, r.h - 6), 6);
@@ -2990,12 +2990,12 @@
         ? window.isZoeFieldLeaveLockedAt(entry.card, entry.z, entry.r, entry.c)
         : (flags.zoeBlocked || cellHasBlock(entry.z, entry.r, entry.c, 'zoe'))
     ));
-    const jamieHealing = !!(showStatus && entry && entry.card && cellHasBlock(entry.z, entry.r, entry.c, 'jamie'));
+    const jaimeHealing = !!(showStatus && entry && entry.card && cellHasBlock(entry.z, entry.r, entry.c, 'jaime'));
     const lowMoraleExpiry = !!(showStatus && entry && entry.card && typeof window !== 'undefined'
       && typeof window.getLowMoraleSupporterExpiryState === 'function'
       && window.getLowMoraleSupporterExpiryState(entry.card).active);
     const showZoePulse = zoeBlocked && !lowMoraleExpiry;
-    const showJamiePulse = jamieHealing && !lowMoraleExpiry && !zoeBlocked;
+    const showJaimePulse = jaimeHealing && !lowMoraleExpiry && !zoeBlocked;
     const statusState = getCardVisualStatusState(entry, {
       negated,
       suppressed,
@@ -3027,8 +3027,8 @@
       drawBlockedActionCardOverlay(ctx, r);
       scheduleLowMoraleSupporterPulse();
     }
-    if(showJamiePulse){
-      drawJamieHealingCardOverlay(ctx,r);
+    if(showJaimePulse){
+      drawJaimeHealingCardOverlay(ctx,r);
       scheduleLowMoraleSupporterPulse();
     }
     if(primaryStatus === 'negated') drawNegatedCardOverlay(ctx, r);
@@ -3247,7 +3247,7 @@
     ctx.restore();
   }
 
-  function drawJamieHealingCardOverlay(ctx,r){
+  function drawJaimeHealingCardOverlay(ctx,r){
     if(!ctx||!r)return;
     const phase=(Math.sin((Date.now()%2800)/2800*Math.PI*2)+1)/2;
     const cx=r.x+r.w*.5,cy=r.y+r.h*.5,size=Math.min(r.w,r.h)*(.25+phase*.025);
@@ -3401,13 +3401,13 @@
 
     if(kind === 'jake_burger') {
       ctx.lineWidth = 4;
-      line([[-22,-5],[-18,-18],[-9,-24],[0,-26],[9,-24],[18,-18],[22,-5]],false);
-      line([[-22,-5],[-24,5],[-22,16]],false);
-      line([[22,-5],[24,5],[22,16]],false);
-      line([[-22,-2],[22,-2]],false);
-      line([[-21,4],[-11,10],[0,4],[11,10],[21,4]],false);
-      line([[-22,16],[-12,19],[0,20],[12,19],[22,16],[19,25],[-19,25],[-22,16]],true);
-      dot(-9,-16,1.7); dot(2,-20,1.7); dot(11,-13,1.7);
+      line([[10,27],[14,14],[23,8],[32,6],[41,8],[50,14],[54,27]],false);
+      line([[10,27],[8,37],[10,48]],false);
+      line([[54,27],[56,37],[54,48]],false);
+      line([[10,30],[54,30]],false);
+      line([[11,36],[21,42],[32,36],[43,42],[53,36]],false);
+      line([[10,48],[20,51],[32,52],[44,51],[54,48],[51,57],[13,57],[10,48]],true);
+      dot(23,16,1.7); dot(34,12,1.7); dot(43,19,1.7);
     } else if(kind === 'mark_menz_reality') {
       ctx.lineWidth = 3.4;
       circle(32,32,12);

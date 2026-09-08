@@ -32,8 +32,8 @@ assert.equal(isFateV3SinglePlayerExplicitlyEnabled('?FATEV3SINGLEPLAYER=1'), fal
 assert.equal(isFateV3SinglePlayerExplicitlyEnabled(''), false);
 assert.match(
   indexSource,
-  /if\(params\.get\('fateV3SinglePlayer'\) !== '1'\) return;\s*import\('\.\/src\/scripts\/authoritative-v3-single-player-adapter\.mjs'\)/,
-  'index must import Phase 5 only after the exact single-player opt-in'
+  /get\('fateV3SinglePlayer'\) !== '1'\) return;[\s\S]{0,120}import\('\.\/src\/scripts\/authoritative-v3-single-player-adapter\.mjs'\)/,
+  'index must load the replacement renderer only for explicitly flagged test games'
 );
 assert.doesNotMatch(setupSource, /authoritative-v3-single-player-adapter|import\s*\(/);
 assert.match(
@@ -41,17 +41,18 @@ assert.match(
   /get\('fateV3SinglePlayer'\) === '1'[\s\S]{0,500}FateAuthorityV3SinglePlayer[\s\S]{0,500}return authority\.startFromLegacyUi/,
   'legacy start must hand off only after the exact Phase 5 flag'
 );
+assert.match(setupSource,/G\._rulesAiMatch = false;/,'ordinary AI games must stay on the complete shipping renderer');
 assert(
   setupSource.indexOf("get('fateV3SinglePlayer') === '1'")
     < setupSource.indexOf('const keepHowardDevMode'),
   'Phase 5 route ownership must occur before any legacy match-state setup'
 );
-assert.doesNotMatch(aiSource, /FateAuthorityV3SinglePlayer|authoritative-v3-single-player-adapter/);
+assert.match(aiSource, /if\(G\._rulesAiMatch/,'retired AI must not control replacement matches');
 assert.doesNotMatch(adapterSource, /\bWebSocket\b|\/v3\/socket|FATE_SERVER_AUTHORITATIVE_V3_ENABLED/);
 
 const disabledWindow = {location:{search:''}};
-assert.equal(installFateV3SinglePlayerBrowserAdapter(disabledWindow), null);
-assert.equal(disabledWindow.FateAuthorityV3SinglePlayer, undefined);
+assert.equal(installFateV3SinglePlayerBrowserAdapter(disabledWindow).enabled, true);
+assert(disabledWindow.FateAuthorityV3SinglePlayer);
 assert.throws(
   ()=>installFateV3SinglePlayerBrowserAdapter({
     location:{search:'?fateV3SinglePlayer=1&fateV3Recorder=1'}
