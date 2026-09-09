@@ -4965,9 +4965,8 @@ async function aiRunEffect(card, z, r, c) {
           own.sort((a,b)=>(b.currentFate||b.fate||0)-(a.currentFate||a.fate||0));
           target = own[0];
         }
-        const before = Number(target.currentFate ?? target.fate ?? 0) || 0;
-        target.currentFate = Math.max(0, Math.ceil(before * 2) + 5);
-        if(typeof applyChineseMacArthurFateRider === 'function') applyChineseMacArthurFateRider(target, before, target.currentFate);
+        const before = Number(typeof getEffectiveFate === 'function' ? getEffectiveFate(target,z) : (target.currentFate ?? target.fate ?? 0)) || 0;
+        modifyFate(target, before + 5, 'permanent', cp);
         log('p2',`AI: Howard boosted ${target.name} to ${target.currentFate} Fate`);
       }
       break;

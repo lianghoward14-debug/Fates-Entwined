@@ -8582,7 +8582,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
     case '03':
       pickCardInZone(z,'Select a card to double its current Fate, then gain +5:',(tgt)=>{
         if(typeof isTargetImmuneToEffectOwner === 'function' ? isTargetImmuneToEffectOwner(tgt, cp) : (typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(tgt) : (tgt.immuneFlag || tgt.id==='76'))){showBlockedAnimation('this card is immune');return;}
-        const before = Number(tgt.currentFate ?? tgt.fate ?? 0) || 0;
+        const before = Number(typeof getEffectiveFate === 'function' ? getEffectiveFate(tgt,z) : (tgt.currentFate ?? tgt.fate ?? 0)) || 0;
         modifyFate(tgt, Math.ceil(before * 2) + 5 - before, 'permanent', cp);
         log(cp===0?'p1':'p2',`Moffitt Inspiration: ${tgt.name} Fate became ${tgt.currentFate}`);
         markInitialEffectResolved(card);
@@ -11404,7 +11404,7 @@ function getSupporterEffectAffectedOwners(inst, z, r, c, cp, opp) {
     }
     return [];
   }
-  const affectsOpponent = new Set(['16','26','31','50','61','62','71','72','73','75','76','77','80','91','97']);
+  const affectsOpponent = new Set(['16','26','31','50','61','62','71','72','73','76','77','80','91','97']);
   const affectsBoth = new Set(['18']);
   if(affectsBoth.has(inst.id)) return [0,1];
   if(affectsOpponent.has(inst.id)) return [opp];
