@@ -1,5 +1,8 @@
+import {boardEntries,controllerOf} from '../engine/selectors.mjs';
+import {canUseAsConsolidationTribute,effectiveConsolidationCost,isEffectSourceSuppressed} from '../engine/modifiers.mjs';
 // Strategic restrictions belong to the AI, not the game's legal rules.
 export function filterAiTargets(commands,state,player){
+  commands=keepPatienceBurstTogether(commands,state,player);
   commands=keepAssaultHoplitesTogether(commands,state,player);
   const prompt=state.pendingPrompt;
   if(!prompt || Number(prompt.playerIndex)!==player)return commands;
@@ -22,6 +25,58 @@ export function filterAiTargets(commands,state,player){
     if(p.cancel===true)return true;
     const targets=p.selectedIids || (p.selectedIid?[p.selectedIid]:p.targetIid?[p.targetIid]:[]);
     return targets.every(iid=>opponents.has(iid));
+  });
+}
+
+function keepPatienceBurstTogether(commands,state,player){
+  const owner=state.players[player],hand=owner.hand || [];
+  const own=boardEntries(state).filter(e=>controllerOf(e.card)===player);
+  const cards=[...hand,...(owner.deck || []),...(owner.discard || []),...own.map(e=>e.card)];
+  if(!['89','84','bh19','03'].every(id=>cards.some(c=>c.id===id)))return commands;
+  const live=e=>!e.card.faceDown && !isEffectSourceSuppressed(state,e);
+  const zsofia=own.find(e=>e.card.id==='89' && live(e));
+  if(state.pendingPrompt){
+    // Use only legal reactions supplied by the engine. A targeted operation is
+    // stronger evidence than the source card merely being capable of harm.
+    if(zsofia && state.pendingPrompt.type==='REACTION' && Number(state.pendingPrompt.playerIndex)===player){
+      const frame=(state.effectStack || []).findLast(f=>f.pendingOperation);
+      const op=frame?.pendingOperation;
+      const targets=[op?.targetIid,op?.cardIid,...(op?.targetIids || [])];
+      const harmful=op && (['DISCARD_CARD','CHANGE_CONTROL','RETURN_TO_HAND','MOVE_CARD','CREATE_STATUS'].includes(op.type)
+        || (op.type==='MODIFY_FATE' && (Number(op.amount)<0 || Number(op.multiplier ?? 1)<1)));
+      if(harmful && targets.includes(zsofia.card.iid)){
+        const havano=new Set(hand.filter(c=>c.id==='79').map(c=>c.iid));
+        const protect=commands.filter(c=>havano.has(c.payload?.reactionIid) && ['NEGATE','SUPPRESS'].includes(c.payload?.choice));
+        if(protect.length)return protect;
+      }
+    }
+    const source=cards.find(c=>c.iid===state.pendingPrompt.sourceIid);
+    if(zsofia && ['03','05'].includes(source?.id) && state.pendingPrompt.type==='BOARD_TARGET'){
+      const targets=commands.filter(c=>{
+        const p=c.payload || {};
+        return [p.targetIid,p.selectedIid,...(p.selectedIids || [])].includes(zsofia.card.iid);
+      });
+      if(targets.length)return targets;
+    }
+    return commands;
+  }
+  const buffs=(state.statuses || []).filter(s=>s.type==='PERMANENT_FATE_GAIN_POTENCY' && Number(s.playerIndex)===player && Number(s.remainingOwnerTurns)>0).length;
+  const abeds=hand.filter(c=>c.id==='bh19');
+  const howard=hand.find(c=>c.id==='03');
+  const fieldHoward=own.find(e=>e.card.id==='03' && live(e));
+  const remainingAbeds=Math.max(0,2-buffs);
+  const supply=own.reduce((n,e)=>{const t=canUseAsConsolidationTribute(state,e,player);return n+(t.ok && e.card.type==='Supporter'?t.reinforcement:0);},0);
+  const demand=abeds.slice(0,remainingAbeds).reduce((n,c)=>n+effectiveConsolidationCost(state,c,player),0)+(howard?effectiveConsolidationCost(state,howard,player):0);
+  const ready=!!zsofia && !!(howard || fieldHoward) && abeds.length>=remainingAbeds && supply>=demand;
+  return commands.filter(c=>{
+    const p=c.payload || {},card=cards.find(x=>x.iid===(p.cardIid || p.sourceIid));
+    if(card?.id==='79' && p.destination)return false;
+    if(card?.id==='bh19' && p.destination)return ready;
+    if(card?.id==='03' && c.type==='ACTIVATE_EFFECT')return buffs>=2 && !!zsofia && fieldHoward?.z===zsofia.z;
+    if(card?.id==='03' && p.destination)return ready && buffs>=2 && Number(p.destination.z)===zsofia.z;
+    if(buffs>0 && buffs<2 && ready && c.type==='END_TURN')return false;
+    if(buffs>=2 && c.type==='END_TURN' && commands.some(x=>x.type==='ACTIVATE_EFFECT' && x.payload?.sourceIid===fieldHoward?.card.iid))return false;
+    return true;
   });
 }
 

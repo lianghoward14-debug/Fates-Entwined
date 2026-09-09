@@ -113,40 +113,17 @@
     return true;
   }
   window.closePublicDecks = closePublicDecks;
-  function playPublicDeckUiSound(type, key){
-    const sound = String(type || 'uiClick');
+  function playPublicDeckButtonSound(key){
     if(typeof window.playFateSfxOnce === 'function'){
-      return window.playFateSfxOnce(sound, 'public-decks:' + String(key || sound), sound === 'hover' ? 90 : 35);
+      return window.playFateSfxOnce('uiClick', 'public-decks:' + String(key || 'button'), 35);
     }
-    if(typeof window.playSfx === 'function') return window.playSfx(sound);
-    if(typeof playSfx === 'function') return playSfx(sound);
+    if(typeof window.playSfx === 'function') return window.playSfx('uiClick');
+    if(typeof playSfx === 'function') return playSfx('uiClick');
     return false;
   }
-  let lastPublicDeckHoverKey = '';
-  let lastPublicDeckHoverAt = 0;
   function bindPublicDeckHubActions(hub){
     if(!hub || hub.dataset.publicDeckActionsBound === 'true') return;
     hub.dataset.publicDeckActionsBound = 'true';
-    hub.addEventListener('pointerover', function(event){
-      if(!event || event.pointerType === 'touch') return;
-      const target = event.target instanceof Element ? event.target : null;
-      const action = target?.closest('button,.pdx-card[data-public-deck-id]');
-      if(!action || !hub.contains(action) || action.disabled) return;
-      const cardNode = action.closest('.pdx-card[data-public-deck-id]');
-      // Treat an entire deck tile (including its nested Open/Remove buttons) as
-      // one hover surface. Moving around inside a tile must not fire a new ping
-      // for each nested control.
-      const hoverSurface = cardNode || action;
-      if(event.relatedTarget && hoverSurface.contains(event.relatedTarget)) return;
-      const hoverKey = cardNode
-        ? 'deck:' + String(cardNode.dataset.publicDeckId || '')
-        : 'control:' + String(action.className || action.tagName || 'control');
-      const now = Date.now();
-      if(hoverKey === lastPublicDeckHoverKey || now - lastPublicDeckHoverAt < 280) return;
-      lastPublicDeckHoverKey = hoverKey;
-      lastPublicDeckHoverAt = now;
-      playPublicDeckUiSound('hover', hoverKey);
-    }, {passive:true});
     hub.addEventListener('click', function(event){
       const target = event.target instanceof Element ? event.target : null;
       const action = target?.closest('button,.pdx-card[data-public-deck-id]');
@@ -165,7 +142,7 @@
       if(!run) return;
       event.preventDefault();
       event.stopPropagation();
-      playPublicDeckUiSound('uiClick', deckId || action.className || 'control');
+      playPublicDeckButtonSound(deckId || action.className || 'control');
       run();
     });
   }
