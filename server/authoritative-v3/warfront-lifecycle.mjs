@@ -1,3 +1,4 @@
+import {assignWarfrontCommanderProfiles} from './warfront-commanders.mjs';
 export const WARFRONT_PHASE_MS = 24 * 60 * 60 * 1000;
 
 export function warfrontPlayed(zone){
@@ -23,6 +24,7 @@ export function startWarfrontBattle(event, now, random = Math.random){
       ? Array.from({length:5}, (_, index)=>now + Math.floor((index + .1 + random() * .8) * WARFRONT_PHASE_MS / 5))
       : [];
   }
+  assignWarfrontCommanderProfiles(event);
   return event;
 }
 

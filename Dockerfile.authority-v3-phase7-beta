@@ -7,8 +7,10 @@ ENV FATE_SERVER_AUTHORITATIVE_V3_PHASE7_BETA_ENABLED=1
 
 COPY server/authoritative-v3 ./server/authoritative-v3
 COPY server/fate-card-catalog.js ./server/fate-card-catalog.js
+COPY server/fate-deck-catalog.js ./server/fate-deck-catalog.js
 COPY shared ./shared
 COPY src/scripts/01-data-and-state.js ./src/scripts/01-data-and-state.js
+COPY src/scripts/04-game-setup.js ./src/scripts/04-game-setup.js
 COPY src/scripts/authoritative-v3-ai-policy.mjs ./src/scripts/authoritative-v3-ai-policy.mjs
 
 EXPOSE 8787

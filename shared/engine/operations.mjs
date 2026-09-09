@@ -998,6 +998,8 @@ function changeStatus(ctx, operation, remove){
   if(!status) throw operationError('INVALID_STATUS', 'status is required');
   const changed = [];
   for(const entry of entries){
+    if(!remove && status==='EFFECTS_SUPPRESSED'
+      && (isEffectImmutable(entry.card) || ['09','28','70','74','79','98'].includes(runtimeRuleId(entry.card))))continue;
     if(!Array.isArray(entry.card.statuses)) entry.card.statuses = [];
     if(remove){
       entry.card.statuses = entry.card.statuses.filter(item=>item !== status);
@@ -1326,7 +1328,7 @@ function ensureExtraRow(ctx, zone, owner){
   );
   if(r < 0){
     r = ctx.state.board[z].length;
-    ctx.state.board[z].push([null, null, null, null]);
+    ctx.state.board[z].push([null, null, null]);
     ctx.state.geometry.rowOwners[z].push(playerIndex);
   }
   return r;
@@ -1365,7 +1367,7 @@ function addSafeSquare(ctx, operation){
   const incompleteOwnedRow = rowOwners.findIndex((rowOwner, rowIndex)=>
     rowIndex >= 3
       && rowOwner === owner
-      && [0, 1, 2].some(column=>!playable.some(square=>
+      && [0, 1, 2, 3].some(column=>!playable.some(square=>
         square.z === z && square.r === rowIndex && square.c === column
       ))
   );
@@ -1376,21 +1378,22 @@ function addSafeSquare(ctx, operation){
   const r = requested ? Number(requested.r) : expectedRow;
   const c = requested
     ? Number(requested.c)
-    : [0, 1, 2].find(column=>!playable.some(square=>
+    : [0, 1, 2, 3].find(column=>!playable.some(square=>
         square.z === z && square.r === r && square.c === column
       ));
   if(requested && Number(requested.z) !== z){
     throw operationError('INVALID_DESTINATION', 'safe square must remain in the source zone');
   }
-  if(r !== expectedRow || ![0, 1, 2].includes(c)){
+  if(r !== expectedRow || ![0, 1, 2, 3].includes(c)){
     throw operationError('INVALID_DESTINATION', 'safe square destination is not an available extra-row slot');
   }
   if(r === ctx.state.board[z].length){
-    ctx.state.board[z].push([null, null, null]);
+    ctx.state.board[z].push([null, null, null, null]);
     rowOwners.push(owner);
   }else if(rowOwners[r] !== owner){
     throw operationError('INVALID_DESTINATION', 'safe square row belongs to the wrong player');
   }
+  while(ctx.state.board[z][r].length < 4) ctx.state.board[z][r].push(null);
   if(playable.some(square=>square.z === z && square.r === r && square.c === c)){
     throw operationError('INVALID_DESTINATION', 'safe square destination is already available');
   }

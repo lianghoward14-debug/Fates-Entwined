@@ -2,6 +2,7 @@ import {stableStringify} from '../engine/index.mjs';
 import {sampleWorld} from './belief.mjs';
 import {searchWorld,diverseCommands} from './search.mjs';
 import {createCommandOrderer} from './ordering.mjs';
+import {filterAiTargets} from './targeting.mjs';
 import {personalityFor} from './personality.mjs';
 
 export function planDecision(commands,projection,context={}){
@@ -13,7 +14,21 @@ export function planDecision(commands,projection,context={}){
   const samples=integer(context.samples,context.difficulty==='easy'?1:3,1,8);
   const nodeBudget=integer(context.nodeBudget,context.difficulty==='easy'?240:context.difficulty==='extreme'?960:600,24,4000);
   const results=[];
-  const candidates=commands.filter(c=>c.type!=='CONCEDE');
+  let candidates=filterAiTargets(commands,state,player).filter(c=>c.type!=='CONCEDE');
+  // Makenna's protection must include an eligible friendly Alondra. Use the
+  // engine's eligible set, so this never invents an out-of-zone target.
+  const prompt=state.pendingPrompt;
+  const board=state.board.flat(3).filter(Boolean);
+  const source=board.find(c=>c.iid===prompt?.sourceIid);
+  if(source?.id==='12' && Number(prompt.playerIndex)===player){
+    const alondras=board.filter(c=>c.id==='14' && Number(c.controller ?? c.owner)===player
+      && prompt.eligibleIids?.includes(c.iid));
+    if(alondras.length){
+      const protectedChoices=candidates.filter(c=>alondras.some(a=>
+        c.payload?.selectedIid===a.iid || c.payload?.selectedIids?.includes(a.iid)));
+      if(protectedChoices.length)candidates=protectedChoices;
+    }
+  }
   // Each sample uses the same root candidates, allowing like-for-like estimates.
   let rootCommands=null;
   for(let sample=0;sample<samples;sample++){
@@ -61,6 +76,8 @@ export function planDecision(commands,projection,context={}){
 }
 
 export function chooseCommand(commands,projection,context={}){
+  const targetingState=context.canonicalState || projection;
+  if(targetingState?.board)commands=filterAiTargets(commands,targetingState,Number(context.playerIndex ?? projection?.activePlayer ?? 0));
   // Deliberately replan after every resolution, even if the previous intended
   // command remains legal. Legality does not prove a combo is still worthwhile.
   if(context.planCache)context.planCache.sequence=[];

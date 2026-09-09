@@ -6,7 +6,7 @@ import {createInitialState, effectiveFate} from '../../shared/engine/index.mjs';
 const definitions = [
   {id:'01', name:'Felicyta Janowicz', type:'Coordinator', aff:'third_great_war', fate:6, cost:3, rarity:'square'},
   {id:'87', name:'Květka Svoboda (Ukulele)', type:'Initiator', aff:'expanded_worlds', fate:3, cost:2, rarity:'triangle'},
-  {id:'100', name:'Felicyta and Květka (Youth)', type:'Dauntless', aff:'expanded_worlds', fate:12, cost:3, rarity:'square'}
+  {id:'100', name:'Felicyta and Květka (Youth)', type:'Dauntless', aff:'expanded_worlds', fate:12, cost:2, rarity:'square'}
 ];
 
 function createState(){
@@ -43,8 +43,8 @@ assert.equal(
 moveToBoard(state, '01', {z:1, r:2, c:0});
 assert.equal(
   effectiveFate(state, wintertide),
-  15,
-  'authoritative Wintertide must gain +3 when a distinct qualifying card is controlled'
+  17,
+  'authoritative Wintertide must gain +5 when a distinct qualifying card is controlled'
 );
 
 const ukuleleState = createState();
@@ -52,7 +52,7 @@ const ukuleleWintertide = moveToBoard(ukuleleState, '100', {z:0, r:2, c:0});
 moveToBoard(ukuleleState, '87', {z:2, r:2, c:0});
 assert.equal(
   effectiveFate(ukuleleState, ukuleleWintertide),
-  15,
+  17,
   'authoritative Wintertide must recognize Květka (Ukulele) as a distinct qualifying card'
 );
 

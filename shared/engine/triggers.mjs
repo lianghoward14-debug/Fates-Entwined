@@ -472,24 +472,7 @@ export function collectTriggeredOperations(state, event){
         });
       }
     }
-    for(const entry of boardEntries(state).filter(item=>
-      runtimeRuleId(item.card) === '95'
-      && item.card.faceDown !== true
-      && !isEffectSourceSuppressed(state, item)
-    )){
-      operations.push({
-        type:'TICK_COUNTER_FATE',
-        targetIid:entry.card.iid,
-        counterKey:'specterTurnsOnField',
-        triggerCounterKey:'specterFateGains',
-        threshold:2,
-        maxTriggers:8,
-        amount:1,
-        sourceIid:entry.card.iid,
-        sourceController:controllerOf(entry.card),
-        reason:'THOUSAND_YEAR_SORROW'
-      });
-    }
+
   }
   if(event.type === 'EFFECT_ACTIVATED' && state.gameSettings?.pressureCardReworks === true){
     const source=findCard(state,event.sourceIid);
@@ -502,6 +485,12 @@ export function collectTriggeredOperations(state, event){
     // field.  `fieldEnteredTurn` is canonical state, so this works identically
     // for local single-player sessions and authoritative multiplayer rooms.
     const drawTurn = Number(event.turn ?? state.turn);
+    if(drawTurn>=14)for(const entry of boardEntries(state).filter(item=>
+      runtimeRuleId(item.card)==='95' && controllerOf(item.card)===Number(event.playerIndex)
+      && !item.card.faceDown && !isEffectSourceSuppressed(state,item)
+    ))operations.push({type:'MODIFY_FATE',targetIid:entry.card.iid,amount:1,
+      sourceIid:entry.card.iid,sourceController:Number(event.playerIndex),
+      reason:'THOUSAND_YEAR_SORROW',bypassReaction:true});
     for(const entry of boardEntries(state).filter(item=>
       runtimeRuleId(item.card) === '46'
       && controllerOf(item.card) === Number(event.playerIndex)

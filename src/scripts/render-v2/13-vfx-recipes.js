@@ -609,6 +609,24 @@
     ];
   }
 
+  function zoneControlShift(payload){
+    const p = payload || {};
+    const rect = payloadRect(p, ['rect', 'zoneRect', 'targetRect']);
+    return [
+      impact(p.iid, rect, 72, .018),
+      P().soundCue({cue:'zone_control_shift', startOffset:48, priority:'high'})
+    ];
+  }
+
+  function zoneControlLock(payload){
+    const p = payload || {};
+    const rect = payloadRect(p, ['rect', 'zoneRect', 'targetRect']);
+    return [
+      impact(p.iid, rect, 88, .024),
+      P().soundCue({cue:'zone_control_lock', startOffset:64, priority:'high'})
+    ];
+  }
+
   function turnStart(payload){
     return [P().soundCue({cue:'turn_start', startOffset:48})];
   }
@@ -686,9 +704,9 @@
     CONSOLIDATE:consolidate,
     SUPPORTER_ACTIVATE:supporterActivate,
     LANDSCAPE_TRIGGER:landscapeTrigger,
-    ZONE_SHIFT:landscapeTrigger,
-    ZONE_SCORE:landscapeTrigger,
-    ZONE_WIN_FLIP:landscapeTrigger,
+    ZONE_SHIFT:zoneControlShift,
+    ZONE_SCORE:zoneControlShift,
+    ZONE_WIN_FLIP:zoneControlLock,
     MATCH_START:turnStart,
     MATCH_RESULT:cardReveal,
     INVALID_ACTION:invalidAction,

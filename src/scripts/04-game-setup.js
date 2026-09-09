@@ -13,6 +13,19 @@ function resolveAIDeckRef(refId) {
 
 let _aiDeckResolving = false;
 function getPlayableAIDeck(aiSource, difficultyOverride=null) {
+  // Enforce the active pool even for persisted profiles with retired raw decks.
+  if(typeof getAIDeckPoolForOpponent === 'function'){
+    const allowed = getAIDeckPoolForOpponent(aiSource);
+    if(allowed.length){
+      const signature = ids=>ids.slice(0,40).map(String).sort().join('|');
+      const ref = allowed.find(deck=>deck.id===aiSource?.deckRef);
+      const raw = Array.isArray(aiSource?.deck) ? signature(aiSource.deck) : '';
+      const match = ref || allowed.find(deck=>signature(deck.ids)===raw);
+      const identity = String(aiSource?.aiId || aiSource?.id || aiSource?.name || difficultyOverride || 'default');
+      const index = [...identity].reduce((n,c)=>(n*31+c.charCodeAt(0))>>>0,0)%allowed.length;
+      return [...(match || allowed[index]).ids];
+    }
+  }
   const difficulty = difficultyOverride || (typeof G !== 'undefined' && G ? G.aiDifficulty : null) || 'medium';
   // Resolve deckRef first — always use the latest version of a named deck
   if(aiSource && aiSource.deckRef) {
@@ -1418,16 +1431,18 @@ function initGameState() {
   // Avalanche Escape (98): remove copies before the normal six-card draw,
   // then add them as additional opening cards.
   const avalancheEscapeCards = [0, 1].map(function(player){
-    const extras = G.players[player].deck.filter(function(card){ return card && String(card.id) === '98'; });
-    G.players[player].deck = G.players[player].deck.filter(function(card){ return !card || String(card.id) !== '98'; });
+    const extras = G.players[player].deck.filter(function(card){ return card && ['98','84'].includes(String(card.id)); });
+    G.players[player].deck = G.players[player].deck.filter(function(card){ return !card || !['98','84'].includes(String(card.id)); });
     return extras;
   });
 
   // Draw starting hands (6 each)
   G._pendingSelvaSupportBoost = [0, 0];
   G._selvaSupportBoosts = [null, null];
-  for(let i=0;i<6;i++) drawCard(0, 1, { skipOptionalImprovisors: true, openingHand: true });
-  for(let i=0;i<6;i++) drawCard(1, 1, { skipOptionalImprovisors: true, openingHand: true });
+  for(let player=0;player<2;player++){
+    G.players[player].flowerPickingEligible=!(player===0?G.p1Deck:G.p2Deck).some(c=>['27','32','42','80','86','bh01','bh10'].includes(String(c?.id || c)));
+    for(let i=0;i<6;i++)drawCard(player,1,{skipOptionalImprovisors:true,openingHand:true});
+  }
   avalancheEscapeCards.forEach(function(cards, player){
     cards.forEach(function(card){ addCardToHand(player, card, {openingHand:true, announce:false}); });
   });

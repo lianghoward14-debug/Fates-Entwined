@@ -69,7 +69,7 @@ let _fateActiveUid = null;
 const _fateStorageWriteCache = Object.create(null);
 const FATE_LEADERBOARD_RESET_VERSION = '20260711a';
 const FATE_PROFILE_RECORD_RESET_VERSION = '20260714b';
-const FATE_CHALLENGER_CARD_RESET_VERSION = '20260902a';
+const FATE_CHALLENGER_CARD_RESET_VERSION = '20260908a';
 
 function _fateStorageKey(base) {
   if (_fateActiveUid) return base + '_' + _fateActiveUid;
@@ -376,7 +376,14 @@ function FATE_BACKGROUND_URL(path){
 function applyGlobalChallengerCardReset(profile) {
   if(!profile || typeof profile !== 'object') return false;
   if(profile.cardCollectionResetVersion === FATE_CHALLENGER_CARD_RESET_VERSION) return false;
-  profile.ownedCards = {};
+  const isRoots = [profile.username, profile.chosenUsername, profile.displayName, profile.name]
+    .some(name => String(name || '').trim().toUpperCase() === 'ROOTS');
+  const lydiaCount = isRoots
+    ? (Array.isArray(profile.ownedCards)
+      ? profile.ownedCards.filter(cardId => String(cardId) === '56').length
+      : Math.max(0, Math.floor(Number(profile.ownedCards?.['56']) || 0)))
+    : 0;
+  profile.ownedCards = lydiaCount > 0 ? {'56':lydiaCount} : {};
   profile.challengerPresets = {};
   profile.featuredPresets = [];
   profile.starterChosen = false;

@@ -9,7 +9,7 @@ export function auditDeck(cards) {
     '08':'Lina can deploy a Reality card from deck or discard for free',
     '24':'Ralph adds reinforcement only to eligible adjacent Supporters',
     '49':'Irvine permits eligible Characters in his zone to become tributes',
-    '84':'Kvetka can deploy an eligible Expanded Worlds Character for free',
+    '84':'Kvetka searches any card only when the original deck contains no Draw effects',
     '92':'Lumberjack trades Supporter effects for reinforcement in his zone',
     '99':'Family-dependent zero cost; requires Character tributes',
     '100':'Requires Character tributes'

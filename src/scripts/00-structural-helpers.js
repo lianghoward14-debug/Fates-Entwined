@@ -175,18 +175,18 @@ function getMarkSafeSquareChoiceRow(z, player) {
     const row = rows[i];
     if (isFullExtraSafeRow(z, row)) continue;
     let open = 0;
-    for (let c = 0; c < 3; c++) {
+    for (let c = 0; c < 4; c++) {
       const occupied = !!(G.board[z] && G.board[z][row] && G.board[z][row][c]);
       if (!occupied && !isMarkSafeSquare(z, row, c)) open++;
     }
     if (open > 0) return row;
   }
-  return rows.length ? -1 : getNextExtraRowIndex(z);
+  return getNextExtraRowIndex(z);
 }
 
 function addBottomSafeSquareForPlayer(z, player, c = 1) {
   if (typeof G === 'undefined' || !G || !G.board || !G.board[z]) return null;
-  const col = Math.max(0, Math.min(2, Number(c) || 0));
+  const col = Math.max(0, Math.min(3, Number(c) || 0));
   ensureExtraRowOwnerState(z);
   const row = getMarkSafeSquareChoiceRow(z, player);
   if (row < 3) return null;
@@ -196,7 +196,7 @@ function addBottomSafeSquareForPlayer(z, player, c = 1) {
     if (!Array.isArray(G.extraRowOwners[z])) G.extraRowOwners[z] = [];
     G.extraRowOwners[z][G.extraRows[z] - 1] = null;
   }
-  const columnCount = Math.max(3, Number(opts.columns) || 3);
+  const columnCount = 4;
   if (!G.board[z][row]) G.board[z][row] = Array(columnCount).fill(null);
   while (G.board[z][row].length < columnCount) G.board[z][row].push(null);
   const squares = ensureMarkSafeSquareState();
@@ -560,19 +560,27 @@ function isCardEffectImmutable(card) {
   return isAlpineInfantryCard(card) || isWojciechPierogiCounter(card);
 }
 
+function canApparitionDiscard(source, card, z, r, c, player) {
+  return !!(card && card.owner === player && card.iid !== source.iid
+    && isCardCharacterForRules(card, player)
+    && !isTargetImmuneToEffectOwner(card, player)
+    && !(typeof isZoeFieldLeaveLockedAt === 'function' && isZoeFieldLeaveLockedAt(card,z,r,c)));
+}
+
 function isOpponentEffectOnlyImmuneCard(card) {
-  return !!(card && card._igb24OpponentEffectImmune === true);
+  return !!(card && (card._igb24OpponentEffectImmune === true || card._immuneByMakenna === true || card.opponentEffectImmune === true));
 }
 
 function isTargetImmuneToEffectOwner(card, effectOwner) {
   if (!card) return false;
-  if (isCardEffectImmutable(card) || isInnatelyFullyEffectImmuneCard(card) || card.immuneFlag === true || card.opponentEffectImmune === true) return true;
-  return isOpponentEffectOnlyImmuneCard(card) && typeof effectOwner === 'number' && Number(card.owner) !== Number(effectOwner);
+  if (isFullyEffectImmuneCard(card)) return true;
+  const controller = card.controller === 0 || card.controller === 1 ? card.controller : card.owner;
+  return isOpponentEffectOnlyImmuneCard(card) && typeof effectOwner === 'number' && Number(controller) !== Number(effectOwner);
 }
 
 function isFullyEffectImmuneCard(card) {
   if (!card) return false;
-  return isCardEffectImmutable(card) || isInnatelyFullyEffectImmuneCard(card) || card.immuneFlag === true || card.opponentEffectImmune === true;
+  return isCardEffectImmutable(card) || isInnatelyFullyEffectImmuneCard(card) || (card.immuneFlag === true && !isOpponentEffectOnlyImmuneCard(card));
 }
 
 function applyPermanentEffectImmunity(card) {

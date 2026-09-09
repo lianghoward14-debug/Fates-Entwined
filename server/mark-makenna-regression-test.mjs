@@ -1,0 +1,62 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+import {createInitialState, effectiveFate, canTarget, applyOperation, assertInvariants} from '../shared/engine/index.mjs';
+import {eligibleDestinations} from '../shared/engine/prompts.mjs';
+const state=createInitialState({matchId:'mark-makenna',seed:'test',handSize:99,cardDefinitions:[{id:'63',name:'Greek Hoplite',type:'Supporter',fate:1,cost:0},{id:'43',name:'Mark Kemper',type:'Initiator',fate:4,cost:2}],players:[{id:'p0',deckIds:['63','63','43']},{id:'p1',deckIds:[]}]});
+const cards=state.players[0].hand.splice(0);
+cards.forEach((card,c)=>{card.controller=0;state.board[0][2][c]=card;});
+const hop=cards.find(c=>c.id==='63'),mark=cards.find(c=>c.id==='43');
+hop.statuses.push('IMMUNE_TO_OPPONENT_EFFECTS');
+assert.equal(effectiveFate(state,hop),5);
+assert.equal(canTarget(state,mark,hop,{sourceController:0}).ok,true);
+assert.equal(canTarget(state,mark,hop,{sourceController:1}).ok,false);
+const frame={sourceIid:mark.iid,controller:0};
+assert.equal(eligibleDestinations(state,frame,{safeSquareSlot:true}).length,4);
+for(const c of [0,1,2,3]){
+  applyOperation({state,events:[],ruleEvents:[]},{type:'ADD_SAFE_SQUARE',playerIndex:0,sourceIid:mark.iid,destination:{z:0,r:3,c}});
+  assertInvariants(state);
+  assert.equal(state.board[0][3].length,4,'Mark row must remain four columns wide after every selection');
+  assert.equal(state.geometry.playableExtraSquares.length,c+1,'unchosen squares must remain locked');
+}
+assert.equal(state.board[0][3].length,4);
+assert.deepEqual(eligibleDestinations(state,frame,{safeSquareSlot:true}).map(d=>[d.r,d.c]),[[4,0],[4,1],[4,2],[4,3]]);
+const winterState=createInitialState({matchId:'university-wintertide',seed:'test',handSize:99,cardDefinitions:[{id:'100',name:'Felicyta and Květka',type:'Dauntless',fate:12,cost:2},{id:'bh11',name:'Felicyta Janowicz (University)',type:'Coordinator',fate:5,cost:3}],players:[{id:'p0',deckIds:['100','bh11']},{id:'p1',deckIds:[]}]});
+const winterCards=winterState.players[0].hand.splice(0);
+winterCards.forEach((card,c)=>{card.controller=0;winterState.board[c][2][0]=card;});
+assert.equal(effectiveFate(winterState,winterCards.find(c=>c.id==='100')),17);
+const helpers=fs.readFileSync(new URL('../src/scripts/00-structural-helpers.js',import.meta.url),'utf8');
+const sandbox={};vm.createContext(sandbox);
+vm.runInContext(helpers.slice(helpers.indexOf('function isAlpineInfantryCard('),helpers.indexOf('function applyPermanentEffectImmunity(')),sandbox);
+const protectedCard={id:'63',owner:0,immuneFlag:true,_immuneByMakenna:true};
+assert.equal(sandbox.isFullyEffectImmuneCard(protectedCard),false);
+assert.equal(sandbox.isTargetImmuneToEffectOwner(protectedCard,0),false);
+assert.equal(sandbox.isTargetImmuneToEffectOwner(protectedCard,1),true);
+assert.equal(sandbox.isFullyEffectImmuneCard({id:'bh01',_immuneByMakenna:true}),true);
+// Execute the actual AI affiliation branch with a protected ally and Mark himself.
+const ai=fs.readFileSync(new URL('../src/scripts/07-ai.js',import.meta.url),'utf8');
+const aiBranch=ai.slice(ai.indexOf("    case '66': { // Mark Menz"),ai.indexOf("    case '68': { // Great Oak High Schooler"));
+const aiMark={iid:'mark',owner:0,aff:'reality',currentFate:3};
+const ally={...protectedCard,iid:'ally',aff:'expanded_worlds'};
+Object.assign(sandbox,{G:{board:[[[aiMark,ally]]],_selectedAI:{_deckStrategy:'ai_hungarian_war_dance'}},cp:0,z:0,inst:aiMark,log:()=>{},modifyFate:(card,n)=>card.currentFate+=n});
+vm.runInContext('switch("66"){'+aiBranch+'}',sandbox);
+assert.equal(ally.aff,'third_great_war');
+assert.equal(aiMark.aff,'third_great_war');
+assert.equal(aiMark.currentFate,5);
+Object.assign(sandbox,{isCardCharacterForRules:card=>card.type!=='Supporter',isZoeFieldLeaveLockedAt:card=>!!card.locked});
+const apparition={iid:'apparition'};
+assert.equal(sandbox.canApparitionDiscard(apparition,{id:'bh01',iid:'voyager',owner:0,type:'Dauntless'},0,2,0,0),false);
+assert.equal(sandbox.canApparitionDiscard(apparition,{id:'03',iid:'locked',owner:0,type:'Initiator',locked:true},0,2,0,0),false);
+assert.equal(sandbox.canApparitionDiscard(apparition,{...protectedCard,type:'Initiator',iid:'friendly'},0,2,0,0),true);
+const flowerBranch=ai.slice(ai.indexOf("    case '84': {",ai.indexOf('async function aiTriggerWhenSet')),ai.indexOf("    case '37':",ai.indexOf("    case '84': {",ai.indexOf('async function aiTriggerWhenSet'))));
+for(const eligible of [false,true]){
+  const picked={id:'32',iid:'search-target',fate:1,type:'Supporter'};
+  Object.assign(sandbox,{G:{players:[{deck:[picked],hand:[]}]},inst:{id:'84'},isFlowerPickingEligible:()=>eligible,addCardToHand:(p,c)=>sandbox.G.players[p].hand.push(c)});
+  await vm.runInContext('(async()=>{switch("84"){'+flowerBranch+'}})()',sandbox);
+  assert.equal(sandbox.G.players[0].hand.length,eligible?1:0);
+  assert.equal(sandbox.G._linaFreeIids,undefined);
+}
+const core=fs.readFileSync(new URL('../src/scripts/05-gameplay-core.js',import.meta.url),'utf8');
+const picker=core.slice(core.indexOf('  if(G._markSelecting) {'),core.indexOf('  if(G._busserMoving) {'));
+assert.doesNotMatch(picker,/blockType|blockZ/);
+console.log('Mark four-slot geometry and Makenna friendly/opponent immunity regression passed');

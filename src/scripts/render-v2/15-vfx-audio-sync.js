@@ -52,6 +52,8 @@
       card_reveal:'cardPreview',
       supporter_activate:'effectActivate',
       landscape_trigger:'landscapePulse',
+      zone_control_shift:'fateGain',
+      zone_control_lock:'levelUp',
       invalid_action:'invalidAction',
       return_to_hand:'cardMove',
       discard_to_hand:'searchFound'

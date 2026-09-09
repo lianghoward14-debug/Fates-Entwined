@@ -301,7 +301,7 @@
       for(let r = 0; r < totalRows; r++){
         const sourceRow = sourceZone[r] || [];
         const extraCols = r < 3 ? getBaseExtraCols(g, z, r) : 0;
-        const totalCols = Math.max(sourceRow.length || 0, 3 + extraCols);
+        const totalCols = Math.max(sourceRow.length || 0, 3 + extraCols, r >= 3 ? 4 : 0);
         const cells = [];
         for(let c = 0; c < totalCols; c++){
           const card = sourceRow[c] || null;

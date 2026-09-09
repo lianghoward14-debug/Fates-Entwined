@@ -5,6 +5,7 @@ import {resolveMoralePressureCycle} from '../engine/morale-pressure.mjs';
 import {personalityFor} from './personality.mjs';
 import {cardRule} from '../engine/cards/registry.mjs';
 import {resourcePotential} from './resources.mjs';
+import {majaResponsePotential} from './maja-heuristics.mjs';
 
 // This forecasts a calculation on the current board, not the opponent's next
 // turn. Callers must not interpret it as forced lethal. Uses the real rules,
@@ -74,6 +75,8 @@ export function evaluatePosition(state, player, preferences=personalityFor()) {
   score+=(ownAccess.access-enemyAccess.access)*preferences.development;
   score-=(ownAccess.stranded-enemyAccess.stranded)*preferences.resources;
   score+=(ownAccess.interaction-enemyAccess.interaction)*preferences.disruption;
+  const entries=boardEntries(state);
+  score+=(majaResponsePotential(state,player,entries)-majaResponsePotential(state,opponent,entries))*preferences.disruption;
   for(const {card} of boardEntries(state)){
     const sign=controllerOf(card)===player?1:-1;
     if(card.faceDown)continue;

@@ -701,7 +701,7 @@ const PASSIVE_DEFINITIONS = [
   ['85','Felicyta Specters','Dauntless','eventide',4],
   ['87','Kvetka Ukulele','Supporter','expanded_worlds',1],
   ['88','Rozsi Youth','Dauntless','expanded_worlds',5],
-  ['89','Zsofia Youth','Dauntless','expanded_worlds',5],
+  ['89','Zsofia Youth','Dauntless','expanded_worlds',8],
   ['100','Felicyta Kvetka','Dauntless','expanded_worlds',8],
   ['bh07','Agent K','Coordinator','reality',4],
   ['plain-support','Plain Support','Supporter','reality',2],

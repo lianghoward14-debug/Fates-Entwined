@@ -24,8 +24,8 @@ const DEFINITIONS = [
   {id:'77', name:'Duncan Heyward', type:'Coordinator', aff:'eventide', fate:6, cost:3},
   {id:'85', name:'Felicyta Janowicz (Specters)', type:'Dauntless', aff:'expanded_worlds', fate:1, cost:4},
   {id:'88', name:'Rozsi Szocs (Youth)', type:'Dauntless', aff:'expanded_worlds', fate:1, cost:3},
-  {id:'89', name:'Zsofia Szocs (Youth)', type:'Dauntless', aff:'expanded_worlds', fate:7, cost:2},
-  {id:'100', name:'Felicyta and Kvetka (Youth)', type:'Dauntless', aff:'expanded_worlds', fate:12, cost:3},
+  {id:'89', name:'Zsofia Szocs (Youth)', type:'Dauntless', aff:'expanded_worlds', fate:8, cost:2},
+  {id:'100', name:'Felicyta and Kvetka (Youth)', type:'Dauntless', aff:'expanded_worlds', fate:12, cost:2},
   {id:'bh01', name:'Anicka Voyager', type:'Dauntless', aff:'eventide', fate:12, cost:3},
   {id:'bh07', name:'Agent-K', type:'Coordinator', aff:'expanded_worlds', fate:3, cost:3},
   {id:'bh11', name:'Felicyta Janowicz (University)', type:'Coordinator', aff:'reality', fate:5, cost:3},
@@ -252,11 +252,11 @@ function put(state, playerIndex, cardId, z, r, c){
 {
   const state = scenario(['89']);
   const zsofia = put(state, 0, '89', 0, 2, 0);
-  assert.equal(effectiveFate(state, zsofia), 14, 'Zsofia must begin with her under-ten bonus');
+  assert.equal(effectiveFate(state, zsofia), 16, 'Zsofia must begin with her under-ten bonus');
   state.supporterEffectsActivated[0] = 9;
-  assert.equal(effectiveFate(state, zsofia), 14, 'Zsofia must retain the bonus at nine activations');
+  assert.equal(effectiveFate(state, zsofia), 16, 'Zsofia must retain the bonus at nine activations');
   state.supporterEffectsActivated[0] = 10;
-  assert.equal(effectiveFate(state, zsofia), 7, 'Zsofia must lose the bonus at exactly ten activations');
+  assert.equal(effectiveFate(state, zsofia), 8, 'Zsofia must lose the bonus at exactly ten activations');
 }
 
 {
@@ -276,7 +276,7 @@ function put(state, playerIndex, cardId, z, r, c){
   const wintertide = put(state, 0, '100', 0, 2, 0);
   assert.equal(effectiveFate(state, wintertide), 12, 'Wintertide must not satisfy its own named-card condition');
   put(state, 0, '01', 1, 2, 0);
-  assert.equal(effectiveFate(state, wintertide), 15, 'Wintertide must activate for a distinct Felicyta card');
+  assert.equal(effectiveFate(state, wintertide), 17, 'Wintertide must gain +5 for a distinct Felicyta card');
 }
 
 console.log('authoritative-v3 Phase 7 continuous-condition false/true matrix passed');

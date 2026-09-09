@@ -1,6 +1,7 @@
 import {legalCommandTemplates, reduceCommand, stableStringify} from '../engine/index.mjs';
 import {evaluatePosition} from './position.mjs';
 import {createCommandOrderer} from './ordering.mjs';
+import {filterAiTargets} from './targeting.mjs';
 import {personalityFor} from './personality.mjs';
 import {completeContinuation} from './continuation.mjs';
 
@@ -70,7 +71,7 @@ export function searchWorld(world, player, {nodeBudget=480,maxSteps=16,width=6,r
     }
     const current=Number(state.pendingPrompt?.playerIndex ?? state.pendingHandLimit?.playerIndex ?? state.activePlayer);
     const maximizing=current===player;
-    let legal=(steps===0 && rootCommands ? rootCommands : legalCommandTemplates(state,current)).filter(c=>c.type!=='CONCEDE');
+    let legal=filterAiTargets(steps===0 && rootCommands ? rootCommands : legalCommandTemplates(state,current),state,current).filter(c=>c.type!=='CONCEDE');
     const resolving=!!(state.pendingPrompt || state.pendingHandLimit);
     // Complete each hypothetical turn so a long solitaire sequence cannot
     // consume the entire horizon before any opponent reply is considered.

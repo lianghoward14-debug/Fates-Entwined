@@ -3219,7 +3219,7 @@
         if(String(card.id || '') === '46') next._philSetTurn = fieldEnteredTurn;
       }
       if(card.counters?.igb24DawnFateGranted === true) next._igb24DawnFateGranted = true;
-      if(statuses.includes('IMMUNE_TO_OPPONENT_EFFECTS')) next._igb24OpponentEffectImmune = true;
+      if(statuses.includes('IMMUNE_TO_OPPONENT_EFFECTS')) next.opponentEffectImmune = true;
       if(statuses.includes('IMMUNE_TO_ALL_EFFECTS') || statuses.includes('EFFECT_IMMUTABLE')){
         next.immuneFlag = true;
         next.cantBeReduced = true;
@@ -3506,7 +3506,7 @@
           return Number(square?.z) === z && Number(square?.r) === r;
         });
         const owner = Number(geometry?.rowOwners?.[z]?.[r]);
-        const fullRow = [0, 1, 2].every(function(c){
+        const fullRow = [0, 1, 2, 3].every(function(c){
           return squares.some(function(square){
             return Number(square?.c) === c && Number(square?.owner) === owner;
           });
@@ -3561,6 +3561,7 @@
         name:String(player?.name || ('Player ' + (index + 1))),
         color:index === 0 ? 'var(--p1)' : 'var(--p2)',
         deck:phase7HiddenCards(player?.deckCount, index, 'deck'),
+        flowerPickingEligible:typeof player?.flowerPickingEligible==='boolean'?player.flowerPickingEligible:null,
         hand,
         discard:(Array.isArray(player?.discard) ? player.discard : []).map(projectCard).filter(Boolean),
         limbo:phase7HiddenCards(player?.limboCount, index, 'limbo'),
@@ -5907,7 +5908,7 @@
         phase7GuardOptionPrompt(promptKey, prompt);
       }else if(prompt.type === 'BOARD_TARGET'){
         const multi = commands.filter(function(command){ return Array.isArray(command?.payload?.selectedIids); });
-        if(multi.length){
+        if(multi.length || Number(prompt.max) > 1){
           phase7OpenBoardPromptPicker(promptKey, multi, {
             commandField:'selectedIids',
             showAllZones:false,
@@ -6721,7 +6722,12 @@
           : null;
         const overlayTarget = explicitOverlayTarget || source;
         if((event?.forceEffectOverlay === true || !sourceHasResultOverlay) && overlayTarget){
-          phase7ShowExactEffectOverlay(view, event, overlayTarget, eventIndex);
+          const overlayDelay = Math.max(0, Number(event?.deferEffectOverlayMs) || 0);
+          if(overlayDelay){
+            setTimeout(function(){
+              phase7ShowExactEffectOverlay(view, event, overlayTarget, eventIndex);
+            }, overlayDelay);
+          }else phase7ShowExactEffectOverlay(view, event, overlayTarget, eventIndex);
         }
         return;
       }

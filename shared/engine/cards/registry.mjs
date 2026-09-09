@@ -171,31 +171,19 @@ const REGISTRY = Object.freeze({
   },
   '84':{
     timings:['WHEN_SET'],
-    operations:['SET_CARD'],
-    prompts:['CARD_SELECTION', 'BOARD_DESTINATION'],
+    operations:['TRANSFER_CARDS'],
+    prompts:['CARD_SELECTION'],
     program:[
+      {kind:'REQUIRE_NO_DRAW_EFFECTS_IN_ORIGINAL_DECK'},
       {
         kind:'SELECT_CARDS',
         local:'targetIid',
         filter:{
           locations:['deck'],
-          playerIndex:'controller',
-          affiliation:'expanded_worlds',
-          character:true,
-          excludeCardId:'84'
+          playerIndex:'controller'
         }
       },
-      {
-        kind:'SELECT_DESTINATION',
-        local:'destination',
-        filter:{ownSide:true, open:true}
-      },
-      {
-        kind:'FREE_SET',
-        cardIid:'$targetIid',
-        destination:'$destination',
-        countsAsConsolidation:true
-      }
+      {kind:'OPERATION',operation:{type:'TRANSFER_CARDS',targetIid:'$targetIid',playerIndex:'$controller',destinationPile:'hand'}}
     ]
   },
   '01':{
@@ -1425,8 +1413,7 @@ const REGISTRY = Object.freeze({
           count:2,
           affiliation:'$affiliation',
           fateBonus:3,
-          shuffleDeckAfter:true,
-          activatedDrawEffect:true
+          shuffleDeckAfter:true
         }
       }
     ]
@@ -1458,9 +1445,9 @@ const REGISTRY = Object.freeze({
   },
   '95':{
     timings:['PASSIVE'],
-    operations:['TICK_COUNTER_FATE', 'MODIFY_FATE'],
+    operations:['MODIFY_FATE'],
     prompts:[],
-    triggerSubscriptions:['TURN_STARTED']
+    triggerSubscriptions:['DRAW_PHASE_COMPLETED']
   },
   '96':{
     timings:['WHEN_SET'],

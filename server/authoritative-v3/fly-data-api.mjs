@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import {resolveWarfrontPhoto} from '../../shared/profile-photo.mjs';
 import {warfrontReportStats} from './warfront-report.mjs';
 import {WARFRONT_PHASE_MS, startWarfrontBattle, warfrontDueMatch, warfrontPlayed} from './warfront-lifecycle.mjs';
+import {assignWarfrontCommanderProfiles} from './warfront-commanders.mjs';
 import {simulateWarfrontMatch} from './warfront-simulation.mjs';
 
 const FIREBASE_PROJECT_ID = String(process.env.FATE_FIREBASE_PROJECT_ID || 'fates-entwined-41491');
@@ -234,10 +235,15 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
   // Project live server profiles on every response without changing archives.
   function warfrontStateForClient(){
     refreshWarfrontForfeits();
+    if(assignWarfrontCommanderProfiles(warfrontEvent)){
+      warfrontEvent._syncRevision=Number(warfrontEvent._syncRevision || 0)+1;
+      persist();
+    }
     const current = clone(warfrontEvent);
     for(const zone of current?.zones || []) for(const team of ['a','b']){
       const player = zone[team];
       if(!player) continue;
+      if(player.isAI)continue;
       const stored = profiles.get(cleanId(player.uid,128));
       player.photo=resolveWarfrontPhoto(stored||{},player.photo);
       const rating = stored?.challengerElo ?? stored?.elo;

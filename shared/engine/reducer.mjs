@@ -8,6 +8,7 @@ import {
   SCHEMA_VERSION
 } from './constants.mjs';
 import {assertInvariants} from './invariants.mjs';
+import {flowerPickingEligible} from './cards/draw-effects.mjs';
 import {
   activeHandLimit,
   isProtectedHandLimitCard,
@@ -385,6 +386,7 @@ function activeTimedPlayerStatus(state, statusType, playerIndex){
 }
 
 function supporterEffectBlock(state, card, playerIndex){
+  if(['09','28','70','74','79','98'].includes(runtimeRuleId(card)))return null;
   if(landscapeSupporterEffectLimitReached(state, card, playerIndex)){
     return {
       statusId:`landscape:igb15:p${playerIndex}:turn${state.turn}`,
@@ -1038,6 +1040,13 @@ function runEffectStack(state, ctx){
     const frame = state.effectStack[state.effectStack.length - 1];
     if(frame.waitingFor) return;
     const instruction = frame.program[frame.instructionIndex];
+    if(instruction?.kind === 'REQUIRE_NO_DRAW_EFFECTS_IN_ORIGINAL_DECK'){
+      if(!flowerPickingEligible(state.players[frame.controller])){
+        ctx.events.push({type:'EFFECT_CONDITION_UNMET',sourceIid:frame.sourceIid,reason:'ORIGINAL_DECK_CONTAINS_DRAW_EFFECT'});
+        frame.instructionIndex=frame.program.length;
+      }else frame.instructionIndex++;
+      continue;
+    }
     if(!instruction){
       state.effectStack.pop();
       ctx.events.push({type:'EFFECT_RESOLVED', sourceIid:frame.sourceIid, frameId:frame.frameId});
@@ -1216,8 +1225,8 @@ function runEffectStack(state, ctx){
       }
       const eligibleIds = new Set(['15','46','86','95','100','bh02','bh08']);
       const sources = boardEntries(state).filter(entry=>
-        entry.z === engineerEntry.z
-        && String(entry.card.iid || '') !== String(frame.sourceIid || '')
+        String(entry.card.iid || '') !== String(frame.sourceIid || '')
+        && controllerOf(entry.card) === controllerOf(engineerEntry.card)
         && eligibleIds.has(runtimeRuleId(entry.card))
         && entry.card.faceDown !== true
         && !isEffectSourceSuppressed(state, entry)
@@ -1239,7 +1248,7 @@ function runEffectStack(state, ctx){
           ,deferEffectOverlayMs:3500
         });
         const zoneTargets = boardEntries(state).filter(target=>
-          target.z === engineerEntry.z
+          target.z === entry.z
           && controllerOf(target.card) === owner
           && target.card.faceDown !== true
           && !isEffectImmutable(target.card)
@@ -1252,13 +1261,13 @@ function runEffectStack(state, ctx){
         }else if(id === '86'){
           applyResolvedEffectOperation(ctx,{type:'DRAW_CARD',playerIndex:owner,count:1,activatedEffect:true,sourceIid:entry.card.iid,sourceController:owner,semanticSourceCardId:id,reason:'ENGINEERS_AMBITION_FORCED_PROC'},frame);
           applyResolvedEffectOperation(ctx,{type:'MODIFY_FATE',targetIid:entry.card.iid,amount:2,sourceIid:entry.card.iid,sourceController:owner,semanticSourceCardId:id,reason:'ENGINEERS_AMBITION_FORCED_PROC',bypassReaction:true,presentationDelayMs:3500},frame);
+        }else if(id==='46'){
+          applyResolvedEffectOperation(ctx,{type:'MODIFY_FATE',targetIid:entry.card.iid,amount:2,
+            sourceIid:entry.card.iid,sourceController:owner,semanticSourceCardId:'46',
+            reason:'MONARCHIST_MANIFESTO',bypassReaction:true,presentationDelayMs:3500},frame);
         }else{
-          const amount = id === '46' ? 2 : id === '95' ? 1 : 2;
+          const amount = id === '95' ? 1 : 2;
           applyResolvedEffectOperation(ctx,{type:'MODIFY_FATE',targetIid:entry.card.iid,amount,sourceIid:entry.card.iid,sourceController:owner,semanticSourceCardId:id,reason:'ENGINEERS_AMBITION_FORCED_PROC',bypassReaction:true,presentationDelayMs:3500},frame);
-          if(id === '100'){
-            const hasFamily = boardEntries(state).some(target=>controllerOf(target.card)===owner && /Felicyta|Květka/.test(String(target.card.name || '')));
-            if(hasFamily) applyResolvedEffectOperation(ctx,{type:'MODIFY_FATE',targetIid:entry.card.iid,amount:3,sourceIid:entry.card.iid,sourceController:owner,semanticSourceCardId:id,reason:'ENGINEERS_AMBITION_FAMILY_BONUS',bypassReaction:true,presentationDelayMs:3500},frame);
-          }
         }
         if(!entry.card.counters || typeof entry.card.counters !== 'object') entry.card.counters = {};
         entry.card.counters.alpineEngineerProcCount = Math.max(0,Number(entry.card.counters.alpineEngineerProcCount)||0)+1;
@@ -2371,7 +2380,7 @@ function performCommand(state, ctx, command, actorIndex, options){
       const block = supporterEffectBlock(state, card, actorIndex);
       // Ongoing field abilities are suppressed too. These five abilities
       // operate outside the field and cannot be suppressed merely by setting.
-      const hasRelevantFieldEffect = !['28','70','74','79','98'].includes(String(effectId));
+      const hasRelevantFieldEffect = !['09','28','70','74','79','98'].includes(String(effectId));
       if(block?.statusType === 'LUMBERJACK_SUPPRESSION'){
         applyLumberjackSuppression(state, ctx, card, block, actorIndex);
       }else if(block && (hasWhenSetEffect || (block.statusType === 'SUPPORTER_EFFECTS_BLOCKED' && hasRelevantFieldEffect))){

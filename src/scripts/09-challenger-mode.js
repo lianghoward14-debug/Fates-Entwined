@@ -488,13 +488,13 @@ const STARTER_DECKS = [
   {
     id: 'starter_maelstrom',
     name: 'Relentless Maelstrom',
-    description: 'Build a formation around Louis and Alondra, recycle key supporters through Crossroads, and grow Fate with Isaac, Expeditionary reinforcement, and long-game specters.',
+    description: 'Maximize Alondra\'s Fate with Expeditionary reinforcement, Isaac, and Erbs-assisted draws arranged by Ledger-keepers. Protect her with Makenna and recover key supporters through Crossroads.',
     theme: 'Concentrated Fate',
     faceCardId: '14',
-    displayCardIds: ['14','bh12','73','58','05','95','63'],
+    displayCardIds: ['14','12','40','75','73','22','05'],
     ids: [
       '14','14','14','05','05','05','73','73','73','32','32','32',
-      '58','58','58','60','60','60','bh12','bh12','bh12','95','95','95',
+      '58','58','58','60','60','60','12','12','40','40','75','75',
       '63','63','63','76','76','76','27','27','27','44','44','06',
       '06','22','22','22'
     ]
@@ -502,28 +502,28 @@ const STARTER_DECKS = [
   {
     id: 'starter_freeworld',
     name: 'The Free World',
-    description: 'Assemble a concentrated Third Great War formation, chain searches into its coordinators, and convert supporter Fate into a decisive Alexander and Duncan finish.',
+    description: 'Build Third Great War pressure around Rozsi and Alexander, disrupt with US Marines, and amplify Morale calculations with Cook Islands Duelist.',
     theme: 'Affiliation',
     faceCardId: '29',
-    displayCardIds: ['29','77','34','35','01','59','25'],
+    displayCardIds: ['29','34','35','18','64','65','59'],
     ids: [
-      '77','77','77','25','25','25','29','29','29','59','59','59',
+      '64','64','64','25','25','25','29','29','29','59','59','59',
       '13','13','13','63','63','63','28','28','28','42','42','42',
-      '05','05','05','34','34','34','06','06','06','68','68','68',
-      '01','01','35','35'
+      '05','05','05','34','34','34','06','06','06','18','18','18',
+      '65','65','35','35'
     ]
   },
   {
     id: 'starter_incel',
     name: 'Reign of the Furious Incel',
-    description: "Recycle Oathbound Noble Fighter procs to supercharge Jimmy's passive Fate gain. Use Lina to search out Jimmy.",
+    description: "Search Post-Modernist Dylan with Great Oak High Schooler, build Jimmy through Oathbound reductions and Guerilla interference, and use Lina to deploy Jimmy efficiently.",
     theme: 'Fate Leech',
     faceCardId: '41',
-    displayCardIds: ['41','10','08','70','36','31','58'],
+    displayCardIds: ['41','10','68','08','70','31','58'],
     ids: [
       '41','41','41','10','10','10','06','06','13','13','13',
       '70','36','36','08','08','31','31','31','58','58','58',
-      '75','75','75','60','60','60','09','09','09','32','32','32',
+      '75','75','75','60','60','60','68','68','68','32','32','32',
       '42','42','42','52','52','52'
     ]
   },
@@ -602,7 +602,8 @@ const AI_ONLY_RANDOM_DECKS = [
       "20",
       "20"
     ],
-    "reinforcementCost": 16
+    "reinforcementCost": 16,
+    "enabled": false
   },
   {
     "id": "ai_hellenic_heartbreaker",
@@ -662,7 +663,8 @@ const AI_ONLY_RANDOM_DECKS = [
       "20",
       "20"
     ],
-    "reinforcementCost": 17
+    "reinforcementCost": 17,
+    "enabled": false
   },
   {
     "id": "ai_hungarian_war_dance",
@@ -722,7 +724,8 @@ const AI_ONLY_RANDOM_DECKS = [
       "68",
       "68"
     ],
-    "reinforcementCost": 13
+    "reinforcementCost": 13,
+    "enabled": false
   },
   {
     "id": "ai_great_oak_salvo",
@@ -782,7 +785,8 @@ const AI_ONLY_RANDOM_DECKS = [
       "20",
       "20"
     ],
-    "reinforcementCost": 16
+    "reinforcementCost": 16,
+    "enabled": false
   },
   {
     "id": "ai_adjacency_doctrine",
@@ -903,7 +907,8 @@ const AI_ONLY_RANDOM_DECKS = [
       "68",
       "68",
       "68"
-    ]
+    ],
+    "enabled": false
   },
   {
     "id": "ai_reinforcement_exchange",
@@ -963,7 +968,8 @@ const AI_ONLY_RANDOM_DECKS = [
       "98",
       "98",
       "98"
-    ]
+    ],
+    "enabled": false
   },
   {
     "id": "ai_alpine_furnace",
@@ -1023,7 +1029,8 @@ const AI_ONLY_RANDOM_DECKS = [
       "05",
       "05",
       "05"
-    ]
+    ],
+    "enabled": false
   },
   {
     "id": "ai_alpine_iron_line",
@@ -1083,7 +1090,8 @@ const AI_ONLY_RANDOM_DECKS = [
       "50",
       "50",
       "50"
-    ]
+    ],
+    "enabled": false
   },
   {
     "id": "ai_eventide_blockade",
@@ -1143,7 +1151,8 @@ const AI_ONLY_RANDOM_DECKS = [
       "50",
       "50",
       "50"
-    ]
+    ],
+    "enabled": false
   },
   {
     "id": "ai_hand_quarantine",
@@ -1203,7 +1212,8 @@ const AI_ONLY_RANDOM_DECKS = [
       "42",
       "42"
     ],
-    "reinforcementCost": 15
+    "reinforcementCost": 15,
+    "enabled": false
   },
   {
     "id": "ai_high_t_draw_mill",
@@ -1263,67 +1273,68 @@ const AI_ONLY_RANDOM_DECKS = [
       "bh23",
       "bh23"
     ],
-    "reinforcementCost": 20
+    "reinforcementCost": 20,
+    "enabled": false
   },
   {
     "id": "ai_university_counterbattery",
     "baseStrategy": "ai_university_counterbattery",
-    "name": "University Counterbattery",
-    "description": "Find University Maja through cheap search and draw, then turn Secules, Lydia, Marines and Havano into formation growth. Skier compresses the draw pool; Panacea and late Engineers provide payoff without extra expensive characters.",
+    "name": "Mischievious Activities",
+    "description": "Compress the deck with Skier, draw into Jorge and University Maja, then disrupt with Secules, Lydia, Marines and Havano. Build a surviving Maja formation and cash in its trigger history with Panacea.",
     "theme": "AI Only - Suppression Formation",
     "faceCardId": "bh08",
     "displayCardIds": [
       "bh08",
       "67",
-      "27",
-      "06",
-      "09",
-      "32",
-      "74"
+      "79",
+      "56",
+      "18"
     ],
     "ids": [
-      "60",
-      "60",
-      "60",
-      "28",
-      "28",
-      "28",
-      "79",
-      "79",
-      "79",
-      "18",
-      "18",
-      "18",
-      "56",
       "bh08",
       "bh08",
+      "60",
+      "60",
+      "60",
+      "28",
+      "28",
+      "28",
+      "74",
+      "74",
+      "74",
       "67",
       "67",
       "67",
-      "27",
-      "27",
-      "27",
+      "79",
+      "79",
+      "79",
+      "32",
+      "18",
+      "18",
+      "18",
       "06",
+      "06",
+      "06",
+      "27",
+      "27",
+      "27",
       "09",
       "09",
-      "09",
-      "32",
-      "32",
-      "32",
-      "74",
-      "74",
-      "74",
       "98",
       "98",
       "98",
-      "bh23",
-      "bh23",
-      "bh23",
+      "56",
       "bh25",
+      "32",
+      "bh23",
+      "bh23",
+      "bh23",
       "bh25",
       "bh25"
     ],
-    "reinforcementCost": 15
+    "reinforcementCost": 15,
+    "enabled": true,
+    "sourcePublicDeckId": "nNbfvYwsoDfnvTHQhK4lwN5a2B22_1788692464430"
   },
   {
     "id": "ai_selva_tidal_strike",
@@ -1383,7 +1394,8 @@ const AI_ONLY_RANDOM_DECKS = [
       "53",
       "53"
     ],
-    "reinforcementCost": 22
+    "reinforcementCost": 22,
+    "enabled": false
   },
   {
     "id": "ai_crown_of_five",
@@ -1443,7 +1455,8 @@ const AI_ONLY_RANDOM_DECKS = [
       "68",
       "68"
     ],
-    "reinforcementCost": 22
+    "reinforcementCost": 22,
+    "enabled": false
   },
   {
     "id": "ai_snowball_fight_club",
@@ -1503,7 +1516,8 @@ const AI_ONLY_RANDOM_DECKS = [
       "31",
       "31"
     ],
-    "reinforcementCost": 17
+    "reinforcementCost": 17,
+    "enabled": false
   },
   {
     "id": "ai_wintertide_family_reunion",
@@ -1563,7 +1577,8 @@ const AI_ONLY_RANDOM_DECKS = [
       "97",
       "97"
     ],
-    "reinforcementCost": 26
+    "reinforcementCost": 26,
+    "enabled": false
   }
 ];
 function isAIDeckEnabled(deck) {
@@ -1573,10 +1588,10 @@ function getAIDeckPoolForOpponent(opp) {
   const starterPool = Array.isArray(STARTER_DECKS) ? STARTER_DECKS : [];
   const advancedPool = Array.isArray(AI_ONLY_RANDOM_DECKS) ? AI_ONLY_RANDOM_DECKS.filter(isAIDeckEnabled) : [];
   if(!advancedPool.length) return starterPool;
-  // Footmen are explicitly starter-only; every higher rank draws from the advanced pool.
+  // Temporary five-deck pool; Footmen retain their starter-only restriction.
   const protectedRanks = new Set(['Footman']);
   if(opp && protectedRanks.has(String(opp.rank || ''))) return starterPool;
-  return advancedPool;
+  return [...starterPool, ...advancedPool];
 }
 
 let _challengerAssetWarmupStarted = false;

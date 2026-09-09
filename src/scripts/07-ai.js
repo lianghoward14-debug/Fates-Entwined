@@ -1425,11 +1425,11 @@ function aiDeckSearchPriority(deckId, kind) {
       coordinator: ['bh02']
     },
     ai_university_counterbattery: {
-      supporter: ['18','79','50','71','75','60','58','32'],
-      character: ['bh08','56','67','21','17','04'],
-      jorge: ['bh08','56','67','21','17','04'],
-      lina: ['67','04'],
-      dylan: ['bh08','56','67','21','18','79','50'],
+      supporter: ['60','09','18','79','74','32','28','bh23','bh25'],
+      character: ['bh08','67','56','27','06'],
+      jorge: ['bh08','67','56','27','06'],
+      lina: ['67','27','06'],
+      dylan: ['bh08','67','56','18','79'],
       coordinator: ['bh08']
     },
     ai_selva_tidal_strike: {
@@ -2515,6 +2515,11 @@ function aiDeckStrategyBonus(move, deckId) {
       if(move.card.id === '58') bonus += G.players[cp].discard.some(c=>['18','50','71'].includes(c.id)) ? 240 : 65;
       if(move.card.id === '75') bonus += majaZone !== null && aiOwnBoardCardsById('18').length ? 270 : 90;
       if(move.card.id === '32') bonus += G.players[cp].hand.length <= 4 ? 150 : 60;
+      if(move.card.id === 'bh23') {
+        const history = Math.max(0,...aiOwnBoardCardsById('bh08').map(e=>Number((e.card || e)._bh08ProcCount || (e.card || e).counters?.bh08ProcCount || 0)));
+        bonus += majaZone === move.z ? Math.min(600,history*100) : -120;
+      }
+      if(move.card.id === 'bh25') bonus += Number(G.turn)>=18 && majaZone===move.z ? 400 : -180;
     }
     if(move.type === 'consolidate') {
       if(move.card.id === 'bh08') {
@@ -3973,6 +3978,10 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       inst._effectTurnLocked = true;
       break;
     }
+    case 'bh25': {
+      await resolveAlpineEngineerAmbition(inst, z, cp);
+      break;
+    }
     case 'bh12': {
       if(typeof chooseFlowerKingTarget === 'function') await chooseFlowerKingTarget(inst, z, r, c, cp);
       inst.effectUsedInitial = true;
@@ -4619,7 +4628,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       if(bestAff){
         let changed = 0;
         G.board[z].forEach(row=>row.forEach(cell=>{
-          if(cell && cell.owner===cp && cell.iid!==inst.iid && !cell.immuneFlag && cell.aff!==bestAff[0]){
+          if(cell && cell.owner===cp && !isFullyEffectImmuneCard(cell) && cell.aff!==bestAff[0]){
             cell.aff = bestAff[0];
             if(typeof applyRiveraBuffToPlacedCard === 'function') applyRiveraBuffToPlacedCard(cell, cp);
             changed++;
@@ -4689,66 +4698,23 @@ async function aiTriggerWhenSet(inst, z, r, c) {
     case '80': { // Apparition: discard a character, draw 2
       const chars=[];
       G.board[z].forEach((row,ri)=>row.forEach((cell,ci)=>{
-        if(cell&&cell.owner===cp&&(typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(cell, cp) : cell.type!=='Supporter')&&cell.iid!==inst.iid) chars.push({r:ri,c:ci,card:cell});
+        if(canApparitionDiscard(inst,cell,z,ri,ci,cp)) chars.push({r:ri,c:ci,card:cell});
       }));
-      if(chars.length){const t=chars[0];G.board[z][t.r][t.c]=null;fatePushDiscard(cp, t.card);await drawCard(cp,2,{activatedDrawEffect:true, effectSource:inst});log('p2',`AI: Apparition discarded ${t.card.name}, drew 2`);}
+      if(chars.length){const t=chars[0];discardBoardCard(t.card,z,t.r,t.c);if(G.board[z][t.r][t.c]!==t.card){await drawCard(cp,2,{activatedDrawEffect:true, effectSource:inst});log('p2',`AI: Apparition discarded ${t.card.name}, drew 2`);}}
       break;
     }
-    case '84': { // Kvetka Svoboda: set an Expanded Worlds character from deck for free
-      const matches = G.players[cp].deck.filter(c=>{
-        const base = (typeof CARDS !== 'undefined' && Array.isArray(CARDS)) ? CARDS.find(x=>String(x.id) === String(c.id)) : null;
-        const aff = String((c.aff || (base && base.aff) || '')).toLowerCase().replace(/\s+/g, '_');
-        const type = String(c.type || (base && base.type) || '').toLowerCase();
-        const effectiveCard = Object.assign({}, base || {}, c || {}, {owner: cp});
-        return aff === 'expanded_worlds' &&
-          type && (type !== 'supporter' || (typeof isCardCharacterForRules === 'function' && isCardCharacterForRules(effectiveCard, cp))) &&
-          String(c.id) !== '84';
-      });
-      if(matches.length) {
-        const strat = G._selectedAI?._deckStrategy || '';
-        const priorityByStrategy = {
-          ai_snowbound_wintertide:['100','bh05','87','99','82','90'],
-          ai_overclocked_dauntless:['100','89','88','bh07','83'],
-          ai_taylors_perfect_mimic:['bh05','100','bh04','90']
-        };
-        let priority = priorityByStrategy[strat] || [];
-        if(strat === 'ai_wintertide_family_reunion') {
-          const snowActive = typeof isLandscapeActive === 'function' ? isLandscapeActive('igb15') : String(G.landscapeId || '') === 'igb15';
-          const conversionActive = typeof isBlameGameActive === 'function' && isBlameGameActive(cp);
-          const hasWintertide = aiOwnBoardCardsById('100').length || G.players[cp].hand.some(c=>c.id === '100');
-          priority = !snowActive
-            ? ['82','99','100','88','89','90']
-            : !conversionActive
-              ? ['99','100','88','89','82','90']
-              : !hasWintertide
-                ? ['100','88','89','82','90','99']
-                : ['88','89','100','82','90','99'];
-        }
-        matches.sort((a,b)=>{
-          const ap = aiPriorityIndex(a, priority);
-          const bp = aiPriorityIndex(b, priority);
-          if(ap !== bp) return ap - bp;
-          return (Number(b.fate)||0)-(Number(a.fate)||0);
-        });
-        const picked = matches[0];
-        G.players[cp].deck = G.players[cp].deck.filter(c=>c.iid!==picked.iid);
-        if(typeof addCardToHand === 'function') addCardToHand(cp, picked, {announce:false, arrivalKind:'search'});
-        else G.players[cp].hand.push(picked);
-        if(typeof resolveBoleslawAfterSearchSelection === 'function') {
-          await resolveBoleslawAfterSearchSelection(cp, [picked], {sourceCardId:'84'});
-        }
-        if(!G._linaFreeIids) G._linaFreeIids = new Set();
-        G._linaFreeIids.add(picked.iid);
-        if(typeof recordHandCardEffectModifier === 'function' && !(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(picked))) {
-          recordHandCardEffectModifier(picked, {
-            key:'kvetka-svoboda-free-set',
-            name:'Kvetka Svoboda',
-            text:'Flower Picking: this card can be set immediately for free.'
-          });
-        }
-        log('p2','AI: Kvetka prepared '+picked.name+' for free placement');
+    case '84': {
+      if(!isFlowerPickingEligible(cp)) break;
+      const matches = G.players[cp].deck;
+      const picked = matches.slice().sort((a,b)=>(Number(b.fate)||0)-(Number(a.fate)||0))[0];
+      if(!picked) break;
+      G.players[cp].deck = matches.filter(card=>card.iid!==picked.iid);
+      addCardToHand(cp,picked,{announce:false,arrivalKind:'search'});
+      if(typeof resolveBoleslawAfterSearchSelection === 'function'){
+        await resolveBoleslawAfterSearchSelection(cp,[picked],{sourceCardId:'84'});
       }
       inst.effectUsedInitial = true;
+      log('p2','AI: Flower Picking added '+picked.name+' to hand');
       break;
     }
     case '37':
@@ -5139,7 +5105,7 @@ async function aiRunEffect(card, z, r, c) {
     case '30': { // Santiago: discard opponent card in this zone's contested row
       const opps=[];
       const contested = G.board[z]?.[1] || [];
-      contested.forEach((cell, cc)=>{ if(cell&&cell.owner===opp&&!cell.immuneFlag&&cell.id!=='76') opps.push({card:cell,c:cc}); });
+      contested.forEach((cell, cc)=>{ if(cell&&cell.owner===opp&&!isTargetImmuneToEffectOwner(cell,cp)&&!isZoeFieldLeaveLockedAt(cell,z,1,cc)) opps.push({card:cell,c:cc}); });
       if(opps.length){
         opps.sort((a,b)=>aiOpponentCardDecisionFate(b.card,z)-aiOpponentCardDecisionFate(a.card,z));
         const target = opps[0];
@@ -5240,7 +5206,7 @@ async function aiRunEffect(card, z, r, c) {
         log('p2', `AI: Mark Kemper had no safe-square slots left in Zone ${z+1}`);
         break;
       }
-      const colOrder = [1, 0, 2];
+      const colOrder = [1, 0, 2, 3];
       let col = 1;
       for(let i = 0; i < colOrder.length; i++){
         const c = colOrder[i];

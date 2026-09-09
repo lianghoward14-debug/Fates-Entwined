@@ -1,3 +1,4 @@
+import {DRAW_EFFECT_CARD_IDS} from './cards/draw-effects.mjs';
 import {ENGINE_VERSION, RULESET_VERSION, SCHEMA_VERSION} from './constants.mjs';
 import {normalizeMultiplayerPhoto} from '../profile-photo.mjs';
 import {createRngState, nextInt, shuffleInPlace} from './rng.mjs';
@@ -74,13 +75,15 @@ export function createInitialState(input = {}){
     const ids = Array.isArray(player.deckIds) ? player.deckIds.map(String) : [];
     const deck = makeDeck(definitionsById, ids, playerIndex, matchId, instanceCounter);
     shuffleInPlace(deck, rngState);
-    const openingExtras = deck.filter(card=>String(card.id || '') === '98');
+    const openingExtras = deck.filter(card=>String(card.id || '')==='98');
+    const guaranteed = deck.filter(card=>String(card.id || '')==='84');
     for(let index = deck.length - 1; index >= 0; index -= 1){
-      if(String(deck[index].id || '') === '98') deck.splice(index, 1);
+      if(['98','84'].includes(String(deck[index].id || ''))) deck.splice(index, 1);
     }
-    const hand = deck.splice(0, handSize);
+    const hand = [...guaranteed,...deck.splice(0, handSize)];
     hand.push(...openingExtras);
     return {
+      flowerPickingEligible:!ids.some(id=>DRAW_EFFECT_CARD_IDS.includes(id)),
       id:playerIds[playerIndex],
       name:String(player.name || `Player ${playerIndex + 1}`),
       ...(player.photoURL ? {photoURL:normalizeMultiplayerPhoto(player.photoURL)} : {}),

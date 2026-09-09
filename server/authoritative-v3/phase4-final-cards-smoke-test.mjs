@@ -35,7 +35,7 @@ const DEFINITIONS = [
   {id:'81', name:'Wojciech', type:'Initiator', aff:'expanded_worlds', fate:4, cost:2, rarity:'triangle'},
   {id:'94', name:'Wodny Potok Mailman', type:'Supporter', aff:'expanded_worlds', fate:1, cost:0, rarity:'circle'},
   {id:'98', name:'Wodny Potok Skier', type:'Supporter', aff:'expanded_worlds', fate:1, cost:0, rarity:'circle'},
-  {id:'100', name:'Felicyta and Kvetka (Youth)', type:'Dauntless', aff:'expanded_worlds', fate:12, cost:3, rarity:'square'},
+  {id:'100', name:'Felicyta and Kvetka (Youth)', type:'Dauntless', aff:'expanded_worlds', fate:12, cost:2, rarity:'square'},
   {id:'bh03', name:'Ali, The Indomitable', type:'Improvisor', aff:'expanded_worlds', fate:2, cost:3, rarity:'triangle'},
   {id:'bh05', name:'Taylor', type:'Initiator', aff:'expanded_worlds', fate:5, cost:1, rarity:'star'},
   {id:'bh06', name:'Achille Laurent', type:'Initiator', aff:'third_great_war', fate:2, cost:1, rarity:'triangle'},
@@ -127,7 +127,7 @@ applyOperation(geometryCtx, {
   sourceController:0
 });
 assert.equal(state.board[0].length, 4);
-assert.equal(state.geometry.playableExtraSquares.filter(square=>square.z === 0 && square.r === 3).length, 3);
+assert.equal(state.geometry.playableExtraSquares.filter(square=>square.z === 0 && square.r === 3).length, 4);
 const friendly = board(state, 0, '05', {z:0, r:2, c:1});
 const felicita = board(state, 0, '01', {z:0, r:1, c:1});
 assert.equal(effectiveFate(state, friendly), 5, 'Felicyta adjacency must be orthogonal');
@@ -145,13 +145,13 @@ const wintertide = board(state, 0, '100', {z:0, r:2, c:0});
 assert.equal(
   effectiveFate(state, wintertide),
   12,
-  'Felicyta and Květka must not satisfy its own separate-card +3 requirement'
+  'Felicyta and Květka must not satisfy its own separate-card +5 requirement'
 );
 board(state, 0, '01', {z:1, r:2, c:0});
 assert.equal(
   effectiveFate(state, wintertide),
-  15,
-  'a distinct controlled Felicyta or Květka card must grant Wintertide +3 Fate'
+  17,
+  'a distinct controlled Felicyta or Květka card must grant Wintertide +5 Fate'
 );
 assertInvariants(state);
 

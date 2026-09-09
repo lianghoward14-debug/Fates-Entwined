@@ -86,6 +86,9 @@ const FATE_SAMPLE_SFX = {
   cardHover: {src:'soundeffects/codex-redesign/card_select_fate_thread.wav', gain:0.34},
   boardCardClick: {src:'soundeffects/codex-redesign/board_card_coin_cascade.wav', gain:0.68},
   supporterSet: {src:'soundeffects/codex-redesign/supporter_gold_inlay.wav', gain:0.92},
+  consolidate: {src:'soundeffects/codex-redesign/consolidation_fate_seal.wav', gain:0.96},
+  consolidationModeOn: {src:'soundeffects/codex-redesign/consolidation_ritual_mark.wav', gain:0.82},
+  consolidationModeOff: {src:'soundeffects/codex-redesign/menu_close_soft_lock.wav', gain:0.66},
   discard: {src:'soundeffects/codex-redesign/discard_deck_coffin.wav', gain:0.9},
   discardCard: {src:'soundeffects/codex-redesign/discard_deck_coffin.wav', gain:0.9},
   blocked: {src:'soundeffects/codex-redesign/blocked_metal_gate.wav', gain:0.82},
@@ -320,15 +323,85 @@ function playSailingMovementSfx() {
 window.playSailingMovementSfx = playSailingMovementSfx;
 
 const _cardEffectFlashSfxKeys = new Map();
+const FATE_OVERLAY_SFX_FAMILIES = {
+  coord_felicyta_eagle:'royal', coord_postmodern_dylan:'void', coord_anne_trio:'martial',
+  coord_zsofia_river:'music', coord_kvetka_bloom:'nature', coord_cathy_cardigan:'martial',
+  coord_jeremiah_snowseal:'winter', coord_heyward_compass:'royal', kvetka_ballad:'music',
+  british_union_jack:'martial', oathbound_crescent:'martial', soviet_grenadiers:'impact',
+  bh16_storm_blades:'martial', bh17_crushing_momentum:'impact', movement_boot:'movement',
+  anicka_voyager_boat:'ocean', rivera_crest:'ocean', maria_target:'precision',
+  isaac_beaker:'tech', bh07_overclock:'tech', alpine_engineer_proc:'tech',
+  joie_thousand_reel:'void', jimmy_wrath:'void', marie_deterrence:'void',
+  specter_ghost:'spectral', bh18_genesis_inceldom:'void', bh04_selva_paradise:'nature',
+  idyllic_polish_village:'nature', wintertide:'winter', snowball:'winter',
+  rozsi_dance:'music', sebastyen_visegrad:'royal', phil_crown:'royal',
+  west_caribbea_marines:'martial', boleslaw_exclaim:'comic', jake_burger:'comic',
+  bh08_mischief:'comic', bh24_winter_star:'winter', bh15_tropical:'nature'
+};
+
+function fateOverlayKindHash(value) {
+  let hash = 2166136261;
+  const text = String(value || 'effect');
+  for(let i=0;i<text.length;i++) hash = Math.imul(hash ^ text.charCodeAt(i), 16777619);
+  return hash >>> 0;
+}
+
+function playFateOverlayFamilySfx(family, kind, effectiveVol, pitchStep) {
+  try {
+    const ctx = getAudioCtx();
+    const now = ctx.currentTime;
+    const hash = fateOverlayKindHash(kind);
+    const profiles = {
+      royal:{wave:'triangle',root:392,steps:[0,7,12],rise:1.16,noise:.018},
+      martial:{wave:'square',root:147,steps:[0,5,7],rise:.72,noise:.11},
+      impact:{wave:'sawtooth',root:82,steps:[0,3,7],rise:.68,noise:.16},
+      nature:{wave:'sine',root:330,steps:[0,4,9],rise:1.2,noise:.045},
+      winter:{wave:'sine',root:740,steps:[0,7,14],rise:1.1,noise:.07},
+      ocean:{wave:'triangle',root:220,steps:[0,5,12],rise:1.18,noise:.075},
+      music:{wave:'triangle',root:440,steps:[0,4,7,12],rise:1.12,noise:.012},
+      tech:{wave:'square',root:196,steps:[0,6,12],rise:1.3,noise:.055},
+      precision:{wave:'sine',root:880,steps:[0,12],rise:.78,noise:.035},
+      spectral:{wave:'sine',root:277,steps:[0,6,11],rise:.82,noise:.06},
+      void:{wave:'sawtooth',root:110,steps:[0,3,6],rise:.65,noise:.09},
+      movement:{wave:'triangle',root:294,steps:[0,7,12],rise:1.28,noise:.065},
+      comic:{wave:'square',root:523,steps:[0,8,12],rise:1.35,noise:.08}
+    };
+    const p = profiles[family] || profiles.royal;
+    const transpose = ((hash >>> 5) % 5 - 2) + Math.max(0, Number(pitchStep) || 0);
+    const out = ctx.createGain();
+    out.gain.value = _masterVol * effectiveVol * .78;
+    out.connect(getSfxBus(ctx).input);
+    p.steps.forEach(function(step,index){
+      const start = now + index * (family === 'music' ? .055 : .032);
+      const base = p.root * Math.pow(2, (step + transpose) / 12);
+      const osc = ctx.createOscillator(), gain = ctx.createGain(), filter = ctx.createBiquadFilter();
+      osc.type = p.wave;
+      osc.frequency.setValueAtTime(base,start);
+      osc.frequency.exponentialRampToValueAtTime(Math.max(35,base*p.rise),start+.24);
+      filter.type = family === 'winter' || family === 'precision' ? 'highpass' : 'lowpass';
+      filter.frequency.value = family === 'void' ? 650 : (family === 'winter' ? 900 : 2600);
+      gain.gain.setValueAtTime(.001,start);
+      gain.gain.linearRampToValueAtTime(.075/(1+index*.18),start+.012);
+      gain.gain.exponentialRampToValueAtTime(.001,start+.34+index*.025);
+      osc.connect(filter); filter.connect(gain); gain.connect(out);
+      osc.start(start); osc.stop(start+.4);
+    });
+    if(p.noise>0){
+      const noise=ctx.createBufferSource(),filter=ctx.createBiquadFilter();
+      noise.buffer=getCachedSfxNoiseBuffer(ctx,.22,family==='impact'?3.5:2.1,p.noise,family);
+      filter.type=family==='winter'?'highpass':'bandpass';
+      filter.frequency.value=family==='impact'?260:(family==='winter'?2600:1100+(hash%700));
+      noise.connect(filter); filter.connect(out); noise.start(now); noise.stop(now+.24);
+    }
+    return true;
+  } catch(e) { return false; }
+}
+window.playFateOverlayFamilySfx = playFateOverlayFamilySfx;
+
 function playCardEffectFlashSfx(kind, options) {
   const opts = options || {};
   const cleanKind = String(kind || '').toLowerCase();
-  const typeByKind = {
-    kvetka_ballad:'cardFlashKvetka',
-    coord_kvetka_bloom:'cardFlashCoordinator',
-  };
-  const type = typeByKind[cleanKind];
-  if(!type) return false;
+  const family = FATE_OVERLAY_SFX_FAMILIES[cleanKind] || 'royal';
   const nowMs = Date.now();
   const key = String(opts.key || (cleanKind + ':' + nowMs));
   const previous = Number(_cardEffectFlashSfxKeys.get(key)) || 0;
@@ -338,8 +411,8 @@ function playCardEffectFlashSfx(kind, options) {
     _cardEffectFlashSfxKeys.forEach(function(stamp, storedKey){ if(nowMs - stamp > 15000) _cardEffectFlashSfxKeys.delete(storedKey); });
   }
   window._fateCardFlashPitchStep = Math.max(0, Number(opts.pitchStep) || 0);
-  playSfx(type);
-  return true;
+  const effectiveVol = typeof _sfxVol === 'number' ? _sfxVol : 1;
+  return playFateOverlayFamilySfx(family, cleanKind, effectiveVol, opts.pitchStep);
 }
 window.playCardEffectFlashSfx = playCardEffectFlashSfx;
 

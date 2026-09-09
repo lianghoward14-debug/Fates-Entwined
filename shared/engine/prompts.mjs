@@ -16,6 +16,7 @@ import {
   isEffectImmutable,
   structuralCardType
 } from './modifiers.mjs';
+import {flowerPickingEligible} from './cards/draw-effects.mjs';
 import {cardRule} from './cards/registry.mjs';
 import {MAX_SUPPORTERS_SET_PER_TURN} from './constants.mjs';
 
@@ -41,6 +42,7 @@ export function openingProgramChoiceAvailable(state, frame, program){
   for(let instructionIndex = 0; instructionIndex < program.length; instructionIndex += 1){
     const instruction = program[instructionIndex];
     if(!instruction) continue;
+    if(instruction.kind === 'REQUIRE_NO_DRAW_EFFECTS_IN_ORIGINAL_DECK' && !flowerPickingEligible(state.players[frame.controller])) return false;
     const copiedFrame = {...frame, instructionIndex, program, locals:{...(frame?.locals || {})}};
     let eligibleCount = null;
     let minimum = 1;
@@ -235,10 +237,10 @@ export function eligibleDestinations(state, frame, filter = {}){
     let r = rowOwners.findIndex((rowOwner, rowIndex)=>
       rowIndex >= 3
         && Number(rowOwner) === owner
-        && [0, 1, 2].some(c=>!existing.has(`${rowIndex}:${c}`))
+        && [0, 1, 2, 3].some(c=>!existing.has(`${rowIndex}:${c}`))
     );
     if(r < 0) r = zone.length;
-    return [0, 1, 2]
+    return [0, 1, 2, 3]
       .filter(c=>!existing.has(`${r}:${c}`))
       .map(c=>({z, r, c}));
   }

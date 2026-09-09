@@ -18,7 +18,7 @@ function take(state,id){
   return card;
 }
 
-function scenario(turn){
+function scenario(turn, sourceZone=0){
   const state=createInitialState({
     matchId:`BH25-ENGINEER-${turn}`,seed:`BH25-ENGINEER-${turn}`,handSize:99,
     cardDefinitions:definitions,
@@ -30,27 +30,33 @@ function scenario(turn){
   const jakob=take(state,'bh17');
   const drawCard=take(state,'32');
   state.players[0].deck.push(drawCard);
-  state.board[0][2][0]=boleslaw;
-  state.board[0][2][1]=hsei;
-  state.board[0][1][0]=jakob;
+  state.board[sourceZone][2][0]=boleslaw;
+  state.board[sourceZone][2][1]=hsei;
+  state.board[sourceZone][1][0]=jakob;
   return {state,boleslaw,hsei,jakob,engineer:state.players[0].hand.find(card=>card.id==='bh25')};
 }
 
-{
-  const {state,boleslaw,hsei,jakob,engineer}=scenario(18);
+for(const sourceZone of [0,1,2]){
+  const {state,boleslaw,hsei,jakob,engineer}=scenario(18,sourceZone);
+  const opponentBoleslaw=structuredClone(boleslaw);
+  opponentBoleslaw.iid+='-opponent';
+  opponentBoleslaw.controller=1;
+  state.board[sourceZone][0][0]=opponentBoleslaw;
   const handBefore=state.players[0].hand.length;
   const result=reduceCommand(state,command(state,'p0',1,'SET_CARD',{
     cardIid:engineer.iid,destination:{z:0,r:2,c:2}
   }),{playerId:'p0'});
   assert.equal(result.ok,true);
-  const liveBoleslaw=result.state.board[0][2][0];
-  const liveHsei=result.state.board[0][2][1];
-  const liveJakob=result.state.board[0][1][0];
+  const liveBoleslaw=result.state.board[sourceZone][2][0];
+  const liveHsei=result.state.board[sourceZone][2][1];
+  const liveJakob=result.state.board[sourceZone][1][0];
   // Boleslaw's +2 proc is still amplified normally by Hsei-Ling. Hsei itself
   // is not treated as a proc source and cannot recurse.
   assert.equal(liveBoleslaw.currentFate,boleslaw.currentFate+3);
   assert.equal(result.state.players[0].hand.length,handBefore);
   assert.equal(liveBoleslaw.counters.alpineEngineerProcCount,1);
+  assert.equal(result.state.board[sourceZone][0][0].currentFate,opponentBoleslaw.currentFate);
+  assert.equal(result.state.board[sourceZone][0][0].counters.alpineEngineerProcCount,undefined,'Opponent-controlled cards must not trigger');
   assert.equal(liveHsei.counters.alpineEngineerProcCount,undefined);
   assert.equal(liveJakob.counters.alpineEngineerProcCount,undefined);
   assert.equal(liveHsei.currentFate,hsei.currentFate);

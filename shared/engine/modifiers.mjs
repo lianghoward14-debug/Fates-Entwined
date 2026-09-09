@@ -69,6 +69,7 @@ export function isEffectSourceSuppressed(state, value){
     : (value?.iid ? findBoardCard(state, value.iid) : null);
   const card = entry?.card || value;
   if(!card) return false;
+  if(['09','28','70','74','79','98'].includes(runtimeRuleId(card)) || isEffectImmutable(card))return false;
   if(card.statuses?.includes('EFFECTS_SUPPRESSED')) return true;
   if(!entry || effectiveCardType(state, card) !== 'Coordinator') return false;
   if(isEffectImmutable(card) || isImmuneToOpponentEffects(card, state)) return false;
@@ -269,7 +270,7 @@ export function effectiveFate(state, entryOrCard){
   if(activeAuraSource(state, entry)
     && selfId === '89'
     && (Number(state.supporterEffectsActivated[targetController]) || 0) < 10){
-    modifier += 7;
+    modifier += 8;
   }
   for(const flowerKing of boardEntries(state)){
     if(runtimeRuleId(flowerKing.card) !== 'bh12' || !activeAuraSource(state, flowerKing)) continue;
@@ -288,12 +289,12 @@ export function effectiveFate(state, entryOrCard){
     // Every printed Felicyta/Květka card qualifies. Keep this explicit so a
     // copied effect or a coincidental name cannot satisfy Wintertide, but do
     // include Květka (Ukulele), whose card id is 87.
-    const relatedIds = new Set(['01', '19', '82', '84', '85', '87', '100']);
+    const relatedIds = new Set(['01', '19', '82', '84', '85', '87', '100', 'bh11']);
     if(boardEntries(state).some(source=>
       controllerOf(source.card) === targetController
       && String(source.card.iid || '') !== String(card.iid || '')
       && relatedIds.has(String(source.card.id || ''))
-    )) modifier += 3;
+    )) modifier += 5;
   }
   const overflowDebuff = Math.max(0, Number(card.counters?.permanentFateOverflowDebuff) || 0);
   // A permanent loss consumes stored Fate first. Any remainder continues into

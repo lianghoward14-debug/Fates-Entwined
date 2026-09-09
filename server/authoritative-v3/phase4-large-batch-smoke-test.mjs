@@ -18,7 +18,7 @@ const DEFINITIONS = [
   {id:'12', name:'Makenna', type:'Coordinator', aff:'expanded_worlds', fate:4, cost:1},
   {id:'32', name:'Temecula Resident', type:'Supporter', aff:'reality', fate:1, cost:0},
   {id:'33', name:'West Caribbea Infantry', type:'Supporter', aff:'eventide', fate:1, cost:0},
-  {id:'35', name:'Alexander the Magnificient', type:'Dauntless', aff:'third_great_war', fate:0, cost:4},
+  {id:'35', name:'Alexander the Magnificient', type:'Dauntless', aff:'third_great_war', fate:12, cost:3},
   {id:'46', name:'Phil', type:'Dauntless', aff:'reality', fate:4, cost:3},
   {id:'59', name:'Czechoslovak Maroon Knights', type:'Supporter', aff:'third_great_war', fate:1, cost:0},
   {id:'76', name:'ALPINE Infantry', type:'Supporter', aff:'expanded_worlds', fate:1, cost:0},
@@ -184,10 +184,10 @@ const alexanderSupporter = putOnBoard(state, 0, '32', {z:0, r:1, c:0});
 const maroon = putOnBoard(state, 0, '59', {z:0, r:1, c:1});
 assert.equal(effectiveFate(state, alexanderSupporter), 5);
 assert.equal(effectiveFate(state, maroon), 5);
-assert.equal(alexander.currentFate, 0);
-assert.equal(effectiveFate(state, alexander), 10);
+assert.equal(alexander.currentFate, 12);
+assert.equal(effectiveFate(state, alexander), 12, 'Alexander retains printed Fate rather than summing Supporters');
 alexander.statuses.push('EFFECTS_SUPPRESSED');
-assert.equal(effectiveFate(state, alexander), 0);
+assert.equal(effectiveFate(state, alexander), 12, 'suppression does not erase printed Fate');
 
 state = newState('P4LARGEPHIL', ['32'], ['46', '32']);
 const phil = putOnBoard(state, 1, '46', {z:1, r:0, c:0});

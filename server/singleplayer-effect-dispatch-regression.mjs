@@ -1,0 +1,38 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+const core=fs.readFileSync(new URL('../src/scripts/05-gameplay-core.js',import.meta.url),'utf8');
+function fn(name){const start=core.indexOf('async function '+name+'(');assert(start>=0);return core.slice(start,core.indexOf('\n}',start)+2);}
+const phil={id:'46',iid:1,owner:0,currentFate:12},winter={id:'100',iid:2,owner:0,currentFate:12},engineer={id:'bh25',iid:3,owner:0};
+const sandbox={G:{turn:18,board:[[[phil,winter,engineer]]],players:[{deck:[{id:'09',iid:4}],hand:[]}]},ALPINE_ENGINEER_TRIGGERED_FATE_IDS:new Set(['15','46','86','95','100','bh02','bh08']),pressureCardReworkTimingActive:()=>true,window:{},isFaceDownCard:()=>false,cardActsAsPassive:(c,id)=>c.id===id,modifyFate:(c,n)=>c.currentFate+=n,applyPairedOverlayFateGain:(c,n)=>c.currentFate+=n,toast:()=>{},renderEffectResolutionForPlayer:()=>{},isFlowerPickingEligible:()=>true,addCardToHand:(p,c)=>sandbox.G.players[p].hand.push(c)};
+vm.createContext(sandbox);
+sandbox.recalcCoordinatorEffects=()=>{};
+sandbox.renderGame=()=>{};
+vm.runInContext(fn('resolveAlpineEngineerAmbition')+'\n'+fn('_executeWhenSetSwitch'),sandbox);
+await sandbox._executeWhenSetSwitch(engineer,0,0,2,0,1,'bh25');
+assert.equal(phil.currentFate,14);
+assert.equal(winter.currentFate,14,'Engineer grants only the +2 proc');
+const opponentPhil={id:'46',iid:5,owner:1,currentFate:12};
+const controlledByOpponent={id:'100',iid:6,owner:0,controller:1,currentFate:12};
+sandbox.G.board=[[[engineer,opponentPhil]],[[phil,controlledByOpponent]],[[winter]]];
+await sandbox.resolveAlpineEngineerAmbition(engineer,0,0);
+assert.equal(phil.currentFate,16,'Engineer reaches Phil in another zone');
+assert.equal(winter.currentFate,16,'Engineer reaches Wintertide in the third zone');
+assert.equal(opponentPhil.currentFate,12,'Engineer does not trigger opponent cards');
+assert.equal(controlledByOpponent.currentFate,12,'Current controller determines eligibility');
+let opened=0;
+sandbox.pickCardsVisual=(cards,opts,confirm)=>{opened++;assert.equal(opts.immediate,true);confirm([cards[0]]);};
+// Execute the real character switch route; isolate the case from unrelated reaction/presentation gates.
+const character=core.slice(core.indexOf('async function triggerCharacterEffect('));
+const start=character.indexOf("    case '84':");
+assert(start>=0,'Initiator route must implement Květka');
+const end=character.indexOf('    case ',start+10);
+Object.assign(sandbox,{card:{id:'84'},z:0,r:0,c:0,cp:0,opp:1,id:'84'});
+await vm.runInContext('(async()=>{switch(id){'+character.slice(start,end)+'}})()',sandbox);
+assert.equal(opened,1);
+assert.equal(sandbox.G.players[0].hand.length,1);
+assert.equal(sandbox.G.players[0].deck.length,0);
+sandbox.G.turn=17;
+await sandbox._executeWhenSetSwitch(engineer,0,0,2,0,1,'bh25');
+assert.equal(phil.currentFate,16,'turn restriction remains enforced');
+console.log('Single-player dispatch: Engineer Phil/Wintertide +2 and Květka picker passed');

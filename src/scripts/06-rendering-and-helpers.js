@@ -509,10 +509,6 @@ function getRuntimeCardImageSrc(src, role) {
   const raw = String(src);
   const m = raw.match(/^([A-Za-z0-9_-]+)\.png([?#].*)?$/);
   if(!m) return raw;
-  // Newly supplied Brave Horizons art does not yet have generated JPEG
-  // thumbnails. Use the real packaged PNG on every surface until the normal
-  // thumbnail build produces those derivatives.
-  if(m[1] === 'bh22') return raw;
   if(isElectronCardImageRuntime() && (role === 'board' || role === 'hand' || role === 'detail' || role === 'full')) return raw;
   return 'optimized/card-thumbs/' + m[1] + '.jpg' + (m[2] || '');
 }
@@ -1213,7 +1209,8 @@ function getLowMoraleSupporterExpiryState(card) {
 function getMoscowSupporterTenureState(card) {
   if(!card || typeof card !== 'object' || typeof G === 'undefined' || !G) return {active:false, turnsOnField:0, turnsRequired:10};
   if(typeof isLandscapeActive !== 'function' || !isLandscapeActive('igb24') || Number(G.turn) >= 20) return {active:false, turnsOnField:0, turnsRequired:10};
-  if(card._igb24DawnFateGranted === true || card._igb24OpponentEffectImmune === true) return {active:false, turnsOnField:10, turnsRequired:10};
+  // Protection is not evidence that Moscow has resolved (for example Makenna).
+  if(card._igb24DawnFateGranted === true || card.counters?.igb24DawnFateGranted === true) return {active:false, turnsOnField:10, turnsRequired:10};
   const owner = Number(card.owner);
   const isSupporter = Number.isInteger(owner) && typeof isCardSupporterForRules === 'function'
     ? isCardSupporterForRules(card, owner)
@@ -1447,7 +1444,7 @@ function getBoardRenderState() {
     structureParts.push('z', z, 'rows', totalRows);
     for(let r=0; r<totalRows; r++){
       const extraCols = r<3?(r===2?G.extraCells?.[z]?.[r]?.p1:(r===0?G.extraCells?.[z]?.[r]?.p2:0)):0;
-      const totalCols = 3 + (Number(extraCols) || 0);
+      const totalCols = Math.max((zone[r] || []).length, 3 + (Number(extraCols) || 0), r >= 3 ? 4 : 0);
       let rowOwner = r===0 ? 1 : (r===1 ? -1 : (r===2 ? 0 : 0));
       let fullExtraRow = false;
       if(r >= 3) {
@@ -1462,7 +1459,7 @@ function getBoardRenderState() {
     for(let r=0; r<totalRows; r++){
       const row = zone[r] || [];
       const extraCols = r<3?(r===2?G.extraCells?.[z]?.[r]?.p1:(r===0?G.extraCells?.[z]?.[r]?.p2:0)):0;
-      const totalCols = 3 + (Number(extraCols) || 0);
+      const totalCols = Math.max(row.length, 3 + (Number(extraCols) || 0), r >= 3 ? 4 : 0);
       parts.push('r', r, 'len', row.length);
       for(let c=0; c<totalCols; c++){
         const card = row[c] || null;
@@ -3941,7 +3938,7 @@ function renderBoard() {
       const boardRow = G.board[z][r] || Array(3).fill(null);
       const extraRow = r<3 ? (G.extraCells?.[z]?.[r] || null) : null;
       const extraCols = extraRow?(r===2?extraRow.p1:(r===0?extraRow.p2:0)):0;
-      const totalCols = Math.max(boardRow.length, 3+extraCols);
+      const totalCols = Math.max(boardRow.length, 3+extraCols, r >= 3 ? 4 : 0);
       for(let c=0;c<totalCols;c++){
         const cellEl=document.createElement('div');
         const blockKey = z + ':' + r + ':' + c;
@@ -7000,7 +6997,11 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
   let value = '';
   let sub = '';
 
-  if(['34','35','65'].includes(String(card.id || ''))) {
+  if(String(card.id || '')==='84'){
+    label='Flower Picking';
+    value=typeof isFlowerPickingEligible==='function' && isFlowerPickingEligible(owner)?'Eligible':'Not eligible';
+    sub='Original deck must contain no Draw effects';
+  } else if(['34','35','65'].includes(String(card.id || ''))) {
     const inflicted = Math.max(0, Math.floor(Number(card._moraleDamageInflicted ?? card.counters?.moraleDamageInflicted) || 0));
     label = 'Morale Damage Inflicted';
     value = String(inflicted);
@@ -7210,7 +7211,7 @@ function fateFastShowMovementTargets(options, classNames) {
 function canUseBusserMoveButton(card, actionPlayer) {
   if(!card || !Number.isInteger(actionPlayer)) return false;
   const moves = typeof getBusserTurnsLeft === 'function' ? getBusserTurnsLeft(card) : Number(card._busserTurnsLeft || card._busserMoves || 0) || 0;
-  if(moves <= 0 || card._busserMovedThisTurn || card.cantBeMoved || card.immuneFlag || String(card.id || '') === '76') return false;
+  if(moves <= 0 || card._busserMovedThisTurn || card.cantBeMoved || isTargetImmuneToEffectOwner(card, card._busserOwner == null ? card.owner : Number(card._busserOwner))) return false;
   if(card._busserSourceIid && typeof window.isStoredEffectSourceSuppressed === 'function' && window.isStoredEffectSourceSuppressed(card._busserSourceIid)) return false;
   const busserOwner = card._busserOwner == null ? card.owner : Number(card._busserOwner);
   return Number(busserOwner) === Number(actionPlayer) || Number(card.owner) === Number(actionPlayer);
@@ -8198,7 +8199,8 @@ function showBoardTargetPicker(opts, onConfirm) {
       }, 3);
       const rowCap = Math.max(
         typeof getBoardRowCapacity === 'function' ? getBoardRowCapacity(z, r) : 3,
-        entryRowCap
+        entryRowCap,
+        r >= 3 ? 4 : 0
       );
       if(rowCap > 3) {
         hasExtraCells = true;
@@ -8312,7 +8314,7 @@ function showBoardTargetPicker(opts, onConfirm) {
 
 // Zone-shaped picker: shows the real zone with ownership rows and cell slots.
 function showZonePicker(z, prompt, entries, maxCount, viewerP, onConfirm, filter, onCancel, sourceCard, minCount=1) {
-  const wait = (typeof getInteractionAnimationDelayMs === 'function' ? getInteractionAnimationDelayMs() : getPlacementUiDelayMs());
+  const wait = String(sourceCard?.id || '') === '12' ? 0 : (typeof getInteractionAnimationDelayMs === 'function' ? getInteractionAnimationDelayMs() : getPlacementUiDelayMs());
   if(wait > 0){
     setTimeout(()=>showZonePicker(z, prompt, entries, maxCount, viewerP, onConfirm, filter, onCancel, sourceCard, minCount), wait);
     return;
@@ -8324,6 +8326,7 @@ function showZonePicker(z, prompt, entries, maxCount, viewerP, onConfirm, filter
   // history; it is the oversized 3x3 modal and must not be mounted.
   showBoardTargetPicker({
     title:getMultiplayerBoardPromptTitle(sourceCard),
+    immediate:String(sourceCard?.id || '') === '12',
     prompt:prompt,
     minCount:Math.max(0, Number(minCount) || 0),
     maxCount:Math.max(1, Math.min(maxCount || 1, pickerEntries.length)),
@@ -9340,7 +9343,9 @@ function showMoveTarget(card, fromZ, fromR, fromC, targetZ, options={}) {
   if(!open.length){toast('No open cells in Zone '+(targetZ+1));return;}
   const openKey = new Set(open.map(p=>`${p.r}:${p.c}`));
   const zoneRows = (G.board[targetZ]||[]).length || 3;
-  const gridCols = 'repeat(3,var(--move-target-cell-w,112px))';
+  const displayCols = Math.max(3, ...Array.from({length:zoneRows}, (_, r)=>
+    Math.max(getBoardRowCapacity(targetZ, r), r >= 3 ? 4 : 0)));
+  const gridCols = 'repeat(' + displayCols + ',var(--move-target-cell-w,112px))';
   const moveGridCards = [];
   const viewerP = getPerspectivePlayerIndex();
   const rowLabels = [];
@@ -9353,11 +9358,11 @@ function showMoveTarget(card, fromZ, fromR, fromC, targetZ, options={}) {
           ${rowLabels.map(label=>`<div>${label}</div>`).join('')}
         </div>
         <div class="move-target-zone-grid" style="grid-template-columns:${gridCols};">
-      ${Array.from({length: zoneRows * 3}, (_, idx)=>{
-        const r = Math.floor(idx / 3);
-        const c = idx % 3;
+      ${Array.from({length: zoneRows * displayCols}, (_, idx)=>{
+        const r = Math.floor(idx / displayCols);
+        const c = idx % displayCols;
         const row = G.board[targetZ] && G.board[targetZ][r];
-        if(!row || c >= row.length){
+        if(!row || c >= Math.max(row.length, r >= 3 ? 4 : 0)){
           return '<div class="move-target-cell is-missing"></div>';
         }
         const cell = row[c];
@@ -9394,7 +9399,7 @@ window.showMoveGridCardInfo = function(ev, idx){
 };
 window.doMove=function(i){
   const dest=window._moveDests[i];const from=window._moveFrom;
-  if(window._moveCard && (window._moveCard.id === '76' || window._moveCard.immuneFlag)){toast('this card is immune');closeModal();return;}
+  if(window._moveCard && isTargetImmuneToEffectOwner(window._moveCard, window._moveSourceCard ? window._moveSourceCard.owner : G.currentPlayer)){toast('this card is immune');closeModal();return;}
   if(window._moveCard.cantBeMoved){toast('This card cannot be moved');closeModal();return;}
   G.board[from.z][from.r][from.c]=null;
   G.board[window._moveTargetZ][dest.r][dest.c]=window._moveCard;

@@ -1,0 +1,7 @@
+*
+!server/
+!server/authoritative-v3/
+!server/authoritative-v3/warfront-simulation.mjs
+!src/
+!src/scripts/
+!src/scripts/04-game-setup.js

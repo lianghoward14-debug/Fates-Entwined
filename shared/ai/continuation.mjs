@@ -1,6 +1,7 @@
 import {legalCommandTemplates,reduceCommand} from '../engine/index.mjs';
 import {evaluatePosition} from './position.mjs';
 import {createCommandOrderer} from './ordering.mjs';
+import {filterAiTargets} from './targeting.mjs';
 
 // Finish a candidate through turn handoff using actual legal commands. This is
 // an approximate continuation policy, not a proof of the opponent's best play.
@@ -27,7 +28,7 @@ export function completeContinuation(initial,player,{budget=48,personality,rootT
     const leaf=()=>({state:s,score:evaluatePosition(s,player,personality),variation:[]});
     if(!pendingOf(s) || s.outcome || allowance<1 || depth<1)return leaf();
     const actor=actorOf(s),priority=createCommandOrderer(s,actor);
-    const ranked=legalCommandTemplates(s,actor).filter(c=>c.type!=='CONCEDE')
+    const ranked=filterAiTargets(legalCommandTemplates(s,actor),s,actor).filter(c=>c.type!=='CONCEDE')
       .sort((a,b)=>priority(b)-priority(a));
     const choices=[],seen=new Set();
     const width=Math.min(3,Math.max(1,Math.floor(allowance/3)));
@@ -60,7 +61,7 @@ export function completeContinuation(initial,player,{budget=48,personality,rootT
     if(state.turn!==previousTurn){actions=0;previousTurn=state.turn;}
     const actor=Number(state.pendingPrompt?.playerIndex ?? state.pendingHandLimit?.playerIndex ?? state.activePlayer);
     const pending=!!(state.pendingPrompt || state.pendingHandLimit);
-    let legal=legalCommandTemplates(state,actor).filter(c=>c.type!=='CONCEDE');
+    let legal=filterAiTargets(legalCommandTemplates(state,actor),state,actor).filter(c=>c.type!=='CONCEDE');
     const end=legal.find(c=>c.type==='END_TURN');
     if(!pending && actions>=maxActions && end)legal=[end];
     const priority=createCommandOrderer(state,actor);

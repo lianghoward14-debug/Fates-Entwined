@@ -1,0 +1,5 @@
+# Layer only the CPU fix over the exact production image. Do not publish
+# unrelated workspace/game-rule edits with this operational hotfix.
+FROM registry.fly.io/fates-entwined-main@sha256:0faac2619cf0bf1e19b769378a975b3bf8280fee123032b95c6b6b7a93d79807
+COPY server/authoritative-v3/warfront-simulation.mjs /app/server/authoritative-v3/warfront-simulation.mjs
+COPY src/scripts/04-game-setup.js /app/src/scripts/04-game-setup.js

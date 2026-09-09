@@ -3,6 +3,7 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
+const vm = require('vm');
 
 const root = path.resolve(__dirname, '..');
 const read = file => fs.readFileSync(path.join(root, file), 'utf8');
@@ -59,8 +60,25 @@ assert.match(viewText, /serverProfile:online\.profile \|\| null/, 'self profiles
 assert.match(progressionText, /FATE_PROFILE_RECORD_RESET_VERSION = '20260714b'[\s\S]*function resetProfileMatchRecord\(profile\)[\s\S]*profileRecordResetVersion === FATE_PROFILE_RECORD_RESET_VERSION\) return false;[\s\S]*humanWins = 0[\s\S]*humanLosses = 0[\s\S]*matchesPlayed = 0/, 'profile match records must migrate once and preserve every result recorded afterward');
 assert.doesNotMatch(progressionText, /function fateApplyServerProfileStats\(profile,[\s\S]{0,400}resetProfileMatchRecord\(profile\)/, 'incoming authoritative match records must never be cleared during sync');
 assert.match(progressionText, /profilesNeedingReset[\s\S]*profileRecordResetVersion !== FATE_PROFILE_RECORD_RESET_VERSION[\s\S]*fate_match_history[\s\S]*fate_ai_elo_state/, 'legacy match data must clear only for profiles that have not completed the migration');
-assert.match(progressionText, /FATE_CHALLENGER_CARD_RESET_VERSION = '20260902a'[\s\S]*function applyGlobalChallengerCardReset[\s\S]*ownedCards = \{\}[\s\S]*challengerPresets = \{\}[\s\S]*unopenedBooster3Packs = 0[\s\S]*cardCollectionResetVersion/, 'every profile must receive the versioned one-time Challenger collection reset');
+assert.match(progressionText, /FATE_CHALLENGER_CARD_RESET_VERSION = '20260908a'[\s\S]*function applyGlobalChallengerCardReset[\s\S]*toUpperCase\(\) === 'ROOTS'[\s\S]*profile\.ownedCards = lydiaCount > 0 \? \{'56':lydiaCount\} : \{\}[\s\S]*challengerPresets = \{\}[\s\S]*unopenedBooster3Packs = 0[\s\S]*cardCollectionResetVersion/, 'every profile must receive the new one-time Challenger collection reset while ROOTS retains Lydia');
+assert.match(indexText, /03-profile-and-progression\.js\?v=2026090801/, 'the collection reset script must bypass stale browser caches');
 assert.match(cloudSaveText, /fateApplyGlobalChallengerCardReset\(USER_PROFILE\)[\s\S]*cloudSaveProfile/, 'cloud profile loading must apply and persist the global Challenger collection reset');
+
+const resetFunctionText = progressionText.match(/function applyGlobalChallengerCardReset\(profile\) \{[\s\S]*?\n\}/)?.[0];
+assert.ok(resetFunctionText, 'the Challenger collection reset must remain directly testable');
+const resetContext = {Date:{now:()=>123456789}};
+vm.runInNewContext("const FATE_CHALLENGER_CARD_RESET_VERSION = '20260908a';\n" + resetFunctionText + '\nthis.applyReset = applyGlobalChallengerCardReset;', resetContext);
+const regularProfile = {username:'Player', ownedCards:{'12':3, '56':2}, challengerPresets:{custom:{}}, featuredPresets:['custom'], starterChosen:true, unopenedPacks:4, unopenedFavoredPacks:2, unopenedBooster2Packs:1, unopenedBooster3Packs:1};
+assert.equal(resetContext.applyReset(regularProfile), true, 'an old regular profile must be migrated');
+assert.deepEqual(regularProfile.ownedCards, {}, 'regular players must lose all old card data');
+assert.equal(regularProfile.starterChosen, false, 'regular players must choose from the new starter decks');
+const rootsProfile = {chosenUsername:' roots ', ownedCards:{'12':3, '56':2}, challengerPresets:{custom:{}}, starterChosen:true};
+assert.equal(resetContext.applyReset(rootsProfile), true, 'ROOTS must receive the starter reset');
+assert.equal(rootsProfile.ownedCards['56'], 2, 'ROOTS must retain every existing Lydia copy');
+assert.equal(Object.keys(rootsProfile.ownedCards).length, 1, 'ROOTS must lose old cards other than Lydia');
+rootsProfile.ownedCards['12'] = 1;
+assert.equal(resetContext.applyReset(rootsProfile), false, 'the reset must run only once for the current version');
+assert.equal(rootsProfile.ownedCards['12'], 1, 'a completed migration must not erase cards earned afterward');
 assert.doesNotMatch(onlineAuthText, /recordStatsCleared|profileRecordResetVersion/, 'public profile sync must not publish client-owned record reset or counter fields');
 assert.match(onlineAuthText, /function buildPublicProfilePayload\(active\)[\s\S]*return \{[\s\S]*chosenUsername:[\s\S]*photoURL:[\s\S]*bio:[\s\S]*localAuthoritativeSession:false[\s\S]*\};/, 'public profile sync must build a cosmetic-field whitelist');
 assert.doesNotMatch(onlineAuthText.match(/function buildPublicProfilePayload\(active\)([\s\S]*?)\n\}/)?.[0] || '', /challengerElo|challengerWins|challengerLosses|humanWins|humanLosses|matchesPlayed/, 'public profile payload must leave rank and records to Fly');

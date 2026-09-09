@@ -123,7 +123,7 @@ export function collectInvariantViolations(state){
         const expectedColumns = rowIndex < 3
           ? (uniformFour ? 4 : (expanded && rowIndex === 1 ? 6 : 3))
           : Math.max(3, playableExtraColumns.length ? Math.max(...playableExtraColumns) + 1 : 3);
-        if(!Array.isArray(row) || row.length !== expectedColumns){
+        if(!Array.isArray(row) || (row.length !== expectedColumns && !(rowIndex >= 3 && expectedColumns <= 4 && row.length === 4))){
           violations.push(issue(`board.${zoneIndex}.${rowIndex}`, `must contain exactly ${expectedColumns} columns`));
         }
       });

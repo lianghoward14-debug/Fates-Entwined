@@ -18,6 +18,7 @@ function publicPlayer(player){
     name:player.name,
     photoURL:player.photoURL || 'blank.png',
     rankElo:Math.max(0, Math.round(Number(player.rankElo) || 600)),
+    flowerPickingEligible:player.flowerPickingEligible ?? null,
     deckCount:player.deck.length,
     handCount:player.hand.length,
     discard:cloneSerializable(player.discard),
