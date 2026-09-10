@@ -65,5 +65,15 @@ try{
   assert.equal(returned.credential.matchId,paired.credential.matchId);
   const switched=await jsonRequest('/v3/beta/matchmaking/enter',headersA,{method:'POST',body:{...normal,queueMode:'ranked'}});
   assert.equal(switched.status,'waiting','a delivery from another mode must not block normal matchmaking');
+  a.c.fateAuthorityV3Beta.disconnect({forget:true});b.c.fateAuthorityV3Beta.disconnect({forget:true});
+  let released=false;
+  // Node's test WebSocket can take roughly 30 seconds to finish its close
+  // handshake under full-suite load; the production forfeit grace is unchanged.
+  for(let i=0;i<160;i++){
+    const current=await jsonRequest('/api/warfront/state',{authorization:`Bearer ${token('alpha')}`});
+    if(!current.state.zones[2].activeMatch){assert.equal(current.state.zones[2].a,null);assert.equal(current.state.zones[2].b,null);released=true;break;}
+    await delay(250);
+  }
+  assert(released,'both early departures must clear spectating and release both assignments within the disconnect grace\n'+logs);
   console.log('Warfront production clients connect, recover active deliveries and switch to normal matchmaking');
 }finally{clearTimeout(timeout);for(const c of clients)c.fateAuthorityV3Beta.disconnect({forget:true});child.kill();await new Promise(resolve=>child.exitCode!==null?resolve():child.once('exit',resolve));fs.rmSync(dir,{recursive:true,force:true});}

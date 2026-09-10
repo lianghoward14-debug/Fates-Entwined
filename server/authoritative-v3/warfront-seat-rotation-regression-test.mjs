@@ -83,5 +83,11 @@ try{
   await command('end');state=await read();assert(state.lastResult.players.some(p=>p.uid==='alpha'&&p.matches===5));
   assert.equal(state.lastResult.achievements.find(a=>a.id==='fate').leader.uid,'alpha');
   const recent={state:{status:'active',mapCode:'new',zones:[{id:'z',matches:[{id:'new-match'}]}],archives:[{mapCode:'old',zones:[{id:'z',matches:[{id:'old-match'}]}]}]},meta:()=>({name:'Zone'})};vm.createContext(recent);vm.runInContext(source.slice(source.indexOf('function allMatches('),source.indexOf('function matchCard(')),recent);assert.equal(recent.allMatches().length,1);recent.state.status='results';assert.equal(recent.allMatches().length,0,'Recent Matches clears at war end');
+  api.close();
+  const disk=JSON.parse(fs.readFileSync(path.join(dir,'rooms.json'),'utf8'));
+  disk.warfrontEvent.status='active';disk.warfrontEvent.endsAt=Date.now()+3600000;
+  disk.warfrontEvent.zones[0].activeMatch={matchId:'missing-actor',startedAt:Date.now()-60000};
+  fs.writeFileSync(path.join(dir,'rooms.json'),JSON.stringify(disk));api=makeApi();
+  assert.equal((await read()).zones[0].activeMatch,null,'orphaned spectate marker is released on the next read');
   console.log('Warfront live AI replacement, relocation, human protection, release, attribution, five-match cap, draws and restart passed');
 }finally{if(server)await new Promise(resolve=>server.close(resolve));api?.close();globalThis.fetch=originalFetch;fs.rmSync(dir,{recursive:true,force:true});}

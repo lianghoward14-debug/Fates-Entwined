@@ -81,19 +81,20 @@ const picked = AI.selectCandidate([
 ], {perfect:true,rng:()=>0.99});
 assert.strictEqual(picked.move.id, 'best', 'perfect opponents should choose the strongest searched line');
 
-const moraleSystem = {maxMorale:100,morale:[45,100],shields:[0,0],pressure:[0,0]};
+// One point of incoming damage now crosses the 40% penalty threshold.
+const moraleSystem = {maxMorale:100,morale:[41,100],shields:[0,0],pressure:[0,0]};
 assert.deepStrictEqual(
   AI.moraleCycleDamage([2,10,10],[8,8,8]),
   {
-    incoming:3,
-    outgoing:2,
+    incoming:1,
+    outgoing:0,
     zones:[
       {zone:0,own:2,enemy:8,margin:-6},
       {zone:1,own:10,enemy:8,margin:2},
       {zone:2,own:10,enemy:8,margin:2}
     ]
   },
-  'morale planning must total half of each losing- and winning-zone difference, rounded down'
+  'morale planning must total 33% of each losing- and winning-zone difference, rounded down'
 );
 const cautiousDefense = AI.scoreMoralePositionDelta({
   system:moraleSystem,playerIndex:0,ownScores:[2,10,10],enemyScores:[8,8,8],

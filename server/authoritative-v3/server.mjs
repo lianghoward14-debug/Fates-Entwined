@@ -284,6 +284,8 @@ function completeBetaQueueMatch(queued){
   betaDeliveries.set(queued.uid, ownCredential);
   store.upsertBetaMatchmakingDelivery(opponent.uid, opponentCredential);
   store.upsertBetaMatchmakingDelivery(queued.uid, ownCredential);
+  // Also expire reservations whose client never completes the first handshake.
+  for(const player of manager.actor(matchId)?.state.players||[])if(!opponent.isAI||player.id!==opponent.uid)scheduleDisconnectForfeit(matchId,player.id);
   return {result, opponentCredential, ownCredential};
 }
 
@@ -356,6 +358,7 @@ function scheduleDisconnectForfeit(matchId, playerId){
         payload:{}
       });
       if(outcome.broadcasts.length) broadcastPrivate(id, outcome.broadcasts);
+      if(outcome.response?.kind==='rejected'&&!current.state.outcome)scheduleDisconnectForfeit(id,pid);
       scheduleAuthorityTimers(current);
     }catch(error){
       console.error(`authoritative v3 disconnect forfeit failed for ${id}/${pid}:`, error.message || error);

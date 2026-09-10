@@ -787,7 +787,7 @@
     // throw before presentation and before endTurn could advance the player.
     const outgoing=[0,0];
     const outgoingSources=[[],[]];
-    zoneResults.forEach(function(result){if(!pacificaPreventsMoraleDamage&&(result.damagedPlayer===0||result.damagedPlayer===1))damage[result.damagedPlayer]+=Math.floor(result.difference/2);});
+    zoneResults.forEach(function(result){if(!pacificaPreventsMoraleDamage&&(result.damagedPlayer===0||result.damagedPlayer===1))damage[result.damagedPlayer]+=Math.floor(result.difference*33/100);});
     const entries=legacyBoardEntries(state).filter(function(entry){return entry.card&&!legacyFaceDown(entry.card)&&!legacySuppressed(entry);});
     if(entries.length){
       entries.forEach(function(entry){
@@ -821,7 +821,7 @@
         }
         const blocked=block&&Number(block.targetPlayer)===owner&&Number(block.activeFromTurn)<=Number(state.turn)&&Number(block.remainingTargetTurns)>0;
         zoneResults.filter(function(result){return result.controller===owner;}).forEach(function(result){
-          result.damage=pacificaPreventsMoraleDamage||blocked?0:Math.floor(result.difference/2)*Math.pow(2,doublers.length);
+          result.damage=pacificaPreventsMoraleDamage||blocked?0:Math.floor(result.difference*33/100)*Math.pow(2,doublers.length);
         });
       }
       for(let owner=0;owner<2;owner+=1)damage[1-owner]+=outgoing[owner];
@@ -1570,7 +1570,7 @@
     const rows = [0,1,2].map(function(zone){
       const result = zones.find(function(item){return Number(item?.zone)===zone;}) || {scores:[0,0],difference:0,controller:null};
       const scores = Array.isArray(result.scores) ? result.scores : [0,0];
-      const zoneDamage = Number.isFinite(result.damage) ? Math.max(0,result.damage) : Math.floor(Math.max(0,Number(result.difference)||0)/2);
+      const zoneDamage = Number.isFinite(result.damage) ? Math.max(0,result.damage) : Math.floor(Math.max(0,Number(result.difference)||0)*33/100);
       const zoneDamageLabel = typeof window.getBh21ConcealedNumericLabel === 'function' ? window.getBh21ConcealedNumericLabel(zoneDamage) : String(zoneDamage);
       const outcome = result.controller == null ? 'Tied — no damage' : 'Player ' + (Number(result.controller)+1) + ' controls · ' + zoneDamageLabel + ' Morale damage';
       return '<div class="morale-cycle-zone"><span>Zone ' + (zone+1) + '</span><b>' + Math.max(0,Number(scores[0])||0) + ' — ' + Math.max(0,Number(scores[1])||0) + '</b><em>' + outcome + '</em></div>';

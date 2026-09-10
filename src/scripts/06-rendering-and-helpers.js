@@ -1577,12 +1577,12 @@ function isHighTSourceCardActive(card) {
   if(!iid) return false;
   const legacy = Array.isArray(G?._bh19HighTStatuses) ? G._bh19HighTStatuses : [];
   if(legacy.some(function(status){
-    return String(status?.sourceIid || '') === iid && Number(status?.turn) === Number(G?.turn);
+    return Number(status?.playerIndex) === Number(card.controller ?? card.owner) && Number(status?.turn) === Number(G?.turn);
   })) return true;
   const authoritative = Array.isArray(G?._phase7Statuses) ? G._phase7Statuses : [];
   return authoritative.some(function(status){
     return String(status?.type || '') === 'PERMANENT_FATE_GAIN_POTENCY'
-      && String(status?.sourceIid || '') === iid
+      && Number(status?.playerIndex) === Number(card.controller ?? card.owner)
       && Number(status?.remainingOwnerTurns ?? status?.remaining ?? 1) > 0;
   });
 }

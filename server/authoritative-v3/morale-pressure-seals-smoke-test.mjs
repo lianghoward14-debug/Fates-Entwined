@@ -249,7 +249,7 @@ assert(moraleUiSource.includes("legacyMoralePenaltyActive(player, 20)"),'legacy 
 assert(moraleUiSource.includes("legacyMoralePenaltyActive(seat,40)"),'legacy random hand discard activates at 40% Morale');
 assert(moraleUiSource.includes('damage[1-owner]*=multiplier'),'legacy Cook Islands Duelist doubles zone-difference Morale damage');
 assert(!moraleUiSource.includes('Your Fate total in every zone is reduced by 25%.'),'the retired 20% Fate penalty copy is removed');
-assert(moraleUiSource.includes('damage[result.damagedPlayer]+=Math.floor(result.difference/2)'),'legacy Morale calculations halve each zone Fate difference and round down');
+assert(moraleUiSource.includes('damage[result.damagedPlayer]+=Math.floor(result.difference*33/100)'),'legacy Morale calculations take 33% of each zone Fate difference and round down');
 assert(moraleUiSource.includes('33% of the Fate difference is dealt as Morale damage (rounded down)'),'the Morale tooltip documents 33% difference damage');
 assert(!moraleUiSource.includes('Add the Fate deficits from every zone you do not control.'),'the full-difference Morale tooltip is removed');
 

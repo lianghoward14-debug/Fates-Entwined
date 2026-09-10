@@ -16,13 +16,13 @@ for(const seat of [0,1]) for(const reworks of [false,true]){
   const ctx={state,events:[],ruleEvents:[]};
   resolveMoralePressureCycle(ctx);
   const event=ctx.events.find(e=>e.type==='MORALE_CYCLE_RESOLVED');
-  assert.equal(event.damage[1-seat],4);
-  assert.equal(event.zoneResults[0].damage,4);
-  assert.equal(state.moralePressure.morale[1-seat],196);
+  assert.equal(event.damage[1-seat],2);
+  assert.equal(event.zoneResults[0].damage,2);
+  assert.equal(state.moralePressure.morale[1-seat],198);
   state.turn=6;
   ctx.events=[];
   resolveMoralePressureCycle(ctx);
-  assert.equal(ctx.events.find(e=>e.type==='MORALE_CYCLE_RESOLVED').damage[1-seat],2,'double is consumed once');
+  assert.equal(ctx.events.find(e=>e.type==='MORALE_CYCLE_RESOLVED').damage[1-seat],1,'double is consumed once');
 
   const card={id:'64',owner:seat,_doubleNextMoraleDamage:true};
   const local={turn:4,_moralePressure:{morale:[200,200],cycle:0}};
@@ -32,12 +32,12 @@ for(const seat of [0,1]) for(const reworks of [false,true]){
   vm.runInContext(legacy+display,sandbox);
   sandbox.resolveLegacyMoralePressureTurnEnd(seat);
   const localEvent=events.find(e=>e.type==='MORALE_CYCLE_RESOLVED');
-  assert.equal(localEvent.damage[1-seat],4);
-  assert.equal(localEvent.zoneResults[0].damage,4);
-  assert.equal(local._moralePressure.morale[1-seat],196);
+  assert.equal(localEvent.damage[1-seat],2);
+  assert.equal(localEvent.zoneResults[0].damage,2);
+  assert.equal(local._moralePressure.morale[1-seat],198);
   for(const payload of [event,localEvent]){
     sandbox.showMoraleCycleResolution(payload);
-    assert.match(modal.innerHTML,/controls · 4 Morale damage/,'calculation displays the doubled result');
+    assert.match(modal.innerHTML,/controls · 2 Morale damage/,'calculation displays the doubled result');
   }
 }
 console.log('Duelist: both seats and rework settings double actual and displayed damage in authoritative and legacy games; consumed once.');

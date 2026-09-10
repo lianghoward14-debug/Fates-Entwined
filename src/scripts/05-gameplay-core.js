@@ -9626,9 +9626,10 @@ function applyPairedOverlayFateGain(target, amount, sourceOwner, options) {
   const readDisplayedFate=function(){return position&&typeof getEffectiveFate==='function'?Math.max(0,Number(getEffectiveFate(target,position.z))||0):Math.max(0,Number(target.currentFate??target.fate)||0);};
   const before = readDisplayedFate();
   target._suppressNextFatePulse = true;
-  modifyFate(target, amount, opts.type || 'unclassified', sourceOwner, {deferBasePresentation:true});
+  modifyFate(target, amount, opts.type || 'permanent', sourceOwner, {deferBasePresentation:true});
   const finalValue = readDisplayedFate();
-  const after = finalValue;
+  const hasHighT = String(opts.type || 'permanent').toLowerCase() === 'permanent' && getHighTPotencyCount(sourceOwner) > 0;
+  const after = hasHighT ? Math.min(finalValue, before + Math.max(0, Number(amount) || 0)) : finalValue;
   const queued = after > before && queuePairedOverlayFateGain(target, {
     kind:opts.kind,
     label:opts.label,

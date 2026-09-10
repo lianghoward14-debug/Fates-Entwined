@@ -240,9 +240,32 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
     return true;
   }
   function refreshWarfrontForfeits(){
+    let changed=false;
+    for(const zone of warfrontEvent?.zones||[]){
+      const active=zone.activeMatch;if(!active?.matchId)continue;
+      const match=resolveMatchState(active.matchId);
+      if(!match){
+        // Missing actors cannot be spectated or resumed. Allow a short startup
+        // grace, then release the orphaned reservation without inventing a loss.
+        if(Date.now()-Number(active.startedAt||0)>=15000){zone.activeMatch=null;changed=true;}
+        continue;
+      }
+      let binding=warfrontBindings.get(active.matchId);
+      if(!binding&&match.warfrontMatch&&zone.a&&zone.b){binding={matchId:active.matchId,mapCode:warfrontEvent.mapCode,zoneId:zone.id,uids:[null,null],participants:clone({a:zone.a,b:zone.b})};warfrontBindings.set(active.matchId,binding);changed=true;}
+      if(binding&&(!binding.uids?.[0]||!binding.uids?.[1])){
+        const participants=binding.participants||{a:zone.a,b:zone.b},aSeat=Number(active.teamASeat)===1?1:0;
+        binding.participants=clone(participants);binding.uids ||= [null,null];
+        binding.uids[aSeat] ||= participants.a?.uid;binding.uids[1-aSeat] ||= participants.b?.uid;
+      }
+      if(match.outcome||match.phase==='ended'){
+        settleWarfrontForfeit(match);
+        if(zone.activeMatch?.matchId===active.matchId){zone.activeMatch=null;changed=true;}
+      }
+    }
     for(const binding of warfrontBindings.values()){
       if(binding.mapCode===warfrontEvent?.mapCode) settleWarfrontForfeit(resolveMatchState(binding.matchId));
     }
+    if(changed){warfrontEvent._syncRevision=Number(warfrontEvent._syncRevision||0)+1;persist();}
   }
   // Seat ratings are enrollment snapshots, not a source of current ratings.
   // Project live server profiles on every response without changing archives.
@@ -629,6 +652,7 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
           throw Object.assign(new Error('Warfront account already bound to another seat'),{status:403});
         }
         binding.uids[seat]=uid;
+        binding.uids[1-seat]=boundPosts[team==='a'?'b':'a']?.uid||binding.uids[1-seat];
         binding.playerIds=Array.isArray(binding.playerIds)?binding.playerIds:[null,null];
         binding.playerIds[seat]=String(c.playerId);
         const opponent=boundPosts[team==='a'?'b':'a'];

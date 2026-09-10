@@ -176,7 +176,7 @@ assert.match(rooms, /phase7FastPresentationMode[\s\S]{0,180}fateV3PresentationE2
 assert.match(rooms, /fateEffectActivationPredecessorRemaining/);
 assert.match(rooms, /phase7CommitWithConsolidationMotion[\s\S]{0,700}onlineApproxBoardCellRect[\s\S]{0,700}onlineRelativeBoardCellRect/, 'Phase 7 consolidation motion must retain production VFX geometry while the direct hit map is between layouts');
 assert.match(rooms, /authoritativeTurnChanged[\s\S]{0,500}_turnStartedAt\s*=\s*\(typeof window\.fateAuthorityServerNow/, 'each authoritative turn handoff must install a fresh client timer origin');
-assert.match(data, /FATE_PLAYER_TIMED_MANUAL_EFFECT_CARD_IDS\s*=\s*Object\.freeze\(\[['"]26['"],\s*['"]38['"],\s*['"]40['"],\s*['"]93['"]\]\)/, 'player-timed effects must have one centralized manual-only identity list');
+assert.match(data, /FATE_PLAYER_TIMED_MANUAL_EFFECT_CARD_IDS\s*=\s*Object\.freeze\(\[['"]20['"],\s*['"]26['"],\s*['"]38['"],\s*['"]40['"],\s*['"]93['"],\s*['"]bh16['"]\]\)/, 'player-timed effects must have one centralized manual-only identity list');
 assert.match(core, /fateEffectRequiresManualActivationId\?\.\(card\)[\s\S]{0,140}continue;/, 'automatic single-player resolution must consult the centralized manual-only invariant');
 
 console.log('phase7 live interaction regressions smoke test passed');

@@ -33,7 +33,7 @@ for(const [label, source] of [
     `${label} must await the shared activation cinematic`);
 }
 
-assert.match(data, /FATE_PLAYER_TIMED_MANUAL_EFFECT_CARD_IDS = Object\.freeze\(\['26', '38', '40', '93'\]\)/,
+assert.match(data, /FATE_PLAYER_TIMED_MANUAL_EFFECT_CARD_IDS = Object\.freeze\(\['20', '26', '38', '40', '93', 'bh16'\]\)/,
   'Christopher Erbs must remain registered as a player-timed manual effect');
 assert.match(rendering, /bc\.type==='Improvisor' && String\(bc\.id \|\| ''\) !== '40'[\s\S]{0,900}triggerCharacterEffect\(bc,z,r,c\)/,
   'Christopher Erbs must retain the generic Activate Effect button route');

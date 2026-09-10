@@ -11,6 +11,16 @@ const result=reduceCommand(state,command(state,'p0',1,action.type,action.payload
 assert.equal(result.state.players[0].hand[0].id,'whisper17');assert.equal(result.state.players[0].discard.length,1);
 assert.equal(result.state.players[0].hand[0].img,'whisper.png');
 assert.match(result.state.players[0].hand[0].effect,/whole field/i);
+const token = result.state.players[0].hand[0];
+const placements = legalCommandTemplates(result.state,0).filter(c=>c.payload?.cardIid===token.iid);
+const placement = placements.find(c=>c.type==='SET_CARD');
+assert(placement, 'multiplayer must offer Shizuku placement through its legal commands');
+assert(!placements.some(c=>c.type==='CONSOLIDATE_CARD'), 'Shizuku does not require consolidation');
+const placed = reduceCommand(result.state,command(result.state,'p0',2,placement.type,placement.payload),{playerId:'p0'});
+assert.equal(placed.ok,true,JSON.stringify(placed.rejection));
+const {z,r,c:column}=placement.payload.destination;
+assert.equal(placed.state.board[z][r][column].iid,token.iid);
+assert(!placed.state.players[0].hand.some(card=>card.iid===token.iid));
 const code=fs.readFileSync('src/scripts/05-gameplay-core.js','utf8');
 const c={G:{players:[{hand:[]}],board:[[[{iid:'source',id:'11',type:'Coordinator',owner:0}]]]},isLandscapeActive:()=>true,whisperLandscapeUseAvailable:()=>true,isFaceDownCard:()=>false,WHISPER_UNCOPYABLE_COORDINATOR_IDS:new Set(),createWhisperOfTheHeartToken:()=>({id:'whisper17'}),fatePushDiscard:()=>{},ensureWhisperLandscapeUses:()=>[0,0],toast:()=>{},log:()=>{},renderGame:()=>{}};
 vm.runInNewContext(code.slice(code.indexOf('function commitWhisperLandscapeConversion('),code.indexOf('function chooseWhisperLandscapeAiCost(')),c);

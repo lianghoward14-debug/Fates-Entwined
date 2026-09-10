@@ -44,7 +44,7 @@
 // player-timed. Automatic set/draw resolution may expose their legal command,
 // but must never submit it. These effects only run from their explicit board
 // action button.
-window.FATE_PLAYER_TIMED_MANUAL_EFFECT_CARD_IDS = Object.freeze(['26', '38', '40', '93', 'bh16']);
+window.FATE_PLAYER_TIMED_MANUAL_EFFECT_CARD_IDS = Object.freeze(['20', '26', '38', '40', '93', 'bh16']);
 window.fateEffectRequiresManualActivationId = function(cardOrId){
   if(cardOrId && typeof cardOrId === 'object'){
     const ids = [

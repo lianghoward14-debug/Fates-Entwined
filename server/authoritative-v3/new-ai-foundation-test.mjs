@@ -30,7 +30,7 @@ const hoplite=put(state,0,'63',0);put(state,0,'63',0,1);put(state,0,'63',0,2);
 assert.equal(boardDependencyImpact(state,hoplite.iid).scoreLoss[0][0],11);
 state=fixture(['35']);put(state,0,'35',0,0,20);state.turn=4;
 const snapshot=stableStringify(state),forecast=forecastCalculation(state);
-assert.deepEqual(forecast.after,[200,180]);
+assert.deepEqual(forecast.after,[200,184]);
 assert.equal(stableStringify(state),snapshot,'forecast must not mutate the position');
 state.landscapeId='igb1';assert.deepEqual(forecastCalculation(state).after,[200,190]);
 state.turn=3;assert.equal(forecastCalculation(state).due,false);

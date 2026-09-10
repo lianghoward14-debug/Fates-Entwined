@@ -258,6 +258,15 @@ export function legalCommandTemplates(state, playerIndex){
     }
   }
   for(const card of state.players[player].hand){
+    if(card.counters?.whisperLandscapeToken === true){
+      for(const destination of openBoardDestinations(state, candidate=>{
+        const owner = rowOwner(state, candidate.z, candidate.r);
+        return owner === -1 || owner === player;
+      })){
+        if(zoneActionBlock(state, player, destination.z)) continue;
+        commands.push({type:'SET_CARD', payload:{cardIid:card.iid, destination}});
+      }
+    }
     if(card.counters?.pierogiCounter === true){
       for(const destination of openBoardDestinations(state, candidate=>{
         const owner = rowOwner(state, candidate.z, candidate.r);
@@ -320,6 +329,7 @@ export function legalCommandTemplates(state, playerIndex){
   }
   const moraleAllowsConsolidation = moraleConsolidationsUsed(state, player) < moraleConsolidationLimit(state, player);
   for(const card of state.players[player].hand){
+    if(card.counters?.whisperLandscapeToken === true) continue;
     if(!moraleAllowsConsolidation) continue;
     if(String(card.type || '') === 'Supporter') continue;
     const tributeCandidates = boardEntries(state)
