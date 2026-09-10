@@ -5,7 +5,7 @@
     '20':{fate:1,cost:0,type:'Supporter',effect:'At any time, you can activate this effect. For one turn and the next Morale Calculation, you take no Morale Damage. (2 uses)'},
     '25':{fate:1,cost:0,type:'Supporter',effect:'While this card is on the field, any card adjacent to another card of the same affiliation you control gains 1 Fate (max 1 Fate)'},
     '33':{fate:1,cost:0,type:'Supporter',effect:'When set, recover 16 Morale'},
-    '34':{fate:2,cost:2,type:'Coordinator',effect:"Declare an affiliation. All cards you control in this zone with that affiliation inflict 2 Morale Damage every Morale Calculation."},
+    '34':{fate:4,cost:2,type:'Coordinator',effect:"Declare an affiliation. All cards you control in this zone with that affiliation inflict 3 Morale Damage every Morale Calculation."},
     '35':{fate:12,cost:3,type:'Dauntless',xFate:false,effect:"Every Morale Calculation, half of this card's total Fate is inflicted as Morale Damage."},
     '44':{fate:1,cost:0,type:'Supporter',effectClass:'ADJACENCY_BONUS',effect:'While this card is on the field, declare a card type. If this card is adjacent to a card of that type, this card and one random matching adjacent card gain 3 Fate (max 1 target).'},
     '45':{fate:12,cost:3,type:'Dauntless',effect:'This card is the only character you can control in this zone. When set, Pay 50 Morale and discard any card on the field'},
@@ -96,7 +96,7 @@
       if(!replacement) return;
       if(enabled === true){
         Object.assign(card, replacement, {
-          img:cardId === '20' ? '20.png?v=20260830a' : ('assets/morale-card-reworks/' + cardId + '.png?v=' + (cardId === '25' ? '20260829a' : (cardId === '35' || cardId === '44' ? '20260828c' : (cardId === '34' ? '20260828b' : '20260826b')))),
+          img:cardId === '34' ? '34.png?v=20260909-balance' : cardId === '20' ? '20.png?v=20260830a' : ('assets/morale-card-reworks/' + cardId + '.png?v=' + (cardId === '25' ? '20260829a' : (cardId === '35' || cardId === '44' ? '20260828c' : (cardId === '34' ? '20260828b' : '20260826b')))),
           moraleRework:true
         });
       }else if(originals[cardId]){

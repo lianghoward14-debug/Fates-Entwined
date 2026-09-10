@@ -597,7 +597,7 @@ function resolveZoneFateMoraleDamage(ctx){
           && (whisperRozsi || target.z === entry.z)
           && cardAffiliation(target.card) === affiliation
         );
-        sourceDamage = affected.length * 2;
+        sourceDamage = affected.length * 3;
         affectedIids = affected.map(target=>String(target.card?.iid || '')).filter(Boolean);
       }else if(id === '35'){
         sourceDamage = Math.floor(Math.max(0, Number(effectiveFate(state, entry)) || 0) / 2);

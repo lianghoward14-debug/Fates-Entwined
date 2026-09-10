@@ -385,7 +385,7 @@ const REGISTRY = Object.freeze({
           type:'MASS_MODIFY_MATCHING_CARD',
           selectedIid:'$selectedIid',
           targetPlayerIndex:'$opponent',
-          amount:-7,
+          amount:-9,
           reason:'PRECISE_SHOT'
         }
       }
@@ -501,26 +501,11 @@ const REGISTRY = Object.freeze({
       }
     ]
   },
-  '91':{
-    timings:['WHEN_SET'],
-    operations:['CREATE_TIMED_PLAYER_STATUS'],
-    prompts:[],
-    sharedUseLimit:{key:'SNOWY_VILLAGE', maxUses:2},
-    program:[
-      {
-        kind:'OPERATION',
-        operation:{
-          type:'CREATE_TIMED_PLAYER_STATUS',
-          statusType:'LANDSCAPE_CHANGE_BLOCKED',
-          playerIndex:'$opponent',
-          targetTurns:5,
-          startsNextTargetTurn:true,
-          useCounterKey:'SNOWY_VILLAGE',
-          maxUses:2
-        }
-      }
-    ]
-  },
+  '91':{timings:['HAND_ARRIVAL'],operations:['TRANSFER_CARDS'],prompts:['CARD_SELECTION'],program:[
+    {kind:'SELECT_CARDS',local:'targetIid',filter:{locations:['deck'],playerIndex:'controller',mentionsLandscape:true,excludeCardId:'91'}},
+    {kind:'OPERATION',operation:{type:'TRANSFER_CARDS',targetIid:'$targetIid',playerIndex:'$controller',destinationPile:'hand'}},
+    {kind:'VILLAGER_COST_REDUCTION'}
+  ]},
   '94':{
     timings:['WHEN_SET'],
     operations:['SCHEDULE_CARD', 'TRANSFER_CARDS'],
@@ -835,7 +820,7 @@ const REGISTRY = Object.freeze({
     prompts:['BOARD_TARGET'],
     program:[
       {kind:'SELECT_BOARD', local:'targetIid', optional:true, filter:{sameZone:true}},
-      {kind:'OPERATION', targeted:true, operation:{type:'MODIFY_FATE', targetIid:'$targetIid', amount:-3}}
+      {kind:'OPERATION', targeted:true, operation:{type:'MODIFY_FATE', targetIid:'$targetIid', amount:-4}}
     ]
   },
   '32':{
@@ -1651,7 +1636,7 @@ const REGISTRY = Object.freeze({
       },
       {
         kind:'OPERATION',
-        operation:{type:'MODIFY_FATE', targetIids:'$targetIids', amount:6}
+        operation:{type:'MODIFY_FATE', targetIids:'$targetIids', amount:7}
       },
       {
         kind:'OPERATION',
@@ -1946,7 +1931,7 @@ const PRESSURE_REWORK_REGISTRY = Object.freeze({
 // metadata. These effects can target the opponent or an opponent-owned card.
 const HAVANO_TARGETING_SOURCE_IDS = new Set([
   '04','10','14','16','17','18','21','26','30','31','34','36','39','47','50',
-  '52','53','61','62','64','71','72','81','91','93','97','bh04','bh16','bh18'
+  '52','53','61','62','64','71','72','81','93','97','bh04','bh16','bh18'
 ]);
 
 export function cardRule(cardId, state = null){

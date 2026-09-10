@@ -6,6 +6,7 @@ import {
   zoneScore
 } from '../../shared/engine/index.mjs';
 import {FateAuthoritativeV3LocalSession} from './authoritative-v3-local-session.mjs';
+import {resolveOpeningHandArrivals} from '../../shared/engine/reducer.mjs';
 import {chooseStrategicV3AiCommand} from './authoritative-v3-ai-policy.mjs';
 import {AiSearchWorker} from './new-ai-worker-client.mjs';
 import {FateAuthoritativeV3SinglePlayerScreen} from './authoritative-v3-single-player-screen.mjs?v=2026083101';
@@ -376,6 +377,7 @@ function compactCardDefinition(card){
     id:String(card?.id || ''),
     name:String(card?.name || card?.id || ''),
     ability:String(card?.ability || ''),
+    effect:String(card?.effect || ''),
     type:String(card?.type || 'Supporter'),
     aff:String(card?.aff || card?.affiliation || ''),
     rarity:String(card?.rarity || ''),
@@ -399,7 +401,7 @@ export function createFateV3SinglePlayerState(input = {}){
     throw new Error(`landscape ${landscapeId || '(missing)'} is not eligible for single-player v3`);
   }
   const matchId=String(input.matchId || `LOCALV3-${globalThis.crypto?.randomUUID?.() || Date.now()}`);
-  return createInitialState({
+  return resolveOpeningHandArrivals(createInitialState({
     matchId,
     seed:String(input.seed || matchId),
     players,
@@ -418,7 +420,7 @@ export function createFateV3SinglePlayerState(input = {}){
         && input.expandedContestedRow !== false
         && input.zoneLayout444 !== false
     }
-  });
+  }));
 }
 
 export function installFateV3SinglePlayerBrowserAdapter(windowRef = globalThis.window){

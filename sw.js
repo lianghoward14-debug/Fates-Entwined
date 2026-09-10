@@ -1,5 +1,5 @@
 // Minimal service worker for Chrome PWA installability
-const CACHE_NAME = 'fates-entwined-v31-approved-free-world-20260904';
+const CACHE_NAME = 'fates-entwined-v33-card91-igb13-20260910';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();

@@ -3188,6 +3188,8 @@
         next._persistentEffectOverlay = {kind:'kvetka_ballad', label:'A Noble Effort at a Ballad'};
       }
       next.aff = String(card.affiliation || card.aff || '');
+      next._villagerCostReduction=Math.max(0,Number(card.counters?.villagerCostReduction)||0);
+      next._villagerSearchApplied=card.counters?.villagerSearchApplied===true;
       next.fate = Number(card.baseFate ?? card.fate ?? card.currentFate ?? 0) || 0;
       next.currentFate = Number(card.currentFate ?? next.fate) || 0;
       if(String(card.id || '') === 'bh02'){
@@ -7115,6 +7117,11 @@
       }, 180);
     }
     if(resultMotionStarted) await phase7WaitForPresentationIdle({minQuietMs:110, timeoutMs:7600});
+    for(const event of events){
+      if(event?.type === 'VILLAGER_SEARCH_EMPTY' && Number(event.playerIndex) === Number(view.playerIndex)){
+        window.toast?.('A Snowy Village: no eligible landscape card to search.');
+      }
+    }
     if(!moraleCalculationFirst && typeof window.presentMoralePressureEvents === 'function'){
       await window.presentMoralePressureEvents(events, view);
     }
@@ -16931,6 +16938,13 @@
         if(g._isSpectator || g._onlineRole === 'spectator' || !Number.isInteger(g._onlinePlayerIndex)){
           if(window.toast) toast('Spectators cannot take game actions.');
           return Promise.resolve(false);
+        }
+        if(phase7CurrentUiActive()){
+          const commands = phase7CurrentCommands().filter(function(command){
+            return command?.type === 'ACTIVATE_LANDSCAPE'
+              && String(g.landscapeId || '') === 'igb17';
+          });
+          return Promise.resolve(phase7ChooseCommand(commands, 'Create Shizuku Token'));
         }
         const args = arguments;
         return sendOptimisticAction('HAND_ACTION', {

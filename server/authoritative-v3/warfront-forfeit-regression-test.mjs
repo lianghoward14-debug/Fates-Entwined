@@ -106,7 +106,7 @@ try{
   liveMatch={...left,warfrontMatchmakingKey:liveMatch.warfrontMatchmakingKey};
   api.settleWarfrontForfeit(liveMatch);
   a=await request('bravo');
-  assert.equal(a.zones[0].b.elo,earned);
+  assert.equal(a.zones[0].b,null,'completed matches release the human post');
   assert.equal(a.zones[0].activeMatch,null);
   assert.equal(a.zones[0].matches[0].commendationExcluded,true);
   assert.deepEqual(a.zones[0].matches[0].playerStats,{a:{},b:{}});
@@ -122,6 +122,6 @@ try{
   assert.equal(a.zones[0].matches[0].playerStats.b.consolidations,3);
   assert.equal(a.zones[0].matches[0].playerStats.b.durationMs,5000);
   assert.deepEqual(a.zones[0].matches[0].playerStats.a,{});
-  assert.equal(a.zones[0].b.elo,earned);
+  assert.equal(a.zones[0].b,null,'completed matches release the human post');
   console.log('Warfront forfeit, takeover turn progression, rating consistency and durable 5–0 regression passed');
 }finally{api?.flush();globalThis.fetch=originalFetch;fs.rmSync(dir,{recursive:true,force:true});}

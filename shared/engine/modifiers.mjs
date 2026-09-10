@@ -69,7 +69,7 @@ export function isEffectSourceSuppressed(state, value){
     : (value?.iid ? findBoardCard(state, value.iid) : null);
   const card = entry?.card || value;
   if(!card) return false;
-  if(['09','28','70','74','79','98'].includes(runtimeRuleId(card)) || isEffectImmutable(card))return false;
+  if(['09','28','70','74','79','91','98'].includes(runtimeRuleId(card)) || isEffectImmutable(card))return false;
   if(card.statuses?.includes('EFFECTS_SUPPRESSED')) return true;
   if(!entry || effectiveCardType(state, card) !== 'Coordinator') return false;
   if(isEffectImmutable(card) || isImmuneToOpponentEffects(card, state)) return false;

@@ -13,14 +13,15 @@ export function startWarfrontBattle(event, now, random = Math.random){
   event.lastResult = null;
   for(const zone of event.zones){
     for(const team of ['a','b']){
-      if(!zone[team]) zone[team] = {
+      if(event.humanOnly === true && zone[team]?.isAI) zone[team] = null;
+      if(!zone[team] && event.humanOnly !== true) zone[team] = {
         uid:`warfront-ai:${event.mapCode}:${zone.id}:${team}`,
         name:`AI Commander ${event.zones.indexOf(zone) + 1}${team.toUpperCase()}`,
         isAI:true, elo:600, joinedAt:now
       };
     }
     // One random instant in each fifth of the day prevents a single burst.
-    zone.aiSchedule = zone.a.isAI && zone.b.isAI
+    zone.aiSchedule = event.humanOnly !== true && zone.a?.isAI && zone.b?.isAI
       ? Array.from({length:5}, (_, index)=>now + Math.floor((index + .1 + random() * .8) * WARFRONT_PHASE_MS / 5))
       : [];
   }
@@ -29,7 +30,7 @@ export function startWarfrontBattle(event, now, random = Math.random){
 }
 
 export function warfrontDueMatch(event, now){
-  if(event?.status !== 'active') return null;
+  if(event?.status !== 'active' || event.humanOnly === true) return null;
   for(const zone of event.zones){
     const index = warfrontPlayed(zone);
     if(index >= 5 || zone.activeMatch) continue;
@@ -43,4 +44,38 @@ export function warfrontDueMatch(event, now){
     }
   }
   return null;
+}
+
+export function prepareWarfrontRoster(event){
+  event.service ||= {};
+  event.waitingAI ||= [];
+  for(const zone of event.zones){
+    for(const match of zone.matches || []) match.participants ||= structuredClone({a:zone.a,b:zone.b});
+    for(const team of ['a','b']) for(const player of [zone[team],...(zone.matches||[]).map(m=>m.participants?.[team])]) if(player && !player.isAI){
+      const entry=event.service[player.uid] ||= {...structuredClone(player),team,zoneId:zone.id,matchIds:[]};
+      for(const match of zone.matches||[]) if(!match.simulated && match.participants?.[team]?.uid===player.uid && !entry.matchIds.includes(match.id)) entry.matchIds.push(match.id);
+    }
+  }
+}
+export function relocateWarfrontAI(event){
+  if(event.humanOnly === true){event.waitingAI=[];return;}
+  for(let i=0;i<(event.waitingAI||[]).length;){
+    const {player,team}=event.waitingAI[i];
+    const zone=event.zones.find(z=>!z[team]&&!z.activeMatch&&warfrontPlayed(z)<5);
+    if(!zone){i++;continue;}
+    zone[team]=player;event.waitingAI.splice(i,1);
+    if(zone.a?.isAI&&zone.b?.isAI&&!zone.aiSchedule?.length)zone.aiSchedule=Array.from({length:5},(_,n)=>Date.now()+(n+1)*Math.max(1000,(event.endsAt-Date.now())/5));
+  }
+}
+export function releaseWarfrontPlayers(event,zone,binding,matchId){
+  prepareWarfrontRoster(event);
+  for(const team of ['a','b']){
+    const player=binding.participants[team];
+    if(!player||player.isAI)continue;
+    const entry=event.service[player.uid] ||= {...structuredClone(player),team,zoneId:zone.id,matchIds:[]};
+    if(!entry.matchIds.includes(matchId))entry.matchIds.push(matchId);
+    if(zone[team]?.uid===player.uid)zone[team]=null;
+  }
+  binding.settled=true;
+  relocateWarfrontAI(event);
 }

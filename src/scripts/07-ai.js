@@ -4157,15 +4157,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       inst._effectTurnLocked = true;
       break;
     }
-    case '91': {
-      if(!Array.isArray(G._snowyVillageUses)) G._snowyVillageUses = [0,0];
-      if(!Array.isArray(G._landscapeChangeLocks)) G._landscapeChangeLocks = [0,0];
-      if((Number(G._snowyVillageUses[cp]) || 0) < 2) {
-        G._snowyVillageUses[cp] = (Number(G._snowyVillageUses[cp]) || 0) + 1;
-        G._landscapeChangeLocks[opp] = Math.max(Number(G._landscapeChangeLocks[opp]) || 0, 6);
-      }
-      break;
-    }
+    case '91': break; // Arrival effect only.
     case '94': {
       const strat = G._selectedAI?._deckStrategy || '';
       const conversionActive = typeof isBlameGameActive === 'function' && isBlameGameActive(cp);
@@ -4324,7 +4316,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       }
       break;
     }
-    case '31': { // Hemorrhaging Wound: -3 Fate to any card; prefer an opponent
+    case '31': { // Hemorrhaging Wound: -4 Fate to any card; prefer an opponent
       const opponents=[];
       const friendly=[];
       G.board[z].forEach(row=>row.forEach(cell=>{
@@ -4337,10 +4329,10 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       if(target){
         const before = target.currentFate || target.fate || 0;
         const changed = typeof reduceStoredCardFateBy === 'function'
-          ? reduceStoredCardFateBy(target, 3, cp, {permanent:true})
-          : setCardFateValue(target, before - 3, cp);
+          ? reduceStoredCardFateBy(target, 4, cp, {permanent:true})
+          : setCardFateValue(target, before - 4, cp);
         if(changed || before <= 0){
-          log('p2', `AI: Hemorrhaging Wound -3 Fate to ${target.name}`);
+          log('p2', `AI: Hemorrhaging Wound -4 Fate to ${target.name}`);
           if(typeof flashCardEffect === 'function') flashCardEffect(target, 'oathbound_crescent', {
             label:'oathbound blade',
             soundKey:'oathbound-ai:' + String(inst && (inst.iid || inst.id) || 'card') + ':' + String(target && (target.iid || target.id) || 'target') + ':' + String(G.turn || 0)
@@ -4754,8 +4746,8 @@ async function aiActivateEffects() {
   const toActivate = [];
   forEachBoardCard((card,z,r,c)=>{
     if(card.owner===cp && card.type!=='Supporter' && !activated.has(card.iid) && !isFaceDownCard(card)
-      && typeof shouldShowManualCharacterEffectButton === 'function'
-      && shouldShowManualCharacterEffectButton(card)){
+      && typeof canUseManualCharacterEffect === 'function'
+      && canUseManualCharacterEffect(card)){
       toActivate.push({card,z,r,c});
     }
   });
@@ -4775,12 +4767,15 @@ async function aiActivateEffects() {
     activated.add(card.iid);
     // Easier AIs sometimes skip activating a useful effect
     const mustUseMajaOpening = card.id === '07' && G.turn <= 2;
-    if(!mustUseMajaOpening && Math.random() < settings.skipEffectChance){
+    const automaticEffect = typeof automaticBoardEffectsEnabled === 'function'
+      && automaticBoardEffectsEnabled()
+      && !window.fateEffectRequiresManualActivationId?.(card);
+    if(!mustUseMajaOpening && !automaticEffect && Math.random() < settings.skipEffectChance){
       log('p2',`AI skipped ${card.name}'s effect`);
       continue;
     }
-    if(typeof shouldShowManualCharacterEffectButton === 'function'
-      && shouldShowManualCharacterEffectButton(card)
+    if(typeof canUseManualCharacterEffect === 'function'
+      && canUseManualCharacterEffect(card)
       && typeof playEffectActivationCinematic === 'function') {
       await playEffectActivationCinematic(card, z, r, c, {source:'ai-manual-character'});
     }

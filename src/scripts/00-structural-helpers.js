@@ -937,7 +937,7 @@ function getDisplayedCardCost(card) {
     : (typeof card.cost === 'number' ? card.cost : 0);
   const printedCost = hasConditionalFreeCost ? 0 : canonicalCost;
   if (isCardEffectImmutable(card)) return Math.max(0, printedCost + bloatPenalty);
-  return Math.max(0, printedCost + (Number(card._handCostDelta) || 0) + bloatPenalty);
+  return Math.max(0, printedCost - (Number(card._villagerCostReduction) || 0) + (Number(card._handCostDelta) || 0) + bloatPenalty);
 }
 
 function recordHandCardEffectModifier(card, effect) {
@@ -990,6 +990,11 @@ function getHandCardEffectModifiers(card) {
     });
   }
   if (isCardEffectImmutable(card)) return rows;
+  if(card._villagerSearchApplied || card.counters?.villagerSearchApplied){
+    const reduction=Number(card._villagerCostReduction ?? card.counters?.villagerCostReduction) || 0;
+    addRow({key:'wodny-potok-villager',name:'A Snowy Village',
+      text:'Wodny Potok Villager: searched into hand; cost reduced by 2 (minimum 0).',costDelta:-reduction});
+  }
   if (Array.isArray(card._handEffectModifiers)) card._handEffectModifiers.forEach(addRow);
   // Renderer snapshots and authoritative picker projections expose the same
   // rows without the legacy underscore. Accept both shapes so every picker

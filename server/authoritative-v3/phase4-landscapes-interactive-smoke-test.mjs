@@ -93,7 +93,7 @@ assert.equal(result.state.board[1].length, 4);
 assert.deepEqual(result.state.geometry.rowOwners[1], [1, -1, 0, 1]);
 assert.equal(result.state.geometry.playableExtraSquares.filter(square=>
   square.z === 1 && square.r === 3 && square.owner === 1
-).length, 3);
+).length, 4);
 assertInvariants(result.state);
 
 // Ties resolve without opening a prompt or interrupting the normal turn boundary.
@@ -155,7 +155,7 @@ assert(result.events.some(event=>
   event.type === 'LANDSCAPE_ACTIVATED' && event.landscapeId === 'igb16'
 ));
 
-// Concrete Roads pays all three discard costs, creates one 5-Fate Shizuku,
+// Concrete Roads discards only the copied Coordinator, creates one 5-Fate Shizuku,
 // and expands the copied Coordinator aura from one zone to the whole field.
 state = createInitialState({
   matchId:'P4LAND-IGB17',
@@ -182,7 +182,7 @@ result = reduceCommand(
   state,
   command(state, 'p0', 1, 'ACTIVATE_LANDSCAPE', {
     sourceIid:mystic.iid,
-    discardIids:concreteCosts.map(card=>card.iid)
+    discardIids:[]
   }),
   {playerId:'p0'}
 );
@@ -190,7 +190,7 @@ assert.equal(result.ok, true);
 assert.equal(result.state.landscapeState.oncePerGameUses[0], 1);
 assert(result.state.players[0].discard.some(card=>card.iid === mystic.iid));
 assert(concreteCosts.every(cost=>
-  result.state.players[0].discard.some(card=>card.iid === cost.iid)
+  result.state.players[0].hand.some(card=>card.iid === cost.iid)
 ));
 const shizuku = result.state.players[0].hand.find(card=>card.id === 'whisper17');
 assert(shizuku);

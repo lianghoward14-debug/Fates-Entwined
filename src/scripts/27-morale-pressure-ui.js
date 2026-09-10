@@ -799,7 +799,7 @@
         const whisperRozsi=String(source._whisperCopiedEffectId||'')==='34';
         if(((typeof cardActsAsPassive==='function'?cardActsAsPassive(source,'34'):id==='34')||whisperRozsi)&&source._moraleAffiliation){
           const affected=entries.filter(function(target){return Number(target.card.owner)===owner&&(whisperRozsi||Number(target.z)===Number(entry.z))&&String(target.card.aff||target.card.affiliation||'')===String(source._moraleAffiliation);});
-          sourceDamage=affected.length*2;
+          sourceDamage=affected.length*3;
           affectedIids=affected.map(function(target){return String(target.card&&target.card.iid||'');}).filter(Boolean);
         }else if(id==='35'){
           const fate=typeof getEffectiveFate==='function'?getEffectiveFate(source,entry.z):Number(source.currentFate??source.fate??0);

@@ -3,6 +3,7 @@ import {createRngState,nextInt,shuffleInPlace} from '../engine/rng.mjs';
 
 function instance(definition,owner,iid){
   return {iid,id:definition.id,name:definition.name || definition.id,ability:definition.ability || '',
+    effect:definition.effect || '',
     type:definition.type,affiliation:definition.affiliation || definition.aff || '',rarity:definition.rarity || '',
     baseFate:Number(definition.fate || 0),currentFate:Number(definition.fate || 0),cost:Number(definition.cost || 0),
     owner,controller:owner,faceDown:false,statuses:[],counters:{}};

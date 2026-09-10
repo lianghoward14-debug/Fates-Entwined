@@ -2057,7 +2057,7 @@ function renderLandscapePanel() {
     const spent = (Number(uses[perspectivePlayer]) || 0) >= 1;
     const isLocalTurn = G && G.currentPlayer === perspectivePlayer && G.phase === 'main' && !G._isSpectator && G._onlineRole !== 'spectator';
     const hasCoordinator = typeof getWhisperCoordinatorEntries === 'function' ? getWhisperCoordinatorEntries(perspectivePlayer).length > 0 : true;
-    const hasHandCost = typeof getWhisperDiscardableHandCards === 'function' ? getWhisperDiscardableHandCards(perspectivePlayer).length >= 2 : true;
+    const hasHandCost = true;
     const enabled = !spent && isLocalTurn && hasCoordinator && hasHandCost;
     const buttonText = spent ? 'Token Created' : 'Create Shizuku Token';
     whisperActionSig = [perspectivePlayer, spent ? 1 : 0, enabled ? 1 : 0, buttonText, hasCoordinator ? 1 : 0, hasHandCost ? 1 : 0, isLocalTurn ? 1 : 0].join(':');
@@ -2077,7 +2077,7 @@ function renderLandscapePanel() {
   panel.classList.add('landscape-id-' + landscape.id);
   const landscapeNameHtml = escapeHtml(landscape.name).replace(/:\s+/, ':<br>');
   const panelDescription = landscape.id === 'igb17'
-    ? 'Once per game: discard a Coordinator and 2 hand cards to create a 5 Fate Shizuku Token that copies its effect field-wide. Some Coordinators are ineligible.'
+    ? 'Once per game: discard a Coordinator to create a 5 Fate Shizuku Token that copies its effect field-wide. Some Coordinators are ineligible.'
     : landscape.description;
   panel.innerHTML =
     '<div class="landscape-name">' + landscapeNameHtml + '</div>' +
@@ -4591,6 +4591,8 @@ function enforceHandLimit(player) {
   // Phase 7 owns this requirement as an exact server command. Its UI bridge
   // renders the authoritative picker; the legacy modal must never race it.
   if(G._phase7CurrentMultiplayer === true) return false;
+  // A draw-then-discard effect must finish before checking the resulting hand.
+  if(G._whenSetEffectsResolving > 0) return false;
   if(Number(G._deferHandLimitEnforcementForPlayer) === Number(player)) return false;
   const handLimit = getActiveHandLimit(player);
   const hand = G.players[player].hand || [];
@@ -5711,7 +5713,7 @@ function renderTopbarEffects() {
       const zone = Number.isInteger(Number(status.zone)) ? 'Zone ' + (Number(status.zone) + 1) : 'The selected zone';
       add('50', 'berkeley_lock', 'Berkeley CS Major', 'Artillery Distance', zone + ' is locked for the affected player\'s turn.', 'effect-pill-berkeley');
     }else if(type === 'LANDSCAPE_CHANGE_BLOCKED' && remaining > 0){
-      add('91', 'village_lock', 'Wodny Potok Villager', 'A Snowy Village', 'The affected player cannot change the current landscape.', 'effect-pill-house');
+      // Retired Villager lock: no status display.
     }else if(type === 'NEXT_CHARACTER_HAND_ARRIVAL'){
       add('33', 'wci_bonus', 'West Caribbea Infantry', 'The West Caribbea Infantry', 'The next Character added to this player\'s hand costs 1 less Reinforcement and gains 2 Fate.', 'effect-pill-wci');
     }else if(type === 'RIVERA_AFFILIATION_BONUS' && remaining > 0){
@@ -6302,24 +6304,6 @@ function renderTopbarEffects() {
         owner: coerceStatusOwner(owner, myP),
         extraClass: 'effect-pill-blame-game',
         turnsLeft: turns
-      });
-    });
-  }
-
-  if(Array.isArray(G._landscapeChangeLocks)) {
-    const card = CARDS.find(c => c.id === '91');
-    G._landscapeChangeLocks.forEach(function(turns, lockedPlayer){
-      const turnsLeft = Math.max(0, Number(turns) || 0);
-      if(turnsLeft <= 0) return;
-      allEffects.push({
-        icon: getStatusEffectIcon('village_lock'),
-        label: card ? card.ability : 'A Snowy Village',
-        cardName: card ? card.name : 'Wodny Potok Villager',
-        cardAbility: card ? card.ability : 'A Snowy Village',
-        cardEffect: 'Opponent cannot change the current landscape.',
-        owner: coerceStatusOwner(1 - lockedPlayer, myP),
-        extraClass: 'effect-pill-house',
-        turnsLeft
       });
     });
   }
@@ -7064,12 +7048,6 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
     label = 'Negation Uses';
     value = (1 - uses) + ' / 1';
     sub = uses ? 'Ready to Negate' : 'Effect Expended';
-  } else if(card.id === '91') {
-    const counts = Array.isArray(G._snowyVillageUses) ? G._snowyVillageUses : [0,0];
-    const used = Math.max(0, Number(counts[owner]) || 0);
-    label = 'Snowy Village Uses';
-    value = used + ' / 2';
-    sub = used < 2 ? 'landscape lock available' : 'landscape lock exhausted';
   } else if(card.id === '100') {
     const triggers = Math.max(0, Number(card._wintertideTriggerCount) || 0);
     label = 'Snow on the Carpathians:';
@@ -8464,7 +8442,12 @@ function pickCardsVisual(cards, opts, onConfirm) {
   const allowAfterEffectCinematic = typeof G !== 'undefined' && G && G._allowImmediateEffectPickerUntil && Date.now() < G._allowImmediateEffectPickerUntil;
   const wait = (opts.immediate || allowAfterEffectCinematic) ? 0 : (typeof getInteractionAnimationDelayMs === 'function' ? getInteractionAnimationDelayMs() : getPlacementUiDelayMs());
   if(wait > 0){
-    setTimeout(()=>pickCardsVisual(cards, opts, onConfirm), wait);
+    const pickerMatch = G;
+    pickerMatch._deferredCardPickers = (Number(pickerMatch._deferredCardPickers) || 0) + 1;
+    setTimeout(()=>{
+      pickerMatch._deferredCardPickers = Math.max(0, pickerMatch._deferredCardPickers - 1);
+      if(G === pickerMatch) pickCardsVisual(cards, opts, onConfirm);
+    }, wait);
     return;
   }
   if(!cards.length){toast('No matching cards found');if(onConfirm) onConfirm([]); return;}
@@ -10820,6 +10803,7 @@ function queueEffectActivationCinematic(card, options, key) {
 
 function showEffectActivationCinematic(card, opts) {
   const options = opts || {};
+  if(card?.type === 'Coordinator') return Promise.resolve(false);
   if(typeof document === 'undefined' || !card) return Promise.resolve(false);
   const key = String(options._effectActivationDedupeKey || effectActivationCinematicDedupeKey(card, options));
   const now = Date.now();
@@ -11020,6 +11004,7 @@ function effectActivationCinematicDisabled() {
 
 function playEffectActivationCinematic(card, z, r, c, opts) {
   const options = opts || {};
+  if(card?.type === 'Coordinator') return Promise.resolve(false);
   if(effectActivationCinematicDisabled()) return Promise.resolve(false);
   if(!options.remote && options.broadcast !== false && String(options.source || '') !== 'improvisor-reaction' && typeof window !== 'undefined' && typeof window.__fateSendEffectActivationCinematic === 'function') {
     try { window.__fateSendEffectActivationCinematic(card, z, r, c, options); } catch(e) {}

@@ -9,7 +9,7 @@ async function run(){
   const c={simulationSession:false,window:{toast:true,FateOnline:{flyApiRequest:()=>{requests++;return new Promise(r=>resolve=r);}}},toast:m=>messages.push(m),state:{status:'enrollment',zones:[{id:'front',a:null,b:null}]},deploymentPending:null,selectedTeam:'a',TEAMS:{a:{},b:{}},lifecycle(){},me:()=>({uid:'me'}),meta:()=>({name:'Front'}),localStorage:{getItem:()=>simulation},storageKey:x=>x,SIMBACKUP:'sim',save(){},rerender(){},warSfx(){},remoteEligible:()=>true,AbortController,setTimeout:fn=>{timer=fn;return 1;},clearTimeout(){},pullRemoteState:()=>{refreshes++;},Date};
   c.seat=uid=>c.state.zones[0].a?.uid===uid?{zone:c.state.zones[0],team:'a'}:null;
   c.adoptRemoteState=s=>{c.state=s;};
-  vm.createContext(c);vm.runInContext(handler,c);
+  c.score=()=>({played:0});vm.createContext(c);vm.runInContext(source.slice(source.indexOf('function warCanDeploy('),source.indexOf('function miniSeat('))+handler,c);
   const first=c.window.joinWarEventZone('front','a');
   assert(c.deploymentPending);assert.match(messages.at(-1),/Deploying/);
   await c.window.joinWarEventZone('front','a');assert.equal(requests,1);

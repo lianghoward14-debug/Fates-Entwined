@@ -244,6 +244,7 @@ function betaQueueOpponent(entry){
 }
 
 function completeBetaQueueMatch(queued){
+  if(queued.queueMode==='warfront'&&!flyDataApi?.warfrontCanQueue(queued.matchmakingKey))return null;
   const ai=queued.queueMode==='warfront'?flyDataApi?.warfrontAiOpponent(queued.matchmakingKey,queued.authUid||queued.uid):null;
   const opponent = ai ? {...queued,uid:ai.uid,name:ai.name,photoURL:ai.photo,rankElo:ai.elo,deckIds:warfrontAiDeck(),isAI:true} : betaQueueOpponent(queued);
   if(!opponent) return null;
@@ -818,6 +819,7 @@ const server = http.createServer(async (req, res)=>{
         writeJson(res, 400, {ok:false, error:'Warfront matchmaking requires a valid campaign matchup key'});
         return;
       }
+      if(queued.queueMode==='warfront'&&!flyDataApi?.warfrontCanQueue(queued.matchmakingKey)){writeJson(res,409,{ok:false,error:'Warfront post is unavailable or your five campaign matches are complete'});return;}
       betaQueue.set(queuePlayerId, queued);
       store.upsertBetaMatchmakingEntry(queued);
       const matched = completeBetaQueueMatch(queued);
@@ -845,6 +847,7 @@ const server = http.createServer(async (req, res)=>{
       const queued = betaQueue.get(queuePlayerId) || null;
       if(queued){
         queued.lastSeenAt = Date.now();
+        if(queued.queueMode==='warfront'&&!flyDataApi?.warfrontCanQueue(queued.matchmakingKey)){writeJson(res,409,{ok:false,error:'Warfront post is unavailable or your five campaign matches are complete'});return;}
         betaQueue.set(queuePlayerId, queued);
         store.touchBetaMatchmakingEntry(queuePlayerId, queued.lastSeenAt);
         const matched = completeBetaQueueMatch(queued);

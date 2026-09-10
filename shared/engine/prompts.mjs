@@ -188,6 +188,7 @@ export function eligibleCardTargets(state, frame, filter = {}){
     }
     if(filter.controller && entryController !== frame.controller) return false;
     if(filter.opponent && entryController === frame.controller) return false;
+    if(filter.mentionsLandscape && !/landscape/i.test(String(entry.card.effect || ''))) return false;
     if(filter.type && String(entry.card.type || '') !== String(filter.type)) return false;
     if(filter.cardId && String(entry.card.id || '') !== String(filter.cardId)) return false;
     if(filter.character && effectiveCardType(state, entry.card) === 'Supporter') return false;

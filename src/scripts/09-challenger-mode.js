@@ -545,6 +545,54 @@ const STARTER_DECKS = [
 
 const AI_ONLY_RANDOM_DECKS = [
   {
+    id: 'ai_test_of_time',
+    baseStrategy: 'ai_test_of_time',
+    name: 'The Test of Time',
+    description: 'Establish Phil and Specter, extend the match when your growth engines benefit most, and protect their long-term Fate advantage.',
+    theme: 'AI Only - Time and Growth',
+    faceCardId: '46',
+    displayCardIds: ['46','95','bh20','bh25'],
+    ids: ['08','08','08','46','46','46','95','95','95','06','06','06','27','27','27','bh20','bh20','bh20','60','60','60','28','28','28','94','98','98','09','09','75','75','bh05','bh25','bh25','48','74','74','74','bh25','98'],
+    enabled: true,
+    sourcePublicDeckId: 'nNbfvYwsoDfnvTHQhK4lwN5a2B22_1788867853377'
+  },
+  {
+    id: 'ai_zsofias_patience',
+    baseStrategy: 'ai_zsofias_patience',
+    name: "Zsofia's Patience",
+    description: 'Fund two Abeds and Howard together around Zsofia by turn ten, focus Fate gains on her, protect her with Havano, then recycle Cook Islands Duelist.',
+    theme: 'AI Only - Zsofia Burst and Morale',
+    faceCardId: '89',
+    displayCardIds: ['89','bh19','03','64','79'],
+    ids: ['84','84','84','98','98','09','09','09','bh19','bh19','89','03','64','64','64','28','28','28','60','60','60','58','58','58','79','79','79','72','72','72','05','05','05','73','73','73','74','74','74','bh19'],
+    enabled: true,
+    sourcePublicDeckId: 'nNbfvYwsoDfnvTHQhK4lwN5a2B22_1788955109564'
+  },
+  {
+    id: 'ai_public_wintertide',
+    baseStrategy: 'ai_public_wintertide',
+    name: 'Wintertide',
+    description: 'Search Felicyta Youth to establish Snow on the Carpathians, then use Taylor and youth families to build two winning zones while preserving space.',
+    theme: 'AI Only - Snow and Youth Families',
+    faceCardId: '100',
+    displayCardIds: ['82','84','89','88'],
+    ids: ['82','84','84','84','89','89','89','88','88','88','60','60','60','28','28','28','97','97','97','100','100','92','92','92','09','09','09','06','06','58','58','58','74','74','74','98','98','75','75','bh05'],
+    enabled: true,
+    sourcePublicDeckId: 'nNbfvYwsoDfnvTHQhK4lwN5a2B22_1788960531967'
+  },
+  {
+    id: 'ai_endless_sea',
+    baseStrategy: 'ai_endless_sea',
+    name: 'The Endless Sea',
+    description: 'React to opposing threats with efficient searches, Fate reduction and removal, build Li-Hua Eventide pressure, and protect valuable plays with Havano.',
+    theme: 'AI Only - Reactive Eventide',
+    faceCardId: 'bh16',
+    displayCardIds: ['bh16','61','bh04','30'],
+    ids: ['bh16','bh16','bh16','07','74','74','74','06','06','06','27','27','27','75','75','75','79','79','79','bh04','bh04','31','31','31','30','30','30','28','28','28','09','09','09','bh09','bh09','61','61','49','49','49'],
+    enabled: true,
+    sourcePublicDeckId: 'nNbfvYwsoDfnvTHQhK4lwN5a2B22_1788961696435'
+  },
+  {
     "id": "ai_last_mohicans_ledger",
     "baseStrategy": "ai_last_mohicans_ledger",
     "name": "The Last Mohican's Ledger",
@@ -1588,7 +1636,7 @@ function getAIDeckPoolForOpponent(opp) {
   const starterPool = Array.isArray(STARTER_DECKS) ? STARTER_DECKS : [];
   const advancedPool = Array.isArray(AI_ONLY_RANDOM_DECKS) ? AI_ONLY_RANDOM_DECKS.filter(isAIDeckEnabled) : [];
   if(!advancedPool.length) return starterPool;
-  // Temporary five-deck pool; Footmen retain their starter-only restriction.
+  // Share all enabled archive decks; Footmen retain their starter-only restriction.
   const protectedRanks = new Set(['Footman']);
   if(opp && protectedRanks.has(String(opp.rank || ''))) return starterPool;
   return [...starterPool, ...advancedPool];

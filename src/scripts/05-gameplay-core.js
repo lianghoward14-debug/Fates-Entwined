@@ -1,6 +1,6 @@
 function hasNoSuppressibleFieldEffect(card){
   const id=String(typeof getCardRuntimeEffectId==='function'?getCardRuntimeEffectId(card):card?.id || '');
-  return ['09','28','70','74','79','98','76','bh01'].includes(id);
+  return ['09','28','70','74','79','91','98','76','bh01'].includes(id);
 }
 function isFlowerPickingEligible(player){
   if(typeof G.players?.[player]?.flowerPickingEligible==='boolean')return G.players[player].flowerPickingEligible;
@@ -964,7 +964,7 @@ const WHISPER_FIELD_WIDE_EFFECT_TEXT = Object.freeze({
   '15':'Each time you would set a Coordinator, all cards you control on the field gain 1 Fate.',
   '19':'All Coordinators you control on the field gain 3 Fate.',
   '23':'All Characters you control on the field gain 2 Fate.',
-  '34':'Declare an affiliation. During Morale Calculation, inflict 2 Morale Damage for each card you control on the field with that affiliation.',
+  '34':'Declare an affiliation. During Morale Calculation, inflict 3 Morale Damage for each card you control on the field with that affiliation.',
   '57':'All Coordinator auras you control on the field gain 1 Fate in potency.',
   '77':'When set, declare an affiliation. All cards you control on the field with that affiliation gain 4 Fate.',
   'bh02':'Each time you activate a draw effect, all cards you control on the field gain 1 Fate.',
@@ -1043,27 +1043,13 @@ function commitWhisperLandscapeConversion(player, sourceEntry, handCards) {
   if(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(liveSource)) return false;
   if(typeof isWhisperOfTheHeartToken === 'function' && isWhisperOfTheHeartToken(liveSource)) return false;
   if(WHISPER_UNCOPYABLE_COORDINATOR_IDS.has(String(liveSource.id || ''))) return false;
-  const chosen = Array.isArray(handCards) ? handCards.filter(Boolean) : [];
-  const uniqueIids = new Set(chosen.map(function(card){ return String(card.iid || ''); }));
-  if(chosen.length !== 2 || uniqueIids.size !== 2) return false;
   const hand = G.players?.[player]?.hand;
   if(!Array.isArray(hand)) return false;
-  const liveHandCards = chosen.map(function(card){
-    return hand.find(function(entry){ return entry && String(entry.iid || '') === String(card.iid || ''); });
-  });
-  if(liveHandCards.some(function(card){ return !card; })) return false;
-  if(liveHandCards.some(function(card){ return typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(card); })) return false;
-
   const token = createWhisperOfTheHeartToken(player, liveSource);
   if(!token) return false;
   G.board[sourceEntry.z][sourceEntry.r][sourceEntry.c] = null;
   if(G.selectedBoardCard && String(G.selectedBoardCard.iid || '') === String(liveSource.iid || '')) G.selectedBoardCard = null;
   fatePushDiscard(player, liveSource, {sound:false});
-  liveHandCards.forEach(function(card){
-    const index = hand.findIndex(function(entry){ return entry && String(entry.iid || '') === String(card.iid || ''); });
-    if(index >= 0) hand.splice(index, 1);
-    fatePushDiscard(player, card, {sound:false});
-  });
   hand.push(token);
   ensureWhisperLandscapeUses()[player] = 1;
   if(typeof playDiscardSfx === 'function') playDiscardSfx();
@@ -1085,10 +1071,7 @@ function chooseWhisperLandscapeAiCost(player) {
     const bScore = Number(priorities[String(b.card.id || '')] || 0) - (Number(b.card.currentFate ?? b.card.fate) || 0) * .2;
     return bScore - aScore;
   });
-  const handCards = getWhisperDiscardableHandCards(player).slice().sort(function(a, b){
-    return (Number(a.currentFate ?? a.fate) || 0) - (Number(b.currentFate ?? b.fate) || 0);
-  }).slice(0, 2);
-  return sources.length && handCards.length === 2 ? {source:sources[0], handCards} : null;
+  return sources.length ? {source:sources[0], handCards:[]} : null;
 }
 
 function activateWhisperOfTheHeartLandscape(options = {}) {
@@ -1112,9 +1095,8 @@ function activateWhisperOfTheHeartLandscape(options = {}) {
     return Promise.resolve(false);
   }
   const sources = getWhisperCoordinatorEntries(player);
-  const handCards = getWhisperDiscardableHandCards(player);
-  if(!sources.length || handCards.length < 2) {
-    if(!auto) toast(!sources.length ? 'You need a Coordinator on your field.' : 'You need 2 cards in your hand to discard.');
+  if(!sources.length) {
+    if(!auto) toast('You need a Coordinator on your field.');
     return Promise.resolve(false);
   }
   if(auto) {
@@ -1138,20 +1120,7 @@ function activateWhisperOfTheHeartLandscape(options = {}) {
     }, function(selected){
       const source = selected && selected[0];
       if(!source || !source.card) { resolve(false); return; }
-      const costCards = getWhisperDiscardableHandCards(player);
-      pickCardsVisual(costCards, {
-        title:'Concrete Roads - Discard Cost',
-        subtitle:'Choose exactly 2 cards from your hand to discard.',
-        maxCount:2,
-        minCount:2,
-        confirmLabel:'Create 5 Fate Token',
-        immediate:true,
-        viewerPlayerIndex:player,
-        onlineParentAction:true,
-        onCancel:function(){ resolve(false); }
-      }, function(chosen){
-        resolve(!!commitWhisperLandscapeConversion(player, source, chosen));
-      });
+      resolve(!!commitWhisperLandscapeConversion(player, source, []));
     });
   });
 }
@@ -5935,7 +5904,7 @@ async function beginManualSupporterEffectActivation(card, z, r, c, affectedOwner
 
 function isLandscapeChangeBlockedFor(player) {
   if(!Array.isArray(G._landscapeChangeLocks)) G._landscapeChangeLocks = [0,0];
-  return (Number(G._landscapeChangeLocks[player]) || 0) > 0;
+  return false;
 }
 
 function ignoreBattleOfPellaThresholdsReachedBeforeEntry(previousLandscapeId) {
@@ -6157,7 +6126,7 @@ const INITIAL_SET_INITIATOR_IDS = new Set(['03','04','06','07','08','13','17','2
 // that keeps single-player interaction timing identical to authoritative play.
 const AUTHORITATIVE_ACTIVATE_EFFECT_IDS = new Set(['03','06','20','22','26','27','29','30','38','39','40','48','83','93','bh01']);
 const AUTHORITATIVE_WHEN_SET_EFFECT_IDS = new Set([
-  '02','04','05','07','08','12','13','14','16','17','18','21','25','31','32','33','37','42','43','50','51','52','54','58','60','61','62','65','66','68','69','71','72','73','75','76','77','78','80','81','82','84','87','90','91','94','96','97','99','bh04','bh05','bh06','bh09','bh10','bh12','bh13','bh14','bh19','bh20','bh21','bh22','bh23','bh24','bh25'
+  '02','04','05','07','08','12','13','14','16','17','18','21','25','31','32','33','37','42','43','50','51','52','54','58','60','61','62','65','66','68','69','71','72','73','75','76','77','78','80','81','82','84','87','90','94','96','97','99','bh04','bh05','bh06','bh09','bh10','bh12','bh13','bh14','bh19','bh20','bh21','bh22','bh23','bh24','bh25'
 ]);
 const PRESSURE_REWORK_TIMING_CARD_IDS = new Set(['20','25','33','34','35','44','45','47','64','65','69','73']);
 const PRESSURE_REWORK_WHEN_SET_EFFECT_IDS = new Set(['33','34','45','47','64','69']);
@@ -6305,6 +6274,19 @@ async function activatePendingWhenSetEffect(card, z, r, c) {
 }
 
 async function triggerWhenSet(inst, z, r, c, opts = {}) {
+  const match = G;
+  match._whenSetEffectsResolving = (Number(match._whenSetEffectsResolving) || 0) + 1;
+  try {
+    return await resolveWhenSetEffect(inst, z, r, c, opts);
+  } finally {
+    match._whenSetEffectsResolving = Math.max(0, match._whenSetEffectsResolving - 1);
+    if(G === match && !match._whenSetEffectsResolving && typeof enforceHandLimit === 'function') {
+      match.players.forEach((_, player)=>enforceHandLimit(player));
+    }
+  }
+}
+
+async function resolveWhenSetEffect(inst, z, r, c, opts = {}) {
   if(!inst || isFaceDownCard(inst)) return;
   if(String(inst.id || '') === 'bh03') {
     delete inst._bh03OpponentHand;
@@ -6329,7 +6311,7 @@ async function triggerWhenSet(inst, z, r, c, opts = {}) {
     markInitialEffectResolved(inst);
     return;
   }
-  const placementEffectRelevant = !['09','28','70','74','79','98'].includes(String(typeof getCardRuntimeEffectId === 'function' ? getCardRuntimeEffectId(inst) : inst.id));
+  const placementEffectRelevant = !['09','28','70','74','79','91','98'].includes(String(typeof getCardRuntimeEffectId === 'function' ? getCardRuntimeEffectId(inst) : inst.id));
   if(placementEffectRelevant && G.oppSuppressedNextTurn && G.suppressTarget===cp && instIsSupporterForRules && !isEffectImmuneSource(inst)) {
     if(typeof triggerMajaMischievousActivities === 'function') triggerMajaMischievousActivities(opp, {mode:'suppressed', sourceCard:inst});
     showBlockedAnimation('Effect SUPPRESSED - Semper Fidelis');
@@ -6539,7 +6521,7 @@ function applyMariaSongPreciseShot(sourceCard, selectedCard, sourceOwner) {
     if(!target || String(target.id || '') !== targetId) return;
     if(typeof isTargetImmuneToEffectOwner === 'function' && isTargetImmuneToEffectOwner(target, sourceOwner)) return;
     const before = Math.max(0, Number(target.currentFate ?? target.fate) || 0);
-    const changed = reduceStoredCardFateBy(target, 7, sourceOwner);
+    const changed = reduceStoredCardFateBy(target, 9, sourceOwner);
     const after = Math.max(0, Number(target.currentFate ?? target.fate) || 0);
     if(!changed && after === before) return;
     affected++;
@@ -6548,7 +6530,7 @@ function applyMariaSongPreciseShot(sourceCard, selectedCard, sourceOwner) {
       recordHandCardEffectModifier(target, {
         key:'maria-song:' + String(sourceCard && (sourceCard.iid || sourceCard.id) || '61'),
         name:'Maria Song',
-        text:'Precise Shot: this card lost 7 Fate.',
+        text:'Precise Shot: this card lost 9 Fate.',
         fateDelta:after - before
       });
     }
@@ -7250,10 +7232,10 @@ async function resolveSmartInvestments(card, cp) {
       // Smart Investments changes a card while it is being filed back into
       // the deck. It is not a visible board Fate-gain event, so commit the
       // permanent value without spawning the generic floating Fate number.
-      live.currentFate = before + 6;
+      live.currentFate = before + 7;
       if(typeof applyChineseMacArthurFateRider === 'function') applyChineseMacArthurFateRider(live, before, live.currentFate);
       if(Number.isFinite(Number(live._permanentFateCeiling))){
-        live._permanentFateCeiling = Math.max(0, Number(live._permanentFateCeiling) || 0) + 6;
+        live._permanentFateCeiling = Math.max(0, Number(live._permanentFateCeiling) || 0) + 7;
       }
       if(typeof clampCardToLandscapeFateCap === 'function') clampCardToLandscapeFateCap(live);
       const after = Math.max(0, Number(live.currentFate ?? live.fate) || 0);
@@ -7262,7 +7244,7 @@ async function resolveSmartInvestments(card, cp) {
         recordHandCardEffectModifier(live, {
           key:'hugh-roberts-smart-investments',
           name:'Smart Investments',
-          text:'Smart Investments: this card permanently gained 6 Fate.',
+          text:'Smart Investments: this card permanently gained 7 Fate.',
           fateDelta:after - before
         });
       }
@@ -7273,7 +7255,7 @@ async function resolveSmartInvestments(card, cp) {
     if(invested.length && typeof shuffle === 'function') shuffle(G.players[cp].deck);
     if(invested.length && typeof playSfx === 'function') playSfx('deckAdd');
     toast(invested.length
-      ? 'Smart Investments returned ' + invested.length + ' card' + (invested.length === 1 ? '' : 's') + ' to the deck with +6 Fate.'
+      ? 'Smart Investments returned ' + invested.length + ' card' + (invested.length === 1 ? '' : 's') + ' to the deck with +7 Fate.'
       : 'Smart Investments declined.');
     renderEffectResolutionForPlayer(cp, {hand:true, piles:true});
     return invested.length;
@@ -7288,7 +7270,7 @@ async function resolveSmartInvestments(card, cp) {
   return new Promise(function(resolve){
     pickCardsVisual(eligible, {
       title:'Smart Investments',
-      subtitle:'Choose up to 3 cards from your hand. Each gains 6 Fate permanently, then returns to your deck.',
+      subtitle:'Choose up to 3 cards from your hand. Each gains 7 Fate permanently, then returns to your deck.',
       minCount:0,
       maxCount:3,
       confirmLabel:'Invest and Return',
@@ -7687,24 +7669,24 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
         triggerJoieDrawEffectPassive(cp, {sourceCard:inst, sourceId:String(inst && inst.id || '42')});
       }
       break;
-    case '31': // Hemorrhaging Wound: any card in zone loses 3 Fate
+    case '31': // Hemorrhaging Wound: any card in zone loses 4 Fate
       await new Promise(function(resolve){
         let settled = false;
         const finish = function(){ if(!settled){ settled = true; resolve(); } };
-        const opened = pickCardInZone(z,'Select any card to lose 3 Fate:',(tgt)=>{
+        const opened = pickCardInZone(z,'Select any card to lose 4 Fate:',(tgt)=>{
           if(typeof isTargetImmuneToEffectOwner === 'function' ? isTargetImmuneToEffectOwner(tgt, cp) : (typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(tgt) : (tgt.immuneFlag || tgt.id==='76'))){
             showBlockedAnimation('this card is immune');
             finish();
             return;
           }
           const before = typeof getEffectiveFate === 'function' ? getEffectiveFate(tgt, z) : (tgt.currentFate || tgt.fate || 0);
-          const changed = reduceStoredCardFateBy(tgt, 3, cp, {permanent:true});
+          const changed = reduceStoredCardFateBy(tgt, 4, cp, {permanent:true});
           if(!changed && before > 0){
             showBlockedAnimation('this card is immune');
             finish();
             return;
           }
-          log(cp===0?'p1':'p2',`Hemorrhaging Wound: ${tgt.name} loses 3 Fate`);
+          log(cp===0?'p1':'p2',`Hemorrhaging Wound: ${tgt.name} loses 4 Fate`);
           flashCardEffect(tgt, 'oathbound_crescent', {
             label:'oathbound blade',
             soundKey:'oathbound:' + String(inst && (inst.iid || inst.id) || 'card') + ':' + String(tgt && (tgt.iid || tgt.id) || 'target') + ':' + String(G.turn || 0)
@@ -7829,12 +7811,12 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       });
       break;
     }
-    case '61': { // Maria Song: reveal opponent Characters, then all copies lose 7 Fate
+    case '61': { // Maria Song: reveal opponent Characters, then all copies lose 9 Fate
       const candidates = G.players[opp].hand.filter(function(target){ return isMariaSongHandCandidate(target, opp, cp); });
       if(!candidates.length){toast('Opponent has no eligible Character cards in hand');break;}
       pickCardsVisual(candidates, {
         title:'Precise Shot',
-        subtitle:'Select a revealed Character. Every copy in hand, deck, and on the field loses 7 Fate.',
+        subtitle:'Select a revealed Character. Every copy in hand, deck, and on the field loses 9 Fate.',
         maxCount:1,
         minCount:1,
         confirmLabel:'Take the Shot',
@@ -7843,8 +7825,8 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
         const target = chosen && chosen[0];
         if(!target) return;
         const result = applyMariaSongPreciseShot(inst, target, cp);
-        toast(target.name + ': ' + result.affected + ' cop' + (result.affected === 1 ? 'y' : 'ies') + ' lost 7 Fate.');
-        log(cp===0?'p1':'p2','Maria Song reduced ' + result.affected + ' copies of ' + target.name + ' by 7 Fate');
+        toast(target.name + ': ' + result.affected + ' cop' + (result.affected === 1 ? 'y' : 'ies') + ' lost 9 Fate.');
+        log(cp===0?'p1':'p2','Maria Song reduced ' + result.affected + ' copies of ' + target.name + ' by 9 Fate');
         renderEffectResolutionForPlayer(cp, {bothHands:true, piles:true});
       });
       break;
@@ -8051,19 +8033,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       });
       break;
     }
-    case '91': { // Wodny Potok Villager: lock opponent landscape changes
-      if(!Array.isArray(G._snowyVillageUses)) G._snowyVillageUses = [0,0];
-      if(!Array.isArray(G._landscapeChangeLocks)) G._landscapeChangeLocks = [0,0];
-      if((Number(G._snowyVillageUses[cp]) || 0) >= 2){
-        toast('A Snowy Village can only activate twice a game.');
-        break;
-      }
-      G._snowyVillageUses[cp] = (Number(G._snowyVillageUses[cp]) || 0) + 1;
-      G._landscapeChangeLocks[opp] = Math.max(Number(G._landscapeChangeLocks[opp]) || 0, 6);
-      toast('A Snowy Village: opponent cannot change the landscape for 5 turns.');
-      if(typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
-      break;
-    }
+    case '91': break; // Hand-arrival effect; no landscape lock.
     case '94': { // Wodny Potok Mailman: delayed Triangle delivery
       const matches = G.players[cp].deck.filter(c=>c.rarity==='triangle');
       if(!matches.length){toast('No Triangle cards in deck');break;}
@@ -9087,7 +9057,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
         if(G.erbsActive[cp]) { toast('Christopher Erbs is already waiting for your next draw.'); break; }
         G.erbsActive[cp] = true;
         card.usesLeft--;
-        toast('Next card drawn gains 6 Fate! ('+(card.usesLeft)+' uses left)');
+        toast('Next card drawn gains 7 Fate! ('+(card.usesLeft)+' uses left)');
       } else toast('No uses remaining.'); break;
     case '56': // Lydia: negate opponent effect activations (3 uses)
       if(card.usesLeft>0){
@@ -11404,7 +11374,7 @@ function getSupporterEffectAffectedOwners(inst, z, r, c, cp, opp) {
     }
     return [];
   }
-  const affectsOpponent = new Set(['16','26','31','50','61','62','71','72','73','76','77','80','91','97']);
+  const affectsOpponent = new Set(['16','26','31','50','61','62','71','72','73','76','77','80','97']);
   const affectsBoth = new Set(['18']);
   if(affectsBoth.has(inst.id)) return [0,1];
   if(affectsOpponent.has(inst.id)) return [opp];
@@ -11897,4 +11867,4 @@ function executeReaction(reaction, actionData) {
     renderEffectResolutionForPlayer(opp, {hand:false});
   }
 }// Cards with when-set effects (global so runWhenSetEffect can reference it)
-const WHEN_SET_IDS = new Set(['02','03','04','05','06','07','08','12','13','14','16','17','18','22','25','26','27','29','30','31','32','33','34','35','37','38','39','42','43','45','46','48','50','51','52','54','56','58','60','61','62','66','68','69','71','72','73','75','76','77','80','84','91','94','96','97','bh09','bh10','bh12','bh13','bh14','bh19','bh23','bh24','bh25']);
+const WHEN_SET_IDS = new Set(['02','03','04','05','06','07','08','12','13','14','16','17','18','22','25','26','27','29','30','31','32','33','34','35','37','38','39','42','43','45','46','48','50','51','52','54','56','58','60','61','62','66','68','69','71','72','73','75','76','77','80','84','94','96','97','bh09','bh10','bh12','bh13','bh14','bh19','bh23','bh24','bh25']);

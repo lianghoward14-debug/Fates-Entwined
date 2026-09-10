@@ -2,15 +2,16 @@ import {Worker, isMainThread, parentPort, workerData} from 'node:worker_threads'
 import {setTimeout as yieldCpu} from 'node:timers/promises';
 import {createRequire} from 'node:module';
 import {createInitialState, legalCommandTemplates, reduceCommand, multiplayerEligibleCardIds} from '../../shared/engine/index.mjs';
-import {scoreStrategicV3AiCommand} from '../../src/scripts/authoritative-v3-ai-policy.mjs';
+import {chooseStrategicV3AiCommand} from '../../src/scripts/authoritative-v3-ai-policy.mjs';
 const require = createRequire(import.meta.url);
 const {getCardCatalog} = require('../fate-card-catalog.js');
+const {getDeckCatalog} = require('../fate-deck-catalog.js');
 
 export function warfrontAiDeck(){
   const eligible = new Set(multiplayerEligibleCardIds());
-  const cards = getCardCatalog().cards.filter(card=>eligible.has(String(card.id)));
-  const shuffled = cards.map(card=>({card, order:Math.random()})).sort((a,b)=>a.order-b.order);
-  return shuffled.slice(0,40).map(({card})=>String(card.id));
+  const decks = getDeckCatalog().decks.filter(deck=>deck.ids.length===40 && deck.ids.every(id=>eligible.has(String(id))));
+  if(!decks.length)throw new Error('Warfront requires an enabled deck from the shared AI deck catalog');
+  return [...decks[Math.floor(Math.random()*decks.length)].ids];
 }
 
 export function simulateWarfrontMatch(input){
@@ -34,15 +35,13 @@ if(!isMainThread && workerData?.warfrontSimulation){
   for(let index=0; index<12000 && !state.outcome; index++){
     const seat=Number(state.pendingHandLimit?.playerIndex ?? state.pendingPrompt?.playerIndex ?? state.activePlayer);
     const legal=legalCommandTemplates(state,seat).filter(command=>command.type!=='CONCEDE');
-    // Background matches use the shared one-position heuristic, not thousands
-    // of speculative reducer calls per action. Actual actions still resolve
-    // through the canonical engine, preserving real matches and replay data.
+    // Background matches use the same decision policy and deck heuristics as
+    // regular matches, with a bounded search budget for campaign throughput.
     if(actionTurn!==state.turn){actionTurn=state.turn;actionsThisTurn=0;}
-    const context={playerIndex:seat,canonicalState:state};
+    const context={playerIndex:seat,canonicalState:state,difficulty:'medium',samples:1,nodeBudget:120,width:6,style:'adaptive'};
     const forcedEnd=actionsThisTurn>=24 ? legal.find(command=>command.type==='END_TURN') : null;
-    const candidates=legal.map(command=>({command,score:scoreStrategicV3AiCommand(command,state,context)}))
-      .sort((a,b)=>b.score-a.score).map(row=>row.command);
-    if(forcedEnd)candidates.unshift(forcedEnd);
+    const choice=forcedEnd || chooseStrategicV3AiCommand(legal,state,context);
+    const candidates=choice?[choice]:[];
     actionsThisTurn++;
     await yieldCpu(25);
     let command,result;

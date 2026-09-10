@@ -366,7 +366,7 @@ window.fateResetLocalLeaderboardData = resetStoredLeaderboardDataIfNeeded;
 window.fateApplyServerProfileStats = fateApplyServerProfileStats;
 
 
-const FATE_BACKGROUND_ASSET_VERSION = 'bg20260831-landscapes';
+const FATE_BACKGROUND_ASSET_VERSION = 'bg20260910-card91-igb13';
 function FATE_BACKGROUND_URL(path){
   if(!path || typeof path !== 'string' || path.startsWith('data:')) return path;
   if(/[?&]v=/.test(path)) return path;

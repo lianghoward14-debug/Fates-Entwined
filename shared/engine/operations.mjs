@@ -103,6 +103,9 @@ function applyHandArrivalModifiers(ctx, playerIndex, card){
 
 function applySpecialHandArrival(ctx, playerIndex, card){
   if(!card) return playerIndex;
+  if(card.id==='91'){
+    (ctx.state.villagerArrivals ||= []).push({sourceIid:card.iid,controller:playerIndex});
+  }
   if(String(card.id || '') === '74'){
     const activeNow = ctx.state.activePlayer === playerIndex;
     if(activeNow){
@@ -256,7 +259,7 @@ function drawCards(ctx, operation){
         changeFate(ctx, {
           type:OPERATION_TYPES.MODIFY_FATE,
           targetIid:card.iid,
-          amount:6,
+          amount:7,
           sourceIid:source.card.iid,
           sourceController:playerIndex,
           permanentFateGain:true,
@@ -999,7 +1002,7 @@ function changeStatus(ctx, operation, remove){
   const changed = [];
   for(const entry of entries){
     if(!remove && status==='EFFECTS_SUPPRESSED'
-      && (isEffectImmutable(entry.card) || ['09','28','70','74','79','98'].includes(runtimeRuleId(entry.card))))continue;
+      && (isEffectImmutable(entry.card) || ['09','28','70','74','79','91','98'].includes(runtimeRuleId(entry.card))))continue;
     if(!Array.isArray(entry.card.statuses)) entry.card.statuses = [];
     if(remove){
       entry.card.statuses = entry.card.statuses.filter(item=>item !== status);

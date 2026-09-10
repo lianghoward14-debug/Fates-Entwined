@@ -297,11 +297,11 @@ result = reduceCommand(
 );
 assert.equal(result.ok, true);
 assert.equal(result.state.players[0].hand[0].id, '03');
-assert.equal(result.state.players[0].hand[0].currentFate, 11);
+assert.equal(result.state.players[0].hand[0].currentFate, 12);
 assert.equal(result.state.board[0][2][0].statuses.includes('NEXT_DRAW_GAINS_6'), false);
 assert(result.events.some(event=>
   event.type === 'FATE_CHANGED'
-  && event.amount === 6
+  && event.amount === 7
   && event.reason === 'CHRISTOPHER_ERBS_NEXT_DRAW'
 ));
 

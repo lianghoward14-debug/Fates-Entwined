@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+import {createInitialState,reduceCommand} from '../../shared/engine/index.mjs';
+import {legalCommandTemplates} from '../../shared/engine/legal-commands.mjs';
+import {command} from './test-helpers.mjs';
+let state=createInitialState({matchId:'shizuku-free',seed:'test',handSize:99,landscapeId:'igb17',cardDefinitions:[{id:'11',name:'Anne',type:'Coordinator',fate:6,cost:2}],players:[{id:'p0',deckIds:['11']},{id:'p1',deckIds:['11']}]});
+const source=state.players[0].hand.pop();source.controller=0;state.board[0][2][0]=source;
+const action=legalCommandTemplates(state,0).find(c=>c.type==='ACTIVATE_LANDSCAPE');assert(action,'available with an empty hand');
+const result=reduceCommand(state,command(state,'p0',1,action.type,action.payload),{playerId:'p0'});assert.equal(result.ok,true);
+assert.equal(result.state.players[0].hand[0].id,'whisper17');assert.equal(result.state.players[0].discard.length,1);
+const code=fs.readFileSync('src/scripts/05-gameplay-core.js','utf8');
+const c={G:{players:[{hand:[]}],board:[[[{iid:'source',id:'11',type:'Coordinator',owner:0}]]]},isLandscapeActive:()=>true,whisperLandscapeUseAvailable:()=>true,isFaceDownCard:()=>false,WHISPER_UNCOPYABLE_COORDINATOR_IDS:new Set(),createWhisperOfTheHeartToken:()=>({id:'whisper17'}),fatePushDiscard:()=>{},ensureWhisperLandscapeUses:()=>[0,0],toast:()=>{},log:()=>{},renderGame:()=>{}};
+vm.runInNewContext(code.slice(code.indexOf('function commitWhisperLandscapeConversion('),code.indexOf('function chooseWhisperLandscapeAiCost(')),c);
+assert(c.commitWhisperLandscapeConversion(0,{card:c.G.board[0][0][0],z:0,r:0,c:0},[]));assert.equal(c.G.players[0].hand[0].id,'whisper17');
+console.log('Shizuku creates a token with no hand cost in singleplayer and authoritative multiplayer');

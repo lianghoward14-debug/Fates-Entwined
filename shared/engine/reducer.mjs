@@ -386,7 +386,7 @@ function activeTimedPlayerStatus(state, statusType, playerIndex){
 }
 
 function supporterEffectBlock(state, card, playerIndex){
-  if(['09','28','70','74','79','98'].includes(runtimeRuleId(card)))return null;
+  if(['09','28','70','74','79','91','98'].includes(runtimeRuleId(card)))return null;
   if(landscapeSupporterEffectLimitReached(state, card, playerIndex)){
     return {
       statusId:`landscape:igb15:p${playerIndex}:turn${state.turn}`,
@@ -1035,8 +1035,28 @@ function insertBerkeleyDiscardCost(state, frame, instruction, operation){
   return true;
 }
 
+export function resolveOpeningHandArrivals(state){
+  if(state.phase==='main' && !state.pendingPrompt && state.villagerArrivals?.length){
+    runEffectStack(state,{state,events:[],ruleEvents:[],drainVillagerArrivals:true});
+  }
+  return state;
+}
+
 function runEffectStack(state, ctx){
-  while(state.effectStack.length && !state.pendingPrompt){
+  while((state.effectStack.length || state.villagerArrivals?.length) && !state.pendingPrompt){
+    if(!state.effectStack.length){
+      // Hand arrivals run only after the command has scheduled all other effects.
+      if(!ctx.drainVillagerArrivals || state.pendingHandLimit) break;
+      if(state.phase!=='main')break;
+      const readyIndex=(state.villagerArrivals || []).length ? 0 : -1;
+      if(readyIndex<0)break;
+      const arrival=state.villagerArrivals.splice(readyIndex,1)[0];
+      if(!state.players[arrival.controller].deck.some(c=>c.id!=='91' && /landscape/i.test(String(c.effect || '')))){
+        ctx.events.push({type:'VILLAGER_SEARCH_EMPTY',playerIndex:arrival.controller,sourceIid:arrival.sourceIid});
+        continue;
+      }
+      state.effectStack.push({frameId:nextId(state,'frame'),kind:'CARD_EFFECT',...arrival,sourceCardId:'91',sourceType:'Supporter',timing:'HAND_ARRIVAL',instructionIndex:0,waitingFor:null,locals:{},program:cloneSerializable(cardRule('91',state).program)});
+    }
     const frame = state.effectStack[state.effectStack.length - 1];
     if(frame.waitingFor) return;
     const instruction = frame.program[frame.instructionIndex];
@@ -1046,6 +1066,16 @@ function runEffectStack(state, ctx){
         frame.instructionIndex=frame.program.length;
       }else frame.instructionIndex++;
       continue;
+    }
+    if(instruction?.kind==='VILLAGER_COST_REDUCTION'){
+      const target=findCard(state,frame.locals.targetIid)?.card;
+      if(target && !isEffectImmutable(target)){
+        const beforeCost=Math.max(0,Number(target.cost || 0));
+        target.cost=Math.max(0,beforeCost-2);
+        target.counters.villagerCostReduction=(Number(target.counters.villagerCostReduction)||0)+beforeCost-target.cost;
+        target.counters.villagerSearchApplied=true;
+      }
+      frame.instructionIndex++;continue;
     }
     if(!instruction){
       state.effectStack.pop();
@@ -2200,14 +2230,7 @@ function performCommand(state, ctx, command, actorIndex, options){
         || !copyableIds.has(runtimeRuleId(source.card))){
         throw Object.assign(new Error('Concrete Roads requires a copyable controlled Coordinator'), {code:'INVALID_LANDSCAPE_SOURCE'});
       }
-      const discardIids = Array.isArray(payload.discardIids) ? payload.discardIids.map(String) : [];
-      if(discardIids.length !== 2 || new Set(discardIids).size !== 2){
-        throw Object.assign(new Error('Concrete Roads requires exactly two hand discards'), {code:'INVALID_LANDSCAPE_COST'});
-      }
-      const costs = discardIids.map(iid=>findCard(state, iid));
-      if(costs.some(entry=>!entry || entry.zone !== 'hand' || entry.playerIndex !== actorIndex)){
-        throw Object.assign(new Error('Concrete Roads costs must be in the actor hand'), {code:'CARD_NOT_IN_HAND'});
-      }
+      const discardIids = [];
       const copiedId = runtimeRuleId(source.card);
       applyOperation(ctx, {
         type:'DISCARD_CARD',
@@ -2216,15 +2239,6 @@ function performCommand(state, ctx, command, actorIndex, options){
         sourceController:actorIndex,
         reason:'LANDSCAPE_IGB17_COORDINATOR_COST'
       });
-      for(const cost of costs){
-        applyOperation(ctx, {
-          type:'DISCARD_CARD',
-          targetIid:cost.card.iid,
-          sourceIid:'landscape:igb17',
-          sourceController:actorIndex,
-          reason:'LANDSCAPE_IGB17_HAND_COST'
-        });
-      }
       state.instanceCounter += 1;
       const copiedRule = cardRule(copiedId, state);
       const token = {
@@ -2380,7 +2394,7 @@ function performCommand(state, ctx, command, actorIndex, options){
       const block = supporterEffectBlock(state, card, actorIndex);
       // Ongoing field abilities are suppressed too. These five abilities
       // operate outside the field and cannot be suppressed merely by setting.
-      const hasRelevantFieldEffect = !['09','28','70','74','79','98'].includes(String(effectId));
+      const hasRelevantFieldEffect = !['09','28','70','74','79','91','98'].includes(String(effectId));
       if(block?.statusType === 'LUMBERJACK_SUPPRESSION'){
         applyLumberjackSuppression(state, ctx, card, block, actorIndex);
       }else if(block && (hasWhenSetEffect || (block.statusType === 'SUPPORTER_EFFECTS_BLOCKED' && hasRelevantFieldEffect))){
@@ -2776,10 +2790,16 @@ export function reduceCommand(currentState, rawCommand, options = {}){
   const ctx = {state, events:[], ruleEvents:[]};
   try{
     performCommand(state, ctx, command, actorIndex, options);
-    if(state.effectStack.length && !state.pendingPrompt) runEffectStack(state, ctx);
+    if((state.effectStack.length || state.villagerArrivals?.length) && !state.pendingPrompt) runEffectStack(state, ctx);
     reconcileSovietGrenadierTargets(state, ctx);
     refreshMoralePressure(ctx);
     refreshHandLimitRequirement(state);
+    ctx.drainVillagerArrivals = true;
+    if(!state.pendingPrompt && !state.pendingHandLimit){
+      runEffectStack(state, ctx);
+      refreshMoralePressure(ctx);
+      refreshHandLimitRequirement(state);
+    }
     if(state.warfrontMatch){
       state.warfrontConsolidations ||= [0,0];
       for(const event of ctx.events) if(event.type==='CARD_CONSOLIDATED' && [0,1].includes(event.playerIndex)){

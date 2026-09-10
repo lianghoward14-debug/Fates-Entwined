@@ -1437,6 +1437,10 @@ function initGameState() {
   });
 
   // Draw starting hands (6 each)
+  G._villagerSearchQueue = [];
+  G._villagerSearchRunning = false;
+  G._villagerSearchReady = false;
+  G._villagerSearchPromise = null;
   G._pendingSelvaSupportBoost = [0, 0];
   G._selvaSupportBoosts = [null, null];
   for(let player=0;player<2;player++){
@@ -1612,23 +1616,23 @@ async function drawCard(player, count=1, options = {}) {
     if(typeof window.recordLegacyMoralePressureDraw === 'function') {
       window.recordLegacyMoralePressureDraw(card, player, options);
     }
-    // Christopher Erbs (40): per-player next drawn card gains 6 Fate.
+    // Christopher Erbs (40): per-player next drawn card gains 7 Fate.
     const erbsActiveForPlayer = Array.isArray(G.erbsActive) ? !!G.erbsActive[player] : !!G.erbsActive;
     if(erbsActiveForPlayer && card.id!=='70'){
       const erbsCanAffect = !(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(card));
       if(erbsCanAffect) {
         const beforeErbsFate = Math.max(0, Number(card.currentFate ?? card.fate) || 0);
-        modifyFate(card, 6, 'permanent', player);
+        modifyFate(card, 7, 'permanent', player);
         if(typeof recordHandCardEffectModifier === 'function') {
           recordHandCardEffectModifier(card, {
             key:'christopher-erbs',
             name:'Card Empowered',
-            text:'Hard Times, Strong Men: this card gained +6 Fate.',
-            fateDelta:6
+            text:'Hard Times, Strong Men: this card gained +7 Fate.',
+            fateDelta:7
           });
         }
-        if(typeof shouldShowPlayerEffectFeedback !== 'function' || shouldShowPlayerEffectFeedback(player)) toast(`${card.name} gained 6 Fate from Hard Times, Strong Men!`);
-        log(player===0?'p1':'p2', `Erbs bonus: ${card.name} +6 Fate`);
+        if(typeof shouldShowPlayerEffectFeedback !== 'function' || shouldShowPlayerEffectFeedback(player)) toast(`${card.name} gained 7 Fate from Hard Times, Strong Men!`);
+        log(player===0?'p1':'p2', `Erbs bonus: ${card.name} +7 Fate`);
       }
       if(Array.isArray(G.erbsActive)) G.erbsActive[player] = false;
       else G.erbsActive = false;
@@ -1841,6 +1845,72 @@ function scheduleAliIndomitableHandTransfer(sourcePlayer, card, options = {}) {
   return true;
 }
 
+function queueVillagerSearch(player,source){
+  (G._villagerSearchQueue ||= []).push({player,source});
+  return drainVillagerSearches();
+}
+
+function drainVillagerSearches(){
+  // Opening hands are assembled before the coin flip and, for rules-AI
+  // games, before authority takes ownership. Never open a legacy picker then.
+  if(!G._villagerSearchReady || G._rulesAiMatch || G._onlineRoomCode)return Promise.resolve();
+  if(G._villagerSearchRunning)return G._villagerSearchPromise;
+  const match=G;
+  let finish;
+  G._villagerSearchPromise=new Promise(resolve=>{finish=resolve;});
+  G._villagerSearchRunning=true;
+  const drain=()=>{
+    if(G!==match || !G._villagerSearchReady){finish();return;}
+    const readyIndex=G._villagerSearchQueue.length ? 0 : -1;
+    if(readyIndex<0){
+      G._villagerSearchRunning=false;finish();
+      if(G._villagerSearchQueue.length)setTimeout(()=>{if(G===match)drainVillagerSearches();},250);
+      return;
+    }
+    // Yield to every already-active picker/reaction and its effect resolution.
+    const busy=G.phase!=='main' || G.pendingInteraction || G._consolidating
+      || G._reactionPending || G._effectActivationCinematicActive
+      || G._onlineSetResolutionInFlight
+      || G._deferredCardPickers || G._onlineResolvingPickerAction
+      || G._whenSetEffectsResolving
+      || G._landscapeFateThresholdResolvingDiscard
+      || (typeof window !== 'undefined' && window.FateActionPresentation?.isActive?.())
+      || document.querySelector?.('.fate-v2-motion-card,.draw-fly-card')
+      || (typeof getInteractionAnimationDelayMs === 'function' && getInteractionAnimationDelayMs() > 0)
+      || (G.board || []).some(zone=>zone.some(row=>row.some(card=>card && (
+        card._effectActivationInFlight || card._pendingWhenSetActivationInFlight
+        || card._onlineSetResolutionInFlight))))
+      || document.getElementById('modal')?.classList.contains('on')
+      || Date.now()<Number(G._turnInputLockUntil || 0);
+    if(busy){setTimeout(drain,100);return;}
+    const item=G._villagerSearchQueue.splice(readyIndex,1)[0];
+    const matches=G.players[item.player].deck.filter(c=>c.id!=='91' && /landscape/i.test(String(c.effect || CARDS.find(d=>d.id===c.id)?.effect || '')));
+    const commit=picked=>{
+      const target=picked?.[0];
+      if(target){
+        G.players[item.player].deck=G.players[item.player].deck.filter(c=>c.iid!==target.iid);
+        addCardToHand(item.player,target,{arrivalKind:'search'});
+        if(!(typeof isCardEffectImmutable==='function' && isCardEffectImmutable(target))){
+          const beforeCost=Math.max(0,Number(target.cost || 0));
+          target.cost=Math.max(0,beforeCost-2);
+          target._villagerCostReduction=(Number(target._villagerCostReduction)||0)+beforeCost-target.cost;
+          target._villagerSearchApplied=true;
+        }
+        if(typeof renderHand==='function')renderHand();
+      }
+      Promise.resolve(target && typeof resolveBoleslawAfterSearchSelection==='function'?resolveBoleslawAfterSearchSelection(item.player,[target],{sourceCardId:'91'}):null).then(()=>setTimeout(drain,100));
+    };
+    if(!matches.length){
+      if(typeof toast==='function') toast('A Snowy Village: no eligible landscape card to search.');
+      setTimeout(drain,100);return;
+    }
+    if(G.aiEnabled && item.player===G.aiPlayer){commit([matches.find(c=>c.id==='82') || matches[0]]);return;}
+    pickCardsVisual(matches,{title:'A Snowy Village',subtitle:'Search a landscape-effect card; reduce its cost by 2.',maxCount:1,immediate:true,viewerPlayerIndex:item.player,opponentSearch:true,searchingPlayer:item.player,searchSourceCardId:'91'},commit);
+  };
+  setTimeout(drain,100);
+  return G._villagerSearchPromise;
+}
+
 function addCardToHand(player, card, options = {}) {
   if(!card) return false;
   const announce = options.announce !== false;
@@ -1915,6 +1985,7 @@ function addCardToHand(player, card, options = {}) {
       toast('The Art of Mimicry created a second Taylor in ' + G.players[targetPlayer].name + '\'s hand.');
     }
   }
+  if(!options.skipArrivalEffects && card.id === '91' && !G._onlineRoomCode) queueVillagerSearch(targetPlayer,card);
   if(!options.skipArrivalEffects && card.id === '74' && typeof triggerSelvaIslandsPirateHandArrival === 'function'){
     triggerSelvaIslandsPirateHandArrival(targetPlayer, card, { openingHand: !!options.openingHand });
   }
@@ -2268,7 +2339,9 @@ function chooseTurn(goFirst) {
   scheduleInitialMatchRender({
     step:'initial-render-called',
     entryVeilStarted,
-    onReady:function(){
+    onReady:async function(){
+      G._villagerSearchReady = true;
+      await drainVillagerSearches();
       // If AI goes first, trigger its turn after the first safe frame.
       if(G.aiEnabled && G.currentPlayer===G.aiPlayer){
         G._aiTurnTimeoutRequested = false;

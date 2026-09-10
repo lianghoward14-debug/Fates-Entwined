@@ -2,6 +2,7 @@ import {boardEntries,controllerOf} from '../engine/selectors.mjs';
 import {canUseAsConsolidationTribute,effectiveConsolidationCost,isEffectSourceSuppressed} from '../engine/modifiers.mjs';
 // Strategic restrictions belong to the AI, not the game's legal rules.
 export function filterAiTargets(commands,state,player){
+  commands=chooseWintertideSearch(commands,state,player);
   commands=keepPatienceBurstTogether(commands,state,player);
   commands=keepAssaultHoplitesTogether(commands,state,player);
   const prompt=state.pendingPrompt;
@@ -26,6 +27,25 @@ export function filterAiTargets(commands,state,player){
     const targets=p.selectedIids || (p.selectedIid?[p.selectedIid]:p.targetIid?[p.targetIid]:[]);
     return targets.every(iid=>opponents.has(iid));
   });
+}
+
+function chooseWintertideSearch(commands,state,player){
+  const prompt=state.pendingPrompt;
+  if(!prompt || Number(prompt.playerIndex)!==player || prompt.type!=='CARD_SELECTION')return commands;
+  const owner=state.players[player],hand=owner.hand || [];
+  const own=boardEntries(state).filter(e=>controllerOf(e.card)===player);
+  const all=[...hand,...(owner.deck || []),...(owner.discard || []),...own.map(e=>e.card)];
+  if(!['100','82','84','88','92'].every(id=>all.some(c=>c.id===id)))return commands;
+  const source=all.find(c=>c.iid===prompt.sourceIid);
+  if(source?.id!=='84')return commands;
+  const needsSnow=state.landscapeId!=='igb15' && !hand.some(c=>c.id==='82') && !own.some(e=>e.card.id==='82');
+  // Secure the one landscape setter, then use each further search to create
+  // Taylor copies. A naturally drawn setter satisfies this reservation.
+  const desired=needsSnow?'82':!hand.some(c=>c.id==='bh05')?'bh05':null;
+  if(!desired)return commands;
+  const wanted=new Set((owner.deck || []).filter(c=>c.id===desired).map(c=>c.iid));
+  const picks=commands.filter(c=>[c.payload?.selectedIid,...(c.payload?.selectedIids || [])].some(id=>wanted.has(id)));
+  return picks.length?picks:commands;
 }
 
 function keepPatienceBurstTogether(commands,state,player){

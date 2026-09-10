@@ -93,7 +93,7 @@ resolveMoralePressureCycle(rozsiCtx);
 const rozsiSource=rozsiCtx.events.find(event=>event.type==='MORALE_CYCLE_RESOLVED')
   ?.moraleDamageSources?.flat().find(source=>source.sourceIid===rozsiCard.iid);
 assert(rozsiSource,'Rozsi must be recorded as a Morale calculation source');
-assert.equal(rozsiSource.amount,4,'Rozsi must inflict 2 Morale Damage for each of the two matching-affiliation contributors');
+assert.equal(rozsiSource.amount,6,'Rozsi must inflict 3 Morale Damage for each of the two matching-affiliation contributors');
 assert.deepEqual(
   new Set(rozsiSource.affectedIids),
   new Set([rozsiState.board[0][2][1].iid,rozsiState.board[0][2][2].iid]),

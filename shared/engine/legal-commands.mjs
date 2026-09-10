@@ -531,19 +531,8 @@ export function legalCommandTemplates(state, playerIndex){
       && entry.card.counters?.whisperLandscapeToken !== true
       && copyableIds.has(runtimeRuleId(entry.card))
     );
-    const hand = state.players[player].hand.filter(card=>!isEffectImmutable(card));
     for(const source of sources){
-      for(let first = 0; first < hand.length; first += 1){
-        for(let second = first + 1; second < hand.length; second += 1){
-          commands.push({
-            type:'ACTIVATE_LANDSCAPE',
-            payload:{
-              sourceIid:source.card.iid,
-              discardIids:[hand[first].iid, hand[second].iid]
-            }
-          });
-        }
-      }
+      commands.push({type:'ACTIVATE_LANDSCAPE',payload:{sourceIid:source.card.iid}});
     }
   }
   commands.push({type:'END_TURN', payload:{}});
