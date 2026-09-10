@@ -344,7 +344,13 @@ async function flyApiRequest(route, options={}){
     ? (window.fateAuthorityV3Beta?.apiBaseUrl || 'https://fates-entwined-main.fly.dev')
     : authorityHttpBaseUrl();
   let response;
-  try{response = await fetch(baseUrl + route, init);}
+  try{
+    if(route.startsWith('/api/warfront/') && baseUrl==='https://fates-entwined-main.fly.dev' && window.FateElectronFlyApi?.request){
+      if(options.signal?.aborted)throw new Error('Warfront request cancelled');
+      const result=await window.FateElectronFlyApi.request({route,method:init.method,authorization:headers.authorization,body:options.body});
+      response={ok:result.ok,status:result.status,text:async()=>result.text||result.error||'',json:async()=>result.data};
+    }else response = await fetch(baseUrl + route, init);
+  }
   catch(error){
     // The installed app can recover a renderer transport failure through its
     // existing native bridge, using the same account and production authority.

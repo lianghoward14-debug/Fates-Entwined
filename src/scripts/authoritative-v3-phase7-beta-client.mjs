@@ -169,7 +169,7 @@ async function matchmakingIdentityToken(){
 async function matchmakingRequest(route, {method = 'GET', body} = {}){
   const spectatorAccount=route.includes('/spectator-snapshot')?(globalThis.FateOnline?.auth?.currentUser||globalThis.FATE_ONLINE?.user):null;
   const spectatorToken=await spectatorAccount?.getIdToken?.();
-  const response = await fetch(API_URL + route, {
+  const requestOptions = {
       signal:AbortSignal.timeout(12000),
       method,
       headers:{
@@ -181,7 +181,12 @@ async function matchmakingRequest(route, {method = 'GET', body} = {}){
         ...(ORGANIC_TEST_IDENTITY_ENABLED ? {'x-fate-organic-fixture':'1'} : {})
       },
       body:body === undefined ? undefined : JSON.stringify(body)
-    });
+    };
+  let response;
+  if(API_URL==='https://fates-entwined-main.fly.dev'&&route.startsWith('/v3/beta/matchmaking/')&&globalThis.FateElectronFlyApi?.request){
+    const result=await globalThis.FateElectronFlyApi.request({route,method,headers:requestOptions.headers,authorization:requestOptions.headers.authorization,body});
+    response={ok:result.ok,status:result.status,text:async()=>result.text||JSON.stringify(result.data||{error:result.error})};
+  }else response=await fetch(API_URL+route,requestOptions);
   const text = await response.text();
   let result = null;
   try{ result = text ? JSON.parse(text) : null; }catch(_){}

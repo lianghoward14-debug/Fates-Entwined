@@ -564,7 +564,7 @@ function zoneFateMoraleResolution(state){
   const damage = [0, 0];
   for(const result of zoneResults){
     if(result.damagedPlayer === 0 || result.damagedPlayer === 1){
-      damage[result.damagedPlayer] += Math.floor(result.difference / 2);
+      damage[result.damagedPlayer] += Math.floor(result.difference * 33 / 100);
     }
   }
   return {zoneResults, damage};
@@ -629,7 +629,7 @@ function resolveZoneFateMoraleDamage(ctx){
       }
       for(const zone of resolution.zoneResults.filter(zone=>zone.controller === owner)){
         zone.damage = String(state.landscapeId || '') === 'igb1' || moraleDamageInflictionBlocked(state, owner)
-          ? 0 : Math.floor(zone.difference / 2) * Math.pow(2, doublers.length);
+          ? 0 : Math.floor(zone.difference * 33 / 100) * Math.pow(2, doublers.length);
       }
   }
   for(let owner = 0; owner < 2; owner += 1) resolution.damage[1 - owner] += outgoing[owner];

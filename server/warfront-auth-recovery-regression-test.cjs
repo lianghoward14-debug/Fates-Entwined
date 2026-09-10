@@ -10,11 +10,16 @@ const fn=source.slice(source.indexOf('async function flyApiRequest('),source.ind
   c.fetch=async()=>({ok:false,status:401,text:async()=>''});forced=[];
   await assert.rejects(c.flyApiRequest('/api/warfront/state'),/Google session/);assert.equal(forced.length,2,'refresh only once');
   let bridge;
-  c.fetch=async()=>{throw new Error('Failed to fetch');};
+  let rendererCalls=0;c.fetch=async()=>{rendererCalls++;throw new Error('Failed to fetch');};
   c.window.FateElectronFlyApi={request:async input=>{bridge=input;return {ok:true,status:200,data:{ok:true,state:{mapCode:'live'}}};}};
   assert.equal((await c.flyApiRequest('/api/warfront/state')).state.mapCode,'live');
+  assert.equal(rendererCalls,0,'desktop Warfront uses native transport immediately');
   assert.equal(bridge.authorization,'Bearer expired');assert.equal(bridge.route,'/api/warfront/state');
   c.window.fateAuthorityV3Beta={apiBaseUrl:'http://127.0.0.1:8787'};bridge=null;
   await assert.rejects(c.flyApiRequest('/api/warfront/state'),/Failed to fetch/);assert.equal(bridge,null,'isolated tests cannot fall back to live');
+  const queueSource=fs.readFileSync('src/scripts/authoritative-v3-phase7-beta-client.mjs','utf8');
+  const queue={API_URL:'https://fates-entwined-main.fly.dev',CLIENT_VERSION:'test',ORGANIC_TEST_IDENTITY_ENABLED:false,AbortSignal,matchmakingClientSession:()=> 'stable-session',matchmakingIdentityToken:async()=> 'session:stable-session',FateElectronFlyApi:{request:async r=>{assert.equal(r.headers['x-fate-client-session'],'stable-session');return {ok:true,status:200,data:{status:'matched',credential:{matchId:'reserved'}}};}},fetch:()=>{throw Error('Renderer transport must not run');}};
+  vm.createContext(queue);vm.runInContext(queueSource.slice(queueSource.indexOf('async function matchmakingRequest('),queueSource.indexOf('function rejectInflight(')),queue);
+  assert.equal((await queue.matchmakingRequest('/v3/beta/matchmaking/status')).credential.matchId,'reserved');
   console.log('Warfront token refresh and desktop transport recovery passed');
 })().catch(error=>{console.error(error);process.exitCode=1;});

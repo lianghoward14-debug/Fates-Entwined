@@ -368,19 +368,20 @@ ipcMain.handle('fate:get-performance-info', (event) => {
 ipcMain.handle('fate:fly-api-request', async (_event, request = {}) => {
   const route = String(request.route || '');
   const method = String(request.method || 'GET').toUpperCase();
-  if(!route.startsWith('/api/') || !['GET','POST'].includes(method)){
+  if(!(route.startsWith('/api/') || /^\/v3\/beta\/matchmaking\/(enter|status|leave)$/.test(route)) || !['GET','POST'].includes(method)){
     return {ok:false, status:400, error:'Invalid Fly API request'};
   }
   const headers = {'accept':'application/json'};
   const authorization = String(request.authorization || '');
   if(authorization.startsWith('Bearer ')) headers.authorization = authorization;
+  for(const key of ['x-fate-client-version','x-fate-client-session'])if(request.headers?.[key])headers[key]=String(request.headers[key]);
   const init = {method, headers};
   if(method === 'POST'){
     headers['content-type'] = 'application/json';
     init.body = JSON.stringify(request.body || {});
   }
   try{
-    const response = await fetch(DEFAULT_FLY_AUTHORITY_API_URL + route, init);
+    const response = await fetch(DEFAULT_FLY_AUTHORITY_API_URL + route, {...init,signal:AbortSignal.timeout(10000)});
     const text = await response.text();
     let data = null;
     try{ data = text ? JSON.parse(text) : {}; }catch(_err){}

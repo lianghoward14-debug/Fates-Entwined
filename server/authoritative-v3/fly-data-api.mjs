@@ -649,7 +649,7 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
         writeJson(res,200,{ok:true,profiles:found});return true;
       }
       if(p[1]==='warfront'&&p[2]==='state'){
-        if(req.method==='GET'){const uid=await verifiedUid(req);writeJson(res,200,{ok:true,state:warfrontStateForClient(),profile:profile(uid)});return true;}
+        if(req.method==='GET'){const uid=await verifiedUid(req);refreshWarfrontForfeits();if(warfrontEvent&&url.searchParams.get('revision')===String(warfrontEvent._syncRevision)){writeJson(res,200,{ok:true,unchanged:true});return true;}const state=warfrontStateForClient(),archivesUnchanged=!!state&&url.searchParams.has('archives')&&url.searchParams.get('archives')===(state.archives||[]).map(r=>r.mapCode).join(',');if(archivesUnchanged)delete state.archives;writeJson(res,200,{ok:true,state,archivesUnchanged,profile:profile(uid)});return true;}
         const body=await readBody(req);await requireSelf(req,body.uid);const incoming=sanitizeWarfrontState(body.state);
         if(!incoming)throw new Error('invalid Warfront event state');
         // A delayed upload from the previous campaign must not import its

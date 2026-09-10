@@ -44,6 +44,14 @@ try{
   const read=async()=> (await request('alpha','/api/warfront/state')).state;
   await command('deployment');let state=await read();const zoneId=state.zones[0].id;
   await deploy('alpha',zoneId,'a');await command('start');state=await read();
+  const unchanged=await request('alpha','/api/warfront/state?revision='+state._syncRevision);
+  const compact=await request('alpha','/api/warfront/state?revision=-1&archives=');assert.equal(compact.archivesUnchanged,true);assert.equal(compact.state.archives,undefined);
+  assert.equal(unchanged.unchanged,true);assert.equal(unchanged.state,undefined,'unchanged polls omit archived replay payloads');
+  await assert.rejects(deploy('alpha',state.zones[1].id,'a'),/already deployed/);
+  const ui={state,me:()=>({uid:'new-player'}),score:()=>({played:0}),deploymentPending:null,selectedTeam:null,avatar:()=>'',esc:String,stars:()=>''};
+  vm.createContext(ui);vm.runInContext(source.slice(source.indexOf('function warCanDeploy('),source.indexOf('function zonePanel(')),ui);
+  assert.match(ui.miniSeat(state.zones[1],'a',null),/onclick=/,'unassigned player can click AI without visiting Briefing');
+  assert.match(ui.miniSeat(state.zones[1],'a',{zone:state.zones[0],team:'a'}),/disabled/,'assigned player cannot replace AI');
   const start=async(uid,zoneId,id)=>{
     const state=await read(),z=state.zones.find(z=>z.id===zoneId),team=z.a?.uid===uid?'a':'b',ai=z[team==='a'?'b':'a'];
     const key=[state.mapCode,zoneId,...[uid,ai.uid].sort()].join('|');
@@ -74,5 +82,6 @@ try{
   await assert.rejects(deploy('alpha',zoneId,'a'),/five matches/);
   await command('end');state=await read();assert(state.lastResult.players.some(p=>p.uid==='alpha'&&p.matches===5));
   assert.equal(state.lastResult.achievements.find(a=>a.id==='fate').leader.uid,'alpha');
+  const recent={state:{status:'active',mapCode:'new',zones:[{id:'z',matches:[{id:'new-match'}]}],archives:[{mapCode:'old',zones:[{id:'z',matches:[{id:'old-match'}]}]}]},meta:()=>({name:'Zone'})};vm.createContext(recent);vm.runInContext(source.slice(source.indexOf('function allMatches('),source.indexOf('function matchCard(')),recent);assert.equal(recent.allMatches().length,1);recent.state.status='results';assert.equal(recent.allMatches().length,0,'Recent Matches clears at war end');
   console.log('Warfront live AI replacement, relocation, human protection, release, attribution, five-match cap, draws and restart passed');
 }finally{if(server)await new Promise(resolve=>server.close(resolve));api?.close();globalThis.fetch=originalFetch;fs.rmSync(dir,{recursive:true,force:true});}

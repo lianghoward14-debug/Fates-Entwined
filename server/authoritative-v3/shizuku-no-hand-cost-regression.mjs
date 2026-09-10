@@ -9,6 +9,8 @@ const source=state.players[0].hand.pop();source.controller=0;state.board[0][2][0
 const action=legalCommandTemplates(state,0).find(c=>c.type==='ACTIVATE_LANDSCAPE');assert(action,'available with an empty hand');
 const result=reduceCommand(state,command(state,'p0',1,action.type,action.payload),{playerId:'p0'});assert.equal(result.ok,true);
 assert.equal(result.state.players[0].hand[0].id,'whisper17');assert.equal(result.state.players[0].discard.length,1);
+assert.equal(result.state.players[0].hand[0].img,'whisper.png');
+assert.match(result.state.players[0].hand[0].effect,/whole field/i);
 const code=fs.readFileSync('src/scripts/05-gameplay-core.js','utf8');
 const c={G:{players:[{hand:[]}],board:[[[{iid:'source',id:'11',type:'Coordinator',owner:0}]]]},isLandscapeActive:()=>true,whisperLandscapeUseAvailable:()=>true,isFaceDownCard:()=>false,WHISPER_UNCOPYABLE_COORDINATOR_IDS:new Set(),createWhisperOfTheHeartToken:()=>({id:'whisper17'}),fatePushDiscard:()=>{},ensureWhisperLandscapeUses:()=>[0,0],toast:()=>{},log:()=>{},renderGame:()=>{}};
 vm.runInNewContext(code.slice(code.indexOf('function commitWhisperLandscapeConversion('),code.indexOf('function chooseWhisperLandscapeAiCost(')),c);

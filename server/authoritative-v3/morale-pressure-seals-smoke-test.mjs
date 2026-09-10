@@ -64,9 +64,9 @@ resolveMoralePressureCycle(ctx);
 assert.deepEqual(experimental.moralePressure.morale, [200, 200], 'Morale damage does not begin before Turn 4');
 experimental.turn = 4;
 resolveMoralePressureCycle(ctx);
-assert.deepEqual(experimental.moralePressure.morale, [199, 200], 'half of the three-point zone Fate deficit, rounded down, deals one Morale damage');
-assert(ctx.events.some(event=>event.type === 'MORALE_DAMAGED' && event.playerIndex === 0 && event.amount === 1));
-assert(ctx.events.some(event=>event.type === 'MORALE_CYCLE_RESOLVED' && event.damage[0] === 1));
+assert.deepEqual(experimental.moralePressure.morale, [200, 200], '33% of a three-point deficit rounds down to zero');
+assert(!ctx.events.some(event=>event.type === 'MORALE_DAMAGED')); experimental.board[0][0][0].currentFate += 7; experimental.turn = 6; resolveMoralePressureCycle(ctx); assert.deepEqual(experimental.moralePressure.morale, [197, 200], '33% of ten FAT deals three damage');
+assert(ctx.events.some(event=>event.type === 'MORALE_CYCLE_RESOLVED' && event.damage[0] === 3));
 
 const rozsiDefinitions = [
   {id:'34',name:'Rozsi Szocs',type:'Coordinator',aff:'third_great_war',fate:3,cost:2},
@@ -122,7 +122,7 @@ const duelistDefender=duelistState.players[1].hand[0];
 applyOperation(duelistCtx,{type:'SET_CARD',playerIndex:1,cardIid:duelistDefender.iid,destination:{z:0,r:0,c:0},playedFromHand:true});
 duelistState.turn=4;
 resolveMoralePressureCycle(duelistCtx);
-assert.equal(duelistState.moralePressure.morale[1],196,'Cook Islands Duelist doubles the complete 2-damage zone Morale calculation to 4');
+assert.equal(duelistState.moralePressure.morale[1],198,'Cook Islands Duelist doubles the complete 1-damage zone Morale calculation to 2');
 assert.equal(duelistState.board[0][2][0].counters.doubleNextMoraleDamage,false,'Cook Islands Duelist consumes its next-calculation double');
 
 let crossroadsState=createInitialState({
@@ -250,7 +250,7 @@ assert(moraleUiSource.includes("legacyMoralePenaltyActive(seat,40)"),'legacy ran
 assert(moraleUiSource.includes('damage[1-owner]*=multiplier'),'legacy Cook Islands Duelist doubles zone-difference Morale damage');
 assert(!moraleUiSource.includes('Your Fate total in every zone is reduced by 25%.'),'the retired 20% Fate penalty copy is removed');
 assert(moraleUiSource.includes('damage[result.damagedPlayer]+=Math.floor(result.difference/2)'),'legacy Morale calculations halve each zone Fate difference and round down');
-assert(moraleUiSource.includes('half the Fate difference is dealt as Morale damage (rounded down)'),'the Morale tooltip documents half-difference damage');
+assert(moraleUiSource.includes('33% of the Fate difference is dealt as Morale damage (rounded down)'),'the Morale tooltip documents 33% difference damage');
 assert(!moraleUiSource.includes('Add the Fate deficits from every zone you do not control.'),'the full-difference Morale tooltip is removed');
 
 console.log('authoritative-v3 reversible Morale-only and classic-card smoke test passed');

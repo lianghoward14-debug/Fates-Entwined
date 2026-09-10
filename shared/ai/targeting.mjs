@@ -84,7 +84,7 @@ function keepPatienceBurstTogether(commands,state,player){
   const abeds=hand.filter(c=>c.id==='bh19');
   const howard=hand.find(c=>c.id==='03');
   const fieldHoward=own.find(e=>e.card.id==='03' && live(e));
-  const remainingAbeds=Math.max(0,2-buffs);
+  const remainingAbeds=Math.max(0,1-buffs);
   const supply=own.reduce((n,e)=>{const t=canUseAsConsolidationTribute(state,e,player);return n+(t.ok && e.card.type==='Supporter'?t.reinforcement:0);},0);
   const demand=abeds.slice(0,remainingAbeds).reduce((n,c)=>n+effectiveConsolidationCost(state,c,player),0)+(howard?effectiveConsolidationCost(state,howard,player):0);
   const ready=!!zsofia && !!(howard || fieldHoward) && abeds.length>=remainingAbeds && supply>=demand;

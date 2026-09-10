@@ -3427,6 +3427,7 @@
         definitions.push(...ACHILLES_ADAPTIVE_TOKEN_DEFINITIONS);
       }
       if(typeof WOJCIECH_PIEROGI_COUNTER !== 'undefined' && WOJCIECH_PIEROGI_COUNTER) definitions.push(WOJCIECH_PIEROGI_COUNTER);
+      if(typeof WHISPER_OF_THE_HEART_TOKEN !== 'undefined' && WHISPER_OF_THE_HEART_TOKEN) definitions.push(WHISPER_OF_THE_HEART_TOKEN);
       definition = definitions.find(function(candidate){ return String(candidate?.id || '') === String(next.id || ''); }) || null;
     }catch(e){}
     if(definition){
@@ -4096,7 +4097,7 @@
   };
   function phase7ChooseCommand(matches, label, options){
     const choices = Array.isArray(matches) ? matches.filter(Boolean) : [];
-    if(choices.length === 1) return phase7SubmitCommand(choices[0], options);
+    if(choices.length === 1 && options?.forceChoice !== true) return phase7SubmitCommand(choices[0], options);
     if(!choices.length){
       if(window.toast) toast('That action is not legal in the authoritative match.');
       return false;
@@ -4141,6 +4142,41 @@
             button.dataset.phase7CommandRevision = String(phase7CurrentUiSession.view?.revision ?? phase7CurrentUiSession.view?.state?.revision ?? '');
           });
         }
+      });
+    });
+    return true;
+  }
+  function phase7ChooseTamaCoordinator(commands){
+    const choices = Array.isArray(commands) ? commands.filter(Boolean) : [];
+    const view = phase7CurrentUiSession.view;
+    const entries = choices.map(function(command){
+      const entry = phase7FindProjectedEntry(view, command?.payload?.sourceIid);
+      return entry?.zone === 'board' ? entry : null;
+    }).filter(Boolean);
+    if(!entries.length || typeof window.showBoardTargetPicker !== 'function'){
+      if(window.toast) toast('No eligible Coordinator is available for Concrete Roads.');
+      return false;
+    }
+    withOnlinePromptBypass(gameState(), function(){
+      window.showBoardTargetPicker({
+        pickerClass:'phase7-authoritative-board-picker phase7-tama-coordinator-picker',
+        title:'Tama City: Concrete Roads',
+        prompt:'Choose one Coordinator you control to copy and discard.',
+        entries,
+        zones:[0,1,2],
+        minCount:1,
+        maxCount:1,
+        immediate:true,
+        confirmLabel:'Copy Coordinator',
+        viewerPlayerIndex:Number(view?.playerIndex),
+        showZoneTitles:true
+      }, function(selected){
+        const iid = String(selected?.[0]?.card?.iid || selected?.[0]?.iid || '');
+        const command = choices.find(function(candidate){
+          return String(candidate?.payload?.sourceIid || '') === iid;
+        });
+        if(command) phase7SubmitCommand(command);
+        else if(window.toast) toast('That Coordinator is no longer available.');
       });
     });
     return true;
@@ -4775,8 +4811,11 @@
     return phase7CurrentCommands().some(function(command){
       if(!['SET_CARD','SET_ADAPTIVE_TOKEN','CONSOLIDATE_CARD'].includes(String(command?.type || ''))) return false;
       if(String(command?.payload?.cardIid || '') !== iid) return false;
-      if(!phase7SameDestination(command?.payload?.destination, destination)) return false;
-      return command.type !== 'CONSOLIDATE_CARD' || !(command?.payload?.tributeIids || []).length;
+      if(command.type === 'CONSOLIDATE_CARD' && (command?.payload?.tributeIids || []).length){
+        const target = gameState()?.board?.[Number(destination.z)]?.[Number(destination.r)]?.[Number(destination.c)];
+        return !!target && command.payload.tributeIids.map(String).includes(String(target.iid || ''));
+      }
+      return phase7SameDestination(command?.payload?.destination, destination);
     });
   }
   function phase7CommandLabel(command){
@@ -7209,7 +7248,7 @@
             '<div class="p1"><span>' + esc(players[0]?.name || 'Player 1') + '</span><strong>' + (Number(finalMorale[0]) || 0) + '</strong></div>' +
             '<div class="win-seal-mark" aria-hidden="true">♥</div>' +
             '<div class="p2"><span>' + esc(players[1]?.name || 'Player 2') + '</span><strong>' + (Number(finalMorale[1]) || 0) + '</strong></div>' +
-          '</div><div class="win-seal-origin">In each uncontrolled zone, half the Fate difference is dealt as Morale damage (rounded down).</div>';
+          '</div><div class="win-seal-origin">In each uncontrolled zone, 33% of the Fate difference is dealt as Morale damage (rounded down).</div>';
         zones.appendChild(morale);
       }
       zoneResults.forEach(function(result){
@@ -16944,7 +16983,7 @@
             return command?.type === 'ACTIVATE_LANDSCAPE'
               && String(g.landscapeId || '') === 'igb17';
           });
-          return Promise.resolve(phase7ChooseCommand(commands, 'Create Shizuku Token'));
+          return Promise.resolve(phase7ChooseTamaCoordinator(commands));
         }
         const args = arguments;
         return sendOptimisticAction('HAND_ACTION', {

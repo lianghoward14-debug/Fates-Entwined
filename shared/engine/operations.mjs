@@ -756,7 +756,7 @@ function changeFate(ctx, operation, absolute){
           status?.type === 'PERMANENT_FATE_GAIN_POTENCY'
           && Number(status.playerIndex) === highTPlayer
           && Number(status.remainingOwnerTurns || 0) > 0
-        )
+        ).slice(0, 1)
       : [];
     const highTBonus = !absolute ? Math.max(0, baseTransformed - beforeStored) * highTSources.length : 0;
     const transformed = baseTransformed + highTBonus;
@@ -1197,6 +1197,11 @@ function createMatchStatus(ctx, operation){
     throw operationError('INVALID_STATUS', 'match status requires a source and player');
   }
   const type = String(input.type).toUpperCase();
+  if(type === 'PERMANENT_FATE_GAIN_POTENCY'){
+    const active = ctx.state.statuses.find(status => status.type === type
+      && Number(status.playerIndex) === playerIndex && Number(status.remainingOwnerTurns || 0) > 0);
+    if(active) return {statusId:active.statusId, unchanged:true};
+  }
   const sourceEntry = findBoardCard(ctx.state, sourceIid);
   const countedAffiliation = String(input.countControlledAffiliation || '');
   const countedEntries = countedAffiliation

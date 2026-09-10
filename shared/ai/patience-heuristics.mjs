@@ -25,7 +25,7 @@ export function createPatiencePrior(state,player,entries,cards){
     if(c.id==='03')return available('03')?1:available('89')?10:5;
     if(c.id==='bh19'){
       const held=hand.filter(x=>x.id==='bh19').length;
-      if(held+highT>=2)return 1;
+      if(held+highT>=1)return 1;
       return available('89') && available('03')?14:7;
     }
     if(c.id==='09')return 7;

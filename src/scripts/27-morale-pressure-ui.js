@@ -1167,7 +1167,7 @@
     const max = Math.max(1, Number(system?.maxMorale || 200));
     const morale = Math.max(0, Number(system?.morale?.[seat] || 0));
     return '<header><span>Morale</span><b>' + morale + '/' + max + '</b></header>' +
-      '<div class="mp-morale-rule active"><b>Every 2 turns, starting Turn 4</b><span>In each zone you do not control, half the Fate difference is dealt as Morale damage (rounded down).</span></div>' +
+      '<div class="mp-morale-rule active"><b>Every 2 turns, starting Turn 4</b><span>In each zone you do not control, 33% of the Fate difference is dealt as Morale damage (rounded down).</span></div>' +
       '<div class="mp-morale-rule ' + (morale <= max * .8 ? 'active' : '') + '"><b>80% Morale</b><span>Maximum 2 consolidations per turn.</span></div>' +
       '<div class="mp-morale-rule ' + (morale <= max * .6 ? 'active' : '') + '"><b>60% Morale</b><span>Your normal draw phase occurs every other personal turn.</span></div>' +
       '<div class="mp-morale-rule ' + (morale <= max * .4 ? 'active' : '') + '"><b>40% Morale</b><span>At the end of each of your turns, discard 1 random card from your hand.</span></div>' +

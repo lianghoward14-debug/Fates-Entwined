@@ -77,11 +77,15 @@ assert.doesNotMatch(gameplay,/fatePhase7SubmitWhiteboardCatalog\(ids\)\)[\s\S]{0
 assert.match(gameplay,/title:'Moffitt Library: Whiteboard Drawings'[\s\S]{0,300}authoritativeDirectAction:true/,'Moffitt must identify its catalog as a direct authoritative command picker');
 assert.match(online,/if\(opts\?\.authoritativeDirectAction === true\) return originals\.pickCardsVisual\.apply\(this, arguments\)/,'direct authoritative pickers must bypass the retired PICK_CARDS_VISUAL transport');
 assert.match(online,/submitWhiteboardCatalog\(cardIds\)[\s\S]{0,180}fatePhase7SubmitWhiteboardCatalog\(cardIds\)/,'the public authoritative UI bridge must expose catalog submission');
-assert.match(online,/window\.activateWhisperOfTheHeartLandscape = function[\s\S]{0,900}phase7CurrentUiActive\(\)[\s\S]{0,500}phase7ChooseCommand\(commands, 'Create Shizuku Token'\)/,
+assert.match(online,/window\.activateWhisperOfTheHeartLandscape = function[\s\S]{0,900}phase7CurrentUiActive\(\)[\s\S]{0,500}phase7ChooseTamaCoordinator\(commands\)/,
   'Tama City landscape button must route directly through the authoritative command list');
 const tamaWrapper = online.slice(online.indexOf('window.activateWhisperOfTheHeartLandscape = function'), online.indexOf('window.__fateSendSantaAnnaAction'));
-assert(tamaWrapper.indexOf("phase7ChooseCommand(commands, 'Create Shizuku Token')") < tamaWrapper.indexOf("sendOptimisticAction('HAND_ACTION'"),
+assert(tamaWrapper.indexOf('phase7ChooseTamaCoordinator(commands)') < tamaWrapper.indexOf("sendOptimisticAction('HAND_ACTION'"),
   'authoritative Tama City routing must run before the legacy optimistic action fallback');
+assert.match(online,/function phase7ChooseTamaCoordinator[\s\S]{0,1600}showBoardTargetPicker[\s\S]{0,500}prompt:'Choose one Coordinator you control to copy and discard.'/,
+  'multiplayer Tama City must use the same visible board Coordinator picker as singleplayer');
+assert.match(online,/definitions\.push\(WHISPER_OF_THE_HEART_TOKEN\)/,
+  'multiplayer hydration must include Shizuku artwork and printed presentation');
 assert.match(online,/con\._phase7VisualReady = exact\.length > 0/,'exact Chihuahuan command must drive the blue ready border');
 assert.match(gameplay,/con\._phase7Authoritative === true\)[\s\S]{0,180}return fallback/,'client must not add the Chihuahuan surcharge twice');
 

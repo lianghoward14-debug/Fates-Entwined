@@ -1418,10 +1418,10 @@ window.resolveCaliforniqueHandExpiryForPlayer = resolveCaliforniqueHandExpiryFor
 
 function getHighTPotencyCount(playerIndex) {
   if(!G || !Array.isArray(G._bh19HighTStatuses)) return 0;
-  return G._bh19HighTStatuses.filter(function(status){
+  return G._bh19HighTStatuses.some(function(status){
     return Number(status.playerIndex) === Number(playerIndex)
       && Number(status.turn) === Number(G.turn);
-  }).length;
+  }) ? 1 : 0;
 }
 window.getHighTPotencyCount = getHighTPotencyCount;
 
@@ -1477,7 +1477,7 @@ function activateHighTForTurn(card, playerIndex) {
   if(!Array.isArray(G._bh19HighTStatuses)) G._bh19HighTStatuses = [];
   const sourceIid = String(card.iid || card.id || 'bh19');
   if(G._bh19HighTStatuses.some(function(status){
-    return String(status.sourceIid) === sourceIid && Number(status.turn) === Number(G.turn);
+    return Number(status.playerIndex) === Number(playerIndex) && Number(status.turn) === Number(G.turn);
   })) return false;
   G._bh19HighTStatuses.push({
     type:'PERMANENT_FATE_GAIN_POTENCY',
@@ -10917,7 +10917,7 @@ function checkWin() {
         '<div class="p1"><span>'+escapeHtml(G.players[0].name)+'</span><strong>'+Number(morale[0] || 0)+'</strong></div>'+
         '<div class="win-seal-mark" aria-hidden="true">♥</div>'+
         '<div class="p2"><span>'+escapeHtml(G.players[1].name)+'</span><strong>'+Number(morale[1] || 0)+'</strong></div>'+
-      '</div><div class="win-seal-origin">In each uncontrolled zone, half the Fate difference is dealt as Morale damage (rounded down).</div>';
+      '</div><div class="win-seal-origin">In each uncontrolled zone, 33% of the Fate difference is dealt as Morale damage (rounded down).</div>';
     wz.appendChild(sealEl);
   }
   zResults.forEach(({z,s0,s1,ctrl})=>{

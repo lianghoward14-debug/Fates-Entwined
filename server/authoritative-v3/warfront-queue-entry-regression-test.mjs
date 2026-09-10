@@ -25,7 +25,7 @@ const delay=ms=>new Promise(r=>setTimeout(r,ms));
 const version='1.39.0-phase7-beta.1';
 async function jsonRequest(route,headers,options={}){const res=await fetch(base+route,{method:options.method||'GET',headers:{'content-type':'application/json','x-fate-client-version':version,...headers},body:options.body?JSON.stringify(options.body):undefined});const body=await res.json();if(!res.ok)throw Object.assign(new Error(body.error),{status:res.status});return body;}
 try{
-  let ready=false;for(let i=0;i<100;i++){try{if((await fetch(base+'/health')).ok){ready=true;break;}}catch{}await delay(50);}assert(ready,logs);
+  let ready=false;for(let i=0;i<400;i++){try{if((await fetch(base+'/health')).ok){ready=true;break;}}catch{}await delay(50);}assert(ready,logs);
   function client(uid,sessionName){
     const storage=new Map(),statuses=[];let mounted=false,interrupted=false;
     const c={location:{search:'?electronSession='+sessionName},URLSearchParams,sessionStorage:{getItem:k=>storage.get(k),setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},crypto,Date,Math,console,AbortSignal,AbortController,
@@ -53,6 +53,7 @@ try{
   const results=await Promise.race([Promise.all([a.c.startUnrankedMatchmaking({...request,onStatus:s=>a.statuses.push(s)}),b.c.startUnrankedMatchmaking({...request,onStatus:s=>b.statuses.push(s)})]),new Promise((_,reject)=>{timeout=setTimeout(()=>reject(Error('Both players failed to enter a reserved match')),12000);})]);
   assert(a.statuses.some(s=>s.reconnecting),'temporary request failures recover visibly');assert(results.every(x=>x.ok));assert.equal(results[0].credential.matchId,results[1].credential.matchId);assert.notEqual(results[0].connection.playerIndex,results[1].connection.playerIndex);assert(a.mounted()&&b.mounted());
   const state=await jsonRequest('/api/warfront/state',{authorization:`Bearer ${token('alpha')}`});assert.equal(state.state.zones[2].activeMatch.matchId,results[0].credential.matchId);
+  const resumed=await a.c.matchmakingRequest('/v3/beta/matchmaking/enter',{method:'POST',body:request});assert.equal(resumed.credential.matchId,results[0].credential.matchId,'retry after WebSocket handshake recovers the reserved match');
   const normal={...request,queueMode:'freeplay',matchmakingKey:''};
   const headersA={authorization:'Bearer '+token('returning-alpha')};
   const headersB={authorization:'Bearer '+token('returning-bravo')};

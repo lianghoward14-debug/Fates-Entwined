@@ -296,6 +296,13 @@
     ));
   }
 
+  function irvineCharacterTribute(cell, z, cp){
+    const character = typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(cell, cp) : cell.type !== 'Supporter';
+    return character && (G.board[z] || []).some(row => (row || []).some(source =>
+      source && source.owner === cp && typeof cardActsAsPassive === 'function'
+      && cardActsAsPassive(source, '49') && !isSupporterAuraSuppressed(source)));
+  }
+
   function availableReinforcementFor(card){
     if(!card || isDirectSetCard(card) || typeof G === 'undefined' || !G || !G.board) return Infinity;
     if(G._linaFreeIids && G._linaFreeIids.has(card.iid)) return Infinity;
@@ -311,8 +318,9 @@
             if(typeof canUseAsConsolidationTribute === 'function' && !canUseAsConsolidationTribute(cell, cp, z, r, c)) return;
             const eligibleTribute = usesCharacterTributes
               ? (typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(cell, cp) : cell.type !== 'Supporter')
-              : cell.type === 'Supporter';
+              : cell.type === 'Supporter' || irvineCharacterTribute(cell, z, cp);
             if(eligibleTribute){
+              if(usesCharacterTributes || cell.type !== 'Supporter'){ total += 1; return; }
               let value = 1;
               try {
                 value = typeof getSupportReinforcementValue === 'function' ? getSupportReinforcementValue(cell) : (Number(cell.reinforcement) || 1);
@@ -709,7 +717,7 @@
       && cardUsesCharacterConsolidationTributes(card);
     const eligibleTribute = usesCharacterTributes
       ? (typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(boardCard, G.currentPlayer) : boardCard.type !== 'Supporter')
-      : boardCard.type === 'Supporter';
+      : boardCard.type === 'Supporter' || irvineCharacterTribute(boardCard, Number(hit.z), G.currentPlayer);
     return eligibleTribute ? 'valid' : 'invalid';
   }
 

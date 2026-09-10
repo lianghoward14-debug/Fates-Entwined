@@ -560,7 +560,7 @@ const AI_ONLY_RANDOM_DECKS = [
     id: 'ai_zsofias_patience',
     baseStrategy: 'ai_zsofias_patience',
     name: "Zsofia's Patience",
-    description: 'Fund two Abeds and Howard together around Zsofia by turn ten, focus Fate gains on her, protect her with Havano, then recycle Cook Islands Duelist.',
+    description: 'Fund one Abed and Howard together around Zsofia by turn ten, focus Fate gains on her, protect her with Havano, then recycle Cook Islands Duelist.',
     theme: 'AI Only - Zsofia Burst and Morale',
     faceCardId: '89',
     displayCardIds: ['89','bh19','03','64','79'],

@@ -79,6 +79,7 @@ for(const source of [abedOne, abedTwo]){
     }
   });
 }
+assert.equal(state.statuses.filter(s => s.type === 'PERMANENT_FATE_GAIN_POTENCY').length, 1, 'only one Abed effect is active');
 const beforeHighT = consolidated.currentFate;
 applyOperation(highTCtx, {
   type:'MODIFY_FATE',
@@ -89,7 +90,7 @@ applyOperation(highTCtx, {
   reason:'TEST_HIGH_T_GAIN',
   bypassReaction:true
 });
-assert.equal(consolidated.currentFate, beforeHighT + 12, 'two BH19 copies must add two original +4 gains, not compound');
+assert.equal(consolidated.currentFate, beforeHighT + 8, 'two BH19 copies must only double the original +4 gain');
 
 state = stateFor('BH18');
 state.gameSettings = {healthPressureSeals:true};

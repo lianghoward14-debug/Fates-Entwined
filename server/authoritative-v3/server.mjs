@@ -538,13 +538,8 @@ async function handleSocketMessage(ws, message){
       playerId:String(message.playerId),
       playerIndex:Number(credential.seat)
     });
-    if(BETA_MODE){
-      const delivery = betaDeliveries.get(String(message.playerId));
-      if(String(delivery?.matchId || '') === String(message.matchId)){
-        betaDeliveries.delete(String(message.playerId));
-        store.deleteBetaMatchmakingDelivery(String(message.playerId));
-      }
-    }
+    // Keep the durable delivery so retries after a successful handshake can
+    // resume this match. The enter route discards completed/stale deliveries.
     send(ws, {
       kind:'hello-ok',
       protocolVersion:3,
@@ -845,7 +840,7 @@ const server = http.createServer(async (req, res)=>{
       migrateLegacyBetaQueueIdentity(identity, queuePlayerId);
       let credential = betaDeliveries.get(queuePlayerId) || betaDeliveries.get(identity.uid) || null;
       const queued = betaQueue.get(queuePlayerId) || null;
-      if(queued){
+      if(queued&&!credential){
         queued.lastSeenAt = Date.now();
         if(queued.queueMode==='warfront'&&!flyDataApi?.warfrontCanQueue(queued.matchmakingKey)){writeJson(res,409,{ok:false,error:'Warfront post is unavailable or your five campaign matches are complete'});return;}
         betaQueue.set(queuePlayerId, queued);
