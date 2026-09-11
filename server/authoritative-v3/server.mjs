@@ -657,7 +657,13 @@ function readBody(req, maxBytes = MAX_MESSAGE_BYTES){
 }
 
 const flyDataApi = process.env.FATE_FLY_DATA_API_ENABLED === '1'
-  ? createFlyDataApi({readBody:req=>readBody(req, 2 * 1024 * 1024), writeJson, resolveMatchState:id=>manager.actor(id)?.state, authenticateMatch:(...args)=>manager.authenticate(...args)})
+  ? createFlyDataApi({readBody:req=>readBody(req, 2 * 1024 * 1024), writeJson, resolveMatchState:id=>manager.actor(id)?.state, authenticateMatch:(...args)=>manager.authenticate(...args),recoverDisconnectedMatch:id=>{
+      const actor=manager.actor(id);if(!actor||actor.state.outcome)return;
+      for(const [seat,player] of actor.state.players.entries()){
+        if(actor.state.warfrontAiSeats?.includes(seat))continue;
+        if((matchSockets.get(id)?.get(player.id)?.size||0)===0)scheduleDisconnectForfeit(id,player.id);
+      }
+    }})
   : {handle:async()=>false, flush:()=>{}, counts:()=>null};
 
 function bearer(req){

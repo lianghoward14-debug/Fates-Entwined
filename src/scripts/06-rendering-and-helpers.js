@@ -1575,9 +1575,18 @@ function isHighTSourceCardActive(card) {
   if(!card || String(card.id || '') !== 'bh19') return false;
   const iid = String(card.iid || '');
   if(!iid) return false;
+  const onBoard = Array.isArray(G?.board) && G.board.some(function(zone){
+    return Array.isArray(zone) && zone.some(function(row){
+      return Array.isArray(row) && row.some(function(boardCard){
+        return boardCard && String(boardCard.iid || '') === iid;
+      });
+    });
+  });
+  if(!onBoard) return false;
   const legacy = Array.isArray(G?._bh19HighTStatuses) ? G._bh19HighTStatuses : [];
   if(legacy.some(function(status){
-    return Number(status?.playerIndex) === Number(card.controller ?? card.owner) && Number(status?.turn) === Number(G?.turn);
+    return Number(status?.playerIndex) === Number(card.controller ?? card.owner)
+      && Number(status?.turn) === Number(G?.turn);
   })) return true;
   const authoritative = Array.isArray(G?._phase7Statuses) ? G._phase7Statuses : [];
   return authoritative.some(function(status){

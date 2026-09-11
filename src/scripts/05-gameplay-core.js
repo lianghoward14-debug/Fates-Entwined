@@ -3030,9 +3030,28 @@ function coordinatorAuraAffectsTarget(source, sourceZ, sourceR, sourceC, target,
   return false;
 }
 
+function getWhisperPlacementFlashTargets(source) {
+  if(!isActiveWhisperToken(source)) return [];
+  const targets = [];
+  forEachBoardCard(function(target, z){
+    if(!target || isFaceDownCard(target)) return;
+    const after = Number(getEffectiveFate(target, z)) || 0;
+    let before;
+    // Compare the actual copied aura, including immunity, caps and other
+    // Coordinators. Restore synchronously without changing canonical state.
+    source._whisperEffectActivated = false;
+    try { before = Number(getEffectiveFate(target, z)) || 0; }
+    finally { source._whisperEffectActivated = true; }
+    if(before !== after) targets.push(target);
+  });
+  return targets;
+}
+
 function scheduleCoordinatorPlacementFlash(card, options) {
   if(!card || card.faceDown) return false;
-  const kind = COORDINATOR_PLACEMENT_FLASH_KIND_BY_ID[String(card.id || '')];
+  const copiedId = String(card._whisperCopiedEffectId || '');
+  const kind = COORDINATOR_PLACEMENT_FLASH_KIND_BY_ID[copiedId || String(card.id || '')]
+    || (copiedId === 'bh07' ? 'bh07_overclock' : '');
   if(!kind) return false;
   const opts = options || {};
   let z = Number.isInteger(Number(opts.z)) ? Number(opts.z) : -1;
@@ -3086,6 +3105,7 @@ window.scheduleCoordinatorPlacementFlash = scheduleCoordinatorPlacementFlash;
 
 function getCoordinatorPlacementFlashTargets(source, z, r, c) {
   if(!source || !G || !Array.isArray(G.board) || z < 0 || !G.board[z]) return [];
+  if(typeof isWhisperOfTheHeartToken === 'function' && isWhisperOfTheHeartToken(source)) return getWhisperPlacementFlashTargets(source);
   if(source.type === 'Coordinator' && typeof isCoordinatorSuppressedAt === 'function' && r >= 0 && c >= 0 && isCoordinatorSuppressedAt(z, r, c)) return [];
   const targets = [];
   const isInvisibleCard = function(card){
@@ -3180,6 +3200,14 @@ function getIncomingCoordinatorEffectSources(target, z, r, c) {
     getActiveWhisperTokens(null, null).forEach(function(sourceEntry){
       const source = sourceEntry && sourceEntry.card;
       if(!source || source.faceDown || source.iid === target.iid) return;
+      const copiedId = String(source._whisperCopiedEffectId || '');
+      const inheritedKind = COORDINATOR_PLACEMENT_FLASH_KIND_BY_ID[copiedId];
+      if(copiedId !== 'bh07' && inheritedKind){
+        if(getWhisperPlacementFlashTargets(source).some(function(card){ return card.iid === target.iid; })){
+          sources.push({card:source, effectId:copiedId, kind:inheritedKind});
+        }
+        return;
+      }
       if(String(source._whisperCopiedEffectId || '') !== 'bh07' || source.owner !== target.owner) return;
       if(typeof getBh07AdjacentDauntlessCount !== 'function' || getBh07AdjacentDauntlessCount(source) <= 0) return;
       const targetIsAdjacentDauntless = String(target.type || '') === 'Dauntless'
@@ -5482,6 +5510,12 @@ function canConsolidateWithoutTributeAt(card, destination) {
 }
 
 function consolidateZeroCostIntoAnickaRow(card, destination) {
+  // Multiplayer placement is always committed by the authority, even when a
+  // zero-cost Character reaches this shortcut from another input route.
+  if(G?._phase7CurrentMultiplayer === true){
+    if(typeof window.fatePhase7HandleHandDrop === 'function') return window.fatePhase7HandleHandDrop(card, destination);
+    return false;
+  }
   if(!canConsolidateWithoutTributeAt(card, destination)) return false;
   const cp = Number(G.currentPlayer);
   const z = Number(destination.z), r = Number(destination.r), c = Number(destination.c);
@@ -9088,6 +9122,11 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
         return;
       }
       card.usesLeft = remaining - 1;
+      // Shield Wall has two lifetime uses, but reactivating it during the same
+      // turn only replaces the identical next-opponent-turn status. Track the
+      // activation per turn so the End Turn warning and card action do not
+      // offer (or nag about) a redundant second use.
+      card.effectUsedThisTurn = true;
       G._southWindMoraleBlock = {
         sourcePlayer:cp,
         targetPlayer:opp,
@@ -9148,7 +9187,10 @@ function canUseManualCharacterEffect(card) {
     G.pendingInteraction
   )) return false;
   if(id === '40') return Number(card.usesLeft || 0) > 0;
-  if(id === '20') return Number(card.usesLeft == null ? 2 : card.usesLeft) > 0;
+  if(id === '20') {
+    return Number(card.usesLeft == null ? 2 : card.usesLeft) > 0
+      && card.effectUsedThisTurn !== true;
+  }
   if(id === 'bh16') return Number(card.usesLeft || 0) > 0;
   if(id === '38') return card.effectUsedThisTurn !== true;
   if(id === 'bh01') return !hasAnickaVoyagerMovedThisTurn(card);

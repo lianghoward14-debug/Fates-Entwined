@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+const source=fs.readFileSync('src/scripts/18-online-rooms.js','utf8');
+const start=source.indexOf('  function phase7CurrentCommands(');
+const code=source.slice(start,source.indexOf('  function phase7StableCommandValue(',start));
+const placement={type:'SET_CARD',payload:{cardIid:'shizuku',destination:{z:1,r:2,c:0}}};
+let network={revision:11,legalCommands:[placement]};
+const session={view:{revision:10,legalCommands:[]},adapter:{view:()=>network}};
+const context=vm.createContext({phase7CurrentUiSession:session});
+vm.runInContext(code,context);
+assert.equal(context.phase7CurrentCommands()[0],placement,'new token uses latest authority placement before animations finish');
+session.view={revision:11,legalCommands:[placement]};
+network={revision:12,legalCommands:[]};
+assert.equal(context.phase7CurrentCommands().length,0,'new prompt/turn must clear stale placements');
+network={revision:10,legalCommands:[]};
+assert.equal(context.phase7CurrentCommands()[0],placement,'older network view cannot replace newer committed actions');
+console.log('Placement input uses the newest authoritative commands across presentation delays');

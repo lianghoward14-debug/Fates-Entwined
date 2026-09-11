@@ -16,7 +16,7 @@ function clone(value){ return value == null ? value : JSON.parse(JSON.stringify(
 function mapBy(list, key){ return new Map((Array.isArray(list) ? list : []).filter(Boolean).map(item=>[cleanId(item[key]), clone(item)]).filter(row=>row[0])); }
 function objectFromSet(set){ return Object.fromEntries([...set].map(uid=>[uid, {uid, createdAt:Date.now()}])); }
 
-export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>null, authenticateMatch = ()=>null}){
+export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>null, authenticateMatch = ()=>null, recoverDisconnectedMatch = ()=>{}}){
   fs.mkdirSync(DATA_DIR, {recursive:true});
   let snapshot = {};
   try{ snapshot = JSON.parse(fs.readFileSync(SNAPSHOT_PATH, 'utf8')) || {}; }catch(error){
@@ -243,6 +243,7 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
     let changed=false;
     for(const zone of warfrontEvent?.zones||[]){
       const active=zone.activeMatch;if(!active?.matchId)continue;
+      if(warfrontBindings.has(active.matchId))recoverDisconnectedMatch(active.matchId);
       const match=resolveMatchState(active.matchId);
       if(!match){
         // Missing actors cannot be spectated or resumed. Allow a short startup
@@ -251,7 +252,6 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
         continue;
       }
       let binding=warfrontBindings.get(active.matchId);
-      if(!binding&&match.warfrontMatch&&zone.a&&zone.b){binding={matchId:active.matchId,mapCode:warfrontEvent.mapCode,zoneId:zone.id,uids:[null,null],participants:clone({a:zone.a,b:zone.b})};warfrontBindings.set(active.matchId,binding);changed=true;}
       if(binding&&(!binding.uids?.[0]||!binding.uids?.[1])){
         const participants=binding.participants||{a:zone.a,b:zone.b},aSeat=Number(active.teamASeat)===1?1:0;
         binding.participants=clone(participants);binding.uids ||= [null,null];
@@ -265,6 +265,7 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
     for(const binding of warfrontBindings.values()){
       if(binding.mapCode===warfrontEvent?.mapCode) settleWarfrontForfeit(resolveMatchState(binding.matchId));
     }
+    if(warfrontEvent?.waitingAI?.length){const waiting=warfrontEvent.waitingAI.length;relocateWarfrontAI(warfrontEvent);if(waiting!==warfrontEvent.waitingAI.length)changed=true;}
     if(changed){warfrontEvent._syncRevision=Number(warfrontEvent._syncRevision||0)+1;persist();}
   }
   // Seat ratings are enrollment snapshots, not a source of current ratings.

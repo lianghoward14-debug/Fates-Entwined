@@ -3398,6 +3398,13 @@
       );
       next.whisperLandscapeToken = true;
       next._whisperCopiedEffectId = whisperCopiedId;
+      // The authority activates the aura on field entry; it never executes
+      // the local placement routine that normally sets this scoring marker.
+      next._whisperEffectActivated = !!(whisperCopiedId && projectedState?.board?.some(function(zone){
+        return zone.some(function(row){
+          return row.some(function(entry){ return entry && String(entry.iid || '') === String(card.iid || ''); });
+        });
+      }));
       next._whisperCopiedSourceName = String(card.counters?.copiedSourceName || 'Coordinator');
       if(whisperCopiedId){
         try{
@@ -3811,6 +3818,16 @@
     return (view.privateActionCards || []).find(function(card){ return String(card?.iid || '') === wanted; }) || null;
   }
   function phase7CurrentCommands(){
+    // Presentation can still be displaying the previous action while the
+    // network has already received a newly created token and its placements.
+    // Input must use the newest server-issued action list, including an empty
+    // list when a prompt or turn change has removed the old actions.
+    const networkView = phase7CurrentUiSession.adapter?.view?.();
+    if(Array.isArray(networkView?.legalCommands)
+      && Number(networkView.revision ?? networkView.state?.revision ?? -1)
+        >= Number(phase7CurrentUiSession.view?.revision ?? phase7CurrentUiSession.view?.state?.revision ?? -1)){
+      return networkView.legalCommands;
+    }
     return Array.isArray(phase7CurrentUiSession.view?.legalCommands)
       ? phase7CurrentUiSession.view.legalCommands
       : [];
@@ -3977,6 +3994,10 @@
     const opts = options || {};
     return Promise.resolve(phase7CurrentUiSession.adapter.dispatchLegalCommand(command)).then(function(result){
       phase7CurrentUiSession.lastCommandResult = cloneOnlinePlain(result);
+      if(!result?.ok) recordOnlineDiagnostic('phase7-command-rejected', {
+        command:cloneOnlinePlain(command),
+        rejection:cloneOnlinePlain(result?.rejection || null)
+      });
       // Never retry a guessed target.  After a stale revision response has
       // refreshed the authoritative projection, retry only the byte-for-byte
       // equivalent server-issued command once.  This removes the first IGB9

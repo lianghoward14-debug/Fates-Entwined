@@ -6,6 +6,12 @@ import crypto from 'node:crypto';
 import vm from 'node:vm';
 import http from 'node:http';
 
+const {relocateWarfrontAI}=await import('./warfront-lifecycle.mjs');
+const settled={id:'settled',a:null,b:null,matches:[{starValue:5,winnerTeam:'a'}]};
+const unfinished={id:'unfinished',a:null,b:null,matches:[]};
+const relocation={endsAt:Date.now()+3600000,zones:[settled,unfinished],waitingAI:[{player:{uid:'ai-1',isAI:true},team:'a'},{player:{uid:'ai-2',isAI:true},team:'a'}]};
+relocateWarfrontAI(relocation);
+assert.equal(unfinished.a.uid,'ai-1');assert.equal(settled.a.uid,'ai-2');assert.equal(relocation.waitingAI.length,0);assert.equal(settled.matches[0].starValue,5);
 const dir=fs.mkdtempSync(path.join(os.tmpdir(),'warfront-seat-rotation-'));
 process.env.FATE_FLY_DATA_API_DIR=dir;
 fs.writeFileSync(path.join(dir,'rooms.json'),JSON.stringify({warfrontEvent:{mapCode:'WF-TEST',sequence:1,status:'enrollment',createdAt:Date.now(),teams:{a:{name:'A'},b:{name:'B'}},zones:Array.from({length:5},(_,i)=>({id:'zone-'+i,a:null,b:null,matches:[],landscape:{id:'igb1'},bans:{a:[],b:[]},bansLocked:{a:false,b:false}})),archives:[]}}));
@@ -15,10 +21,10 @@ globalThis.fetch=async()=>({ok:true,headers:new Headers(),json:async()=>({test:p
 const encode=x=>Buffer.from(JSON.stringify(x)).toString('base64url');
 function token(uid){const project='fates-entwined-41491',input=`${encode({alg:'RS256',kid:'test'})}.${encode({sub:uid,aud:project,iss:`https://securetoken.google.com/${project}`,exp:Math.floor(Date.now()/1000)+3600})}`;return `${input}.${crypto.sign('RSA-SHA256',Buffer.from(input),privateKey).toString('base64url')}`;}
 const source=fs.readFileSync('src/scripts/47-challenger-war-event.js','utf8');
-let api,server;const live=new Map();
+let api,server;const live=new Map(),recoveryChecks=[];
 try{
   const {createFlyDataApi}=await import('./fly-data-api.mjs');
-  const makeApi=()=>createFlyDataApi({resolveMatchState:id=>live.get(id),readBody:async req=>req.body,writeJson:(res,status,body)=>Object.assign(res,{status,body})});
+  const makeApi=()=>createFlyDataApi({recoverDisconnectedMatch:id=>recoveryChecks.push(id),resolveMatchState:id=>live.get(id),readBody:async req=>req.body,writeJson:(res,status,body)=>Object.assign(res,{status,body})});
   api=makeApi();
   server=http.createServer(async(req,res)=>{
     try{
@@ -60,6 +66,7 @@ try{
     assert(api.bindWarfrontAiMatch(id,uid,uid+'@session',key));return match;
   };
   const first=await start('alpha',zoneId,'first');const oldAI=state.zones[0].b.uid;
+  api.close();api=makeApi();await read();assert(recoveryChecks.includes(first.matchId),'restored active reservations trigger disconnected-player recovery');
   await deploy('bravo',zoneId,'b');
   await assert.rejects(deploy('intruder',zoneId,'b'),/occupied/);
   first.outcome={winner:1,totalFate:[10,30]};assert(api.settleWarfrontForfeit(first));

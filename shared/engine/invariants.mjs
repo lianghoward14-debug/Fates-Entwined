@@ -82,7 +82,9 @@ export function collectInvariantViolations(state){
       violations.push(issue('coinFlip', 'unresolved coin phase cannot contain a turn choice'));
     }
   }
-  if(state.phase !== 'coin' && state.coinFlip){
+  // A concession can end the match before either player chooses turn order.
+  const endedBeforeTurnChoice=state.phase==='ended'&&['CONCEDED','WARFRONT_FORFEIT'].includes(state.outcome?.type)&&state.coinFlip?.choice===null&&state.coinFlip?.startingPlayer===null;
+  if(state.phase !== 'coin' && state.coinFlip && !endedBeforeTurnChoice){
     if(![0, 1].includes(state.coinFlip.winner) || ![0, 1].includes(state.coinFlip.startingPlayer)){
       violations.push(issue('coinFlip', 'resolved coin flip must retain winner and starting player'));
     }

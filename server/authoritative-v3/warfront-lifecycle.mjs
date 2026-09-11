@@ -61,7 +61,10 @@ export function relocateWarfrontAI(event){
   if(event.humanOnly === true){event.waitingAI=[];return;}
   for(let i=0;i<(event.waitingAI||[]).length;){
     const {player,team}=event.waitingAI[i];
-    const zone=event.zones.find(z=>!z[team]&&!z.activeMatch&&warfrontPlayed(z)<5);
+    // Prefer an unfinished front, but an empty settled front is still an
+    // available post. Occupying it never reopens its completed matches.
+    const available=z=>!z[team]&&!z.activeMatch;
+    const zone=event.zones.find(z=>available(z)&&warfrontPlayed(z)<5)||event.zones.find(available);
     if(!zone){i++;continue;}
     zone[team]=player;event.waitingAI.splice(i,1);
     if(zone.a?.isAI&&zone.b?.isAI&&!zone.aiSchedule?.length)zone.aiSchedule=Array.from({length:5},(_,n)=>Date.now()+(n+1)*Math.max(1000,(event.endsAt-Date.now())/5));

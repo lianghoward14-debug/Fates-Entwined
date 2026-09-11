@@ -4,6 +4,7 @@ import {canUseAsConsolidationTribute,effectiveConsolidationCost,isEffectSourceSu
 export function filterAiTargets(commands,state,player){
   commands=chooseWintertideSearch(commands,state,player);
   commands=keepPatienceBurstTogether(commands,state,player);
+  commands=keepIndieBurstTogether(commands,state,player);
   commands=keepAssaultHoplitesTogether(commands,state,player);
   const prompt=state.pendingPrompt;
   if(!prompt || Number(prompt.playerIndex)!==player)return commands;
@@ -88,14 +89,42 @@ function keepPatienceBurstTogether(commands,state,player){
   const supply=own.reduce((n,e)=>{const t=canUseAsConsolidationTribute(state,e,player);return n+(t.ok && e.card.type==='Supporter'?t.reinforcement:0);},0);
   const demand=abeds.slice(0,remainingAbeds).reduce((n,c)=>n+effectiveConsolidationCost(state,c,player),0)+(howard?effectiveConsolidationCost(state,howard,player):0);
   const ready=!!zsofia && !!(howard || fieldHoward) && abeds.length>=remainingAbeds && supply>=demand;
+  const forcedHoward=buffs>=1 && ready && howard?commands.filter(x=>x.payload?.cardIid===howard.iid && x.payload?.destination && Number(x.payload.destination.z)===zsofia.z):[];
+  if(forcedHoward.length)return forcedHoward;
   return commands.filter(c=>{
     const p=c.payload || {},card=cards.find(x=>x.iid===(p.cardIid || p.sourceIid));
     if(card?.id==='79' && p.destination)return false;
-    if(card?.id==='bh19' && p.destination)return ready;
-    if(card?.id==='03' && c.type==='ACTIVATE_EFFECT')return buffs>=2 && !!zsofia && fieldHoward?.z===zsofia.z;
-    if(card?.id==='03' && p.destination)return ready && buffs>=2 && Number(p.destination.z)===zsofia.z;
-    if(buffs>0 && buffs<2 && ready && c.type==='END_TURN')return false;
-    if(buffs>=2 && c.type==='END_TURN' && commands.some(x=>x.type==='ACTIVATE_EFFECT' && x.payload?.sourceIid===fieldHoward?.card.iid))return false;
+    if(card?.id==='bh19' && p.destination)return ready && buffs===0;
+    if(card?.id==='03' && c.type==='ACTIVATE_EFFECT')return buffs>=1 && !!zsofia && fieldHoward?.z===zsofia.z;
+    if(card?.id==='03' && p.destination)return ready && buffs>=1 && Number(p.destination.z)===zsofia.z;
+    return true;
+  });
+}
+
+function keepIndieBurstTogether(commands,state,player){
+  const owner=state.players[player], hand=owner.hand || [];
+  const own=boardEntries(state).filter(e=>controllerOf(e.card)===player);
+  const all=[...hand,...(owner.deck || []),...(owner.discard || []),...own.map(e=>e.card)];
+  if(!['87','bh19','bh06','07','bh24','80'].every(id=>all.some(c=>c.id===id)))return commands;
+  if(state.pendingPrompt)return commands;
+  const doubled=(state.statuses || []).some(s=>s.type==='PERMANENT_FATE_GAIN_POTENCY' && Number(s.playerIndex)===player && Number(s.remainingOwnerTurns)>0);
+  const ballad=(state.statuses || []).some(s=>s.type==='CONSOLIDATION_FATE_BONUS' && Number(s.playerIndex)===player);
+  const ukulele=hand.find(c=>c.id==='87'), achille=hand.find(c=>c.id==='bh06');
+  const supply=own.reduce((n,e)=>{const t=canUseAsConsolidationTribute(state,e,player);return n+(t.ok && e.card.type==='Supporter'?t.reinforcement:0);},0);
+  const cost=c=>c?effectiveConsolidationCost(state,c,player):0;
+  const moves=id=>commands.filter(c=>c.payload?.destination && all.find(x=>x.iid===c.payload.cardIid)?.id===id);
+  const tokens=commands.filter(c=>c.type==='SET_ADAPTIVE_TOKEN' && c.payload?.placementType==='CONSOLIDATED' && c.payload?.declaredType!=='Supporter');
+  // Finish the funded burst before spending resources elsewhere or ending.
+  if(doubled && ballad && tokens.length)return tokens;
+  if(doubled && ballad && achille && moves('bh06').length)return moves('bh06');
+  if(doubled && !ballad && ukulele && moves('87').length)return moves('87');
+  return commands.filter(c=>{
+    const card=all.find(x=>x.iid===(c.payload?.cardIid || c.payload?.sourceIid));
+    if(!c.payload?.destination)return true;
+    if(card?.id==='bh19')return !doubled && !!ukulele && !!achille && Number(state.turn)>=6 && supply>=cost(card)+cost(ukulele)+cost(achille);
+    if(card?.id==='87')return doubled;
+    if(card?.id==='bh06')return doubled && ballad;
+    if(c.type==='SET_ADAPTIVE_TOKEN')return c.payload.placementType==='CONSOLIDATED' && c.payload.declaredType!=='Supporter';
     return true;
   });
 }

@@ -12,6 +12,13 @@ function concede(state,seat){
   const result=reduceCommand(state,command(state,state.players[seat].id,state.revision,'CONCEDE'),{playerIndex:seat});
   assert.equal(result.ok,true,JSON.stringify(result.rejection));return result.state;
 }
+for(const warfrontMatch of [false,true])for(const firstSeat of [0,1]){
+  const opening=testState({matchId:'early-concession-'+warfrontMatch+'-'+firstSeat});
+  opening.phase='coin';opening.coinFlip={winner:0,face:'HEADS',choice:null,startingPlayer:null};opening.warfrontMatch=warfrontMatch;
+  const first=concede(opening,firstSeat),ended=warfrontMatch?concede(first,1-firstSeat):first;
+  assert.equal(ended.phase,'ended','conceding before turn order must end cleanly');
+  assert.equal(ended.outcome.winner,1-firstSeat);
+}
 let initial=testState({matchId:'takeover-'+'x'.repeat(130)});
 for(const seat of [0,1]){
   const view=projectStateForSpectator(initial,seat);

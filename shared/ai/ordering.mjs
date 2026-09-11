@@ -9,6 +9,7 @@ import {createTimePrior} from './time-heuristics.mjs';
 import {createPatiencePrior} from './patience-heuristics.mjs';
 import {createWintertidePrior} from './wintertide-heuristics.mjs';
 import {createEndlessSeaPrior} from './endless-sea-heuristics.mjs';
+import {createPublicComboPrior} from './public-combo-heuristics.mjs';
 
 // Build shared indexes once per position, not once per legal placement.
 export function createCommandOrderer(state,player){
@@ -27,6 +28,7 @@ export function createCommandOrderer(state,player){
   const patiencePrior=createPatiencePrior(state,player,entries,cards);
   const wintertidePrior=createWintertidePrior(state,player,entries,cards);
   const endlessSeaPrior=createEndlessSeaPrior(state,player,entries,cards);
+  const publicComboPrior=createPublicComboPrior(state,player,entries,cards);
   const values=new Map();
   const dependencyValues=new Map();
   function departureValue(iids){
@@ -66,7 +68,7 @@ export function createCommandOrderer(state,player){
       // merely because the discarded card has powerful operation tags.
       return -8-departureValue([p.targetIid || p.sourceIid]);
     }
-    let score=value(card)+incelPrior(command)+assaultPrior(command)+freeWorldPrior(command)+majaPrior(command)+timePrior(command)+patiencePrior(command)+wintertidePrior(command)+endlessSeaPrior(command);
+    let score=value(card)+incelPrior(command)+assaultPrior(command)+freeWorldPrior(command)+majaPrior(command)+timePrior(command)+patiencePrior(command)+wintertidePrior(command)+endlessSeaPrior(command)+publicComboPrior(command);
     if(command.type==='ACTIVATE_EFFECT' && card?.id==='40'){
       // A real draw, including a blind one, can turn this activation into
       // cheap Fate. Do not require Ledger or Alondra to use the effect.

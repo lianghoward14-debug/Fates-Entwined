@@ -60,15 +60,22 @@ const rendering = fs.readFileSync(new URL('../../src/scripts/06-rendering-and-he
 const pulseStart = rendering.indexOf('function isHighTSourceCardActive(');
 const pulseCode = rendering.slice(pulseStart, rendering.indexOf('\n}', pulseStart) + 2);
 for(const multiplayer of [false,true]){
-  const G = {turn:4};
+  const first = {id:'bh19',iid:'first',owner:0};
+  const second = {id:'bh19',iid:'second',owner:0};
+  const G = {turn:4,board:[[[first]],[],[]]};
   G[multiplayer ? '_phase7Statuses' : '_bh19HighTStatuses'] = [{
     type:'PERMANENT_FATE_GAIN_POTENCY',sourceIid:'first',playerIndex:0,turn:4,remainingOwnerTurns:1
   }];
   const context = vm.createContext({G});
   vm.runInContext(pulseCode,context);
-  for(const iid of ['first','second']) assert(context.isHighTSourceCardActive({id:'bh19',iid,owner:0}));
+  assert(context.isHighTSourceCardActive(first));
+  assert(!context.isHighTSourceCardActive(second), 'a second Abed in hand must not pulse');
+  G.board = [[[first,second]],[],[]];
+  assert(context.isHighTSourceCardActive(second), 'every friendly Abed on the field must pulse while High-T is active');
+  G.board = [[[second]],[],[]];
+  assert(context.isHighTSourceCardActive(second), 'an on-field Abed keeps pulsing even if the original source leaves');
   assert(!context.isHighTSourceCardActive({id:'bh19',iid:'opponent',owner:1}));
   G[multiplayer ? '_phase7Statuses' : '_bh19HighTStatuses'] = [];
   assert(!context.isHighTSourceCardActive({id:'bh19',iid:'second',owner:0}));
 }
-console.log('All friendly Abed copies pulse during High-T in both modes');
+console.log('All friendly on-field Abeds pulse during High-T, while hand copies do not, in both modes');

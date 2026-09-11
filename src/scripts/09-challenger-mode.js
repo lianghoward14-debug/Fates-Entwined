@@ -545,6 +545,24 @@ const STARTER_DECKS = [
 
 const AI_ONLY_RANDOM_DECKS = [
   {
+    id: 'ai_marine_jake', baseStrategy: 'ai_marine_jake',
+    name: 'Fat Fucking Pig (Marine Variation)',
+    description: 'Grow Jake by consuming spent supporters, recycle Marine disruption, protect Jake and finish with Howard.',
+    theme: 'AI Only - Marine Recycling', faceCardId: '38',
+    displayCardIds: ['03','08','18','58'],
+    ids: ['38','38','38','08','08','08','03','27','27','27','32','32','32','58','58','58','18','18','18','60','60','60','13','13','13','79','79','79','12','12','28','28','28','97','97','97','71','71','74','74'],
+    enabled: true, sourcePublicDeckId: 'nNbfvYwsoDfnvTHQhK4lwN5a2B22_1789043897082'
+  },
+  {
+    id: 'ai_indie_album', baseStrategy: 'ai_indie_album',
+    name: "An Indie Czech Girl's Album Debut",
+    description: 'Fund Abed, Ukulele and Achille together, then consolidate Adaptive tokens without breaking the Ballad bonus.',
+    theme: 'AI Only - Ukulele Burst', faceCardId: '87',
+    displayCardIds: ['87','bh19','bh06','74'],
+    ids: ['87','87','87','bh19','bh19','bh19','bh06','bh06','bh06','74','74','74','07','60','60','60','27','27','27','32','32','32','42','42','42','98','98','98','75','75','75','80','80','80','28','28','28','bh24','bh24','bh24'],
+    enabled: true, sourcePublicDeckId: 'nNbfvYwsoDfnvTHQhK4lwN5a2B22_1789046089589'
+  },
+  {
     id: 'ai_test_of_time',
     baseStrategy: 'ai_test_of_time',
     name: 'The Test of Time',
@@ -1636,9 +1654,7 @@ function getAIDeckPoolForOpponent(opp) {
   const starterPool = Array.isArray(STARTER_DECKS) ? STARTER_DECKS : [];
   const advancedPool = Array.isArray(AI_ONLY_RANDOM_DECKS) ? AI_ONLY_RANDOM_DECKS.filter(isAIDeckEnabled) : [];
   if(!advancedPool.length) return starterPool;
-  // Share all enabled archive decks; Footmen retain their starter-only restriction.
-  const protectedRanks = new Set(['Footman']);
-  if(opp && protectedRanks.has(String(opp.rank || ''))) return starterPool;
+  // All ranks share the enabled archive, also consumed by the server catalog.
   return [...starterPool, ...advancedPool];
 }
 

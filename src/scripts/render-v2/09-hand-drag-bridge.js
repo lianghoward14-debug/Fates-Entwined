@@ -687,6 +687,8 @@
 
   function isZeroCostAnickaRowDrop(card, hit){
     if(!card || !hit || hit.kind !== 'cell' || boardCardAt(hit)) return false;
+    // Tokens with direct placement must never enter local consolidation.
+    if(isDirectSetCard(card)) return false;
     if(isFreeSetCard(card)) return false;
     const cp = typeof G !== 'undefined' && G ? Number(G.currentPlayer) : -1;
     const isCharacter = typeof isCardCharacterForRules === 'function'
@@ -1211,14 +1213,14 @@
       cleanup({clearPlacement:true});
       return;
     }
-    if(isZeroCostAnickaRowDrop(state.card, hit)) {
+    if(isDirectSetCard(state.card) || isFreeSetCard(state.card)) finishSupporterDrop(hit);
+    else if(isZeroCostAnickaRowDrop(state.card, hit)) {
       const card = state.card;
       cleanup({clearPlacement:false});
       if(typeof window.consolidateZeroCostIntoAnickaRow === 'function') {
         window.consolidateZeroCostIntoAnickaRow(card, {z:Number(hit.z), r:Number(hit.r), c:Number(hit.c)});
       }
     }
-    else if(isDirectSetCard(state.card) || isFreeSetCard(state.card)) finishSupporterDrop(hit);
     else finishConsolidationDrop(hit);
   }
 
