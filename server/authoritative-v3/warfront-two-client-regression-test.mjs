@@ -56,6 +56,8 @@ try{
   same('initial campaign');
   a.c.openWarZone('heartland');const writes=a.pane.writes;
   await a.war.pull();await a.war.pull();assert.equal(a.pane.writes,writes,'unchanged polls must not rebuild the open zone drawer');
+  const metadataOnly=a.state();metadataOnly._syncRevision+=1;metadataOnly._updatedAt=Date.now();const oldWrites=a.pane.writes;
+  a.war.adopt(metadataOnly);assert.equal(a.pane.writes,oldWrites,'sync metadata alone never rebuilds the zone window');
   a.c.closeWarDrawer();
   a.war.select('a');b.war.select('b');
   await Promise.all([a.c.joinWarEventZone('heartland','a'),b.c.joinWarEventZone('heartland','b')]);
@@ -70,7 +72,7 @@ try{
   const normal=b.c.FateOnline.flyApiRequest;b.c.FateOnline.flyApiRequest=()=>new Promise(()=>{});
   const stalled=b.war.pull();assert(b.war.busy());
   [...b.timers.values()].find(t=>t.ms===12000).fn();await stalled;
-  assert.equal(b.war.busy(),false);assert.match(b.war.notice(),/interrupted/);
+  assert.equal(b.war.busy(),false);assert.equal(b.war.notice(),'','background connection errors stay quiet');
   b.c.FateOnline.flyApiRequest=normal;await b.war.pull();same('reconnect after stalled request');assert.equal(b.war.notice(),'');
   for(let i=0;i<5;i++){
     assert(a.c.fateClanEventReportMatch({zoneId:'heartland',matchId:'played-'+i,winnerTeam:i%2?'b':'a',stats:{fateDifferential:10,durationMs:40000,consolidations:2},replay:{version:1,hands:{a:[],b:[]},actions:[{team:'a',cardId:'1'}]}}));

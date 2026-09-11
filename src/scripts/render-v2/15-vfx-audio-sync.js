@@ -40,23 +40,23 @@
       card_play_land:'cardSet',
       draw_card:'draw',
       discard_card:'discard',
-      destroy_card:'discard',
+      destroy_card:'zoneLost',
       fate_gain:'fateGain',
       fate_loss:'fateLose',
       card_move:'cardMove',
       search_found:'searchFound',
       consolidate_charge:'consolidate',
-      consolidate_impact:'characterSet',
+      consolidate_impact:'consolidate',
       whisper_consolidate:'whisperConsolidation',
       card_flip:'cardFlip',
       card_reveal:'cardPreview',
       supporter_activate:'effectActivate',
       landscape_trigger:'landscapePulse',
-      zone_control_shift:'fateGain',
-      zone_control_lock:'levelUp',
+      zone_control_shift:'zoneFlip',
+      zone_control_lock:'zoneCaptured',
       invalid_action:'invalidAction',
-      return_to_hand:'cardMove',
-      discard_to_hand:'searchFound'
+      return_to_hand:'cardPreview',
+      discard_to_hand:'starlightEarn'
     })[cue] || cue;
     try {
       if(typeof playSfx === 'function'){

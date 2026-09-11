@@ -1197,11 +1197,16 @@ function toggleEnhancedVisualFx() {
   if(typeof playSfx === 'function') playSfx(isEnhancedVisualFxEnabled() ? 'menuOpen' : 'menuClose');
 }
 
-function playDiscardSfx() {
+function playDiscardSfx(options) {
+  const opts = typeof options === 'number' ? {count:options} : (options || {});
   const now = Date.now();
-  if(now - _lastDiscardSfxAt < 80) return;
+  // A multi-card effect can resolve several discard mutations at once. Treat
+  // that as one audible gesture instead of stacking identical transients.
+  const minGapMs = Math.max(180, Number(opts.minGapMs) || 240);
+  if(now - _lastDiscardSfxAt < minGapMs) return false;
   _lastDiscardSfxAt = now;
   if(typeof playSfx === 'function') playSfx('discard');
+  return true;
 }
 
 function showWineCountryGuerillaSentBanner(options = {}) {
@@ -1271,7 +1276,7 @@ function fatePushDiscard(playerIndex, cardOrCards, options = {}) {
       if(srcs.length) window.FateMatchRendererAdapter.prewarmAssetImages(srcs);
     }
   } catch(e) {}
-  if(options.sound !== false) playDiscardSfx();
+  if(options.sound !== false) playDiscardSfx({count:discarded.length});
   return true;
 }
 

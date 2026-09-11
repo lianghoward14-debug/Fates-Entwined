@@ -9,6 +9,7 @@ const esc=v=>String(v==null?'':v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;'
 const landscapes=()=>window.LANDSCAPES?Object.values(window.LANDSCAPES):[],cards=()=>typeof CARDS!=='undefined'&&Array.isArray(CARDS)?CARDS:(window.CARDS||[]);
 let loadedStorageKey=storageKey(KEY),state=load(),selectedTeam=null,selectedZoneId='heartland',warPage='briefing',drawer='',archiveCode='',banSearch='',ticker=null,replayTicker=null,selectedMatchId='',replayView=null,replayGameBackup=null,replaySessionGame=null,replayPhase7Controller=null,replayPhase7AdapterView=null,remotePushTimer=null,remotePushBusy=false,remotePushQueued=false,remotePullBusy=false,lastUiSnapshot=null,postWarMap=false,renderFx={zones:{},scoreA:false,scoreB:false,newDispatch:false};
 let deploymentPending=null;
+let releasedWarfrontSeat=null;
 let remoteWriteVersion=0,remoteAcknowledgedVersion=0;
 let remoteWriteGeneration=0;
 function resetRemoteWritesIfNeeded(){if(remoteWriteGeneration===remoteGeneration)return;remoteWriteGeneration=remoteGeneration;remoteWriteVersion=0;remoteAcknowledgedVersion=0;remotePushQueued=false;if(remotePushTimer)clearTimeout(remotePushTimer);remotePushTimer=null;}
@@ -22,7 +23,7 @@ async function warfrontRequest(route,options={}){
 }
 function warfrontSyncNotice(){
   if(simulationSession)return '<div role="status">SIMULATION · Local preview only <button onclick="exitWarfrontSimulation()">Return to live Warfront</button></div>';
-  if(remoteError)return '<div role="status">Warfront connection interrupted · '+esc(remoteError)+' <button onclick="refreshFateWarfrontState()">Reconnect</button></div>';
+  if(remoteError)return '';
   if(!remoteLastSuccess)return '<div role="status">Connecting to live Warfront…</div>';
   return '';
 }
@@ -34,7 +35,7 @@ function save(opts={}){try{localStorage.setItem(storageKey(KEY),JSON.stringify(s
 function onlineIdentity(){const signedIn=window.FATE_ONLINE?.user;if(signedIn?.uid)return signedIn;try{return window.FateOnline?.getEphemeralMultiplayerGuestUser?.()||null;}catch(e){return null;}}
 function remoteEligible(){const api=window.FateOnline,u=onlineIdentity();return!!(u&&u.uid&&typeof api?.flyApiRequest==='function'&&!simulationSession);}
 function remoteCopy(value){const next=clone(value),compactMatch=m=>{if(!m||typeof m!=='object'||!m.replay)return;const replay=m.replay;if(!Array.isArray(replay.actions)){delete m.replay;return;}/* Keep every action; server storage enforces the byte limit. */},strip=r=>{if(r&&typeof r==='object'){delete r.localReward;(r.zones||[]).forEach(z=>(z.matches||[]).forEach(compactMatch));}};(next.zones||[]).forEach(z=>(z.matches||[]).forEach(compactMatch));strip(next.lastResult);(next.archives||[]).forEach(strip);return next;}
-function adoptRemoteState(value){if(!remoteEligible())return false;const next=normalize(clone(value));if(!next)return false;if(Number(next._syncRevision||0)<acceptedRemoteRevision)return false;acceptedRemoteRevision=Number(next._syncRevision||0);if(JSON.stringify(remoteCopy(next))===JSON.stringify(remoteCopy(state)))return false;const localReplays=new Map();const remember=zones=>(zones||[]).forEach(z=>(z.matches||[]).forEach(m=>{if(m&&m.id&&m.replay)localReplays.set(String(m.id),m.replay);}));remember(state.zones);(state.archives||[]).forEach(r=>remember(r.zones));const restore=zones=>(zones||[]).forEach(z=>(z.matches||[]).forEach(m=>{const replay=localReplays.get(String(m&&m.id||''));if(replay)m.replay=replay;}));restore(next.zones);(next.archives||[]).forEach(r=>restore(r.zones));if(next.lastResult)next.lastResult.localReward=reward(next.lastResult);(next.archives||[]).forEach(r=>{if(!r.localReward)r.localReward=reward(r);});state=next;try{localStorage.setItem(storageKey(KEY),JSON.stringify(state));}catch(e){}window.dispatchEvent(new CustomEvent('fate-war-event-updated',{detail:{state,remote:true}}));rerender();return true;}
+function adoptRemoteState(value){if(!remoteEligible())return false;const next=normalize(clone(value));if(!next)return false;if(Number(next._syncRevision||0)<acceptedRemoteRevision)return false;acceptedRemoteRevision=Number(next._syncRevision||0);const visual=value=>JSON.stringify(remoteCopy(value),(key,v)=>key==='_syncRevision'||key==='_updatedAt'?undefined:v),previousVisual=visual(state);if(typeof releasedWarfrontSeat!=='undefined'&&releasedWarfrontSeat?.mapCode===next.mapCode){const released=releasedWarfrontSeat;if(next.service?.[released.uid]?.matchIds?.includes(released.matchId))releasedWarfrontSeat=null;else{const zone=next.zones.find(z=>z.id===released.zoneId);if(zone?.[released.team]?.uid===released.uid)zone[released.team]=null;if(zone?.activeMatch?.matchId===released.matchId)zone.activeMatch=null;next.service ||= {};if(state.service?.[released.uid])next.service[released.uid]=clone(state.service[released.uid]);}}const localReplays=new Map();const remember=zones=>(zones||[]).forEach(z=>(z.matches||[]).forEach(m=>{if(m&&m.id&&m.replay)localReplays.set(String(m.id),m.replay);}));remember(state.zones);(state.archives||[]).forEach(r=>remember(r.zones));const restore=zones=>(zones||[]).forEach(z=>(z.matches||[]).forEach(m=>{const replay=localReplays.get(String(m&&m.id||''));if(replay)m.replay=replay;}));restore(next.zones);(next.archives||[]).forEach(r=>restore(r.zones));if(next.lastResult)next.lastResult.localReward=reward(next.lastResult);(next.archives||[]).forEach(r=>{if(!r.localReward)r.localReward=reward(r);});const visibleChanged=previousVisual!==visual(next);state=next;try{localStorage.setItem(storageKey(KEY),JSON.stringify(state));}catch(e){}window.dispatchEvent(new CustomEvent('fate-war-event-updated',{detail:{state,remote:true}}));if(visibleChanged)rerender();return visibleChanged;}
 async function pushRemoteState(){
   resetRemoteWritesIfNeeded();
   if(!remoteEligible())return false;
@@ -45,9 +46,9 @@ async function pushRemoteState(){
     const r=await warfrontRequest('/api/warfront/state',{method:'POST',body:{uid,state:remoteCopy(state)}});
     if(generation!==remoteGeneration||onlineIdentity()?.uid!==uid)return false;
     if(r?.ok)remoteAcknowledgedVersion=writeVersion;
-    if(r?.state&&writeVersion===remoteWriteVersion){const noticeChanged=!!remoteError||!remoteLastSuccess;remoteLastSuccess=Date.now();remoteError='';const changed=adoptRemoteState(r.state);if(!changed&&noticeChanged)rerender();}
+    if(r?.state&&writeVersion===remoteWriteVersion){const noticeChanged=!remoteLastSuccess;remoteLastSuccess=Date.now();remoteError='';const changed=adoptRemoteState(r.state);if(!changed&&noticeChanged)rerender();}
     return !!r?.ok;
-  }catch(e){if(generation===remoteGeneration){remoteError=e.message;rerender();}return false;}
+  }catch(e){if(generation===remoteGeneration)remoteError=e.message;return false;}
   finally{remotePushBusy=false;if(generation===remoteGeneration&&(remotePushQueued||remoteAcknowledgedVersion<remoteWriteVersion)){remotePushQueued=false;queueRemotePush(remoteError?2000:120);}}
 }
 function queueRemotePush(delay){if(!remoteEligible())return;if(remotePushTimer)clearTimeout(remotePushTimer);remotePushTimer=setTimeout(()=>{remotePushTimer=null;pushRemoteState();},delay);}
@@ -62,11 +63,11 @@ async function pullRemoteState(){
     if(generation!==remoteGeneration||onlineIdentity()?.uid!==uid)return false;
     if(writeVersion!==remoteWriteVersion||remotePushBusy||remotePushTimer)return false;
     if(r?.profile&&typeof window.fateApplyServerProfileStats==='function')window.fateApplyServerProfileStats(r.profile,{render:false});
-    if(r?.state){const noticeChanged=!!remoteError||!remoteLastSuccess;remoteLastSuccess=Date.now();remoteError='';if(r.archivesUnchanged)r.state.archives=state.archives;const changed=adoptRemoteState(r.state);if(!changed&&noticeChanged)rerender();return changed;}
-    if(r?.unchanged){remoteLastSuccess=Date.now();if(remoteError){remoteError='';rerender();}return false;}
+    if(r?.state){const noticeChanged=!remoteLastSuccess;remoteLastSuccess=Date.now();remoteError='';if(r.archivesUnchanged)r.state.archives=state.archives;const changed=adoptRemoteState(r.state);if(!changed&&noticeChanged)rerender();return changed;}
+    if(r?.unchanged){remoteLastSuccess=Date.now();if(remoteError)remoteError='';return false;}
     if(r?.ok&&!r.state)scheduleRemotePush();
     return false;
-  }catch(e){if(generation===remoteGeneration){remoteError=e.message;rerender();}return false;}
+  }catch(e){if(generation===remoteGeneration)remoteError=e.message;return false;}
   finally{remotePullBusy=false;}
 }
 window.refreshFateWarfrontState=()=>pullRemoteState();
@@ -210,7 +211,7 @@ function awardIcon(id){const paths={fate:'<path d="M22 3 38 12v15c0 10-7 16-16 1
 function dispatchIcon(){return'<svg viewBox="0 0 96 96" aria-hidden="true"><path d="M18 72V35l30-18 30 18v37"/><path d="M30 72V43l18-11 18 11v29M13 72h70"/><path d="M38 53h20M38 62h20"/><circle cx="48" cy="45" r="3"/><path d="M24 26 13 15M72 26l11-11M48 17V5"/></svg>';}
 function archiveIcon(){return'<svg viewBox="0 0 112 128" aria-hidden="true"><path d="M15 24h34l9 10h39v76H15Z"/><path d="M15 43h82M31 61h50v32H31Z"/><path d="M40 72h32M40 82h25"/></svg>';}
 function warCanDeploy(z,t){const service=state.service?.[me().uid];return ['enrollment','active'].includes(state.status)&&(!service||service.team===t)&&(!service||service.matchIds.length<5)&&score(z).played<5&&(!z[t]||z[t].isAI);}
-function miniSeat(z,t,mine){const p=z[t],pending=deploymentPending?.id===z.id&&deploymentPending.team===t,can=warCanDeploy(z,t)&&!mine&&!deploymentPending;if(!p||p.isAI)return'<button class="war2-seat team-'+t+' empty" '+(can?'onclick="joinWarEventZone(\''+z.id+'\',\''+t+'\')"':'disabled')+'>'+avatar(pending?me():p)+'<span class="war3-seat-copy"><b>'+esc(pending?'Deploying '+me().name+'…':p?.name||'Open post')+'</b><em>'+(deploymentPending?.id===z.id&&deploymentPending.team===t?'Deploying…':can?(p?.isAI?'Replace AI commander':'Claim this zone'):!selectedTeam?'Choose an alliance in Briefing':'Awaiting player')+'</em></span></button>';return'<div class="war2-seat team-'+t+'">'+avatar(p)+'<span class="war3-seat-copy"><b>'+esc(p.name)+'</b><em>'+score(z)[t]+' Victories · '+score(z)[t]+' Stars Contributed</em>'+stars(z,t)+'</span></div>';}
+function miniSeat(z,t,mine){const p=z[t],pending=deploymentPending?.id===z.id&&deploymentPending.team===t,can=warCanDeploy(z,t)&&!mine&&!deploymentPending;if(!p||p.isAI)return'<button class="war2-seat team-'+t+(p?.isAI?' occupied-ai':' empty')+'" '+(can?'onclick="joinWarEventZone(\''+z.id+'\',\''+t+'\')"':'disabled')+'>'+avatar(pending?me():p)+'<span class="war3-seat-copy"><b>'+esc(pending?'Deploying '+me().name+'…':p?.name||'Open post')+'</b><em>'+(deploymentPending?.id===z.id&&deploymentPending.team===t?'Deploying…':can?(p?.isAI?'Replace AI commander':'Claim this zone'):p?.isAI?'AI Commander':!selectedTeam?'Choose an alliance in Briefing':'Awaiting player')+'</em></span></button>';return'<div class="war2-seat team-'+t+'">'+avatar(p)+'<span class="war3-seat-copy"><b>'+esc(p.name)+'</b><em>'+score(z)[t]+' Victories · '+score(z)[t]+' Stars Contributed</em>'+stars(z,t)+'</span></div>';}
 function zonePanel(z,mine){const m=meta(z),s=score(z),l=z.landscape||{},owned=mine&&mine.zone.id===z.id,queue=owned&&state.status==='active'&&z.a&&z.b&&s.played<5;return'<section class="war2-zone-panel war2-zone-command-screen war2-zone-command-v3"><header><div><span>FRONT '+m.no+' · OPERATIONAL DOSSIER</span><h2>'+esc(m.name)+'</h2></div><button onclick="closeWarDrawer()">×</button></header>'+'<div class="war2-zone-brief-grid"><aside class="war2-zone-theater"><img src="'+landscapeArt(l)+'" alt="" onerror="if(!this.dataset.fallback){this.dataset.fallback=1;this.src=\'ingamebackgrouds/'+esc(l.id||'igb1')+'.png\'}else{this.onerror=null;this.src=\'ingamebackgrouds/igb1.png\'}"><div><span>ASSIGNED THEATER</span><h3>'+esc(l.shortName||l.name||'Unknown')+'</h3><p>'+esc(l.description||'')+'</p></div></aside><main class="war2-zone-engagement"><div class="war2-series-banner"><span>BEST OF FIVE · '+s.played+' CONDUCTED</span><div><b>'+s.a+'</b><i>FRONT SCORE</i><b>'+s.b+'</b></div></div><div class="war2-stacked-duel">'+miniSeat(z,'a',mine)+'<div class="war2-clash-line"><span>'+esc(state.teams.a.name)+'</span><b>VERSUS</b><span>'+esc(state.teams.b.name)+'</span></div>'+miniSeat(z,'b',mine)+'</div></main></div><footer><button class="war2-secondary war2-details-button" onclick="openWarZoneHistory(\''+z.id+'\')">OPEN BATTLE LEDGER · '+s.played+'/5</button>'+(owned?'<span class="war2-deck-rule">CHALLENGER DECKS ONLY · FORFEIT CONCEDES THE FRONT 0–5</span><button class="war2-primary" onclick="enterWarEventQueue(\''+z.id+'\')" '+(queue&&!z.activeMatch?'':'disabled')+'>'+(z.activeMatch?'ENGAGEMENT UNDERWAY':s.played>=5?'FRONT SETTLED':'SELECT DECK & DEPLOY')+'</button>':z.activeMatch?'<span class="war2-spectator">A teammate may spectate live</span>':'')+'</footer></section>';}
 function awardPanel(){return'<section class="war2-achievements"><header><div><span>FIELD HONORS · LIVE COMMAND BOARD</span><h2>Warfront Commendations</h2></div><button onclick="closeWarDrawer()">×</button></header><div class="war2-achievement-intro"><b>THREE DISTINCTIONS · SIX DECISIVE STARS</b><span>Current leaders across all active fronts</span></div><div class="war2-achievement-list">'+achievements().map((a,i)=>'<article class="award-'+a.id+' '+(a.leader?'awarded':'')+'"><div class="war2-award-number">0'+(i+1)+'</div><i>'+awardIcon(a.id)+'</i><div><span>+2 WAR STARS</span><h3>'+a.name+'</h3><p>'+a.copy+'</p></div><aside>'+(a.leader?avatar(a.leader):'<b>—</b>')+'<strong>'+(a.leader?esc(a.leader.name):a.tied?'Currently tied':'Awaiting a commander')+'</strong><em>'+esc(a.display)+'</em></aside></article>').join('')+'</div></section>';}
 function playerRows(ps){return'<div class="war2-player-report">'+(ps.length?ps.map(p=>'<article class="team-'+p.team+'">'+avatar(p,true)+'<div class="war2-player-identity"><b>'+esc(p.name)+'</b><span>'+esc(meta({id:p.zoneId}).name)+' · '+p.matches+' played</span></div><dl class="war2-player-bests"><div><dt>'+Math.max(0,+p.highestFate||0)+'</dt><dd>PEAK FATE</dd></div><div><dt>+'+Math.max(0,+p.highestDifferential||0)+'</dt><dd>BEST DIFF.</dd></div><div><dt>'+Math.max(0,+p.highestConsolidations||0)+'</dt><dd>CONS.</dd></div><div><dt>'+duration(p.fastest)+'</dt><dd>FASTEST</dd></div></dl></article>').join(''):'<div class="war2-empty"><b>No troops deployed</b></div>')+'</div>';}
@@ -257,7 +258,22 @@ function briefing(mine,count,t,live){const aCount=players().filter(p=>p.team==='
 function tacticalMap(mine,count,t,live){return'<header class="war2-topbar"><button class="war2-brief-back" onclick="openWarBriefing()">‹ BRIEFING</button><div class="war2-title"><span>TACTICAL</span><h1>MAP</h1></div><div class="war2-score team-a"><span>'+esc(state.teams.a.name)+'</span><b>'+t.a+'</b></div><div class="war2-center"><span>'+(live?'WAR ENDS IN':'DEPLOYMENT ENDS IN')+'</span><b id="war-event-clock">'+(clock((live?state.endsAt:Number(state.createdAt)+DURATION)-Date.now()))+'</b></div><div class="war2-score team-b"><b>'+t.b+'</b><span>'+esc(state.teams.b.name)+'</span></div><nav><button onclick="openWarAchievements()"><i>✦</i><span>Honors</span></button><button onclick="openWarMatches()"><i>▶</i><span>Matches</span></button><button onclick="openWarRecord()"><i>≡</i><span>Record</span></button><button onclick="openWarArchive()"><i>▱</i><span>Archive</span></button></nav></header><section class="war2-map"><div class="war2-front front-a"></div><div class="war2-front front-b"></div><div class="war2-grid"></div>'+state.zones.map(objective).join('')+'</section>';}
 function uiSnapshot(){const t=totals(),zones={};state.zones.forEach(z=>{const s=score(z);zones[z.id]={a:s.a,b:s.b,played:s.played,active:String(z.activeMatch?.matchId||'')};});return{a:t.a,b:t.b,matches:state.zones.reduce((n,z)=>n+score(z).played,0),zones};}
 function uiDiff(next){const fx={zones:{},scoreA:false,scoreB:false,newDispatch:false};if(!lastUiSnapshot)return fx;fx.scoreA=next.a!==lastUiSnapshot.a;fx.scoreB=next.b!==lastUiSnapshot.b;fx.newDispatch=next.matches>lastUiSnapshot.matches;Object.keys(next.zones).forEach(id=>{const n=next.zones[id],p=lastUiSnapshot.zones[id]||{a:0,b:0,played:0,active:''};fx.zones[id]={star:n.played>p.played,score:n.a!==p.a||n.b!==p.b,started:!!n.active&&!p.active,ended:!n.active&&!!p.active};});return fx;}
-function render(content){lifecycle();content=typeof resolveChRenderTarget==='function'?resolveChRenderTarget(content,'war'):content;if(!content)return;const next=uiSnapshot();renderFx=uiDiff(next);lastUiSnapshot=next;const mine=seat(me().uid),count=players().length,t=totals(),live=state.status==='active',motion=(renderFx.scoreA?' war2-score-a-updated':'')+(renderFx.scoreB?' war2-score-b-updated':'')+(renderFx.newDispatch?' war2-new-dispatch':'');if(mine)selectedTeam=mine.team;const post=lastWarAvailable()?state.lastResult:null,body=post?(postWarMap?finalTacticalMap(post):postWarSplash(post)):(warPage==='map'?tacticalMap(mine,count,t,live):briefing(mine,count,t,live)),page=post&&postWarMap?'map':warPage;content.innerHTML='<main class="challenger-war2 page-'+page+(post?' post-war-view':'')+motion+'">'+warfrontSyncNotice()+body+drawerHtml(mine)+'</main>';dot();tick();}
+function renderWarfrontHtml(content,html){
+  const current=content.querySelector?.('main.challenger-war2'),open=current?.querySelector('.war2-drawer');
+  if(!drawer||!open){content.innerHTML=html;return;}
+  const holder=document.createElement('div');holder.innerHTML=html;
+  const next=holder.firstElementChild,nextDrawer=next?.querySelector('.war2-drawer'),shade=current.querySelector('.war2-drawer-shade');
+  if(!nextDrawer||!shade){content.innerHTML=html;return;}
+  // Keep the drawer mounted: polling must not restart its entrance animation,
+  // reload its image, or reset its scroll position.
+  current.className=next.className;
+  for(const child of [...current.children])if(child!==open&&child!==shade)child.remove();
+  for(const child of [...next.children])if(!child.matches('.war2-drawer,.war2-drawer-shade'))current.insertBefore(child,shade);
+  const desired=nextDrawer.innerHTML;
+  if((open._warRenderedHtml??open.innerHTML)!==desired){const scroll=open.scrollTop;open.innerHTML=desired;open.scrollTop=scroll;}
+  open._warRenderedHtml=desired;
+}
+function render(content){lifecycle();content=typeof resolveChRenderTarget==='function'?resolveChRenderTarget(content,'war'):content;if(!content)return;const next=uiSnapshot();renderFx=uiDiff(next);lastUiSnapshot=next;const mine=seat(me().uid),count=players().length,t=totals(),live=state.status==='active',motion=(renderFx.scoreA?' war2-score-a-updated':'')+(renderFx.scoreB?' war2-score-b-updated':'')+(renderFx.newDispatch?' war2-new-dispatch':'');if(mine)selectedTeam=mine.team;const post=lastWarAvailable()?state.lastResult:null,body=post?(postWarMap?finalTacticalMap(post):postWarSplash(post)):(warPage==='map'?tacticalMap(mine,count,t,live):briefing(mine,count,t,live)),page=post&&postWarMap?'map':warPage;renderWarfrontHtml(content,'<main class="challenger-war2 page-'+page+(post?' post-war-view':'')+motion+'">'+warfrontSyncNotice()+body+drawerHtml(mine)+'</main>');dot();tick();}
 function rerender(){const p=document.querySelector('#ch-content > .ch-tab-pane[data-tab="war"]');if(p&&p.classList.contains('active'))render(p);dot();}
 function dot(){const d=document.getElementById('ch-war-tab-dot');if(d)d.classList.toggle('live',state.status==='active');}
 function tick(){if(ticker)clearInterval(ticker);ticker=setInterval(()=>{if(state.status==='enrollment'){const e=document.getElementById('war-event-clock');if(e)e.textContent=clock(Number(state.createdAt)+DURATION-Date.now());return;}if(state.status!=='active')return;if(Date.now()>=state.endsAt){if(!simulationSession)pullRemoteState();else finish(allComplete()?'all-matchups':'timer',{remote:false});rerender();return;}const e=document.getElementById('war-event-clock');if(e)e.textContent=clock(state.endsAt-Date.now());},1000);}
@@ -356,7 +372,14 @@ function replayCard(raw,owner,index){
   card.iid='war-replay-'+owner+'-'+String(raw&&raw.iid||index);card.currentFate=+raw?.fate||+def.fate||0;card.faceDown=!!raw?.faceDown;card.controller=owner;
   return card;
 }
+function clearReplayDiscardPrompt(){
+  const modal=document.getElementById('modal');
+  if(!modal?.querySelector?.('.hand-limit-discard,.phase7-hand-limit-discard'))return;
+  if(typeof closeModal==='function')closeModal({forceHandLimitClose:true,deferQueuedModals:true});
+  modal.classList.remove('on');
+}
 function ensureReplayControls(m){
+  clearReplayDiscardPrompt();
   let bar=document.getElementById('war-full-replay-controls');
   if(!bar){bar=document.createElement('div');bar.id='war-full-replay-controls';bar.className='war-full-replay-controls';document.body.appendChild(bar);}
   const v=replayView,rp=m.replay,total=(rp.actions||[]).length,p=v.perspective;
@@ -435,7 +458,7 @@ window.openWarReplay=id=>{
   const landscape=m.landscape||state.zones.find(z=>z.id===m.zoneId)?.landscape||null;
   G={...replayGameBackup,players:[{name:m.a?.name||'Team I',deck:[],hand:[],discard:[],color:'var(--p1)'},{name:m.b?.name||'Team II',deck:[],hand:[],discard:[],color:'var(--p2)'}],playerProfiles:[{name:m.a?.name,photoURL:m.a?.photo||'blank.png'},{name:m.b?.name,photoURL:m.b?.photo||'blank.png'}],board:createEmptyBoard(),extraCells:createEmptyExtraCells(),blockedCells:[],immuneCards:[],fateModifiers:{},currentPlayer:0,turn:1,phase:'main',instanceCounter:0,aiEnabled:false,_isSpectator:true,_onlineRole:'spectator',_warReplayMode:true,viewerPlayerIndex:replayView.perspective==='b'?1:0,localPlayerIndex:null,landscapeId:landscape?.id||null,landscape:landscape,_landscapeState:null,gameLog:[]};
   replaySessionGame=G;
-  document.body.classList.add('war-replay-active');showScreen('s-game');renderFullWarReplay();scheduleReplayTick();
+  clearReplayDiscardPrompt();document.body.classList.add('war-replay-active');showScreen('s-game');renderFullWarReplay();scheduleReplayTick();
 };
 window.toggleWarReplay=()=>{if(!replayView)return;updateReplayClock();warSfx('replay','replay-toggle',70);replayView.playing=!replayView.playing;ensureReplayControls(findMatch(selectedMatchId));scheduleReplayTick();};
 window.setWarReplaySpeed=n=>{if(!replayView)return;updateReplayClock();warSfx('replay','replay-speed',70);replayView.speed=[1,2,4].includes(+n)?+n:1;window.FATE_WAR_REPLAY_SPEED=replayView.speed;ensureReplayControls(findMatch(selectedMatchId));scheduleReplayTick();};
@@ -453,7 +476,7 @@ window.setWarReplayPerspective=t=>{
     warSfx('zone','replay-perspective',100);replayView.perspective=t;renderFullWarReplay();
   }
 };
-window.exitWarReplay=()=>{warSfx('mapClose','replay-exit',180);if(replayTicker)clearTimeout(replayTicker);replayTicker=null;window.FATE_WAR_REPLAY_SPEED=1;replayPhase7Controller?.unmount?.();replayPhase7Controller=null;replayPhase7AdapterView=null;document.getElementById('war-full-replay-controls')?.remove();document.body.classList.remove('war-replay-active');if(replayGameBackup&&G===replaySessionGame)G=replayGameBackup;replayGameBackup=null;replaySessionGame=null;replayView=null;drawer='match-detail';showScreen('s-challenger');rerender();};
+window.exitWarReplay=()=>{clearReplayDiscardPrompt();warSfx('mapClose','replay-exit',180);if(replayTicker)clearTimeout(replayTicker);replayTicker=null;window.FATE_WAR_REPLAY_SPEED=1;replayPhase7Controller?.unmount?.();replayPhase7Controller=null;replayPhase7AdapterView=null;document.getElementById('war-full-replay-controls')?.remove();document.body.classList.remove('war-replay-active');if(replayGameBackup&&G===replaySessionGame)G=replayGameBackup;replayGameBackup=null;replaySessionGame=null;replayView=null;drawer='match-detail';showScreen('s-challenger');rerender();};
 window.inspectWarReplayCard=id=>{const c=cards().find(x=>String(x.id)===String(id));if(c&&typeof openCardDetail==='function')openCardDetail(c,true,false);};
 window.toggleWarBanCard=(id,c)=>{const m=seat(me().uid),z=state.zones.find(x=>x.id===id);if(!m||m.zone!==z||z.bansLocked[m.team])return;const a=z.bans[m.team],i=a.indexOf(String(c));if(i>=0)a.splice(i,1);else if(a.length<3)a.push(String(c));rerender();};
 window.lockWarBans=id=>{const m=seat(me().uid),z=state.zones.find(x=>x.id===id);if(!m||m.zone!==z||z.bans[m.team].length!==3)return;z.bansLocked[m.team]=true;save();drawer='zone';rerender();};
@@ -602,6 +625,26 @@ window.fateCompleteWarfrontMatch=(view,outcome)=>{
   }else ok=window.fateClanEventReportMatch({zoneId:req.zoneId,winnerTeam,matchId,playerStats:stats,participants:req.participants,replayId:matchId,replay});
   window.FATE_PENDING_WAR_MATCH=null;window.FATE_WAR_REPLAY_CAPTURE=null;
   return{reported:ok,reward:matchReward,forfeitSweep:forfeit};
+};
+const completeWarfrontMatch=window.fateCompleteWarfrontMatch;
+window.fateCompleteWarfrontMatch=(view,outcome)=>{
+  const req=window.FATE_PENDING_WAR_MATCH;
+  try{return completeWarfrontMatch(view,outcome);}
+  finally{
+    if(req&&req.mapCode===state.mapCode&&outcome&&view?.state?.matchId){
+      const uid=me().uid,z=state.zones.find(z=>z.id===req.zoneId),team=req.team||state.service?.[uid]?.team;
+      if(z&&team&&z[team]?.uid===uid&&!z[team].isAI){
+        state.service ||= {};const service=state.service[uid] ||= {...clone(z[team]),team,zoneId:z.id,matchIds:[]};
+        const id=String(view.state.matchId)+(view.state.warfrontForfeit?'-forfeit':'');
+        if(!service.matchIds.includes(id))service.matchIds.push(id);
+        releasedWarfrontSeat={mapCode:req.mapCode,zoneId:z.id,team,uid,matchId:id};
+        z[team]=null;
+        if(z.activeMatch?.matchId===view.state.matchId)z.activeMatch=null;
+        save({remote:false});rerender();
+      }
+      remoteLastSuccess=0;void pullRemoteState();
+    }
+  }
 };
 window.enterWarEventQueue=id=>{lifecycle();const m=seat(me().uid),z=state.zones.find(x=>x.id===id),s=z&&score(z);if(!m||m.zone!==z||state.status!=='active'||!z.a||!z.b||z.activeMatch||s.played>=5){typeof playSfx==='function'&&playSfx('blocked');return window.toast&&toast(z?.activeMatch?'A match is already underway in this zone.':'This reserved queue is not ready.');}if(typeof window.openWarfrontDeckPicker!=='function'){typeof playSfx==='function'&&playSfx('blocked');return window.toast&&toast('The Challenger deck selector is still loading.');}const zoneName=meta(z).name;warSfx('open','deck-'+id,180);return window.openWarfrontDeckPicker({title:'Choose a Deck · '+zoneName,modeLabel:zoneName.toUpperCase()+' QUEUE',subcopy:'Select one complete Challenger deck. Deployment begins immediately after confirmation.',onSelect:choice=>{const ids=Array.isArray(choice?.deckIds)?choice.deckIds:[];if(ids.length!==40||!challengerDeck(ids)){typeof playSfx==='function'&&playSfx('blocked');return window.toast&&toast('Warfront only accepts complete Challenger decks.');}if(typeof closeModal==='function')closeModal();warSfx('deploy','queue-'+id,350);const r=z[opposite(m.team)];window.FATE_ONLINE_PENDING_ROOM_DECK=choice;window.FATE_PENDING_WAR_MATCH={mapCode:state.mapCode,team:m.team,participants:clone({a:z.a,b:z.b}),zoneId:id,zoneName,queueLabel:zoneName+' Warfront Queue',opponentUid:r.uid,opponentName:r.name,isAI:!!r.isAI,landscapeId:z.landscape.id,landscape:clone(z.landscape),bannedCardIds:[],deckIds:[...ids],selectedDeckKey:choice.selectedDeckKey,selectedDeckName:choice.selectedDeckName,matchNumber:s.played+1,rewards:{eloGain:3,xp:3,drops:3,eloLoss:1}};window.toast&&toast('Entering the '+zoneName+' Warfront queue…');return window.FATE_ONLINE_JOIN_WAR_QUEUE(window.FATE_PENDING_WAR_MATCH);}});};
 function profile(){return window.USER_PROFILE||(typeof USER_PROFILE!=='undefined'?USER_PROFILE:null);}

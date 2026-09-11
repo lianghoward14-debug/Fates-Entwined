@@ -42,9 +42,12 @@ try{
   }
   // A poll can release the post before the game-over callback awards XP/drops.
   const callback=source.slice(source.indexOf('window.fateCompleteWarfrontMatch='),source.indexOf('window.enterWarEventQueue='));
-  const c={window:{FATE_PENDING_WAR_MATCH:{mapCode:'WF',zoneId:'z',team:'b',participants:{a:{uid:'ai'},b:{uid:'human'}}},fateClanEventReportMatch:p=>{assert.equal(p.winnerTeam,'b');return true;}},state:{mapCode:'WF',zones:[{id:'z',a:null,b:null,matches:[]}]},seat:()=>null,me:()=>({uid:'human'}),opposite:t=>t==='a'?'b':'a',warMatchReward:()=>({xpGained:99}),Date};
+  const c={window:{FATE_PENDING_WAR_MATCH:{mapCode:'WF',zoneId:'z',team:'b',participants:{a:{uid:'ai'},b:{uid:'human'}}},fateClanEventReportMatch:p=>{assert.equal(p.winnerTeam,'b');return true;}},state:{mapCode:'WF',zones:[{id:'z',a:null,b:null,matches:[]}]},seat:()=>null,me:()=>({uid:'human'}),opposite:t=>t==='a'?'b':'a',warMatchReward:()=>({xpGained:99}),pullRemoteState:()=>{},save:()=>{},rerender:()=>{},clone:structuredClone,Date};
   vm.createContext(c);vm.runInContext(callback,c);
   assert.equal(c.window.fateCompleteWarfrontMatch({playerIndex:1,state:{matchId:'late'}},{winner:1,totalFate:[1,2]}).reward.xpGained,99);
+  c.window.FATE_PENDING_WAR_MATCH={mapCode:'WF',zoneId:'z',team:'b'};c.state.zones[0].b={uid:'human',name:'Human'};
+  c.window.fateCompleteWarfrontMatch({playerIndex:1,state:{matchId:'finished'}},{winner:1,totalFate:[1,2]});
+  assert.equal(c.state.zones[0].b,null,'game over releases the local seat immediately');assert.equal(c.state.service.human.matchIds.length,1);
   const command=action=>request('alpha','/api/warfront/command',{method:'POST',body:{uid:'alpha',action}});
   const deploy=(uid,zoneId,team)=>request(uid,'/api/warfront/deploy',{method:'POST',body:{uid,zoneId,team}});
   const read=async()=> (await request('alpha','/api/warfront/state')).state;

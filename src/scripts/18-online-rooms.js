@@ -5007,6 +5007,7 @@
     if(mountedPicker) mountedPicker.dataset.phase7PickerKey = String(key || '');
   }
   function phase7GuardHandLimitPicker(key){
+    if(gameState()?._warReplayMode||document.body?.classList?.contains('war-replay-active'))return false;
     if(phase7CurrentUiSession.handLimitGuardTimer){
       clearTimeout(phase7CurrentUiSession.handLimitGuardTimer);
       phase7CurrentUiSession.handLimitGuardTimer = null;
@@ -5014,6 +5015,7 @@
     phase7CurrentUiSession.handLimitGuardKey = String(key || '');
     const check = function(){
       phase7CurrentUiSession.handLimitGuardTimer = null;
+      if(gameState()?._warReplayMode||document.body?.classList?.contains('war-replay-active'))return;
       if(!phase7CurrentUiActive() || phase7CurrentUiSession.handLimitGuardKey !== key) return;
       const view = phase7CurrentUiSession.view;
       const pending = view?.state?.pendingHandLimit || null;
@@ -5142,6 +5144,7 @@
     phase7CurrentUiSession.promptGuardTimer = setTimeout(check, 80);
   }
   function phase7OpenHandLimitPicker(key, handLimit, cards){
+    if(gameState()?._warReplayMode||document.body?.classList?.contains('war-replay-active'))return false;
     if(document.body) document.body.dataset.phase7HandLimitStage = 'entered';
     const existing = document.querySelector('#modal.on .phase7-hand-limit-discard');
     // Canonical snapshots and render commits can call this sync many times per
@@ -5266,6 +5269,7 @@
     phase7GuardHandLimitPicker(key);
   }
   function phase7EnsureHandLimitPickerVisible(){
+    if(gameState()?._warReplayMode||document.body?.classList?.contains('war-replay-active'))return false;
     if(!phase7CurrentUiActive()) return false;
     const view = phase7CurrentUiSession.view;
     const pending = view?.state?.pendingHandLimit || null;
@@ -6615,10 +6619,15 @@
         eventType:String(event?.type || '').toUpperCase()
       };
       const owner = Number(event.playerIndex);
-      const faceDown = owner !== Number(view.playerIndex);
+      // A replay is an already-completed record, so its draw presentation may
+      // use the recorded identity instead of the live match's secrecy mask.
+      const replayDraw = gameState()?._warReplayMode === true;
+      const faceDown = !replayDraw && owner !== Number(view.playerIndex);
       const localDraw = !faceDown;
       const target = phase7PresentationCard(phase7FindCardLocation(event.cardIid)?.card)
-        || phase7FindProjectedEntry(view, event.cardIid)?.card;
+        || phase7PresentationCard(phase7FindAnyCard(event.cardIid))
+        || phase7FindProjectedEntry(view, event.cardIid)?.card
+        || phase7PresentationCard(event.card);
       const card = target || (faceDown ? {
         iid:'phase7-hidden-draw:' + String(event.cardIid || drawIndex), id:'phase7-hidden-draw',
         name:'Hidden Card', hidden:true, faceDown:true, img:'back.png', runtimeImg:'back.png'

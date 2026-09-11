@@ -4608,6 +4608,7 @@ function enforceHandLimit(player) {
   if(getHandLimitCount(player) <= handLimit) return false;
   if(player !== getPerspectivePlayerIndex()){
     if(G._onlineRoomCode) return false;
+    const autoDiscarded = [];
     while(getHandLimitCount(player) > handLimit){
       const discardIndex = G.players[player].hand.map(function(card, index){ return {card:card,index:index}; }).reverse().find(function(entry){
         return !(entry.card && String(entry.card.id || '') === 'bh03' && (entry.card._bh03OpponentHand === true || entry.card._bh03TransferPending === true));
@@ -4615,10 +4616,12 @@ function enforceHandLimit(player) {
       if(!discardIndex) break;
       const card = G.players[player].hand.splice(discardIndex.index, 1)[0];
       if(card) {
-        fatePushDiscard(player, card);
+        fatePushDiscard(player, card, {sound:false});
+        autoDiscarded.push(card);
         log(player===0?'p1':'p2', 'Discarded ' + card.name + ' to hand limit');
       }
     }
+    if(autoDiscarded.length && typeof playDiscardSfx === 'function') playDiscardSfx({count:autoDiscarded.length});
     return true;
   }
   if(G._handLimitDiscard && G._handLimitDiscard.player === player) {
@@ -4697,14 +4700,17 @@ function openHandLimitDiscardModal(player) {
       if(liveExcess > selectedIids.length || selectedCards.some(function(card){
         return !card || (String(card.id || '') === 'bh03' && (card._bh03OpponentHand === true || card._bh03TransferPending === true));
       })) return false;
+      const discardedCards = [];
       selectedIids.forEach(function(iid){
         const idx = G.players[player].hand.findIndex(function(card){ return card && String(card.iid || '') === String(iid); });
         if(idx < 0) return;
         const card = G.players[player].hand.splice(idx, 1)[0];
         if(!card) return;
-        fatePushDiscard(player, card);
+        fatePushDiscard(player, card, {sound:false});
+        discardedCards.push(card);
         log(player===0?'p1':'p2', 'Discarded ' + card.name + ' to hand limit');
       });
+      if(discardedCards.length && typeof playDiscardSfx === 'function') playDiscardSfx({count:discardedCards.length});
       G._handLimitDiscard = null;
       closeModal({forceHandLimitClose:true, silent:true, deferQueuedModals:true});
       renderHand();
@@ -7710,6 +7716,7 @@ function isHandLimitDiscardModalOpen() {
 }
 
 function isAuthoritativeLocalHandLimitPending() {
+  if((typeof G!=='undefined'&&G?._warReplayMode)||document.body?.classList?.contains('war-replay-active'))return false;
   if(typeof G === 'undefined' || !G || G._phase7CurrentMultiplayer !== true) return false;
   const pending = G._phase7PendingHandLimit || null;
   const localPlayer = Number.isInteger(Number(G._onlinePlayerIndex))

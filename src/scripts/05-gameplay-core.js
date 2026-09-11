@@ -3696,7 +3696,7 @@ async function clickCell(z,r,c) {
     const occupiedCell = !!(G.board && G.board[blockZ] && G.board[blockZ][r] && G.board[blockZ][r][c]);
     if(blockType === 'jaime' && !(typeof isOwnSafeRowSquare === 'function' && isOwnSafeRowSquare(blockZ, r, c, owner))) {
       toast('Jaime must choose a square in your own safe row');
-      playSfx('blocked');
+      playSfx('invalidAction');
       return;
     }
     if(blockType === 'zoe' && z !== blockZ) {
@@ -4016,7 +4016,7 @@ async function clickCell(z,r,c) {
   if(!card) return;
   if(typeof tutorialCanPlaceCardAt === 'function' && !tutorialCanPlaceCardAt(card, z, r, c)) return;
   if(cardActsAsPassive(card, '70') && card.guerilla_transferred){
-    playSfx('blocked');
+    playSfx('statusBlocked');
     toast(card.name + ' cannot be set - it is debuffing this hand.');
     G.placing = false;
     clearPlaceHighlights();
@@ -4025,22 +4025,22 @@ async function clickCell(z,r,c) {
   }
 
   // Check validity again
-  if(G.board[z][r][c]!==null){playSfx('blocked');toast('Cell is occupied');return;}
+  if(G.board[z][r][c]!==null){playSfx('invalidAction');toast('Cell is occupied');return;}
   const ignoresOpponentPlacementLocks = typeof isOpponentEffectOnlyImmuneCard === 'function' && isOpponentEffectOnlyImmuneCard(card);
-  if(isBlocked(z,r,c) && !ignoresOpponentPlacementLocks){playSfx('blocked');toast('Cell is blocked');return;}
+  if(isBlocked(z,r,c) && !ignoresOpponentPlacementLocks){playSfx('zoneBlock');toast('Cell is blocked');return;}
   // Enforce safe row ownership — P1 can only place on row 2+, P2 on row 0
   const cp = G.currentPlayer;
   const isPierogiCounter = typeof isWojciechPierogiCounter === 'function' && isWojciechPierogiCounter(card);
   if(isPierogiCounter ? !isWojciechPierogiPlacementSquare(z, r, c, cp) : (typeof isContestedOrOwnSafeSquare === 'function' && !isContestedOrOwnSafeSquare(z, r, c, cp))){
-    playSfx('blocked');toast(isPierogiCounter ? 'Pierogi Counters need an open contested or opponent-owned square.' : (r >= 3 ? 'That square is not available' : (r === 1 ? 'Cannot place there' : 'Cannot place on opponent\'s safe row')));return;
+    playSfx('invalidAction');toast(isPierogiCounter ? 'Pierogi Counters need an open contested or opponent-owned square.' : (r >= 3 ? 'That square is not available' : (r === 1 ? 'Cannot place there' : 'Cannot place on opponent\'s safe row')));return;
   }
   if(!isPierogiCounter && !ignoresOpponentPlacementLocks && typeof G._artilleryLockedZone==='number' && G._artilleryLockedZone===z && G._artilleryLockOwner===cp && G._artilleryLockTurnsLeft>0){
-    playSfx('blocked');toast('Artillery Distance locks this zone - cannot set cards here.');return;
+    playSfx('zoneBlock');toast('Artillery Distance locks this zone - cannot set cards here.');return;
   }
   // Enforce contested-only placement
-  if(card.contestedOnly && r!==1){playSfx('blocked');toast(card.name+' can only be placed in contested rows');return;}
+  if(card.contestedOnly && r!==1){playSfx('invalidAction');toast(card.name+' can only be placed in contested rows');return;}
   if(requiresOwnSafeRowPlacement(card) && !isOwnSafeRowSquare(z, r, c, cp)){
-    playSfx('blocked');
+    playSfx('invalidAction');
     toast(card.name + ' can only be set in your safe row');
     return;
   }
@@ -8396,7 +8396,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
 
   if(isFaceDownCard(card)){
     toast('Flip this card face up first');
-    playSfx('blocked');
+    playSfx('statusBlocked');
     return;
   }
 
@@ -8407,7 +8407,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
 
   if(typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(card, z, r, c)){
     toast(card.name + "'s effect is suppressed.");
-    playSfx('blocked');
+    playSfx('zoneBlock');
     return;
   }
 
@@ -8418,7 +8418,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
     const isPassiveAura = card.type==='Coordinator';
     if(!isPassiveAura) {
       toast('This zone is locked by Artillery Distance - cannot activate effects here!');
-      playSfx('blocked');
+      playSfx('invalidAction');
       return;
     }
   }
@@ -10926,6 +10926,15 @@ function checkWin() {
     const xpResult = awardXp(8);
     saveProfile();
     result = {eloChange:0, xpGained:xpResult.xpGained, levelsGained:xpResult.levelsGained, newLevel:xpResult.newLevel};
+  }
+
+  // Let the result screen reveal its rewards as a short sequence instead of
+  // burying every gain beneath the win/match-end stingers.
+  if(result && typeof playSfx === 'function'){
+    if(Number(result.eloChange) !== 0) setTimeout(function(){ playSfx(Number(result.eloChange) > 0 ? 'eloUp' : 'eloDown'); }, 1450);
+    if(Number(result.xpGained) > 0) setTimeout(function(){ playSfx('xpGain'); }, 1850);
+    if(Number(starlightGained) > 0) setTimeout(function(){ playSfx('starlightEarn'); }, 2250);
+    if(Number(result.levelsGained) > 0) setTimeout(function(){ playSfx('levelUp'); }, 2700);
   }
 
   // Title
