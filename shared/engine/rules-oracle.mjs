@@ -185,7 +185,7 @@ function landscape(id, name, timing, beneficiary, resolution, forbidden = []){
 
 const LANDSCAPE_RULES = [
   landscape('igb1','Pacifica: Peaceful Seas','CONTINUOUS','BOTH_PLAYERS','Fate differences in zones inflict no Morale Damage; card effects still can.', ['ZONE_FATE_DIFFERENCE_MORALE_DAMAGE']),
-  landscape('igb2','ALPINE Headquarters: The Frontier of Innovation','END_OF_TURN_14','PLAYER_WITH_MORE_CONSOLIDATIONS','Winner chooses one zone and gains exactly 16 zone Fate; tie grants neither.', ['WRONG_PLAYER_CHOSES','RESOLVES_BEFORE_TURN_14','TIE_GRANTS_BONUS']),
+  landscape('igb2','ALPINE Headquarters: The Frontier of Innovation','END_OF_TURN_14','PLAYER_WITH_MORE_CONSOLIDATIONS','Winner chooses one zone and gains exactly 24 zone Fate; tie grants neither.', ['WRONG_PLAYER_CHOSES','RESOLVES_BEFORE_TURN_14','TIE_GRANTS_BONUS']),
   landscape('igb3','The Soviet Invasion of Anchorage, 2052',['SETUP','BEFORE_TURN_10_CONSOLIDATION'],'BOTH_PLAYERS','Select one deterministic-random zone at setup; cards consolidated there before turn 10 gain exactly +4 permanent Fate.', ['WRONG_ZONE_GAINS','TURN_10_OR_LATER_GAINS','SET_CARD_GAINS']),
   landscape('igb4','Zion Canyon: Memories of a Fading Twilight','CONTINUOUS','NEITHER_PLAYER','Cards in discard cannot be recovered by either player.', ['ONE_PLAYER_CAN_RECOVER','SEARCH_MODAL_OFFERS_DISCARD_TARGET']),
   landscape('igb5','A Quaint Polish River: Flowing Currents','CARD_SET','CURRENT_TOTAL_FATE_LEADER','Cards set by the player who had more total Fate immediately before the set gain exactly +2 permanent Fate; tie grants no bonus.', ['LOSING_PLAYER_GAINS','TIE_GAINS','SAME_SET_GAINS_TWICE']),

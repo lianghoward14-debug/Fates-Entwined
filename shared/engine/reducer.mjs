@@ -1682,7 +1682,7 @@ function openTimedLandscapeEndTurnFrame(state, ctx, actorIndex, commandId){
               type:'ZONE_FATE_MODIFIER',
               zone:'$zone',
               playerIndex:winner,
-              value:16,
+              value:24,
               sourceIid:'landscape:igb2',
               reason:'LANDSCAPE_IGB2_RESOLUTION'
             }

@@ -1,6 +1,6 @@
 const LANDSCAPE_RULES = Object.freeze({
   igb1:{kind:'NO_EFFECT'},
-  igb2:{kind:'TURN_CONSOLIDATION_REWARD', resolutionTurn:14, amount:16},
+  igb2:{kind:'TURN_CONSOLIDATION_REWARD', resolutionTurn:14, amount:24},
   igb3:{kind:'CONSOLIDATION_ZONE_FATE_BONUS', amount:4, beforeTurn:10},
   igb4:{kind:'DISCARD_RECOVERY_BLOCK'},
   igb5:{kind:'LEADER_SET_FATE_BONUS', amount:2},

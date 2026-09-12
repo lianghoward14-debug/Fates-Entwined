@@ -627,7 +627,7 @@ const LANDSCAPES = {
     id:'igb2',
     name:'ALPINE Headquarters: The Frontier of Innovation',
     shortName:'The Frontier of Innovation',
-    description:'Whichever player has consolidated more times by the end of turn 14 gains 16 Fate in any zone they choose.'
+    description:'Whichever player has consolidated more times by the end of turn 14 gains 24 Fate in any zone they choose.'
   },
   igb3: {
     id:'igb3',

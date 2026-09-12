@@ -2790,8 +2790,8 @@ function resolvePendingLandscapeEndTurnZone(pending, zone) {
   if(activePending && activePending.promptId && pending.promptId && String(activePending.promptId) !== String(pending.promptId)) return false;
   G.pendingInteraction = null;
   if(landscapeId === 'igb2') {
-    addLandscapeZoneFateBonus(winner, z, 16, 'major');
-    toast(G.players[winner].name + ' gains 16 Fate in Zone ' + (z + 1) + '.');
+    addLandscapeZoneFateBonus(winner, z, 24, 'major');
+    toast(G.players[winner].name + ' gains 24 Fate in Zone ' + (z + 1) + '.');
   } else if(landscapeId === 'igb8') {
     addFullExtraSafeRowForPlayer(z, winner, 'Qingdao extra row', {sfxKind:'major'});
     toast(G.players[winner].name + ' gains an extra safe row in Zone ' + (z + 1) + '.');
@@ -2851,7 +2851,7 @@ function maybeResolveLandscapeEndTurn() {
       playerIndex:winner,
       landscapeId:'igb2',
       title:'The Frontier of Innovation',
-      subtitle:G.players[winner].name + ' consolidated more times. Choose a zone to gain 16 Fate.',
+      subtitle:G.players[winner].name + ' consolidated more times. Choose a zone to gain 24 Fate.',
       pickerKind:'fate',
       promptId:['landscape-zone', String(G._onlineRoomCode || 'local'), 'igb2', String(G.turn || 0), String(winner)].join(':')
     };
