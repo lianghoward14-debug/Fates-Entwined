@@ -27,7 +27,8 @@
 
   function resolvePhoto(profile, options){
     if(options && options.photoSrc) return String(options.photoSrc);
-    const candidates = [profile && profile.photoURL, profile && profile.profileImg, profile && profile.pfp, profile && profile.img];
+    if(window.FateOnline?.profilePhoto) return window.FateOnline.profilePhoto(profile);
+    const candidates = [profile && profile.profileImg, profile && profile.photoURL, profile && profile.pfp, profile && profile.img];
     for(const candidate of candidates){
       try{
         if(typeof window.resolveProfileImgSrc === 'function'){
@@ -42,6 +43,7 @@
 
   function resolvePhotoStyle(profile, options){
     if(options && options.photoStyle) return String(options.photoStyle);
+    if(window.FateOnline?.profilePhotoCropStyle) return window.FateOnline.profilePhotoCropStyle(profile);
     const crop = profile && profile.profileImg && typeof profile.profileImg === 'object' ? profile.profileImg : {};
     const focusX = clamp(number(profile && profile.profileCropFocusX != null ? profile.profileCropFocusX : crop.cropFocusX, .5), 0, 1);
     const focusY = clamp(number(profile && profile.profileCropFocusY != null ? profile.profileCropFocusY : crop.cropFocusY, .5), 0, 1);

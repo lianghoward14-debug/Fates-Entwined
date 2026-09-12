@@ -545,6 +545,20 @@ const STARTER_DECKS = [
 
 const AI_ONLY_RANDOM_DECKS = [
   {
+    id:'ai_perez_stratagem', baseStrategy:'ai_perez_stratagem', name:'The Perez Stratagem',
+    description:'Use Isaac Perez to permanently grow a low-cost supporter formation, then convert adjacency and draw bodies into efficient zone control.',
+    theme:'AI Only - Perez Space Control', faceCardId:'22', displayCardIds:['22','44','95','82'], enabled:true,
+    sourcePublicDeckId:'nNbfvYwsoDfnvTHQhK4lwN5a2B22_1789178639525',
+    ids:['28','28','28','44','44','44','60','60','60','74','74','74','80','91','95','95','95','05','05','05','bh24','bh24','bh24','13','13','13','22','22','22','27','27','27','07','11','11','11','40','40','40','82']
+  },
+  {
+    id:'ai_pierogi_barrage', baseStrategy:'ai_pierogi_barrage', name:'Pierogi Barrage',
+    description:'Deny open space with Anicka, Berkeley Homeless, and Wojciech while building a populated Agent-K zone for Dauntless Achille tokens.',
+    theme:'AI Only - Space Denial and Pierogi', faceCardId:'81', displayCardIds:['81','bh01','62','bh07'], enabled:true,
+    sourcePublicDeckId:'nNbfvYwsoDfnvTHQhK4lwN5a2B22_1789178639201',
+    ids:['16','16','16','18','18','18','28','28','28','60','60','60','62','62','62','68','68','68','97','97','97','98','98','90','90','06','06','81','81','81','bh06','bh06','bh06','30','30','30','bh01','bh07','bh07','bh07']
+  },
+  {
     id:'ai_real_estate', baseStrategy:'ai_real_estate', name:'Not so Free Real Estate',
     description:'Deny enemy space with Carolyn and Zoe, clear supporters with Alondra, and recycle spent search characters through Irvine.',
     theme:'AI Only - Space Denial', faceCardId:'17', displayCardIds:['17','04','14','49'], enabled:true,

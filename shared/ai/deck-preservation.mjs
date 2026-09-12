@@ -20,6 +20,8 @@ export const PRESERVATION_PROFILES=[
   {name:'wintertide',signature:['100','88','92'],engines:['100','88','89'],recover:['97','09'],fuel:['06']},
   {name:'sea',signature:['bh16','bh04','bh09'],engines:['bh16','bh09'],recover:['31','79'],fuel:['06','27','30','bh04','61']},
   {name:'maja',signature:['bh08','67','bh23'],engines:['bh08','56','67'],recover:['18','bh23'],fuel:['06','27']}
+  ,{name:'pierogi',signature:['81','62','bh07','bh06'],engines:['bh07','bh01'],recover:['16','18','62'],fuel:['06','68','60']}
+  ,{name:'perez',signature:['22','44','95','bh24'],engines:['22','44','95'],recover:['60','74','80'],fuel:['28','05','13','27']}
 ];
 export function preservationProfile(cards){
   const ids=new Set(cards.map(c=>c.id));

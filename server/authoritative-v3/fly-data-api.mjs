@@ -278,8 +278,11 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
       persist();
     }
     const current = clone(warfrontEvent);
-    for(const zone of current?.zones || []) for(const team of ['a','b']){
-      const player = zone[team];
+    return projectWarfrontProfiles(current);
+  }
+  function projectWarfrontProfiles(current){
+    const people=[...(current?.zones||[]).flatMap(zone=>[zone.a,zone.b,...(zone.matches||[]).flatMap(match=>Object.values(match.participants||{}))]),...Object.values(current?.service||{})];
+    for(const player of people){
       if(!player) continue;
       if(player.isAI)continue;
       const stored = profiles.get(cleanId(player.uid,128));
@@ -298,7 +301,7 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
     warfrontBindings.clear();persist();return warfrontStateForClient();
   }
   function finishWarfrontEvent(){
-    const completed=clone(warfrontEvent),zoneScore=zone=>{let a=0,b=0;for(const match of zone.matches||[]){if(match?.voidedByForfeit)continue;const value=Math.max(1,Math.min(5,Number(match.starValue)||1));if(match.winnerTeam==='a')a+=value;if(match.winnerTeam==='b')b+=value;}return{a,b,played:a+b,bonus:a>=3?'a':b>=3?'b':null};};
+    const completed=projectWarfrontProfiles(clone(warfrontEvent)),zoneScore=zone=>{let a=0,b=0;for(const match of zone.matches||[]){if(match?.voidedByForfeit)continue;const value=Math.max(1,Math.min(5,Number(match.starValue)||1));if(match.winnerTeam==='a')a+=value;if(match.winnerTeam==='b')b+=value;}return{a,b,played:a+b,bonus:a>=3?'a':b>=3?'b':null};};
     const score={a:0,b:0,match:{a:0,b:0},award:{a:0,b:0}};
     const {achievements,playerStats}=warfrontReportStats(completed.zones);
     for(const award of achievements)if(award.leader){score[award.leader.team]+=2;score.award[award.leader.team]+=2;}
@@ -387,6 +390,11 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
     current.challengerElo = Number(current.challengerElo ?? current.elo ?? 600) || 600;
     current.rank = current.rank || 'Footman';
     current.updatedAt = Date.now();
+    // Profile edits must invalidate conditional Warfront polls as well as the
+    // profile endpoint, even when no campaign action has occurred.
+    if(warfrontEvent && cosmetic.some(field=>JSON.stringify(current[field])!==JSON.stringify(profile(key)[field]))){
+      warfrontEvent._syncRevision=Number(warfrontEvent._syncRevision||0)+1;
+    }
     profiles.set(key, current); persist(); return clone(current);
   }
   function challengerReceiptId(uid, body = {}){

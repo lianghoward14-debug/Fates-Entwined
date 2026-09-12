@@ -1,3 +1,4 @@
+import {createSpaceDeckPrior,filterSpaceDeckTargets} from './space-deck-heuristics.mjs';
 import {controllerOf,rowOwner,squareStatuses} from '../engine/selectors.mjs';
 import {effectiveFate,effectiveCardType,isEffectSourceSuppressed,runtimeRuleId} from '../engine/modifiers.mjs';
 import {zoneScore} from '../engine/scoring.mjs';
@@ -10,6 +11,8 @@ export function archiveArchetype(all){
   if(has(['93','37','41','84','bh05']))return 'snowball';
   if(has(['bh11','01','bh12','24','bh22']))return 'adjacency';
   if(has(['15','19','57','23','49']))return 'classic';
+  if(has(['22','44','95','bh24']))return 'perez';
+  if(has(['81','62','bh07','bh06']))return 'pierogi';
   return '';
 }
 
@@ -19,6 +22,7 @@ export function createArchiveExpansionPrior(state,player,entries,cards){
   const all=[...hand,...(p.deck || []),...(p.discard || []),...own.map(e=>e.card)];
   const kind=archiveArchetype(all);
   if(!kind)return ()=>0;
+  if(['perez','pierogi'].includes(kind))return createSpaceDeckPrior(state,player,entries,cards,kind);
   const live=own.filter(e=>!e.card.faceDown && !isEffectSourceSuppressed(state,e));
   const enemy=entries.filter(e=>controllerOf(e.card)!==player && !e.card.faceDown);
   const held=id=>hand.some(c=>c.id===id);
@@ -75,6 +79,7 @@ export function createArchiveExpansionPrior(state,player,entries,cards){
       if(c.id==='24')return active('24').length?2:8;
       if(c.id==='68')return 9;
     }
+
     if(['27','32'].includes(c.id))return hand.length<5?8:2;
     return 0;
   }
@@ -82,7 +87,10 @@ export function createArchiveExpansionPrior(state,player,entries,cards){
     const q=command.payload || {}, card=cards.get(q.cardIid || q.sourceIid);
     const targets=(q.selectedIids || [q.selectedIid || q.targetIid]).map(i=>cards.get(i)).filter(Boolean);
     let score=0;
-    if(state.pendingPrompt?.type==='CARD_SELECTION' && ['06','13','60','68','29','48','84','58','91','07'].includes(source?.id))score+=targets.reduce((n,c)=>n+access(c),0);
+    if(state.pendingPrompt?.type==='CARD_SELECTION' && ['06','13','60','68','29','48','84','58','91','07'].includes(source?.id)){
+      score+=targets.reduce((n,c)=>n+access(c),0);
+
+    }
     if(state.pendingPrompt?.ordered && source?.id==='75')score+=targets.reduce((n,c,i)=>n+access(c)/(i+1),0);
     if(source?.id==='bh05')score+=targets.reduce((n,c)=>n+(kind==='snowball'?(c.id==='93'?35:-15):kind==='estate'?(['17','14'].includes(c.id)?14:c.id==='04'?5:access(c)):access(c)),0);
     if(kind==='snowball' && source?.id==='37')score+=targets.reduce((n,c)=>n+(runtimeRuleId(c)==='93'?35:-10),0);
@@ -112,6 +120,7 @@ export function createArchiveExpansionPrior(state,player,entries,cards){
         if(card.id==='57')score+=formation.filter(e=>['19','23'].includes(e.card.id)).length*4;
         if(card.id==='49')score+=formation.filter(e=>['27','29'].includes(e.card.id)).length*4;
       }
+
       if(kind==='adjacency' || kind==='classic'){
         if(card.id==='24')score+=formation.filter(e=>e.card.type==='Supporter' && adjacent(e,d)).length*5;
         if(card.type==='Supporter')score+=formation.filter(e=>e.card.id==='24' && adjacent(e,d)).length*3;
@@ -154,7 +163,9 @@ export function filterArchiveExpansionTargets(commands,state,player){
   const p=state.players[player];
   const board=state.board.flat(3).filter(Boolean);
   const all=[...(p.hand || []),...(p.deck || []),...(p.discard || []),...board.filter(c=>controllerOf(c)===player)];
-  if(archiveArchetype(all)!=='snowball')return commands;
+  const kind=archiveArchetype(all);
+  if(['perez','pierogi'].includes(kind))return filterSpaceDeckTargets(commands,state,player,kind);
+  if(kind!=='snowball')return commands;
   if(!state.pendingPrompt){
     const copyAvailable=[...(p.hand || []),...(p.deck || [])].some(c=>c.id==='93');
     const boardYouth=board.some(c=>runtimeRuleId(c)==='93');

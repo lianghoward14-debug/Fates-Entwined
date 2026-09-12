@@ -34,10 +34,17 @@
     return '';
   }
   function profilePhoto(p){
-    const candidates = [p?.profileImg, p?.photoURL, p?.img, p?.pfp];
+    const candidates = [p?.profileImg, p?.photoURL, p?.photo, p?.img, p?.pfp];
     for(const value of candidates){
       const resolved = resolvePhotoValue(value);
-      if(resolved&&resolved!=='blank.png') return resolved;
+      if(resolved&&resolved!=='blank.png') {
+        const crop=p?.profileImg&&typeof p.profileImg==='object'?p.profileImg:{};
+        const x=p?.profileCropFocusX??crop.cropFocusX,y=p?.profileCropFocusY??crop.cropFocusY,z=p?.profileCropZoom??crop.cropZoom;
+        if(/^data:/i.test(resolved)||[x,y,z].every(v=>v==null))return resolved;
+        const bound=(v,d,min,max)=>Math.max(min,Math.min(max,Number.isFinite(Number(v??d))?Number(v??d):d));
+        const clean=resolved.replace(/([?&])fc=[^&#]*&?/g,'$1').replace(/[?&]$/,'');
+        return clean+(clean.includes('?')?'&':'?')+'fc='+[Math.round(bound(x,.5,0,1)*1000),Math.round(bound(y,.5,0,1)*1000),Math.round(bound(z,1,1,4)*100)].join(',');
+      }
     }
     return 'blank.png';
   }
@@ -64,8 +71,8 @@
       return base + `object-position:center ${y}%;`;
     }
     if(!match) return base + `object-position:${fallback};`;
-    const fx = Math.max(0, Math.min(100, (Number(match[1]) || 500) / 10));
-    const fy = Math.max(0, Math.min(100, (Number(match[2]) || 500) / 10));
+    const fx = Math.max(0, Math.min(100, Number(match[1]) / 10));
+    const fy = Math.max(0, Math.min(100, Number(match[2]) / 10));
     const zoom = Math.max(1, Math.min(4, (Number(match[3]) || 100) / 100));
     return base + `object-position:${fx}% ${fy}%;transform:scale(${zoom});transform-origin:${fx}% ${fy}%;`;
   }
@@ -128,7 +135,7 @@
     profilePhoto,
     profilePhotoCropStyle,
     renderTinyProfile(p){
-      return `<div class="fo-profile-tiny"><img src="${esc(profilePhoto(p))}" onerror="this.onerror=null;this.src='blank.png';"><span>${esc(profileName(p))}</span></div>`;
+      return `<div class="fo-profile-tiny"><span style="display:inline-block;width:32px;height:32px;overflow:hidden;border-radius:50%;flex-shrink:0"><img src="${esc(profilePhoto(p))}" style="${esc(profilePhotoCropStyle(p))}" onerror="this.onerror=null;this.src='blank.png';"></span><span>${esc(profileName(p))}</span></div>`;
     }
   });
 })();

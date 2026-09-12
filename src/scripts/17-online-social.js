@@ -88,6 +88,7 @@
     return 'blank.png';
   }
   function photoStyleOf(p, fallback='center 22%'){
+    if(FO.profilePhotoCropStyle) return FO.profilePhotoCropStyle(p, fallback);
     const base = 'width:100%;height:100%;object-fit:cover;';
     const src = photoOf(p);
     if(/^data:image\//i.test(String(src || ''))) return base + 'object-position:center center;transform:none;';

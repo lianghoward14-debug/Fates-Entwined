@@ -806,7 +806,7 @@ function aiGenerateAllMoves() {
 
   // 1b. Free character placements from card effects/conditional costs.
   const freeCharacters = hand.filter(c=>{
-    const isEffectFree = !!card.counters?.chauffeurFreeSet || !!(G._linaFreeIids && G._linaFreeIids.has(c.iid));
+    const isEffectFree = !!c.counters?.chauffeurFreeSet || !!(G._linaFreeIids && G._linaFreeIids.has(c.iid));
     if(!hardCapAvailable && typeof isStructurallySupporterCard === 'function' && isStructurallySupporterCard(c)) return false;
     return isEffectFree || ((typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(c, cp) : c.type !== 'Supporter') && (typeof getDisplayedCardCost === 'function' ? getDisplayedCardCost(c) : c.cost) <= 0);
   });

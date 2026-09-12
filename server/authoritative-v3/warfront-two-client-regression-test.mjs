@@ -64,6 +64,13 @@ try{
   await Promise.all([a.war.pull(),b.war.pull()]);same('concurrent deployments');
   assert.equal(a.state().zones.filter(z=>z.a||z.b).length,1);
   assert.equal(a.state().zones[2].a.uid,'alpha');assert.equal(a.state().zones[2].b.uid,'bravo');
+  await request('alpha','/api/profiles/alpha',{method:'POST',body:{profile:{profileImg:'pfp/pfp12.png',profileCropFocusX:0,profileCropFocusY:0.7,profileCropZoom:4}}});
+  await Promise.all([a.war.pull(),b.war.pull()]);
+  same('portrait edit invalidates conditional polls on both clients');
+  assert.equal(b.state().zones[2].a.photo,'pfp/pfp12.png?fc=0,700,400','other player receives newest portrait with full crop');
+  await request('alpha','/api/profiles/alpha',{method:'POST',body:{profile:{profileImg:'pfp/pfp9.png',profileCropFocusX:null,profileCropFocusY:null,profileCropZoom:null}}});
+  await Promise.all([a.war.pull(),b.war.pull()]);
+  assert.equal(b.state().zones[2].a.photo,'pfp/pfp9.png','changing portrait clears previous crop');
   const enrollment=b.state();
   await a.war.command('start');await b.war.pull();same('start visible to both players');assert.equal(b.state().status,'active');
   assert.match(a.pane.innerHTML,/CAMPAIGN ACTIVE/);assert.match(b.pane.innerHTML,/CAMPAIGN ACTIVE/);
