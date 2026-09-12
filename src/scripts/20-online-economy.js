@@ -426,7 +426,7 @@
         deck?.commentCount || 0,
         deck?.totalCards || (Array.isArray(deck?.ids) ? deck.ids.length : 0)
       ].join(':');
-    }).join('|');
+    }).sort().join('|');
   }
 
   function publicDecksModalOpen(){
@@ -493,14 +493,18 @@
     }
     if(!canUseFirebase() || publicDecksUnsub) return;
     publicDecksUnsub = FO.onValue(cappedFeed('publicDeckSummaries', 'updatedAt', PUBLIC_DECK_FEED_LIMIT), snap=>{
+      const wasLoaded = publicDecksLoaded;
+      const previousDecksSignature = publicDeckFeedSignature(publicDecks);
       publicDecksLoaded = true;
       const raw = snap.val() || {};
-      publicDecks = Object.entries(raw)
+      const nextPublicDecks = Object.entries(raw)
         .map(([id, value])=>normalizePublicDeck({ deckId:id, id, ...(value || {}) }))
         .sort((a,b)=>avgRating(b) - avgRating(a) || Number(b.updatedAt || b.timestamp || 0) - Number(a.updatedAt || a.timestamp || 0));
+      const publicDecksChanged = !wasLoaded || publicDeckFeedSignature(nextPublicDecks) !== previousDecksSignature;
+      publicDecks = nextPublicDecks;
       window.FATE_ONLINE_PUBLIC_DECKS = publicDecks;
       try{
-        if(publicDecksHubOpen()) showPublicDecks(publicDecksPage);
+        if(publicDecksChanged && publicDecksHubOpen() && !publicDeckOpeningId) showPublicDecks(publicDecksPage);
       }catch(e){ console.warn('Public decks refresh failed', e); }
     }, err=>{
       publicDecksUnsub = null;
@@ -1870,7 +1874,6 @@
     // The economy module can load before Firebase finishes restoring the
     // persisted account. Re-enter the subscriptions when RTDB becomes live.
     ensureWatchers('all');
-    if(publicDecksHubOpen()) showPublicDecks(publicDecksPage);
   });
 
   window.FateOnline = Object.assign(window.FateOnline || {}, {

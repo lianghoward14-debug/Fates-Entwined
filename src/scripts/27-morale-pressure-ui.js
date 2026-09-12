@@ -631,7 +631,7 @@
     // negate it.
     const resolveWhenSetEffects = options?.resolveWhenSetEffects === true
       || !(card._onlineSetResolutionPending || card._onlineSetResolutionInFlight);
-    if(resolveWhenSetEffects&&String(card.id||'')==='64')card._doubleNextMoraleDamage=true;
+
     if(pressureReworks && resolveWhenSetEffects){
       if(String(card.id||'')==='33'){
         const before=Number(system.morale[player]||0);system.morale[player]=Math.min(Number(system.maxMorale||200),before+16);
@@ -789,7 +789,7 @@
     const outgoingSources=[[],[]];
     zoneResults.forEach(function(result){if(!pacificaPreventsMoraleDamage&&(result.damagedPlayer===0||result.damagedPlayer===1))damage[result.damagedPlayer]+=Math.floor(result.difference*33/100);});
     const entries=legacyBoardEntries(state).filter(function(entry){return entry.card&&!legacyFaceDown(entry.card)&&!legacySuppressed(entry);});
-    if(entries.length){
+    if(entries.length || system.pendingBladeDance?.some(count=>count>0)){
       entries.forEach(function(entry){
         const source=entry.card;
         const owner=Number(source.owner);
@@ -812,7 +812,9 @@
       });
       for(let owner=0;owner<2;owner+=1){
         const doublers=entries.filter(function(entry){return Number(entry.card.owner)===owner&&String(entry.card.id||'')==='64'&&entry.card._doubleNextMoraleDamage===true;});
-        if(doublers.length){const multiplier=Math.pow(2,doublers.length);damage[1-owner]*=multiplier;outgoing[owner]*=multiplier;outgoingSources[owner].forEach(function(source){source.amount*=multiplier;});doublers.forEach(function(entry){entry.card._doubleNextMoraleDamage=false;});}
+        const doubleCount=system.pendingBladeDance?.[owner]??doublers.length;
+        if(system.pendingBladeDance)system.pendingBladeDance[owner]=0;
+        if(doubleCount){const multiplier=Math.pow(2,doubleCount);damage[1-owner]*=multiplier;outgoing[owner]*=multiplier;outgoingSources[owner].forEach(function(source){source.amount*=multiplier;});doublers.forEach(function(entry){entry.card._doubleNextMoraleDamage=false;});}
         const block=state._southWindMoraleBlock;
         if(block&&Number(block.targetPlayer)===owner&&Number(block.activeFromTurn)<=Number(state.turn)&&Number(block.remainingTargetTurns)>0){
           damage[1-owner]=0;
@@ -821,7 +823,7 @@
         }
         const blocked=block&&Number(block.targetPlayer)===owner&&Number(block.activeFromTurn)<=Number(state.turn)&&Number(block.remainingTargetTurns)>0;
         zoneResults.filter(function(result){return result.controller===owner;}).forEach(function(result){
-          result.damage=pacificaPreventsMoraleDamage||blocked?0:Math.floor(result.difference*33/100)*Math.pow(2,doublers.length);
+          result.damage=pacificaPreventsMoraleDamage||blocked?0:Math.floor(result.difference*33/100)*Math.pow(2,doubleCount);
         });
       }
       for(let owner=0;owner<2;owner+=1)damage[1-owner]+=outgoing[owner];

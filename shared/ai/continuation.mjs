@@ -2,10 +2,11 @@ import {legalCommandTemplates,reduceCommand} from '../engine/index.mjs';
 import {evaluatePosition} from './position.mjs';
 import {createCommandOrderer} from './ordering.mjs';
 import {filterAiTargets} from './targeting.mjs';
+import {turnActionHorizon} from './turn-horizon.mjs';
 
 // Finish a candidate through turn handoff using actual legal commands. This is
 // an approximate continuation policy, not a proof of the opponent's best play.
-export function completeContinuation(initial,player,{budget=48,personality,rootTurn=initial.turn,maxActions=5,maxSteps=20,turnActions=0}={}){
+export function completeContinuation(initial,player,{budget=48,personality,rootTurn=initial.turn,maxActions=12,maxSteps=20,turnActions=0,resolutionOnly=false}={}){
   let state=initial,used=0,actions=turnActions,previousTurn=state.turn;
   const variation=[];
   const trace={simulated:0,rejected:0,opponentSimulations:0,resolutionSimulations:0,completed:false};
@@ -14,7 +15,8 @@ export function completeContinuation(initial,player,{budget=48,personality,rootT
   function apply(s,command){
     const actor=actorOf(s);
     used++;
-    const result=reduceCommand(s,{type:command.type,payload:command.payload || {},matchId:s.matchId,expectedRevision:s.revision,commandId:`continuation:${s.revision}:${used}`},{playerId:s.players[actor].id});
+    const payload=command.manualOnly===true?{...(command.payload || {}),userActivated:true}:command.payload || {};
+    const result=reduceCommand(s,{type:command.type,payload,matchId:s.matchId,expectedRevision:s.revision,commandId:`continuation:${s.revision}:${used}`},{playerId:s.players[actor].id});
     if(!result.ok){trace.rejected++;return null;}
     trace.simulated++;
     if(actor!==player)trace.opponentSimulations++;
@@ -29,7 +31,8 @@ export function completeContinuation(initial,player,{budget=48,personality,rootT
     if(!pendingOf(s) || s.outcome || allowance<1 || depth<1)return leaf();
     const actor=actorOf(s),priority=createCommandOrderer(s,actor);
     const ranked=filterAiTargets(legalCommandTemplates(s,actor),s,actor).filter(c=>c.type!=='CONCEDE')
-      .sort((a,b)=>priority(b)-priority(a));
+      .map(command=>({command,score:priority(command)}))
+      .sort((a,b)=>b.score-a.score).map(row=>row.command);
     const choices=[],seen=new Set();
     const width=Math.min(3,Math.max(1,Math.floor(allowance/3)));
     for(const command of ranked){
@@ -57,13 +60,18 @@ export function completeContinuation(initial,player,{budget=48,personality,rootT
     }
     return best || leaf();
   }
+  if(resolutionOnly){
+    const resolved=settle(initial,budget,maxSteps);
+    trace.completed=!pendingOf(resolved.state) || !!resolved.state.outcome;
+    return {state:resolved.state,score:resolved.score,principalVariation:resolved.variation,trace};
+  }
   while(used<budget && variation.length<maxSteps && !state.outcome && state.turn<=rootTurn+1){
     if(state.turn!==previousTurn){actions=0;previousTurn=state.turn;}
     const actor=Number(state.pendingPrompt?.playerIndex ?? state.pendingHandLimit?.playerIndex ?? state.activePlayer);
     const pending=!!(state.pendingPrompt || state.pendingHandLimit);
     let legal=filterAiTargets(legalCommandTemplates(state,actor),state,actor).filter(c=>c.type!=='CONCEDE');
     const end=legal.find(c=>c.type==='END_TURN');
-    if(!pending && actions>=maxActions && end)legal=[end];
+    if(!pending && actions>=Math.min(maxActions,turnActionHorizon(legal)) && end)legal=[end];
     const priority=createCommandOrderer(state,actor);
     const ranked=legal.map(command=>({command,priority:priority(command)})).sort((a,b)=>b.priority-a.priority);
     const selected=[],families=new Set();
@@ -92,7 +100,7 @@ export function completeContinuation(initial,player,{budget=48,personality,rootT
       if(!next)continue;
       const tail=settle(next,share-1,maxSteps-variation.length-1);
       const score=tail.score;
-      if(!best || (actor===player?score>best.score:score<best.score) || (score===best.score && command.type==='END_TURN'))best={command,...tail};
+      if(!best || (actor===player?score>best.score:score<best.score))best={command,...tail};
     }
     if(!best)break;
     variation.push({player:actor,command:best.command});

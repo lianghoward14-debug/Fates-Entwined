@@ -60,7 +60,7 @@ try{
   const ui={state,me:()=>({uid:'new-player'}),score:()=>({played:0}),deploymentPending:null,selectedTeam:null,avatar:()=>'',esc:String,stars:()=>''};
   vm.createContext(ui);vm.runInContext(source.slice(source.indexOf('function warCanDeploy('),source.indexOf('function zonePanel(')),ui);
   assert.match(ui.miniSeat(state.zones[1],'a',null),/onclick=/,'unassigned player can click AI without visiting Briefing');
-  assert.match(ui.miniSeat(state.zones[1],'a',{zone:state.zones[0],team:'a'}),/disabled/,'assigned player cannot replace AI');
+  assert.doesNotMatch(ui.miniSeat(state.zones[1],'a',{zone:state.zones[0],team:'a'}),/onclick=/,'assigned player cannot replace AI');
   const start=async(uid,zoneId,id)=>{
     const state=await read(),z=state.zones.find(z=>z.id===zoneId),team=z.a?.uid===uid?'a':'b',ai=z[team==='a'?'b':'a'];
     const key=[state.mapCode,zoneId,...[uid,ai.uid].sort()].join('|');

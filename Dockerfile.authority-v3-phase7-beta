@@ -13,6 +13,8 @@ COPY src/scripts/01-data-and-state.js ./src/scripts/01-data-and-state.js
 COPY src/scripts/04-game-setup.js ./src/scripts/04-game-setup.js
 COPY src/scripts/authoritative-v3-ai-policy.mjs ./src/scripts/authoritative-v3-ai-policy.mjs
 
+COPY src/scripts/09-challenger-mode.js ./src/scripts/09-challenger-mode.js
+
 EXPOSE 8787
 
 CMD ["node", "server/authoritative-v3/phase7-beta-server.mjs"]

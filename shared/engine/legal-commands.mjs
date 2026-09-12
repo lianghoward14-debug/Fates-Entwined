@@ -43,6 +43,7 @@ function opponentAlondraBlocksSupporterSet(state, playerIndex, destination){
 }
 
 function ruleForCard(card, state){
+  if(['37','bh05'].includes(String(card?.id)) && runtimeRuleId(card)==='93')return cardRule('93',state);
   // copiedEffectId is retained as public presentation/oracle evidence for a
   // one-shot Taylor/Ledger copy. It must not replace the physical card's
   // player-facing timing: single-player executes the copied program once and
@@ -311,11 +312,11 @@ export function legalCommandTemplates(state, playerIndex){
   const setDestinations = openBoardDestinations(state, destination=>ownSetDestination(state, player, destination));
   for(const card of state.players[player].hand){
     if(card.counters?.adaptiveToken === true) continue;
-    if(String(card.type || '') !== 'Supporter' || Number(card.cost || 0) !== 0) continue;
+    if(String(card.type || '') !== 'Supporter' || (Number(card.cost || 0) !== 0 && !card.counters?.chauffeurFreeSet)) continue;
     if(Number(state.supportersSetForCapThisTurn?.[player] || 0) >= MAX_SUPPORTERS_SET_PER_TURN) break;
-    if(!defenseInDepthReady
+    if(!defenseInDepthReady && !card.counters?.chauffeurFreeSet
       && state.supportersSetThisTurn[player]
-        >= Math.min(MAX_SUPPORTERS_SET_PER_TURN, state.baseSupportersPerTurn + Number(state.extraSupportersThisTurn[player] || 0))) break;
+        >= Math.min(MAX_SUPPORTERS_SET_PER_TURN, state.baseSupportersPerTurn + Number(state.extraSupportersThisTurn[player] || 0))) continue;
     if(String(card.id || '') === '70' && card.statuses?.includes('GUERILLA_INFILTRATING')) continue;
     for(const destination of setDestinations){
       if(zoneActionBlock(state, player, destination.z)) continue;
@@ -347,6 +348,7 @@ export function legalCommandTemplates(state, playerIndex){
     }
     const possibleCosts = tributeCandidates.map(entry=>effectiveConsolidationCost(state, card, player, entry));
     const cost = possibleCosts.length ? Math.min(...possibleCosts) : effectiveConsolidationCost(state, card, player);
+    const maximumCost = possibleCosts.length ? Math.max(...possibleCosts) : cost;
     const combinations = [];
     function collect(start, selected, reinforcement){
       // A zero reinforcement amount still uses a real tribute square. The
@@ -354,7 +356,8 @@ export function legalCommandTemplates(state, playerIndex){
       // consume/replace interaction or its production presentation path.
       if(selected.length > 0 && reinforcement >= cost){
         combinations.push(selected);
-        return;
+        // Cheaper squares must not truncate payment for a more expensive destination.
+        if(reinforcement >= maximumCost) return;
       }
       for(let index = start; index < tributeCandidates.length; index += 1){
         collect(

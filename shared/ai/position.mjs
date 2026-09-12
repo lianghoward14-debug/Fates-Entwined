@@ -55,7 +55,9 @@ export function evaluatePosition(state, player, preferences=personalityFor()) {
   if (state.outcome) return state.outcome.winner == null ? 0 : state.outcome.winner === player ? 1e6 : -1e6;
   const report = inspectPosition(state,player), opponent = 1-player;
   const late = report.turnsRemaining <= 2;
-  let score = report.margins.reduce((sum,v)=>sum+v,0);
+  // Excess Fate has diminishing territorial value. Actual Morale damage is
+  // evaluated separately below, so a large lead still matters when damaging.
+  let score = territorialValue(report.margins,late);
   const wins = report.margins.filter(v=>v>0).length;
   const losses = report.margins.filter(v=>v<0).length;
   score += (wins-losses)*(late ? 80 : 8)*preferences.zones;
@@ -85,4 +87,12 @@ export function evaluatePosition(state, player, preferences=personalityFor()) {
     // Public, reusable interaction is a resource even before it fires.
   }
   return score;
+}
+
+export function territorialValue(margins,late=false){
+  const utility=v=>Math.sign(v)*(Math.min(Math.abs(v),12)+Math.max(0,Math.abs(v)-12)*(late?.08:.25));
+  const sorted=[...margins].sort((a,b)=>b-a);
+  // The second-best front determines a two-zone victory; develop it well
+  // before the final turn rather than only rewarding majority control late.
+  return margins.reduce((n,v)=>n+utility(v),0)+utility(sorted[1] || 0)*(late?2:1.2);
 }

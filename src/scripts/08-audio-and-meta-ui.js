@@ -107,7 +107,7 @@ const FATE_SAMPLE_SFX = {
   cardMove: {src:'soundeffects/codex-redesign/card_move_board_slide.wav', gain:0.86},
   searchFound: {src:'soundeffects/codex-redesign/search_page_reveal.wav', gain:0.9},
   zoneBlock: {src:'soundeffects/codex-redesign/zone_block_crystal_seal.wav', gain:0.88},
-  carolynBlock: {src:'soundeffects/codex-redesign/blocked_metal_gate.wav', gain:0.9},
+  carolynBlock: {src:'soundeffects/codex-redesign/blocked_metal_gate.wav', gain:0.9, fallbackTone:'carolyn'},
   zoeBlock: {src:'soundeffects/codex-redesign/zone_block_crystal_seal.wav', gain:0.88},
   timerWarn: {src:'soundeffects/codex-redesign/turn_warning_low_clock.wav', gain:0.82},
   coinFlip: {src:'soundeffects/codex-redesign/coin_flip_fate_coin.wav', gain:0.88},
@@ -162,12 +162,19 @@ function playFateSampleSfx(type, isMenuSound, effectiveVol) {
     audio.volume = Math.max(0, Math.min(1, _masterVol * effectiveVol * gain * (isMenuSound ? 1.1 : 1)));
     let fallbackPlayed = false;
     const playFallback = function(){
-      if(fallbackPlayed || spec.fallbackTone !== 'whisper' || typeof playWhisperTokenTone !== 'function') return;
+      if(fallbackPlayed) return;
+      if(spec.fallbackTone === 'carolyn' && typeof window.playCarolynLockTone === 'function'){
+        fallbackPlayed = true;
+        window.playCarolynLockTone();
+        return;
+      }
+      if(spec.fallbackTone !== 'whisper' || typeof playWhisperTokenTone !== 'function') return;
       fallbackPlayed = true;
       playWhisperTokenTone(effectiveVol);
     };
     audio.onerror = playFallback;
-    const attempt = audio.play();
+    let attempt;
+    try { attempt = audio.play(); } catch(error) { playFallback(); }
     if(attempt && typeof attempt.catch === 'function') attempt.catch(playFallback);
   } catch(e) {}
   return true;
@@ -449,6 +456,9 @@ function playSfx(type) {
     if(nowMs - _lastEffectNegatedSfxAt < 320) return;
     _lastEffectNegatedSfxAt = nowMs;
   }
+  if(type === 'carolynBlock' && typeof window.playCarolynLockTone === 'function'){
+    return window.playCarolynLockTone();
+  }
   const isTurnChangeSound = type === 'turnChange';
   const isMenuSound = ['uiClick','navClick','tabSwitch','backBtn','filterClick','danger','deckAdd','deckRemove','menuOpen','menuClose','hover','cardHover','boardCardHover','deckComplete','cardPreview','playBtn','categorySwitch','modalConfirm','modalCancel','screenTransition','socialAction','socialOpen','socialNotify'].includes(type);
   if(isMenuSound) {
@@ -587,7 +597,7 @@ function playSfx(type) {
       sub.frequency.setValueAtTime(90,now); sub.frequency.exponentialRampToValueAtTime(35,now+0.25);
       const subG = ctx.createGain(); subG.gain.setValueAtTime(0.45,now); subG.gain.exponentialRampToValueAtTime(0.001,now+0.3);
       sub.connect(subG); subG.connect(vol); sub.start(now); sub.stop(now+0.32);
-      // Mid punch ó saturated
+      // Mid punch ÔøΩ saturated
       const mid = ctx.createOscillator(); mid.type='sawtooth';
       mid.frequency.setValueAtTime(180,now); mid.frequency.exponentialRampToValueAtTime(70,now+0.12);
       const midG = ctx.createGain(); midG.gain.setValueAtTime(0.2,now); midG.gain.exponentialRampToValueAtTime(0.001,now+0.15);
@@ -654,7 +664,7 @@ function playSfx(type) {
 
     else if(type==='turnChange'){
       // Deep war horn ? bright chime cascade
-      // Horn ó filtered sawtooth
+      // Horn ÔøΩ filtered sawtooth
       const horn = ctx.createOscillator(); horn.type='sawtooth';
       horn.frequency.setValueAtTime(130,now); horn.frequency.exponentialRampToValueAtTime(260,now+0.3);
       const hornLp = ctx.createBiquadFilter(); hornLp.type='lowpass';
@@ -775,7 +785,7 @@ function playSfx(type) {
       sub.connect(subG); subG.connect(vol); sub.start(now); sub.stop(now+0.28);
       // Impact crack
       noiseBurst(0.05, 2.0, 0.3, 'bandpass', 1000, 2).start(now);
-      // Dual chime ó fifth interval
+      // Dual chime ÔøΩ fifth interval
       [880, 1320].forEach((f,i)=>{
         const o = ctx.createOscillator(); o.type='sine'; o.frequency.value=f;
         const g = ctx.createGain(); g.gain.setValueAtTime(0,now+0.03+i*0.05);
@@ -920,7 +930,7 @@ function playSfx(type) {
       drum.connect(drumG); drumG.connect(vol); drum.start(now); drum.stop(now+0.4);
       // Drum noise head
       noiseBurst(0.04, 3, 0.45, 'lowpass', 500).start(now);
-      // Battle horn ó filtered sawtooth chord
+      // Battle horn ÔøΩ filtered sawtooth chord
       [165.00, 220.00, 330.00].forEach((f,i)=>{
         const o = ctx.createOscillator(); o.type='sawtooth'; o.frequency.value=f;
         const lp = ctx.createBiquadFilter(); lp.type='lowpass';
@@ -995,7 +1005,7 @@ function playSfx(type) {
     }
 
     else if(type==='zoeBlock'){
-      // Zoe: crystalline barrier seal ó high resonant ping + glass ward + echo
+      // Zoe: crystalline barrier seal ÔøΩ high resonant ping + glass ward + echo
       const ping = ctx.createOscillator(); ping.type='sine'; ping.frequency.value=1800;
       const pingG = ctx.createGain(); pingG.gain.setValueAtTime(0.15,now);
       pingG.gain.exponentialRampToValueAtTime(0.001,now+0.4);
@@ -1177,7 +1187,7 @@ function playSfx(type) {
 
 
     else if(type==='navClick'){
-      // Heavy navigation button ó deep mechanical switch with resonant body
+      // Heavy navigation button ÔøΩ deep mechanical switch with resonant body
       // Sharp attack
       const snap = ctx.createOscillator(); snap.type='square';
       snap.frequency.setValueAtTime(1800,now); snap.frequency.exponentialRampToValueAtTime(300,now+0.025);
@@ -1203,7 +1213,7 @@ function playSfx(type) {
     }
 
     else if(type==='tabSwitch'){
-      // Smooth tab change ó sliding notch click with pitch shift
+      // Smooth tab change ÔøΩ sliding notch click with pitch shift
       const o = ctx.createOscillator(); o.type='triangle';
       o.frequency.setValueAtTime(600,now); o.frequency.exponentialRampToValueAtTime(1200,now+0.06);
       const g = ctx.createGain(); g.gain.setValueAtTime(0.3,now);
@@ -1224,7 +1234,7 @@ function playSfx(type) {
     }
 
     else if(type==='backBtn'){
-      // Back button ó descending whoosh with weight
+      // Back button ÔøΩ descending whoosh with weight
       const sweep = ctx.createOscillator(); sweep.type='triangle';
       sweep.frequency.setValueAtTime(1000,now); sweep.frequency.exponentialRampToValueAtTime(250,now+0.12);
       const sweepLp = ctx.createBiquadFilter(); sweepLp.type='lowpass';
@@ -1242,7 +1252,7 @@ function playSfx(type) {
     }
 
     else if(type==='startGame'){
-      // Game start ó dramatic rising power surge + slam
+      // Game start ÔøΩ dramatic rising power surge + slam
       // Rising whoosh
       const swoosh = ctx.createBuffer(1,ctx.sampleRate*0.5,ctx.sampleRate);
       const swooshD = swoosh.getChannelData(0);
@@ -1275,14 +1285,14 @@ function playSfx(type) {
     }
 
     else if(type==='deckAdd'){
-      // Smooth card slot-in ó soft click + gentle ascending confirmation tone
+      // Smooth card slot-in ÔøΩ soft click + gentle ascending confirmation tone
       // Soft click
       const click = ctx.createOscillator(); click.type='triangle';
       click.frequency.setValueAtTime(1200,now); click.frequency.exponentialRampToValueAtTime(600,now+0.025);
       const clickG = ctx.createGain(); clickG.gain.setValueAtTime(0.12,now);
       clickG.gain.exponentialRampToValueAtTime(0.001,now+0.04);
       click.connect(clickG); clickG.connect(vol); click.start(now); click.stop(now+0.05);
-      // Gentle ascending tone ó sounds like a card sliding into place
+      // Gentle ascending tone ÔøΩ sounds like a card sliding into place
       const tone = ctx.createOscillator(); tone.type='sine';
       tone.frequency.setValueAtTime(520,now+0.02); tone.frequency.exponentialRampToValueAtTime(780,now+0.12);
       const toneG = ctx.createGain(); toneG.gain.setValueAtTime(0.08,now+0.02);
@@ -1296,7 +1306,7 @@ function playSfx(type) {
     }
 
     else if(type==='deckRemove'){
-      // Card removed from deck ó reverse pop + descending tone
+      // Card removed from deck ÔøΩ reverse pop + descending tone
       const pop = ctx.createOscillator(); pop.type='triangle';
       pop.frequency.setValueAtTime(1200,now); pop.frequency.exponentialRampToValueAtTime(400,now+0.08);
       const popG = ctx.createGain(); popG.gain.setValueAtTime(0.12,now);
@@ -1313,7 +1323,7 @@ function playSfx(type) {
     }
 
     else if(type==='filterClick'){
-      // Filter/toggle ó crisp switch with subtle resonance
+      // Filter/toggle ÔøΩ crisp switch with subtle resonance
       const o = ctx.createOscillator(); o.type='triangle';
       o.frequency.setValueAtTime(1400,now); o.frequency.exponentialRampToValueAtTime(700,now+0.03);
       const g = ctx.createGain(); g.gain.setValueAtTime(0.22,now);
@@ -1327,7 +1337,7 @@ function playSfx(type) {
     }
 
     else if(type==='danger'){
-      // Danger/delete button ó warning buzz + descending tone
+      // Danger/delete button ÔøΩ warning buzz + descending tone
       const buzz = ctx.createOscillator(); buzz.type='square';
       buzz.frequency.setValueAtTime(250,now); buzz.frequency.setValueAtTime(200,now+0.05);
       const buzzG = ctx.createGain(); buzzG.gain.setValueAtTime(0.25,now);
@@ -1344,7 +1354,7 @@ function playSfx(type) {
     }
 
     else if(type==='purchase'){
-      // Shop purchase ó coin drop + register cha-ching
+      // Shop purchase ÔøΩ coin drop + register cha-ching
       for(let i=0;i<3;i++){
         const o = ctx.createOscillator(); o.type='triangle';
         o.frequency.value = 1200+i*200;
@@ -1366,7 +1376,7 @@ function playSfx(type) {
     }
 
     else if(type==='cardReveal'){
-      // Pack card reveal ó dramatic reveal chime
+      // Pack card reveal ÔøΩ dramatic reveal chime
       const chime = ctx.createOscillator(); chime.type='sine';
       chime.frequency.setValueAtTime(800,now); chime.frequency.exponentialRampToValueAtTime(1600,now+0.15);
       const chimeG = ctx.createGain(); chimeG.gain.setValueAtTime(0.12,now);
@@ -1383,7 +1393,7 @@ function playSfx(type) {
     }
 
     else if(type==='screenTransition'){
-      // Mechanical servo slide ó gear engage + hydraulic hiss + latch
+      // Mechanical servo slide ÔøΩ gear engage + hydraulic hiss + latch
       // Gear engage click
       const gear = ctx.createOscillator(); gear.type='square';
       gear.frequency.setValueAtTime(800,now); gear.frequency.exponentialRampToValueAtTime(200,now+0.03);
@@ -1392,7 +1402,7 @@ function playSfx(type) {
       const gearLp = ctx.createBiquadFilter(); gearLp.type='lowpass'; gearLp.frequency.value=1500;
       gear.connect(gearLp); gearLp.connect(gearG); gearG.connect(vol);
       gear.start(now); gear.stop(now+0.05);
-      // Hydraulic hiss ó filtered noise sweep
+      // Hydraulic hiss ÔøΩ filtered noise sweep
       const hBuf = ctx.createBuffer(1,ctx.sampleRate*0.12,ctx.sampleRate);
       const hD = hBuf.getChannelData(0);
       for(let i=0;i<hD.length;i++){const t=i/hD.length; hD[i]=(Math.random()*2-1)*(1-t)*0.2;}
@@ -1410,7 +1420,7 @@ function playSfx(type) {
     }
 
     else if(type==='xpGain'){
-      // XP earned ó ascending sparkle burst
+      // XP earned ÔøΩ ascending sparkle burst
       [660,880,1100,1320,1760].forEach((f,i)=>{
         const o = ctx.createOscillator(); o.type='sine'; o.frequency.value=f;
         const g = ctx.createGain(); g.gain.setValueAtTime(0,now+i*0.05);
@@ -1449,7 +1459,7 @@ function playSfx(type) {
     }
 
     else if(type==='affPlace_eventide'){
-      // Oceanic swell ó filtered pad + water shimmer
+      // Oceanic swell ÔøΩ filtered pad + water shimmer
       const pad=ctx.createOscillator();pad.type='sine';
       pad.frequency.setValueAtTime(220,now);pad.frequency.exponentialRampToValueAtTime(330,now+0.3);
       const padLp=ctx.createBiquadFilter();padLp.type='lowpass';
@@ -1473,7 +1483,7 @@ function playSfx(type) {
     }
 
     else if(type==='affPlace_expanded_worlds'){
-      // Sci-fi pulse ó electric zap + resonant ping + digital stutter
+      // Sci-fi pulse ÔøΩ electric zap + resonant ping + digital stutter
       const zap=ctx.createOscillator();zap.type='sawtooth';
       zap.frequency.setValueAtTime(100,now);zap.frequency.exponentialRampToValueAtTime(2000,now+0.08);
       zap.frequency.exponentialRampToValueAtTime(400,now+0.15);
@@ -1494,7 +1504,7 @@ function playSfx(type) {
     }
 
     else if(type==='affPlace_reality'){
-      // Grounded percussive snap ó wood block + finger snap + body
+      // Grounded percussive snap ÔøΩ wood block + finger snap + body
       noiseBurst(0.03,3,0.5,'bandpass',2500,4).start(now);
       const snap=ctx.createOscillator();snap.type='triangle';
       snap.frequency.setValueAtTime(3000,now);snap.frequency.exponentialRampToValueAtTime(800,now+0.02);
@@ -1662,7 +1672,7 @@ function playSfx(type) {
     }
 
     else if(type==='reactionTrigger'){
-      // Dramatic interrupt ó reverse cymbal + stinger chord
+      // Dramatic interrupt ÔøΩ reverse cymbal + stinger chord
       const revBuf=ctx.createBuffer(1,ctx.sampleRate*0.3,ctx.sampleRate);
       const revD=revBuf.getChannelData(0);
       for(let i=0;i<revD.length;i++){const t=i/revD.length;revD[i]=(Math.random()*2-1)*t*t*0.15;}
@@ -1682,7 +1692,7 @@ function playSfx(type) {
     }
 
     else if(type==='consolidateDenied'){
-      // Locked gate slam ó metallic + denial
+      // Locked gate slam ÔøΩ metallic + denial
       const o=ctx.createOscillator();o.type='square';
       o.frequency.setValueAtTime(250,now);o.frequency.exponentialRampToValueAtTime(100,now+0.12);
       const g=ctx.createGain();g.gain.setValueAtTime(0.2,now);
@@ -1701,7 +1711,7 @@ function playSfx(type) {
     //  PROGRESSION / REWARD SOUNDS
     // -------------------------------------------
     else if(type==='levelUp'){
-      // Grand level-up fanfare ó ascending trumpet + sparkle explosion + sub boom
+      // Grand level-up fanfare ÔøΩ ascending trumpet + sparkle explosion + sub boom
       [261.63,329.63,392.00,523.25,659.25,783.99].forEach((f,i)=>{
         const o=ctx.createOscillator();o.type='sawtooth';o.frequency.value=f;
         const lp=ctx.createBiquadFilter();lp.type='lowpass';
@@ -1728,7 +1738,7 @@ function playSfx(type) {
     }
 
     else if(type==='starlightEarn'){
-      // Crystalline reward ó glass chime cascade
+      // Crystalline reward ÔøΩ glass chime cascade
       [1047,1319,1568,2093,2637].forEach((f,i)=>{
         const o=ctx.createOscillator();o.type='sine';o.frequency.value=f;
         const g=ctx.createGain();g.gain.setValueAtTime(0,now+i*0.07);
@@ -1764,7 +1774,7 @@ function playSfx(type) {
     //  DRAMATIC MOMENTS
     // -------------------------------------------
     else if(type==='lastTurn'){
-      // War drum announcement ó deep double hit + horn blast
+      // War drum announcement ÔøΩ deep double hit + horn blast
       [0,0.2].forEach(d=>{
         const drum=ctx.createOscillator();drum.type='sine';
         drum.frequency.setValueAtTime(70,now+d);drum.frequency.exponentialRampToValueAtTime(35,now+d+0.15);
@@ -1785,7 +1795,7 @@ function playSfx(type) {
     }
 
     else if(type==='zoneCaptured'){
-      // Triumphant zone sting ó bright major stab + shimmer
+      // Triumphant zone sting ÔøΩ bright major stab + shimmer
       [392,493.88,587.33,783.99].forEach(f=>{
         const o=ctx.createOscillator();o.type='sawtooth';o.frequency.value=f;
         const lp=ctx.createBiquadFilter();lp.type='lowpass';
@@ -1840,7 +1850,7 @@ function playSfx(type) {
     //  UI POLISH SOUNDS
     // -------------------------------------------
     else if(type==='deckComplete'){
-      // 40/40 completion ó satisfying lock + ascending sparkle
+      // 40/40 completion ÔøΩ satisfying lock + ascending sparkle
       // Heavy lock
       noiseBurst(0.03,3,0.4,'bandpass',1500,3).start(now);
       const lock=ctx.createOscillator();lock.type='sine';lock.frequency.value=660;
@@ -1892,7 +1902,7 @@ function playSfx(type) {
 
 
     else if(type==='playBtn'){
-      // Play vs AI / Play vs Human ó dramatic heavy action button
+      // Play vs AI / Play vs Human ÔøΩ dramatic heavy action button
       // Impact slam
       noiseBurst(0.05, 2, 0.5, 'bandpass', 1400, 3).start(now);
       const slam = ctx.createOscillator(); slam.type='sawtooth';
@@ -1916,7 +1926,7 @@ function playSfx(type) {
     }
 
     else if(type==='categorySwitch'){
-      // Deck builder category change ó chunky notch with harmonic shimmer
+      // Deck builder category change ÔøΩ chunky notch with harmonic shimmer
       const notch = ctx.createOscillator(); notch.type='square';
       notch.frequency.setValueAtTime(1600,now); notch.frequency.exponentialRampToValueAtTime(500,now+0.025);
       const notchG = ctx.createGain(); notchG.gain.setValueAtTime(0.2,now);
@@ -3051,7 +3061,7 @@ function showAudioSettings() {
 //  VISUAL POLISH
 // ‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê‚ïê
 
-// Sparkle burst on card placement ó disabled per user preference
+// Sparkle burst on card placement ÔøΩ disabled per user preference
 function spawnPlacementSparkle(z,r,c) {
   return;
 }

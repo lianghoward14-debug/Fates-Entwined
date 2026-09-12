@@ -23,7 +23,8 @@ for(let game=0;game<games;game++){
   const command=actor===seat ? chooseCommand(legal,projectStateForPlayer(state,actor),{canonicalState:state,playerIndex:actor,samples:1,nodeBudget:100,width:5})
     : legal.map(command=>({command,score:priority(command)})).sort((a,b)=>b.score-a.score)[0].command;
   maxMs=Math.max(maxMs,performance.now()-before);
-  const result=reduceCommand(state,{type:command.type,payload:command.payload || {},commandId:`full-${++count}`,matchId:state.matchId,expectedRevision:state.revision},{playerId:state.players[actor].id});
+  const payload=command.manualOnly===true?{...(command.payload || {}),userActivated:true}:command.payload || {};
+  const result=reduceCommand(state,{type:command.type,payload,commandId:`full-${++count}`,matchId:state.matchId,expectedRevision:state.revision},{playerId:state.players[actor].id});
   assert(result.ok,JSON.stringify({command,rejection:result.rejection}));state=result.state;
   if(count%25===0)console.log(JSON.stringify({game,seat,commands:count,turn:state.turn,elapsedMs:Math.round(performance.now()-start)}));
  }

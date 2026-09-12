@@ -10,6 +10,9 @@ import {createPatiencePrior} from './patience-heuristics.mjs';
 import {createWintertidePrior} from './wintertide-heuristics.mjs';
 import {createEndlessSeaPrior} from './endless-sea-heuristics.mjs';
 import {createPublicComboPrior} from './public-combo-heuristics.mjs';
+import {createComboPlanPrior} from './combo-plan.mjs';
+import {createDeckPreservationPrior} from './deck-preservation.mjs';
+import {createArchiveExpansionPrior} from './archive-expansion-heuristics.mjs';
 
 // Build shared indexes once per position, not once per legal placement.
 export function createCommandOrderer(state,player){
@@ -29,6 +32,9 @@ export function createCommandOrderer(state,player){
   const wintertidePrior=createWintertidePrior(state,player,entries,cards);
   const endlessSeaPrior=createEndlessSeaPrior(state,player,entries,cards);
   const publicComboPrior=createPublicComboPrior(state,player,entries,cards);
+  const comboPlanPrior=createComboPlanPrior(state,player);
+  const deckPreservationPrior=createDeckPreservationPrior(state,player,entries,cards);
+  const archiveExpansionPrior=createArchiveExpansionPrior(state,player,entries,cards);
   const values=new Map();
   const dependencyValues=new Map();
   function departureValue(iids){
@@ -66,9 +72,9 @@ export function createCommandOrderer(state,player){
       // Voluntary disposal is a cost, not another activation of the printed
       // ability. Keep it available for unusual plans without promoting it
       // merely because the discarded card has powerful operation tags.
-      return -8-departureValue([p.targetIid || p.sourceIid]);
+      return -8-departureValue([p.targetIid || p.sourceIid])+deckPreservationPrior(command);
     }
-    let score=value(card)+incelPrior(command)+assaultPrior(command)+freeWorldPrior(command)+majaPrior(command)+timePrior(command)+patiencePrior(command)+wintertidePrior(command)+endlessSeaPrior(command)+publicComboPrior(command);
+    let score=value(card)+incelPrior(command)+assaultPrior(command)+freeWorldPrior(command)+majaPrior(command)+timePrior(command)+patiencePrior(command)+wintertidePrior(command)+endlessSeaPrior(command)+publicComboPrior(command)+archiveExpansionPrior(command)+comboPlanPrior(command)+deckPreservationPrior(command);
     if(command.type==='ACTIVATE_EFFECT' && card?.id==='40'){
       // A real draw, including a blind one, can turn this activation into
       // cheap Fate. Do not require Ledger or Alondra to use the effect.

@@ -970,6 +970,7 @@ function getHandCardEffectModifiers(card) {
   function addRow(row) {
     if (!row) return;
     const key = String(row.key || row.name || rows.length);
+    if(key === 'chauffeur-free-set' && card.counters?.chauffeurFreeSet !== true) return;
     if (seen.has(key)) return;
     seen.add(key);
     const fateDelta = Number(row.fateDelta) || 0;
@@ -980,6 +981,10 @@ function getHandCardEffectModifiers(card) {
     if (costDelta) parts.push((costDelta > 0 ? '+' : '') + costDelta + ' Reinforcement cost');
     if (!text) text = parts.join(', ') || 'Card modified.';
     rows.push({ key, name:String(row.name || 'Effect'), text, fateDelta, costDelta });
+  }
+  if(card.counters?.chauffeurFreeSet === true){
+    addRow({key:'chauffeur-free-set',name:'Chauffeur — Free Set',
+      text:'Created by Francisek. This card’s next set does not count toward the normal 2-Supporter-per-turn limit. It still counts toward the global 5-Supporter cap. This benefit is used up when this card is set.'});
   }
   const californiqueTurns = getCaliforniqueHandTurnsRemaining(card);
   if (californiqueTurns !== null) {
@@ -1209,6 +1214,61 @@ function playDiscardSfx(options) {
   return true;
 }
 
+let _lastCarolynLockSfxAt = 0;
+const _carolynLockSfxKeys = new Map();
+function playCarolynLockSfx(key) {
+  const nowMs = Date.now();
+  const dedupeKey = String(key || 'carolyn-lock');
+  const keyPlayedAt = Number(_carolynLockSfxKeys.get(dedupeKey) || 0);
+  if(nowMs - keyPlayedAt < 4000) return false;
+  if(nowMs - _lastCarolynLockSfxAt < 650) return false;
+  _carolynLockSfxKeys.set(dedupeKey, nowMs);
+  if(_carolynLockSfxKeys.size > 48){
+    _carolynLockSfxKeys.forEach(function(playedAt, storedKey){
+      if(nowMs - Number(playedAt || 0) > 10000) _carolynLockSfxKeys.delete(storedKey);
+    });
+  }
+  _lastCarolynLockSfxAt = nowMs;
+  return playCarolynLockTone();
+}
+
+function playCarolynLockTone() {
+  if(typeof _masterVol === 'number' && _masterVol <= 0) return false;
+  if(typeof _sfxVol === 'number' && _sfxVol <= 0) return false;
+  try {
+    // Carolyn gets a self-contained mechanical lock impact. This does not rely
+    // on the generic blocked sample loading successfully.
+    const ctx = typeof getAudioCtx === 'function'
+      ? getAudioCtx()
+      : new (window.AudioContext || window.webkitAudioContext)();
+    if(ctx.state === 'suspended') ctx.resume();
+    const destination = typeof getSfxBus === 'function' ? getSfxBus(ctx).input : ctx.destination;
+    const out = ctx.createGain();
+    const master = typeof _masterVol === 'number' ? _masterVol : 1;
+    const effects = typeof _sfxVol === 'number' ? _sfxVol : 0.8;
+    out.gain.value = Math.max(0, Math.min(1, master * effects * 0.78));
+    out.connect(destination);
+    const start = ctx.currentTime;
+    [880, 440, 110].forEach(function(freq, index){
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = index === 2 ? 'triangle' : 'square';
+      osc.frequency.setValueAtTime(freq, start + index * 0.055);
+      osc.frequency.exponentialRampToValueAtTime(freq * 0.72, start + 0.16 + index * 0.055);
+      gain.gain.setValueAtTime(0.001, start + index * 0.055);
+      gain.gain.linearRampToValueAtTime(index === 2 ? 0.11 : 0.16, start + 0.008 + index * 0.055);
+      gain.gain.exponentialRampToValueAtTime(0.001, start + 0.22 + index * 0.055);
+      osc.connect(gain); gain.connect(out);
+      osc.start(start + index * 0.055); osc.stop(start + 0.25 + index * 0.055);
+    });
+    return true;
+  } catch(e) {
+    return false;
+  }
+}
+
+window.playCarolynLockTone = playCarolynLockTone;
+
 function showWineCountryGuerillaSentBanner(options = {}) {
   // This is a public match event. Use one perspective-neutral sentence so the
   // two clients never display contradictory banners for the same transfer.
@@ -1286,6 +1346,7 @@ window.syncEnhancedVisualFxControls = syncEnhancedVisualFxControls;
 window.setEnhancedVisualFxEnabled = setEnhancedVisualFxEnabled;
 window.toggleEnhancedVisualFx = toggleEnhancedVisualFx;
 window.playDiscardSfx = playDiscardSfx;
+window.playCarolynLockSfx = playCarolynLockSfx;
 window.showWineCountryGuerillaSentBanner = showWineCountryGuerillaSentBanner;
 window.showWineCountryGuerillaFateBanner = showWineCountryGuerillaFateBanner;
 window.fatePushDiscard = fatePushDiscard;

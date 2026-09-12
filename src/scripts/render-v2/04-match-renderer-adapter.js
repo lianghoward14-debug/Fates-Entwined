@@ -2161,7 +2161,7 @@
     const z = Number(cell.z);
     const r = Number(cell.r);
     const c = Number(cell.c);
-    if(G._phase7EffectSquareKind === 'jaime' || G._phase7EffectSquareKind === 'zoe') return G._phase7EffectSquareKind;
+    if(['jaime','zoe','carolyn'].includes(G._phase7EffectSquareKind)) return G._phase7EffectSquareKind;
     if(G.blockingCell && G._blockingEffectType === 'jaime') return 'jaime';
     if(squareMatchesOption(G._phase7DestinationOptions, z, r, c)
       || squareMatchesOption(G._singlePlayerPlacementOptions, z, r, c)) return 'move';
@@ -4516,6 +4516,7 @@
     if(interaction.currentPlayer !== snapshot.viewer) return false;
     if((interaction.phase || '') !== 'main') return false;
     if(interaction.supporterHardCapReached) return true;
+    if(card.counters?.chauffeurFreeSet) return false;
     const iid = card.iid != null ? String(card.iid) : '';
     return freeSetIids(snapshot).indexOf(iid) < 0;
   }

@@ -107,7 +107,7 @@ const REGISTRY = Object.freeze({
       {
         kind:'SELECT_BOARD',
         local:'targetIid',
-        filter:{supporter:true, ruleTiming:'PASSIVE', excludeSource:true}
+        filter:{supporter:true, ruleTiming:'PASSIVE', ruleTimingExceptions:['93'], excludeSource:true}
       },
       {
         kind:'COPY_EFFECT',
@@ -604,6 +604,7 @@ const REGISTRY = Object.freeze({
     ]
   },
   '03':{
+    havanoTargeting:'NONE',
     timings:['ACTIVATE'],
     operations:['MODIFY_FATE'],
     prompts:['BOARD_TARGET'],
@@ -622,6 +623,7 @@ const REGISTRY = Object.freeze({
     ]
   },
   '05':{
+    havanoTargeting:'NONE',
     timings:['WHEN_SET'],
     operations:['MODIFY_FATE'],
     prompts:['BOARD_TARGET'],
@@ -1588,13 +1590,11 @@ const REGISTRY = Object.freeze({
   },
   'bh10':{
     timings:['WHEN_SET'],
-    operations:['REDRAW_HAND', 'DRAW_CARD', 'DISCARD_CARD'],
-    prompts:[],
+    operations:[],
+    prompts:['CARD_SELECTION'],
     program:[
-      {
-        kind:'OPERATION',
-        operation:{type:'REDRAW_HAND', playerIndex:'$controller'}
-      }
+      {kind:'SELECT_SUPPORTER_CATALOG',local:'catalogId'},
+      {kind:'CREATE_CHAUFFEUR_SUPPORTER',cardId:'$catalogId'}
     ]
   },
   'bh11':{
@@ -1931,7 +1931,7 @@ const PRESSURE_REWORK_REGISTRY = Object.freeze({
 // metadata. These effects can target the opponent or an opponent-owned card.
 const HAVANO_TARGETING_SOURCE_IDS = new Set([
   '04','10','14','16','17','18','21','26','30','31','34','36','39','47','50',
-  '52','53','61','62','64','71','72','81','93','97','bh04','bh16','bh18'
+  '52','53','61','62','64','71','72','81','93','97','bh04','bh16','bh18','bh21'
 ]);
 
 export function cardRule(cardId, state = null){

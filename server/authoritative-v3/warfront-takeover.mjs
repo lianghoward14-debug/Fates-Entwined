@@ -1,3 +1,4 @@
+import {warfrontAiProfile,warfrontAiCommand} from './warfront-ai-profile.mjs';
 import {chooseStrategicV3AiCommand} from '../../src/scripts/authoritative-v3-ai-policy.mjs';
 
 // Keep the planner's continuation across actions: replanning each action can
@@ -14,16 +15,13 @@ export function createWarfrontTakeoverDriver(){
       const key = `${seat}:${state.turn}`;
       let plan = plans.get(state.matchId);
       if(!plan || plan.key !== key){plan={key,sequence:[]};plans.set(state.matchId,plan);}
-      const choice = chooseStrategicV3AiCommand(legal,view.state,{
+      const choice = warfrontAiCommand(chooseStrategicV3AiCommand(legal,view.state,{
         playerId:state.players[seat].id,
         playerIndex:seat,
         canonicalState:state,
-        difficulty:'medium',
-        planningDepth:3,
-        personality:'adaptive',
-        style:'adaptive',
+        ...warfrontAiProfile(state.players[seat]),
         planCache:plan
-      });
+      }));
       if(!choice) return null;
       const result = await actor.dispatch(state.players[seat].id,{
         type:choice.type,payload:choice.payload || {},matchId:state.matchId,

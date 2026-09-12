@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
 import {createInitialState, effectiveFate} from '../shared/engine/index.mjs';
 
 const definitions = [
@@ -34,3 +36,28 @@ assert.equal(effectiveFate(state,sameAffiliationPeer),2,'Zimbabwean Honor Guard 
 assert.equal(effectiveFate(state,guard),1,'a non-adjacent Honor Guard must not qualify itself');
 
 console.log('Felicyta University adjacency multiplier and Zimbabwe +1 aura smoke test passed');
+
+const gameplay=fs.readFileSync('src/scripts/05-gameplay-core.js','utf8');
+const helper=gameplay.slice(gameplay.indexOf('function getSuperiorMarksMultiplier('),gameplay.indexOf('window.getSuperiorMarksMultiplier'));
+for(const owner of [0,1]) for(const copies of [0,1,2,3]){
+ const fixture=createInitialState({matchId:'ADDITIVE',seed:'additive',handSize:99,cardDefinitions:definitions,players:[{id:'p0',deckIds:['01','32','bh11','bh11','bh11']},{id:'p1',deckIds:['01','32','bh11','bh11','bh11']}]});
+ const hand=fixture.players[owner].hand;
+ const take=id=>{const i=hand.findIndex(c=>c.id===id);const c=hand.splice(i,1)[0];c.controller=owner;return c;};
+ fixture.board[0][2][0]=take('01');
+ const target=take('32');fixture.board[0][2][1]=target;
+ for(let i=0;i<copies;i++)fixture.board[0][0][i]=take('bh11');
+ assert.equal(effectiveFate(fixture,target),1+4*(1+copies),'authority additive bonus for '+copies+' Felicytas');
+ const local={board:fixture.board.map(zone=>zone.map(row=>row.map(c=>c?{...c,owner:c.controller}:null)))};
+ const sandbox=vm.createContext({G:local,cardActsAsPassive:(card,id)=>card.id===id,isFaceDownCard:card=>card.faceDown===true,isCardEffectSuppressed:card=>card.suppressed===true});
+ vm.runInContext(helper,sandbox);
+ assert.equal(3*sandbox.getSuperiorMarksMultiplier(0,owner),3*(1+copies),'singleplayer +3 bonus stacks additively');
+ assert.equal(sandbox.getSuperiorMarksMultiplier(1,owner),1,'other zones unaffected');
+ assert.equal(sandbox.getSuperiorMarksMultiplier(0,1-owner),1,'opponent bonuses unaffected');
+ if(copies){
+  local.board[0][0][0].suppressed=true;
+  assert.equal(sandbox.getSuperiorMarksMultiplier(0,owner),copies,'suppressed source stops adding a bonus');
+  fixture.board[0][0][0].statuses=['EFFECTS_SUPPRESSED'];
+  assert.equal(effectiveFate(fixture,target),1+4*copies,'authority suppression removes one source');
+ }
+}
+console.log('Felicyta 0–3 copies stack additively for both players in both engines.');

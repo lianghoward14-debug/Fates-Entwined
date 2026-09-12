@@ -271,7 +271,7 @@
   function isFreeSetCard(card){
     if(!card || typeof G === 'undefined' || !G) return false;
     if(typeof isAchillesAdaptiveToken === 'function' && isAchillesAdaptiveToken(card)) return true;
-    if(G._linaFreeIids && G._linaFreeIids.has(card.iid)) return true;
+    if(card.counters?.chauffeurFreeSet || (G._linaFreeIids && G._linaFreeIids.has(card.iid))) return true;
     try {
       if(card.type !== 'Supporter' && Number(card.cost) > 0 && typeof getDisplayedCardCost === 'function') {
         return Number(getDisplayedCardCost(card)) <= 0;

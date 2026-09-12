@@ -151,7 +151,7 @@ export function adjacencyBonusMultiplier(state, zone, playerIndex){
     && (source.z === z || source.card.counters?.whisperLandscapeToken === true)
     && activeAuraSource(state, source)
   ).length;
-  return Math.pow(2, superiorMarksSources);
+  return 1 + superiorMarksSources;
 }
 
 export function effectiveFate(state, entryOrCard){

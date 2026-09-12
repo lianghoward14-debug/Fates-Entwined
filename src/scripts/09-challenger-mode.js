@@ -545,6 +545,41 @@ const STARTER_DECKS = [
 
 const AI_ONLY_RANDOM_DECKS = [
   {
+    id:'ai_real_estate', baseStrategy:'ai_real_estate', name:'Not so Free Real Estate',
+    description:'Deny enemy space with Carolyn and Zoe, clear supporters with Alondra, and recycle spent search characters through Irvine.',
+    theme:'AI Only - Space Denial', faceCardId:'17', displayCardIds:['17','04','14','49'], enabled:true,
+    sourcePublicDeckId:'nNbfvYwsoDfnvTHQhK4lwN5a2B22_1789132171787',
+    ids:['17','17','17','04','04','04','06','06','06','75','75','75','27','27','27','98','98','98','28','28','28','bh05','48','48','48','09','09','09','49','49','49','60','60','60','14','14','14','32','32','32']
+  },
+  {
+    id:'ai_no_cards_sleeve', baseStrategy:'ai_no_cards_sleeve', name:"I've got no Cards up my Sleeve",
+    description:'Steal and disrupt opposing resources, recycle Robo, and convert a wide supporter board into Rozsi Youth scaling.',
+    theme:'AI Only - Hand Disruption', faceCardId:'72', displayCardIds:['72','88','99','71'], enabled:true,
+    sourcePublicDeckId:'nNbfvYwsoDfnvTHQhK4lwN5a2B22_1789130712744',
+    ids:['07','67','67','67','72','72','72','58','58','58','13','13','13','60','60','60','27','27','27','32','32','88','88','88','99','99','74','74','74','28','28','28','71','71','71','75','75','82','91','75']
+  },
+  {
+    id:'ai_snowball_fight', baseStrategy:'ai_snowball_fight', name:'Snowball Fight!!!',
+    description:'Build repeatable Youth reductions into Jimmy, protect engines with Havano, and search timely disruption.',
+    theme:'AI Only - Reduction Engines', faceCardId:'93', displayCardIds:['93','41','37','84'], enabled:true,
+    sourcePublicDeckId:'nNbfvYwsoDfnvTHQhK4lwN5a2B22_1789129285122',
+    ids:['bh05','93','93','93','37','37','37','79','79','79','60','60','60','13','13','13','82','98','98','74','74','74','41','41','41','28','28','28','58','58','58','18','18','18','84','84','84','72','72','72']
+  },
+  {
+    id:'ai_adjacency_agency', baseStrategy:'ai_adjacency_agency', name:'Adjacency with Agency',
+    description:'Fund adjacent formations with Ralph, amplify them with University Felicyta, and recover Morale with Jaime.',
+    theme:'AI Only - Adjacency Formation', faceCardId:'01', displayCardIds:['01','bh11','24','bh22'], enabled:true,
+    sourcePublicDeckId:'nNbfvYwsoDfnvTHQhK4lwN5a2B22_1789126603472',
+    ids:['bh11','01','01','01','bh12','bh12','bh12','24','24','24','44','44','44','28','28','28','60','60','60','79','79','79','98','98','98','68','68','68','29','29','29','27','27','09','09','09','91','82','bh22','bh22']
+  },
+  {
+    id:'ai_classic_coordinators', baseStrategy:'ai_classic_coordinators', name:'Classic Coordinator Assault',
+    description:'Start Zsofia before coordinator development, amplify auras, and use Irvine to fund the formation with spent search bodies.',
+    theme:'AI Only - Coordinator Growth', faceCardId:'15', displayCardIds:['15','19','57','23'], enabled:true,
+    sourcePublicDeckId:'nNbfvYwsoDfnvTHQhK4lwN5a2B22_1789043862463',
+    ids:['23','23','57','57','15','15','15','68','68','68','19','19','28','28','28','60','60','60','09','09','09','27','27','27','29','29','29','32','32','75','75','75','49','49','49','24','24','24','98','98']
+  },
+  {
     id: 'ai_marine_jake', baseStrategy: 'ai_marine_jake',
     name: 'Fat Fucking Pig (Marine Variation)',
     description: 'Grow Jake by consuming spent supporters, recycle Marine disruption, protect Jake and finish with Howard.',
@@ -594,9 +629,9 @@ const AI_ONLY_RANDOM_DECKS = [
     theme: 'AI Only - Snow and Youth Families',
     faceCardId: '100',
     displayCardIds: ['82','84','89','88'],
-    ids: ['82','84','84','84','89','89','89','88','88','88','60','60','60','28','28','28','97','97','97','100','100','92','92','92','09','09','09','06','06','58','58','58','74','74','74','98','98','75','75','bh05'],
+    ids: ['82','84','84','84','89','89','89','88','88','88','60','60','60','28','28','28','97','97','97','100','100','92','92','09','09','09','06','06','74','74','74','98','98','75','75','bh05','58','58','58','91'],
     enabled: true,
-    sourcePublicDeckId: 'nNbfvYwsoDfnvTHQhK4lwN5a2B22_1788960531967'
+    sourcePublicDeckId: 'nNbfvYwsoDfnvTHQhK4lwN5a2B22_1789128126940'
   },
   {
     id: 'ai_endless_sea',

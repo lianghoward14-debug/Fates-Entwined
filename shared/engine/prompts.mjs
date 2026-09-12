@@ -150,7 +150,7 @@ export function eligibleBoardTargets(state, frame, filter = {}){
         if(!eligibleDestinations(state, targetFrame, filter.requiresDestination).length) return false;
       }
       if(filter.excludeSource && String(entry.card.iid) === String(frame.sourceIid)) return false;
-      if(filter.ruleTiming && !cardRule(entry.card.id, state)?.timings?.includes(String(filter.ruleTiming))) return false;
+      if(filter.ruleTiming && !filter.ruleTimingExceptions?.includes(String(entry.card.id)) && !cardRule(entry.card.id, state)?.timings?.includes(String(filter.ruleTiming))) return false;
       if(filter.copyEffectAvailable){
         const copiedRule = cardRule(entry.card.id, state);
         if(!copiedRule || !copiedEffectAvailable(state, frame, copiedRule)) return false;
@@ -197,7 +197,7 @@ export function eligibleCardTargets(state, frame, filter = {}){
     if(filter.excludeRarity && String(entry.card.rarity || '') === String(filter.excludeRarity)) return false;
     if(filter.excludeSource && String(entry.card.iid) === String(frame.sourceIid)) return false;
     if(filter.excludeCardId && String(entry.card.id) === String(filter.excludeCardId)) return false;
-    if(filter.ruleTiming && !cardRule(entry.card.id, state)?.timings?.includes(String(filter.ruleTiming))) return false;
+    if(filter.ruleTiming && !filter.ruleTimingExceptions?.includes(String(entry.card.id)) && !cardRule(entry.card.id, state)?.timings?.includes(String(filter.ruleTiming))) return false;
     if(filter.copyEffectAvailable){
       const copiedRule = cardRule(entry.card.id, state);
       if(!copiedRule || !copiedEffectAvailable(state, frame, copiedRule)) return false;

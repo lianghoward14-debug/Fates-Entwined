@@ -50,7 +50,7 @@ for(const count of [0,1,3,5,8]){
   assert.equal(result.events.filter(event=>event.type === 'DECK_TOP_REVEALED').length,1);
   state = JSON.parse(JSON.stringify(result.state)); // reconnect/replay continuation
   const opponent = projectStateForPlayer(state,1);
-  assert.equal(opponent.pendingPrompt.revealedCards.length,Math.min(count,5));
+  assert.equal(opponent.pendingPrompt.revealedCards,undefined,'archive cards stay private to the activator');
   assert.equal(opponent.players[0].deck,undefined,'only the revealed cards may be projected');
   const selectedIids = before.slice(0,5).reverse();
   assert(legalCommandTemplates(state,0).some(candidate=>JSON.stringify(candidate.payload.selectedIids || [candidate.payload.selectedIid]) === JSON.stringify(selectedIids)), 'reverse order must be exposed as legal');

@@ -23312,6 +23312,22 @@ html body #modal .modal:is(
   pointer-events:none!important;
 }
 
+/* Saved-deck pagination: content must not resize the Choose Your Deck window. */
+@media (min-width:901px){
+  html body #modal .modal.deck-slate-modal .deck-slate-list{
+    grid-auto-rows:452px!important;
+    height:452px!important;
+    min-height:452px!important;
+    max-height:452px!important;
+  }
+  html body #modal .modal.deck-slate-modal .deck-slate-row{
+    height:452px!important;
+    min-height:452px!important;
+    max-height:452px!important;
+    box-sizing:border-box!important;
+  }
+}
+
 /* Free Play settings modal heading: tighter intro block. */
 html body #modal .modal.freeplay-settings-modal .freeplay-settings-shell{
   gap:.62rem!important;
@@ -28665,6 +28681,11 @@ html body .card-info-overlay.card-detail-v4 .card-voice-btn{
   height:26px!important;
   flex:0 0 26px!important;
   font-size:1rem!important;
+}
+
+/* Legacy card information outside a match: lift only the character audio control. */
+html body #modal:not(.card-detail-overlay) .cd-name-with-audio > .card-voice-btn{
+  transform:translateY(-2px)!important;
 }
 
 /* The Star rarity treatment is part of card presentation, so keep it visible

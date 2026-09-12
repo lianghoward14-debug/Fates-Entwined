@@ -19,6 +19,7 @@ export function createWintertidePrior(state,player,entries,cards){
     if(c.id==='bh05')return hand.some(c=>c.id==='bh05')?2:16;
     if(c.id==='100')return 10;
     if(c.id==='82')return state.landscapeId==='igb15'?1:has('82')?2:9;
+    if(c.id==='91')return state.landscapeId==='igb15' || has('82')?2:13;
     if(c.id==='09')return 8;
     if(c.id==='89')return Number(state.supporterEffectsActivated?.[player] || 0)<10?7:2;
     if(c.id==='88')return Math.min(8,own.filter(e=>e.card.type!=='Supporter').length*2);
@@ -31,7 +32,7 @@ export function createWintertidePrior(state,player,entries,cards){
     const selected=(p.selectedIids || (p.selectedIid?[p.selectedIid]:[])).map(id=>cards.get(id)).filter(Boolean);
     let score=0;
     if(source?.id==='bh05')score+=selected.reduce((n,c)=>n+(c.id==='100'?20:['88','89'].includes(c.id)?12:-8),0);
-    if(['84','06','60','58','bh05'].includes(source?.id) && state.pendingPrompt?.type==='CARD_SELECTION')score+=selected.reduce((n,c)=>n+access(c),0);
+    if(['84','06','60','58','bh05','91'].includes(source?.id) && state.pendingPrompt?.type==='CARD_SELECTION')score+=selected.reduce((n,c)=>n+access(c),0);
     if(state.pendingPrompt?.ordered)score+=selected.reduce((n,c,i)=>n+access(c)/(i+1),0);
     if(source?.id==='82' && p.choice==='igb15')score+=15;
     if(p.destination && card){

@@ -4017,6 +4017,13 @@
   function phase7SubmitCommand(command, options){
     if(!command || !phase7CurrentUiSession.adapter) return Promise.resolve(false);
     const submitOptions = options && typeof options === 'object' ? options : {};
+    const activePrompt = phase7CurrentUiSession.view?.state?.pendingPrompt || null;
+    const activePromptSource = phase7FindAnyCard(activePrompt?.sourceIid)
+      || phase7FindRawProjectedCard(phase7CurrentUiSession.view, activePrompt?.sourceIid);
+    const isCarolynDestination = String(command?.type || '').toUpperCase() === 'ANSWER_PROMPT'
+      && !!command?.payload?.destination
+      && String(activePromptSource?.id || activePrompt?.sourceCardId || activePrompt?.semanticSourceCardId || '') === '17';
+    const carolynDestination = isCarolynDestination ? cloneOnlinePlain(command.payload.destination) : null;
     if(String(command?.type || '').toUpperCase() === 'ACTIVATE_EFFECT'){
       const sourceIid = String(command?.payload?.sourceIid || '');
       const source = phase7FindAnyCard(sourceIid) || phase7FindRawProjectedCard(phase7CurrentUiSession.view, sourceIid);
@@ -4073,6 +4080,11 @@
       });
     }
     const promise = phase7DispatchCommandAttempt(command, options).then(function(ok){
+      if(ok && carolynDestination){
+        const soundKey = ['carolyn-square', Number(carolynDestination.z), Number(carolynDestination.r), Number(carolynDestination.c)].join(':');
+        if(typeof window.playCarolynLockSfx === 'function') window.playCarolynLockSfx(soundKey);
+        else if(typeof window.playSfx === 'function') window.playSfx('carolynBlock');
+      }
       if(!ok && submittedPromptId && phase7CurrentUiSession.submittingPromptId === submittedPromptId){
         phase7CurrentUiSession.submittingPromptId = '';
         setTimeout(phase7SyncInteractionUi, 0);
@@ -5897,10 +5909,7 @@
     const hint = document.getElementById('act-hint');
     const localIndex = Number(view.playerIndex);
     if(prompt?.waitingForOpponent || handLimit?.waitingForOpponent){
-      if(prompt?.revealedCards?.length && phase7CurrentUiSession.pickerKey !== promptKey){
-        phase7CurrentUiSession.pickerKey = promptKey;
-        window.openLedgerArchive(prompt.revealedCards.map(phase7PresentationCard), {key:promptKey,readOnly:true});
-      }
+      if(typeof window.closeLedgerArchive === 'function') window.closeLedgerArchive();
       if(hint) hint.textContent = 'Waiting for your opponent to resolve an effect';
       if(typeof window.clearPlaceHighlights === 'function') window.clearPlaceHighlights();
       if(prompt?.type === 'REACTION') phase7ShowOpponentReactionWaiting(prompt);
@@ -5930,20 +5939,20 @@
       }else if(['BOARD_DESTINATION'].includes(prompt.type)){
         const sourceCard = phase7FindAnyCard(prompt?.sourceIid);
         const sourceId = String(sourceCard?.id || prompt?.sourceCardId || '');
-        const boardHighlightKind = sourceId === '04' ? 'zoe' : (sourceId === 'bh22' ? 'jaime' : '');
+        const boardHighlightKind = sourceId === '04' ? 'zoe' : (sourceId === '17' ? 'carolyn' : (sourceId === 'bh22' ? 'jaime' : ''));
         if(boardHighlightKind){
           const highlighted = commands.filter(function(command){ return !!command?.payload?.destination; });
           if(phase7CurrentUiSession.effectSquarePromptKey !== promptKey){
             phase7CurrentUiSession.effectSquarePromptKey = promptKey;
             const g = gameState();if(g)g._phase7EffectSquareKind=boardHighlightKind;
-            phase7BeginDestinationChoice(highlighted, boardHighlightKind === 'jaime' ? 'Jaime: choose a highlighted safe-row square' : 'Zoe: choose a highlighted square');
+            phase7BeginDestinationChoice(highlighted, boardHighlightKind === 'jaime' ? 'Jaime: choose a highlighted safe-row square' : (boardHighlightKind === 'carolyn' ? 'Carolyn: choose a highlighted empty square' : 'Zoe: choose a highlighted square'));
             highlighted.forEach(function(command){
               const destination=command?.payload?.destination;if(!destination)return;
               const cell=document.querySelector('#board .cell[data-z="'+Number(destination.z)+'"][data-r="'+Number(destination.r)+'"][data-c="'+Number(destination.c)+'"]');
-              if(cell)cell.classList.add('block-target-choice',boardHighlightKind === 'jaime' ? 'jaime-heal-choice' : 'zoe-block-choice');
+              if(cell)cell.classList.add('block-target-choice',boardHighlightKind === 'jaime' ? 'jaime-heal-choice' : (boardHighlightKind === 'carolyn' ? 'carolyn-block-choice' : 'zoe-block-choice'));
             });
           }
-          if(hint)hint.textContent=boardHighlightKind === 'jaime' ? 'Jaime: choose a highlighted safe-row square' : 'Zoe: choose a highlighted square';
+          if(hint)hint.textContent=boardHighlightKind === 'jaime' ? 'Jaime: choose a highlighted safe-row square' : (boardHighlightKind === 'carolyn' ? 'Carolyn: choose a highlighted empty square' : 'Zoe: choose a highlighted square');
           return;
         }
         const multi = commands.filter(function(command){ return Array.isArray(command?.payload?.destinations); });
@@ -6035,9 +6044,9 @@
           cards,
           Math.max(0, Number(prompt.min) || 0),
           Math.max(1, Number(prompt.max) || 1),
-          typeof window.getMultiplayerCardSelectionTitle === 'function'
+          prompt.title || (typeof window.getMultiplayerCardSelectionTitle === 'function'
             ? window.getMultiplayerCardSelectionTitle(source)
-            : (source?.name ? ('Resolve ' + source.name) : 'Resolve Effect'),
+            : (source?.name ? ('Resolve ' + source.name) : 'Resolve Effect')),
           Number(prompt.max || 1) === 1 ? 'selectedIid' : 'selectedIids'
         );
         phase7GuardOptionPrompt(promptKey, prompt);
@@ -6564,47 +6573,6 @@
           && String(event.from || '').toLowerCase() === 'deck'
           && String(event.to || '').toLowerCase() === 'hand');
     });
-    const chauffeurDraws = drawEvents.filter(function(entry){
-      return String(entry?.event?.semanticSourceCardId || '').toLowerCase() === 'bh10';
-    });
-    const chauffeurDiscards = events.filter(function(event){
-      return String(event?.type || '').toUpperCase() === 'CARD_DISCARDED'
-        && String(event?.reason || '').toUpperCase() === 'CHAUFFEUR_REDRAW';
-    });
-    const chauffeurRevealedByPlayer = new Map();
-    const buildChauffeurPreview = function(){
-      const preview = cloneOnlinePlain(view);
-      const drawIidsByPlayer = new Map();
-      chauffeurDraws.forEach(function(entry){
-        const event = entry.event || {};
-        const playerIndex = Number(event.playerIndex);
-        if(!drawIidsByPlayer.has(playerIndex)) drawIidsByPlayer.set(playerIndex, []);
-        drawIidsByPlayer.get(playerIndex).push(String(event.cardIid || ''));
-      });
-      drawIidsByPlayer.forEach(function(drawIids, playerIndex){
-        const projectedPlayer = preview?.state?.players?.[playerIndex];
-        if(!projectedPlayer) return;
-        const revealed = chauffeurRevealedByPlayer.get(playerIndex) || new Set();
-        const drawSet = new Set(drawIids);
-        if(Array.isArray(projectedPlayer.hand)){
-          projectedPlayer.hand = projectedPlayer.hand.filter(function(card){
-            const iid = String(card?.iid || '');
-            return !drawSet.has(iid) || revealed.has(iid);
-          });
-        }
-        const finalCount = Math.max(0, Number(view?.state?.players?.[playerIndex]?.handCount) || 0);
-        projectedPlayer.handCount = Math.max(0, finalCount - drawIids.length + revealed.size);
-      });
-      preview.presentationBatch = null;
-      return preview;
-    };
-    if(chauffeurDraws.length){
-      if(typeof window.showChauffeurRedrawBanner === 'function') {
-        window.showChauffeurRedrawBanner(chauffeurDiscards.length, chauffeurDraws.length);
-      }
-      phase7CommitCurrentView(buildChauffeurPreview(), 'Phase 7 Chauffeur redraw staging');
-      await phase7NextFrame();
-    }
     for(let drawIndex = 0; drawIndex < drawEvents.length; drawIndex += 1){
       const event = drawEvents[drawIndex].event;
       const drawSource = phase7PresentationCard(phase7FindAnyCard(event?.sourceIid))
@@ -6649,13 +6617,6 @@
       phase7RecordPresentationStage('draw:start', drawStageDetails);
       window.fatePhase7PresentationAudit?.draws?.push(Object.assign({at:Date.now(), stage:'start'}, drawStageDetails));
       if(drawMotionStarted) await phase7WaitForPresentationIdle({minQuietMs:70, timeoutMs:3600});
-      if(String(event?.semanticSourceCardId || '').toLowerCase() === 'bh10'){
-        const ownerReveals = chauffeurRevealedByPlayer.get(owner) || new Set();
-        ownerReveals.add(String(event.cardIid || ''));
-        chauffeurRevealedByPlayer.set(owner, ownerReveals);
-        phase7CommitCurrentView(buildChauffeurPreview(), 'Phase 7 Chauffeur sequential draw reveal');
-        await phase7NextFrame();
-      }
       phase7RecordPresentationStage('draw:end', drawStageDetails);
       window.fatePhase7PresentationAudit?.draws?.push(Object.assign({at:Date.now(), stage:'end'}, drawStageDetails));
     }
@@ -6835,7 +6796,8 @@
         }else if(targetLocation?.zone === 'hand' && fx && typeof fx.sendHandCardToDiscard === 'function'){
           resultMotionStarted = !!fx.sendHandCardToDiscard(target, targetLocation.playerIndex, targetLocation.index) || resultMotionStarted;
         }
-        if(typeof window.playSfx === 'function') window.playSfx('discard');
+        if(typeof window.playDiscardSfx === 'function') window.playDiscardSfx({count:1});
+        else if(typeof window.playSfx === 'function') window.playSfx('discard');
         return;
       }
       if(type === 'CARD_TRANSFERRED'
@@ -7386,6 +7348,16 @@
     return true;
   }
 
+  function phase7PresentNewCarolynSquares(previous, next){
+    const key = block => [Number(block.z),Number(block.r),Number(block.c)].join(':');
+    const existing = new Set((previous.blockedCells || []).filter(b=>b.type==='carolyn').map(key));
+    for(const block of next.blockedCells || []){
+      if(block.type !== 'carolyn' || existing.has(key(block))) continue;
+      const soundKey = 'carolyn-square:' + key(block);
+      if(typeof window.playCarolynLockSfx === 'function') window.playCarolynLockSfx(soundKey);
+      else if(typeof window.playSfx === 'function') window.playSfx('carolynBlock');
+    }
+  }
   function phase7CommitCurrentView(view, reason){
     if(!view?.state || !Number.isInteger(Number(view.playerIndex))) return false;
     const previousView = phase7CurrentUiSession.view;
@@ -7447,7 +7419,13 @@
     // Mark authority before rendering the projection. Shared rendering calls
     // enforceHandLimit(), which must not open the legacy client-owned modal.
     g._phase7CurrentMultiplayer = true;
+    const previousSquareState = {blockedCells:cloneOnlinePlain(g.blockedCells || [])};
+    const hadCurrentBoard = !!g._phase7PendingPrompt || !!phase7CurrentUiSession.committedCarolynMatch;
     const applied = applyOnlineCanonicalState(legacy, reason || 'Phase 7 current UI snapshot', null);
+    if(applied && hadCurrentBoard && phase7CurrentUiSession.committedCarolynMatch === String(view.state.matchId || '')){
+      phase7PresentNewCarolynSquares(previousSquareState, legacy);
+    }
+    phase7CurrentUiSession.committedCarolynMatch = String(view.state.matchId || '');
     if(typeof window.releaseMoralePresentationHold === 'function'){
       window.releaseMoralePresentationHold(view.state.moralePressure || null);
     }
@@ -10120,7 +10098,13 @@
     }) : [];
     return {
       board:collectOnlineBoardSnapshot(g?.board),
-      players
+      players,
+      blockedCells:(Array.isArray(g?.blockedCells) ? g.blockedCells : []).map(function(block){
+        return {
+          z:Number(block?.z), r:Number(block?.r), c:Number(block?.c),
+          type:String(block?.type || ''), owner:Number(block?.owner)
+        };
+      })
     };
   }
   const shownOnlinePresentationEventKeys = new Set();
@@ -10329,14 +10313,9 @@
   function playOnlineRemoteRemovalAudio(count, options){
     if(count <= 0) return;
     const isConsolidation = !!(options && options.consolidation);
-    const max = Math.min(Number(count) || 0, 4);
-    for(let i = 0; i < max; i++){
-      setTimeout(function(){
-        if(typeof window.playDiscardSfx === 'function') window.playDiscardSfx();
-        else if(typeof window.playSfx === 'function') window.playSfx('discard');
-        if(isConsolidation && i === 0 && typeof window.playSfx === 'function') setTimeout(function(){ window.playSfx('debuff'); }, 70);
-      }, i * 90);
-    }
+    if(typeof window.playDiscardSfx === 'function') window.playDiscardSfx({count:Number(count) || 1});
+    else if(typeof window.playSfx === 'function') window.playSfx('discard');
+    if(isConsolidation && typeof window.playSfx === 'function') setTimeout(function(){ window.playSfx('debuff'); }, 70);
   }
   function maybePlayOnlineRemotePileAudio(g, previousSnapshot, action, reason){
     if(!g || !previousSnapshot || !isRemoteOnlineAction(action) || typeof window.playSfx !== 'function') return false;
@@ -10370,7 +10349,7 @@
     if(discardDelta > 0){
       setTimeout(function(){
         if(!emitOnlineAcceptedPresentation('HAND_DISCARD', {count:discardDelta}, action, 'hand-discard')){
-          if(typeof window.playDiscardSfx === 'function') window.playDiscardSfx();
+          if(typeof window.playDiscardSfx === 'function') window.playDiscardSfx({count:discardDelta});
           else if(typeof window.playSfx === 'function') window.playSfx('discard');
         }
       }, handDelta > 0 ? 120 : 0);
@@ -10442,6 +10421,18 @@
   function maybePlayOnlineRemoteStatePresentation(g, previousSnapshot, action, reason){
     if(!g || !previousSnapshot) return false;
     const isRemote = isRemoteOnlineAction(action);
+    const previousCarolynLocks = new Set((previousSnapshot.blockedCells || []).filter(function(block){
+      return block && block.type === 'carolyn';
+    }).map(function(block){ return [block.z, block.r, block.c].join(':'); }));
+    const newCarolynLock = (Array.isArray(g.blockedCells) ? g.blockedCells : []).find(function(block){
+      return block && block.type === 'carolyn' && !previousCarolynLocks.has([Number(block.z), Number(block.r), Number(block.c)].join(':'));
+    });
+    if(newCarolynLock && typeof window.playSfx === 'function'){
+      const lockKey = ['carolyn-square', Number(newCarolynLock.z), Number(newCarolynLock.r), Number(newCarolynLock.c)].join(':');
+      if(typeof window.playCarolynLockSfx === 'function') window.playCarolynLockSfx(lockKey);
+      else if(typeof window.playFateSfxOnce === 'function') window.playFateSfxOnce('carolynBlock', lockKey, 700);
+      else window.playSfx('carolynBlock');
+    }
     // Explicit overlays and inferred Fate feedback intentionally begin together.
     // A flash event must never suppress the state-delta animation.
     const explicitPresentationShown = maybeShowOnlinePresentationEvents(action);

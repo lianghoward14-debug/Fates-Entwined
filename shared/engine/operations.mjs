@@ -374,9 +374,10 @@ function setCard(ctx, operation){
       });
     }
   }
-  if(operation.countTowardSupporterLimit === true && !defenseInDepthStatus){
+  if(operation.countTowardSupporterLimit === true && !defenseInDepthStatus && !card.counters.chauffeurFreeSet){
     ctx.state.supportersSetThisTurn[playerIndex] += 1;
   }
+  delete card.counters.chauffeurFreeSet;
   emit(ctx, {
     type:RULE_EVENT_TYPES.CARD_SET,
     playerIndex,
@@ -1315,6 +1316,12 @@ function setCardCounter(ctx, operation){
   }
   if(!entry.card.counters || typeof entry.card.counters !== 'object') entry.card.counters = {};
   entry.card.counters[counterKey] = value;
+  if(counterKey === 'doubleNextMoraleDamage' && value === true && ctx.state.moralePressure){
+    const system = ctx.state.moralePressure;
+    const owner = controllerOf(entry.card);
+    system.pendingBladeDance ??= [0, 0];
+    system.pendingBladeDance[owner] += 1;
+  }
   ctx.events.push({
     type:'CARD_COUNTER_SET',
     cardIid:entry.card.iid,
@@ -2082,43 +2089,6 @@ function gainZoneFateDifference(ctx, operation){
   return {zone, ownFate, opponentFate, amount};
 }
 
-function redrawHand(ctx, operation){
-  const playerIndex = Number(operation.playerIndex);
-  const player = ctx.state.players[playerIndex];
-  if(!player) throw operationError('PLAYER_NOT_FOUND', 'Chauffeur controller is invalid');
-  const sourceCard = cardSource(ctx, operation);
-  const snapshot = player.hand.map(card=>String(card.iid));
-  const discardedIids = [];
-  for(const targetIid of snapshot){
-    const entry = findCard(ctx.state, targetIid);
-    if(!entry || entry.zone !== 'hand' || Number(entry.playerIndex) !== playerIndex) continue;
-    const discardOperation = {
-      type:OPERATION_TYPES.DISCARD_CARD,
-      targetIid,
-      sourceIid:operation.sourceIid || null,
-      sourceController:Number(operation.sourceController),
-      semanticSourceCardId:operation.semanticSourceCardId,
-      reason:'CHAUFFEUR_REDRAW'
-    };
-    const check = inspectOperation(ctx.state, {...discardOperation, sourceCard});
-    if(!check.ok) continue;
-    discardCard(ctx, discardOperation);
-    if(!player.hand.some(card=>String(card.iid) === targetIid)) discardedIids.push(targetIid);
-  }
-  const drawResult = discardedIids.length
-    ? drawCards(ctx, {
-        type:OPERATION_TYPES.DRAW_CARD,
-        playerIndex,
-        count:discardedIids.length,
-        activatedEffect:true,
-        sourceIid:operation.sourceIid || null,
-        sourceController:Number(operation.sourceController),
-        semanticSourceCardId:operation.semanticSourceCardId || 'bh10'
-      })
-    : {drawnIids:[]};
-  return {discardedIids, drawnIids:drawResult.drawnIids};
-}
-
 function captureBoardFateState(state){
   const snapshot = new Map();
   for(const entry of boardEntries(state)){
@@ -2220,7 +2190,6 @@ function dispatchOperation(ctx, operation){
     case OPERATION_TYPES.RANDOM_TRANSFER_CARDS: return randomTransferCards(ctx, operation);
     case OPERATION_TYPES.SPLIT_FATE_LOSS_BY_TYPE: return splitFateLossByType(ctx, operation);
     case OPERATION_TYPES.GAIN_ZONE_FATE_DIFFERENCE: return gainZoneFateDifference(ctx, operation);
-    case OPERATION_TYPES.REDRAW_HAND: return redrawHand(ctx, operation);
     case OPERATION_TYPES.CHANGE_LANDSCAPE: return changeLandscape(ctx, operation);
     case OPERATION_TYPES.SET_MAX_TURNS: return setMaxTurns(ctx, operation);
     case OPERATION_TYPES.MODIFY_PRESSURE: return modifyCardPressure(ctx, operation);

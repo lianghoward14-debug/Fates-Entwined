@@ -7,7 +7,6 @@ function promptProjection(prompt, viewerIndex){
     promptId:prompt.promptId,
     type:prompt.type,
     playerIndex:prompt.playerIndex,
-    ...(prompt.ordered ? {revealedCards:cloneSerializable(prompt.eligibleCards)} : {}),
     waitingForOpponent:true
   };
 }

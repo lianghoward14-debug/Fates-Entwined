@@ -246,7 +246,7 @@ function betaQueueOpponent(entry){
 function completeBetaQueueMatch(queued){
   if(queued.queueMode==='warfront'&&!flyDataApi?.warfrontCanQueue(queued.matchmakingKey))return null;
   const ai=queued.queueMode==='warfront'?flyDataApi?.warfrontAiOpponent(queued.matchmakingKey,queued.authUid||queued.uid):null;
-  const opponent = ai ? {...queued,uid:ai.uid,name:ai.name,photoURL:ai.photo,rankElo:ai.elo,deckIds:warfrontAiDeck(),isAI:true} : betaQueueOpponent(queued);
+  const opponent = ai ? {...queued,uid:ai.uid,name:ai.name,photoURL:ai.photo,rankElo:ai.elo,deckIds:warfrontAiDeck(ai),isAI:true} : betaQueueOpponent(queued);
   if(!opponent) return null;
   const matchId = `BETA_${Date.now().toString(36)}_${crypto.randomBytes(5).toString('hex')}`;
   const gameSettings = resolvePhase7GameSettings(opponent.gameSettings, matchId);

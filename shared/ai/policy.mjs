@@ -29,17 +29,26 @@ export function planDecision(commands,projection,context={}){
       if(protectedChoices.length)candidates=protectedChoices;
     }
   }
-  // Each sample uses the same root candidates, allowing like-for-like estimates.
-  let rootCommands=null;
-  for(let sample=0;sample<samples;sample++){
-    const world=sampleWorld(state,player,sample);
-    if(!rootCommands){
-      const priority=createCommandOrderer(world,player);
-      const ranked=candidates.map(command=>({command,priority:priority(command)}))
-        .sort((a,b)=>b.priority-a.priority).map(item=>item.command);
-      const requestedWidth=integer(context.width,12,2,32);
-      rootCommands=diverseCommands(ranked,Math.min(requestedWidth,Math.max(2,Math.floor(nodeBudget/12))));
-    }
+  // Consider candidates across every plausible world before pruning. A move
+  // useful against a threat in sample two must not disappear because the
+  // first sampled opponent hand happened to contain no such threat.
+  const worlds=Array.from({length:samples},(_,sample)=>sampleWorld(state,player,sample));
+  const orderers=worlds.map(world=>createCommandOrderer(world,player));
+  const priorities=new Map(candidates.map(command=>[command,orderers.map(order=>order(command))]));
+  const ranked=candidates.map(command=>{
+    const values=priorities.get(command);
+    return {command,priority:values.reduce((a,b)=>a+b,0)/values.length};
+  }).sort((a,b)=>b.priority-a.priority).map(item=>item.command);
+  const requestedWidth=integer(context.width,12,2,32);
+  const width=Math.min(requestedWidth,Math.max(2,Math.floor(nodeBudget/12)));
+  const rootCommands=diverseCommands(ranked,width);
+  // Reserve up to one slot per other sampled world for its best omitted
+  // action. All retained actions still receive equal cross-world evaluation.
+  for(let i=1;i<orderers.length && i<rootCommands.length-1;i++){
+    const best=candidates.reduce((best,c)=>!best || priorities.get(c)[i]>priorities.get(best)[i]?c:best,null);
+    if(best && !rootCommands.includes(best))rootCommands[rootCommands.length-i]=best;
+  }
+  for(const world of worlds){
     results.push(searchWorld(world,player,{nodeBudget,maxSteps:20,width:rootCommands.length || 1,rootCommands,personality}));
   }
   const aggregate=new Map();
@@ -81,7 +90,17 @@ export function chooseCommand(commands,projection,context={}){
   // Deliberately replan after every resolution, even if the previous intended
   // command remains legal. Legality does not prove a combo is still worthwhile.
   if(context.planCache)context.planCache.sequence=[];
-  const plan=planDecision(commands,projection,context);
+  let plan=planDecision(commands,projection,context);
+  // Passing is irreversible for this turn. Verify a shallow pass with a
+  // larger bounded search, preserving every strategic target restriction.
+  if(plan?.command?.type==='END_TURN' && context.canonicalState && !context.canonicalState.pendingPrompt
+    && commands.some(c=>['SET_CARD','SET_CARD_FROM_DECK','CONSOLIDATE_CARD','ACTIVATE_EFFECT','SET_ADAPTIVE_TOKEN','FLIP_CARD'].includes(c.type))){
+    const currentBudget=Number(context.nodeBudget) || (context.difficulty==='easy'?240:context.difficulty==='extreme'?960:600);
+    if(currentBudget<600){
+      const checked=planDecision(commands,projection,{...context,nodeBudget:600,width:Math.max(12,Number(context.width)||0),onDecision:undefined,onPlanEvaluated:undefined});
+      if(checked)plan=checked;
+    }
+  }
   if(plan)return plan.command;
   if(projection?.board && projection?.players){
     const visible={...projection,players:projection.players.map(p=>({...p,hand:p.hand || [],deck:[],discard:p.discard || []}))};

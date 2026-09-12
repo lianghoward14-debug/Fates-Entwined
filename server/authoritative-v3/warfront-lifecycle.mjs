@@ -1,5 +1,20 @@
 import {assignWarfrontCommanderProfiles} from './warfront-commanders.mjs';
 export const WARFRONT_PHASE_MS = 24 * 60 * 60 * 1000;
+const AI_SCHEDULE_VERSION = 2;
+
+export function scheduleWarfrontAI(event, now){
+  const zones=(event.zones || []).filter(z=>z.a?.isAI && z.b?.isAI);
+  const slots=[];
+  // Interleave fronts, rather than giving each front independent random times.
+  for(let index=0;index<5;index++)for(const zone of zones){
+    if(index>=warfrontPlayed(zone))slots.push({zone,index});
+  }
+  const remaining=Math.max(0,Number(event.endsAt)-now);
+  const interval=Math.min(WARFRONT_PHASE_MS/25,remaining/Math.max(1,slots.length));
+  for(const zone of zones)zone.aiSchedule=[];
+  slots.forEach(({zone,index},i)=>{zone.aiSchedule[index]=now+Math.floor((i+1)*interval);});
+  event.aiScheduleVersion=AI_SCHEDULE_VERSION;
+}
 
 export function warfrontPlayed(zone){
   return (zone.matches || []).filter(match=>!match.voidedByForfeit)
@@ -20,23 +35,31 @@ export function startWarfrontBattle(event, now, random = Math.random){
         isAI:true, elo:600, joinedAt:now
       };
     }
-    // One random instant in each fifth of the day prevents a single burst.
-    zone.aiSchedule = event.humanOnly !== true && zone.a?.isAI && zone.b?.isAI
-      ? Array.from({length:5}, (_, index)=>now + Math.floor((index + .1 + random() * .8) * WARFRONT_PHASE_MS / 5))
-      : [];
+    zone.aiSchedule = [];
   }
+  scheduleWarfrontAI(event,now);
   assignWarfrontCommanderProfiles(event);
   return event;
 }
 
 export function warfrontDueMatch(event, now){
   if(event?.status !== 'active' || event.humanOnly === true) return null;
+  if(event.aiScheduleVersion!==AI_SCHEDULE_VERSION)scheduleWarfrontAI(event,now);
+  let earliest=null;
+  for(const zone of event.zones){
+    const index=warfrontPlayed(zone);
+    if(index<5 && zone.a?.isAI && zone.b?.isAI && !Number.isFinite(Number(zone.aiSchedule?.[index]))){
+      zone.aiSchedule ||= [];
+      for(let slot=index;slot<5;slot++)zone.aiSchedule[slot]=now+(slot-index)*WARFRONT_PHASE_MS/25;
+    }
+    if(Number(zone.aiRetryAt||0)>now)continue;
+    const at=Number(zone.aiSchedule?.[index]);
+    if(index<5 && !zone.activeMatch && zone.a?.isAI && zone.b?.isAI && at<=now && (!earliest || at<earliest.at))earliest={zone,index,deadline:false,at};
+  }
+  if(earliest){const {at,...due}=earliest;return due;}
   for(const zone of event.zones){
     const index = warfrontPlayed(zone);
     if(index >= 5 || zone.activeMatch) continue;
-    if(zone.a?.isAI && zone.b?.isAI && Number(zone.aiSchedule?.[index]) <= now){
-      return {zone, index, deadline:false};
-    }
     // Human fronts are untouched until the battle deadline. Only unplayed
     // slots receive an administrative random result; real results survive.
     if(now >= event.endsAt && (zone.a?.isAI || zone.b?.isAI)){
@@ -67,7 +90,7 @@ export function relocateWarfrontAI(event){
     const zone=event.zones.find(z=>available(z)&&warfrontPlayed(z)<5)||event.zones.find(available);
     if(!zone){i++;continue;}
     zone[team]=player;event.waitingAI.splice(i,1);
-    if(zone.a?.isAI&&zone.b?.isAI&&!zone.aiSchedule?.length)zone.aiSchedule=Array.from({length:5},(_,n)=>Date.now()+(n+1)*Math.max(1000,(event.endsAt-Date.now())/5));
+    if(zone.a?.isAI&&zone.b?.isAI&&!zone.aiSchedule?.length)scheduleWarfrontAI(event,Date.now());
   }
 }
 export function releaseWarfrontPlayers(event,zone,binding,matchId){

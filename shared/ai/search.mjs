@@ -4,6 +4,7 @@ import {createCommandOrderer} from './ordering.mjs';
 import {filterAiTargets} from './targeting.mjs';
 import {personalityFor} from './personality.mjs';
 import {completeContinuation} from './continuation.mjs';
+import {turnActionHorizon} from './turn-horizon.mjs';
 
 export function diverseCommands(commands, limit) {
   const buckets = new Map();
@@ -75,7 +76,7 @@ export function searchWorld(world, player, {nodeBudget=480,maxSteps=16,width=6,r
     const resolving=!!(state.pendingPrompt || state.pendingHandLimit);
     // Complete each hypothetical turn so a long solitaire sequence cannot
     // consume the entire horizon before any opponent reply is considered.
-    if(steps>0 && !resolving && turnActions>=4){
+    if(steps>0 && !resolving && turnActions>=turnActionHorizon(legal)){
       const end=legal.find(c=>c.type==='END_TURN');
       if(end)legal=[end];
     }
@@ -90,6 +91,7 @@ export function searchWorld(world, player, {nodeBudget=480,maxSteps=16,width=6,r
       : diverseCommands(ranked,Math.min(branchWidth*3,Math.max(1,Math.floor(budget/3))));
     trace.pruned+=legal.length-candidates.length;
     const children=[];
+    const settlementBudget=Math.min(12,Math.max(0,Math.floor((budget-candidates.length)/Math.max(1,candidates.length*2))));
     for (const command of candidates) {
       budget--;
       const payload=command.manualOnly === true
@@ -102,11 +104,21 @@ export function searchWorld(world, player, {nodeBudget=480,maxSteps=16,width=6,r
       trace.simulated++;
       if(current!==player)trace.opponentSimulations++;
       if(state.pendingPrompt || state.pendingHandLimit)trace.resolutionSimulations++;
-      children.push({command,executableCommand:payload === command.payload ? command : {...command,payload},state:result.state,score:evaluate(result.state)});
+      let childState=result.state,settlement=[];
+      // Compare resolved effects, not the cost paid before their target or
+      // search picker. Opponent reactions are chosen by their own controller.
+      if(settlementBudget>0 && (childState.pendingPrompt || childState.pendingHandLimit)){
+        const resolved=completeContinuation(childState,player,{budget:Math.min(budget,settlementBudget),personality,maxSteps:Math.max(1,maxSteps-steps-1),resolutionOnly:true});
+        const spent=resolved.trace.simulated+resolved.trace.rejected;
+        budget-=spent;
+        for(const key of ['simulated','rejected','opponentSimulations','resolutionSimulations'])trace[key]+=resolved.trace[key];
+        childState=resolved.state;settlement=resolved.principalVariation;
+      }
+      children.push({command,executableCommand:payload === command.payload ? command : {...command,payload},state:childState,settlement,score:evaluate(childState)});
     }
     children.sort((a,b)=>(maximizing?b.score-a.score:a.score-b.score)||stableStringify(a.command).localeCompare(stableStringify(b.command)));
     if(children[0]?.state.outcome && (maximizing ? children[0].score>=1e6 : children[0].score<=-1e6)){
-      const alternatives=children.map(child=>({command:child.command,score:child.score,principalVariation:[{player:current,command:child.executableCommand}]}));
+      const alternatives=children.map(child=>({command:child.command,score:child.score,principalVariation:[{player:current,command:child.executableCommand},...child.settlement]}));
       return {...alternatives[0],alternatives:steps===0?alternatives:undefined};
     }
     const selectedCommands=children.slice(0,steps===0 ? children.length : branchWidth).map(c=>c.command);
@@ -138,8 +150,8 @@ export function searchWorld(world, player, {nodeBudget=480,maxSteps=16,width=6,r
       const child=selected[index];
       const share=Math.floor(budget/selected.length)+(index<budget%selected.length?1:0);
       const nextActions=child.state.turn!==state.turn?0:turnActions+(resolving?0:1);
-      const tail=visit(child.state,steps+1,share,nextActions);
-      alternatives.push({command:child.command,score:tail.score,principalVariation:[{player:current,command:child.executableCommand},...tail.principalVariation]});
+      const tail=visit(child.state,steps+1+child.settlement.length,share,nextActions);
+      alternatives.push({command:child.command,score:tail.score,principalVariation:[{player:current,command:child.executableCommand},...child.settlement,...tail.principalVariation]});
     }
     alternatives.sort((a,b)=>(maximizing?b.score-a.score:a.score-b.score)||stableStringify(a.command).localeCompare(stableStringify(b.command)));
     return alternatives.length ? {...alternatives[0],alternatives:steps===0?alternatives:undefined} : {score,principalVariation:[]};

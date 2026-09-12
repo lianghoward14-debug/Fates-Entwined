@@ -1,11 +1,15 @@
 import {boardEntries,controllerOf} from '../engine/selectors.mjs';
+import {filterComboPlan} from './combo-plan.mjs';
+import {filterArchiveExpansionTargets} from './archive-expansion-heuristics.mjs';
 import {canUseAsConsolidationTribute,effectiveConsolidationCost,isEffectSourceSuppressed} from '../engine/modifiers.mjs';
 // Strategic restrictions belong to the AI, not the game's legal rules.
 export function filterAiTargets(commands,state,player){
+  commands=filterArchiveExpansionTargets(commands,state,player);
   commands=chooseWintertideSearch(commands,state,player);
   commands=keepPatienceBurstTogether(commands,state,player);
   commands=keepIndieBurstTogether(commands,state,player);
   commands=keepAssaultHoplitesTogether(commands,state,player);
+  commands=filterComboPlan(commands,state,player);
   const prompt=state.pendingPrompt;
   if(!prompt || Number(prompt.playerIndex)!==player)return commands;
   const board=state.board.flat(3).filter(Boolean);
@@ -39,7 +43,7 @@ function chooseWintertideSearch(commands,state,player){
   if(!['100','82','84','88','92'].every(id=>all.some(c=>c.id===id)))return commands;
   const source=all.find(c=>c.iid===prompt.sourceIid);
   if(source?.id!=='84')return commands;
-  const needsSnow=state.landscapeId!=='igb15' && !hand.some(c=>c.id==='82') && !own.some(e=>e.card.id==='82');
+  const needsSnow=state.landscapeId!=='igb15' && !hand.some(c=>c.id==='82' || c.id==='91') && !own.some(e=>e.card.id==='82');
   // Secure the one landscape setter, then use each further search to create
   // Taylor copies. A naturally drawn setter satisfies this reservation.
   const desired=needsSnow?'82':!hand.some(c=>c.id==='bh05')?'bh05':null;

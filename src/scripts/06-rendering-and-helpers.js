@@ -505,6 +505,7 @@ function isElectronCardImageRuntime() {
   }
 }
 function getRuntimeCardImageSrc(src, role) {
+  if(/^bh10\.png(?:[?#]|$)/.test(String(src||'')))return src;
   if(!src) return src;
   const raw = String(src);
   const m = raw.match(/^([A-Za-z0-9_-]+)\.png([?#].*)?$/);
@@ -4789,7 +4790,7 @@ function canPlayCard(card) {
     && isSupporterHardCapReached(card.owner)) return false;
   if(typeof isAchillesAdaptiveToken === 'function' && isAchillesAdaptiveToken(card)) return true;
   // Lina free-set: always playable
-  if(G._linaFreeIids && G._linaFreeIids.has(card.iid)) return true;
+  if(card.counters?.chauffeurFreeSet || (G._linaFreeIids && G._linaFreeIids.has(card.iid))) return true;
   if(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, card.owner) : card.type==='Supporter') {
     const defenseInDepthReady = (Array.isArray(G._bh24DefenseInDepth)
       && G._bh24DefenseInDepth[card.owner]
@@ -4813,7 +4814,7 @@ function isSupporterLimitReachedForCard(card) {
   if(!(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, card.owner) : card.type === 'Supporter')) return false;
   if(typeof isAchillesAdaptiveToken === 'function' && isAchillesAdaptiveToken(card)) return false;
   if(G.phase !== 'main') return false;
-  if(G._linaFreeIids && G._linaFreeIids.has(card.iid)) return false;
+  if(card.counters?.chauffeurFreeSet || (G._linaFreeIids && G._linaFreeIids.has(card.iid))) return false;
   if(G.majaEffectThisTurn) return false;
   const defenseInDepthReady = (Array.isArray(G._bh24DefenseInDepth)
     && G._bh24DefenseInDepth[card.owner]
@@ -6373,6 +6374,9 @@ function renderTopbarEffects() {
     const active=card._doubleNextMoraleDamage===true||card.counters?.doubleNextMoraleDamage===true;
     if(active&&(card.owner===0||card.owner===1))duelistByOwner[card.owner]++;
   });
+  if(G._moralePressure?.pendingBladeDance){
+    [0,1].forEach(function(owner){duelistByOwner[owner]=G._moralePressure.pendingBladeDance[owner]||0;});
+  }
   const duelistCard=CARDS.find(c=>c.id==='64');
   [0,1].forEach(function(owner){
     const count=duelistByOwner[owner];if(!count)return;
@@ -10065,24 +10069,6 @@ function showEffectNegatedBanner(msg) {
   setTimeout(()=>flash.remove(), 1550);
 }
 
-function showChauffeurRedrawBanner(discardedCount, drawCount) {
-  const discarded = Math.max(0, Number(discardedCount) || 0);
-  const drawn = Math.max(0, Number(drawCount) || 0);
-  document.querySelectorAll('.chauffeur-redraw-banner').forEach(function(existing){ existing.remove(); });
-  const banner = document.createElement('div');
-  banner.className = 'chauffeur-redraw-banner';
-  banner.setAttribute('role', 'status');
-  banner.setAttribute('aria-live', 'polite');
-  banner.innerHTML = '<span class="chauffeur-redraw-kicker">CHAUFFEUR</span>' +
-    '<span class="chauffeur-redraw-copy">' + discarded + ' card' + (discarded === 1 ? '' : 's') +
-    ' discarded &mdash; ' + drawn + ' card' + (drawn === 1 ? '' : 's') + ' will be drawn</span>';
-  document.body.appendChild(banner);
-  requestAnimationFrame(function(){ banner.classList.add('is-visible'); });
-  setTimeout(function(){ banner.classList.remove('is-visible'); }, 3000);
-  setTimeout(function(){ banner.remove(); }, 3380);
-  return banner;
-}
-window.showChauffeurRedrawBanner = showChauffeurRedrawBanner;
 
 function showEffectFlash(card) {
   return;

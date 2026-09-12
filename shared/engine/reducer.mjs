@@ -644,7 +644,7 @@ function activationReactionOptions(state, frame){
   const options = [];
   const opponent = frame.controller === 0 ? 1 : 0;
   for(const entry of boardEntries(state)){
-    if(controllerOf(entry.card) !== opponent) continue;
+    if(controllerOf(entry.card) !== opponent || entry.card.faceDown === true || isEffectSourceSuppressed(state, entry)) continue;
     const rule = cardRule(entry.card.id, state);
     if(rule?.reactionKind === 'LYDIA' && reactionUses(entry.card) < Number(rule.maxUses || 0)){
       options.push({reactionIid:entry.card.iid, kind:'LYDIA', modes:['NEGATE']});
@@ -659,7 +659,7 @@ function activationReactionOptions(state, frame){
     }
   }
   const sourceRule = cardRule(frame.sourceCardId, state);
-  if(sourceRule?.havanoTargeting === 'OPPONENT'
+  if((sourceRule?.havanoTargeting === 'OPPONENT' || (frame.kind === 'COPIED_CARD_EFFECT' && sourceRule?.havanoPassiveEntry === true))
     && Number(state.supportersSetForCapThisTurn?.[opponent] || 0) < MAX_SUPPORTERS_SET_PER_TURN){
     for(const card of state.players[opponent].hand){
       if(cardRule(card.id, state)?.reactionKind === 'HAVANO'){
@@ -671,6 +671,8 @@ function activationReactionOptions(state, frame){
 }
 
 function targetReactionOptions(state, frame, operation){
+  // Empowerment stays non-reactable even when an opposing card is selected.
+  if(cardRule(frame.sourceCardId, state)?.havanoTargeting === 'NONE') return [];
   const target = findCard(state, operation.targetIid || operation.cardIid);
   const explicitTargetController = Number(operation.targetPlayerIndex);
   const targetController = target
@@ -778,7 +780,19 @@ function openInstructionPrompt(state, frame, instruction, ctx){
     frame.instructionIndex = frame.program.length;
     return true;
   };
+  if(instruction.kind === 'SELECT_SUPPORTER_CATALOG'){
+    const cards = state.cardCatalog.filter(card=>card.type === 'Supporter');
+    if(!cards.length){frame.instructionIndex=frame.program.length;return false;}
+    frame.waitingFor='CARD_SELECTION';
+    state.pendingPrompt={promptId:nextId(state,'prompt'),type:PROMPT_TYPES.CARD_SELECTION,
+      playerIndex:frame.controller,sourceIid:frame.sourceIid,local:instruction.local,
+      eligibleIids:cards.map(card=>card.id),eligibleCards:cards.map(card=>({...cloneSerializable(card),iid:card.id})),
+      min:1,max:1,cancellable:true,cancelBehavior:'END_EFFECT',timeoutPolicy:'FIRST_ELIGIBLE',
+      title:'Chauffeur — Supporter Catalog',prompt:'Choose a Supporter to add to your hand. Its next set ignores the ordinary Supporter limit, but obeys the global cap.'};
+    return true;
+  }
   if(instruction.kind === 'CHOOSE_OPTION'){
+
     const options = (instruction.options || []).map(option=>
       typeof option === 'object'
         ? {
@@ -873,7 +887,7 @@ function openInstructionPrompt(state, frame, instruction, ctx){
     if(instruction.reorderTopCount){
       state.pendingPrompt.ordered = true;
       state.pendingPrompt.cancellable = false;
-      ctx.events.push({type:'DECK_TOP_REVEALED', playerIndex:frame.controller,
+      ctx.events.push({type:'DECK_TOP_REVEALED', playerIndex:frame.controller, privateTo:[frame.controller],
         sourceIid:frame.sourceIid, cards:cloneSerializable(state.pendingPrompt.eligibleCards)});
     }
     if(instruction.title) state.pendingPrompt.title = String(instruction.title);
@@ -1178,7 +1192,21 @@ function runEffectStack(state, ctx){
       }
       continue;
     }
+    if(instruction.kind === 'CREATE_CHAUFFEUR_SUPPORTER'){
+      const id=String(resolveValue(instruction.cardId,frame));
+      const definition=state.cardCatalog.find(card=>card.id===id && card.type==='Supporter');
+      if(!definition)throw Object.assign(new Error('Invalid Supporter catalog choice'),{code:'INVALID_CHOICE'});
+      state.instanceCounter+=1;
+      const card={...cloneSerializable(definition),iid:state.matchId+':p'+frame.controller+':c'+state.instanceCounter,
+        baseFate:definition.fate,currentFate:definition.fate,owner:frame.controller,controller:frame.controller,
+        faceDown:false,statuses:[],counters:{chauffeurFreeSet:true}};
+      state.players[frame.controller].hand.push(card);
+      ctx.events.push({type:'CARD_CREATED',cardIid:card.iid,playerIndex:frame.controller,sourceIid:frame.sourceIid,reason:'CHAUFFEUR_CATALOG',privateTo:[frame.controller]});
+      frame.instructionIndex+=1;
+      continue;
+    }
     if(instruction.kind === 'COPY_EFFECT'){
+
       const selectedIid = resolveValue(instruction.cardIid, frame);
       const selected = findCard(state, selectedIid)?.card;
       const source = findBoardCard(state, frame.sourceIid)?.card;
@@ -1201,8 +1229,8 @@ function runEffectStack(state, ctx){
         copiedFromIid:selected.iid
       });
       frame.instructionIndex += 1;
-      if(instruction.execute !== false && copiedRule.program){
-        state.effectStack.push({
+      if(instruction.execute !== false && (copiedRule.program || copiedRule.havanoPassiveEntry)){
+        const copiedFrame = {
           frameId:nextId(state, 'frame'),
           kind:'COPIED_CARD_EFFECT',
           sourceIid:source.iid,
@@ -1213,9 +1241,15 @@ function runEffectStack(state, ctx){
           instructionIndex:0,
           waitingFor:null,
           locals:{},
-          program:cloneSerializable(copiedRule.program),
+          program:cloneSerializable(copiedRule.program || []),
           originalCommandId:frame.originalCommandId
-        });
+        };
+        state.effectStack.push(copiedFrame);
+        const reactions = activationReactionOptions(state, copiedFrame).filter(option=>option.kind === 'HAVANO');
+        if(reactions.length){
+          openReactionPrompt(state, copiedFrame, reactions, copiedRule.havanoPassiveEntry ? 'PASSIVE_TARGET' : 'ACTIVATION');
+          return;
+        }
       }
       continue;
     }
@@ -2332,7 +2366,7 @@ function performCommand(state, ctx, command, actorIndex, options){
       );
     if(!isPierogi
       && !isWhisperToken
-      && (String(entry.card.type || '') !== 'Supporter' || Number(entry.card.cost || 0) !== 0)){
+      && (String(entry.card.type || '') !== 'Supporter' || (Number(entry.card.cost || 0) !== 0 && !entry.card.counters?.chauffeurFreeSet))){
       throw Object.assign(new Error('this card requires the consolidation command family, which is not yet v3 eligible'), {code:'CONSOLIDATION_REQUIRED'});
     }
     if(!isPierogi && !isWhisperToken && Number(state.supportersSetForCapThisTurn?.[actorIndex] || 0) >= MAX_SUPPORTERS_SET_PER_TURN){
@@ -2342,7 +2376,7 @@ function performCommand(state, ctx, command, actorIndex, options){
       MAX_SUPPORTERS_SET_PER_TURN,
       state.baseSupportersPerTurn + Number(state.extraSupportersThisTurn[actorIndex] || 0)
     );
-    if(!isPierogi && !isWhisperToken && !defenseInDepthReady && state.supportersSetThisTurn[actorIndex] >= normalSupporterAllowance){
+    if(!isPierogi && !isWhisperToken && !defenseInDepthReady && !entry.card.counters?.chauffeurFreeSet && state.supportersSetThisTurn[actorIndex] >= normalSupporterAllowance){
       throw Object.assign(new Error('the Supporter set limit has been reached'), {code:'SUPPORTER_SET_LIMIT_REACHED'});
     }
     const placementBlock = zoneActionBlock(state, actorIndex, payload.destination?.z);
@@ -2697,7 +2731,8 @@ function performCommand(state, ctx, command, actorIndex, options){
         {code:'ZONE_ACTION_BLOCKED', statusId:activationBlock.statusId}
       );
     }
-    const rule = cardRule(entry.card.id, state);
+    const activationRuleId=['37','bh05'].includes(String(entry.card.id)) && runtimeRuleId(entry.card)==='93'?'93':entry.card.id;
+    const rule = cardRule(activationRuleId, state);
     if(!rule?.timings?.includes('ACTIVATE') || !rule.program){
       throw Object.assign(new Error('this card has no v3 activated effect'), {code:'EFFECT_NOT_IMPLEMENTED'});
     }
@@ -2751,7 +2786,7 @@ function performCommand(state, ctx, command, actorIndex, options){
       playerIndex:actorIndex
     });
     recordMoralePressureRuleEvent(ctx, ctx.events[ctx.events.length - 1]);
-    startEffect(state, ctx, entry.card, actorIndex, 'ACTIVATE', command.commandId);
+    startEffect(state, ctx, entry.card, actorIndex, 'ACTIVATE', command.commandId, activationRuleId);
     return;
   }
   if(command.type === 'END_TURN'){

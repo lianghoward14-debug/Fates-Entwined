@@ -613,8 +613,10 @@ function resolveZoneFateMoraleDamage(ctx){
         && String(entry.card.id || '') === '64'
         && entry.card.counters?.doubleNextMoraleDamage === true
       );
-      if(doublers.length){
-        const multiplier = Math.pow(2, doublers.length);
+      const doubleCount = system.pendingBladeDance?.[owner] ?? doublers.length;
+      if(system.pendingBladeDance) system.pendingBladeDance[owner] = 0;
+      if(doubleCount){
+        const multiplier = Math.pow(2, doubleCount);
         // Blade Dance doubles the complete Morale Damage calculation its
         // controller inflicts, including zone-difference damage.
         resolution.damage[1 - owner] *= multiplier;
@@ -629,7 +631,7 @@ function resolveZoneFateMoraleDamage(ctx){
       }
       for(const zone of resolution.zoneResults.filter(zone=>zone.controller === owner)){
         zone.damage = String(state.landscapeId || '') === 'igb1' || moraleDamageInflictionBlocked(state, owner)
-          ? 0 : Math.floor(zone.difference * 33 / 100) * Math.pow(2, doublers.length);
+          ? 0 : Math.floor(zone.difference * 33 / 100) * Math.pow(2, doubleCount);
       }
   }
   for(let owner = 0; owner < 2; owner += 1) resolution.damage[1 - owner] += outgoing[owner];

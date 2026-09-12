@@ -355,7 +355,7 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
         try{
           match=due.deadline
             ? {id,winnerTeam:Math.random()<.5?'a':'b',completedAt:now,simulated:true,simulationKind:'deadline',commendationExcluded:true,stats:{},playerStats:{}}
-            : await simulateWarfrontMatch({id,landscapeId:zone.landscape?.id});
+            : await simulateWarfrontMatch({id,landscapeId:zone.landscape?.id,participants});
         }catch(error){zone.aiRetryAt=Date.now()+60000;persist();throw error;}
         if(warfrontEvent!==event || event.status!=='active' || zone.activeMatch || zone.a?.uid!==participants.a?.uid || zone.b?.uid!==participants.b?.uid)return;
         if(!zone.matches.some(row=>row.id===id)){
