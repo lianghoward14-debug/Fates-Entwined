@@ -229,7 +229,7 @@ const CARDS = [
     effect:'When set, draw three cards, then discard three cards.',
     flavor:'"No more will Germans be passive bystanders - we must avenge history"',img:'42.png?v=20260907a'},
   {id:'43',name:'Mark Kemper',ability:'Elephant Movie 2',type:'Initiator',aff:'reality',
-    fate:4,cost:2,rarity:'triangle',
+    fate:4,cost:1,rarity:'triangle',
     effect:'Add a new safe square underneath the safe zone in this card\'s zone. Later Marks in that zone add to the same row until it is full.',
     flavor:'"The lucid mastermind behind Elephant Movie One"',img:'43.png?v=20260826a'},
   {id:'44',name:'Soviet Grenadiers',ability:'The Bears of Russia',type:'Supporter',aff:'third_great_war',

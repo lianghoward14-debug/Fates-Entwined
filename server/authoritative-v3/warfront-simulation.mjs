@@ -22,10 +22,26 @@ export function warfrontAiDeck(player={}){
 export function simulateWarfrontMatch(input){
   return new Promise((resolve,reject)=>{
     const worker = new Worker(new URL(import.meta.url), {workerData:{...input,warfrontSimulation:true}});
-    const timer = setTimeout(()=>{worker.terminate();reject(new Error('Warfront simulation timed out'));},600000);
-    worker.once('message',result=>{clearTimeout(timer);resolve(result);});
-    worker.once('error',error=>{clearTimeout(timer);reject(error);});
-    worker.once('exit',code=>{clearTimeout(timer);if(code)reject(new Error('Warfront simulation exited '+code));});
+    // A whole game can take longer than ten minutes at normal AI strength.
+    // Only terminate a worker that stops making accepted engine moves.
+    let settled=false,progress={turn:1,actions:0};
+    const timer = setTimeout(()=>{
+      settled=true;worker.terminate();
+      reject(new Error('Warfront simulation stalled at turn '+progress.turn+' after '+progress.actions+' actions'));
+    },600000);
+    worker.on('message',result=>{
+      if(settled)return;
+      if(result.kind==='progress'){
+        if(result.actions<=progress.actions)return;
+        if(result.turn!==progress.turn)console.info('Warfront AI progress',input.id,'turn',result.turn,'actions',result.actions);
+        progress=result;timer.refresh();return;
+      }
+      settled=true;clearTimeout(timer);
+      console.info('Warfront AI completed',input.id,'actions',result.engineActions?.length);
+      resolve(result);
+    });
+    worker.once('error',error=>{if(!settled){settled=true;clearTimeout(timer);reject(error);}});
+    worker.once('exit',code=>{if(!settled){settled=true;clearTimeout(timer);reject(new Error('Warfront simulation exited without a result: '+code));}});
   });
 }
 
@@ -61,6 +77,7 @@ if(!isMainThread && workerData?.warfrontSimulation){
     actions.push({playerIndex:seat,command});
     for(const event of result.events||[])if(event.type==='CARD_CONSOLIDATED')consolidations[seat]++;
     state=result.state;
+    parentPort.postMessage({kind:'progress',turn:state.turn,actions:actions.length});
   }
   if(!state.outcome)throw new Error('Warfront simulation did not finish');
   parentPort.postMessage({id:workerData.id,winnerTeam:state.outcome.winner===0?'a':state.outcome.winner===1?'b':null,

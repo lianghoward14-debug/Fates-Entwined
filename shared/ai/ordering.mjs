@@ -13,6 +13,7 @@ import {createPublicComboPrior} from './public-combo-heuristics.mjs';
 import {createComboPlanPrior} from './combo-plan.mjs';
 import {createDeckPreservationPrior} from './deck-preservation.mjs';
 import {createArchiveExpansionPrior} from './archive-expansion-heuristics.mjs';
+import {contestedCommandDelta} from './contested-space.mjs';
 
 // Build shared indexes once per position, not once per legal placement.
 export function createCommandOrderer(state,player){
@@ -72,7 +73,7 @@ export function createCommandOrderer(state,player){
       // Voluntary disposal is a cost, not another activation of the printed
       // ability. Keep it available for unusual plans without promoting it
       // merely because the discarded card has powerful operation tags.
-      return -8-departureValue([p.targetIid || p.sourceIid])+deckPreservationPrior(command);
+      return -8-departureValue([p.targetIid || p.sourceIid])+deckPreservationPrior(command)+contestedCommandDelta(state,player,command,cards);
     }
     let score=value(card)+incelPrior(command)+assaultPrior(command)+freeWorldPrior(command)+majaPrior(command)+timePrior(command)+patiencePrior(command)+wintertidePrior(command)+endlessSeaPrior(command)+publicComboPrior(command)+archiveExpansionPrior(command)+comboPlanPrior(command)+deckPreservationPrior(command);
     if(command.type==='ACTIVATE_EFFECT' && card?.id==='40'){
@@ -106,9 +107,9 @@ export function createCommandOrderer(state,player){
       const gain=Number(card?.currentFate ?? card?.baseFate ?? 1);
       if(margin<=0 && margin+gain>0)score+=4;
       score-=Math.max(0,margin)*.08;
-      if(Number(p.destination.r)===1)score-=.3;
     }
     if(p.tributeIids?.length)score-=departureValue(p.tributeIids)*.6;
+    score+=contestedCommandDelta(state,player,command,cards);
     return score;
   };
 }
