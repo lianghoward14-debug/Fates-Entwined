@@ -60,8 +60,10 @@ if(!isMainThread && workerData?.warfrontSimulation){
     // regular matches, including the named commander's personality and difficulty.
     if(actionTurn!==state.turn){actionTurn=state.turn;actionsThisTurn=0;}
     const context={playerIndex:seat,canonicalState:state,...warfrontAiProfile(workerData.participants?.[seat===0?'a':'b'])};
-    // Match the normal adapter's cheaper replanning after the first decision.
-    if(actionsThisTurn>0)Object.assign(context,{samples:1,nodeBudget:({easy:100,medium:160,hard:220,extreme:300})[context.difficulty]});
+    // Background campaigns share a server with live players. Bound every
+    // search, including pass verification, while retaining the normal policy.
+    const budget=({easy:48,medium:72,hard:96,extreme:120})[context.difficulty];
+    Object.assign(context,{samples:1,nodeBudget:budget,maxNodeBudget:budget,width:6});
     const forcedEnd=actionsThisTurn>=24 ? legal.find(command=>command.type==='END_TURN') : null;
     const choice=warfrontAiCommand(forcedEnd || chooseStrategicV3AiCommand(legal,state,context));
     const candidates=choice?[choice]:[];

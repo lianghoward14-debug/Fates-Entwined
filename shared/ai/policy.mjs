@@ -4,6 +4,7 @@ import {searchWorld,diverseCommands} from './search.mjs';
 import {createCommandOrderer} from './ordering.mjs';
 import {filterAiTargets} from './targeting.mjs';
 import {personalityFor} from './personality.mjs';
+import {reviewPass} from './pass-review.mjs';
 
 export function planDecision(commands,projection,context={}){
   const state=context.canonicalState;
@@ -12,7 +13,8 @@ export function planDecision(commands,projection,context={}){
   const personality=personalityFor(context.style || context.personality);
   const integer=(value,fallback,min,max)=>Number.isFinite(Number(value))?Math.max(min,Math.min(max,Math.floor(Number(value)))):fallback;
   const samples=integer(context.samples,context.difficulty==='easy'?1:3,1,8);
-  const nodeBudget=integer(context.nodeBudget,context.difficulty==='easy'?240:context.difficulty==='extreme'?960:600,24,4000);
+  const maxNodeBudget=integer(context.maxNodeBudget,4000,24,4000);
+  const nodeBudget=Math.min(maxNodeBudget,integer(context.nodeBudget,context.difficulty==='easy'?240:context.difficulty==='extreme'?960:600,24,4000));
   const results=[];
   let candidates=filterAiTargets(commands,state,player).filter(c=>c.type!=='CONCEDE');
   // Makenna's protection must include an eligible friendly Alondra. Use the
@@ -108,10 +110,14 @@ export function chooseCommand(commands,projection,context={}){
   if(plan?.command?.type==='END_TURN' && context.canonicalState && !context.canonicalState.pendingPrompt
     && commands.some(c=>['SET_CARD','SET_CARD_FROM_DECK','CONSOLIDATE_CARD','ACTIVATE_EFFECT','SET_ADAPTIVE_TOKEN','FLIP_CARD'].includes(c.type))){
     const currentBudget=Number(context.nodeBudget) || (context.difficulty==='easy'?240:context.difficulty==='extreme'?960:600);
-    if(currentBudget<600){
+    if(currentBudget<Math.min(600,Number(context.maxNodeBudget)||4000)){
       const checked=planDecision(commands,projection,{...context,nodeBudget:600,width:Math.max(12,Number(context.width)||0),onDecision:undefined,onPlanEvaluated:undefined});
       if(checked)plan=checked;
     }
+  }
+  if(plan?.command?.type==='END_TURN' && context.canonicalState){
+    const development=reviewPass(commands,context.canonicalState,actor,context);
+    if(development)return development;
   }
   if(plan)return plan.command;
   if(projection?.board && projection?.players){

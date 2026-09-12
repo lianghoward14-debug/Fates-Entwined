@@ -1,3 +1,4 @@
+import {createLakesMomentumPrior} from './lakes-momentum-heuristics.mjs';
 import {boardEntries,controllerOf} from '../engine/selectors.mjs';
 import {zoneScore} from '../engine/scoring.mjs';
 import {cardRule} from '../engine/cards/registry.mjs';
@@ -36,6 +37,7 @@ export function createCommandOrderer(state,player){
   const comboPlanPrior=createComboPlanPrior(state,player);
   const deckPreservationPrior=createDeckPreservationPrior(state,player,entries,cards);
   const archiveExpansionPrior=createArchiveExpansionPrior(state,player,entries,cards);
+  const lakesMomentumPrior=createLakesMomentumPrior(state,player);
   const values=new Map();
   const dependencyValues=new Map();
   function departureValue(iids){
@@ -75,7 +77,7 @@ export function createCommandOrderer(state,player){
       // merely because the discarded card has powerful operation tags.
       return -8-departureValue([p.targetIid || p.sourceIid])+deckPreservationPrior(command)+contestedCommandDelta(state,player,command,cards);
     }
-    let score=value(card)+incelPrior(command)+assaultPrior(command)+freeWorldPrior(command)+majaPrior(command)+timePrior(command)+patiencePrior(command)+wintertidePrior(command)+endlessSeaPrior(command)+publicComboPrior(command)+archiveExpansionPrior(command)+comboPlanPrior(command)+deckPreservationPrior(command);
+    let score=lakesMomentumPrior(command)+value(card)+incelPrior(command)+assaultPrior(command)+freeWorldPrior(command)+majaPrior(command)+timePrior(command)+patiencePrior(command)+wintertidePrior(command)+endlessSeaPrior(command)+publicComboPrior(command)+archiveExpansionPrior(command)+comboPlanPrior(command)+deckPreservationPrior(command);
     if(command.type==='ACTIVATE_EFFECT' && card?.id==='40'){
       // A real draw, including a blind one, can turn this activation into
       // cheap Fate. Do not require Ledger or Alondra to use the effect.

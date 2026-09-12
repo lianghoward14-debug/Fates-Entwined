@@ -544,6 +544,8 @@ const STARTER_DECKS = [
 ];
 
 const AI_ONLY_RANDOM_DECKS = [
+{"id":"ai_sunset_great_lakes","name":"Sunset over the Great Lakes","faceCardId":"45","sourcePublicDeckId":"nNbfvYwsoDfnvTHQhK4lwN5a2B22_1789191956232","ids":["30","30","30","45","45","45","16","16","16","63","63","63","76","76","76","40","40","40","bh22","bh22","bh22","09","09","09","bh05","60","60","60","28","28","28","32","32","32","58","58","58","33","33","33"],"baseStrategy":"ai_sunset_great_lakes","enabled":true,"theme":"AI Only","displayCardIds":["45"]},
+{"id":"ai_sad_tale","name":"The Sad Tale of a Fat Man","faceCardId":"bh17","sourcePublicDeckId":"nNbfvYwsoDfnvTHQhK4lwN5a2B22_1789191913167","ids":["82","91","bh17","bh17","bh17","07","48","48","48","27","27","27","60","60","60","28","28","28","09","09","09","98","98","98","75","75","75","32","32","32","74","43","43","43","66","66","66","04","04","04"],"baseStrategy":"ai_sad_tale","enabled":true,"theme":"AI Only","displayCardIds":["bh17"]},
   {
     id:'ai_perez_stratagem', baseStrategy:'ai_perez_stratagem', name:'The Perez Stratagem',
     description:'Use Isaac Perez to permanently grow a low-cost supporter formation, then convert adjacency and draw bodies into efficient zone control.',

@@ -6764,6 +6764,19 @@ function updatePlayerBanners() {
     };
   };
   const getBannerProfile = (playerIndex) => {
+    // In single-player the human identity always comes from the selected local
+    // profile. Ignore stale seat snapshots left by online/Warfront sessions.
+    const isLocalHuman = !!G.aiEnabled && Number(playerIndex) !== Number(G.aiPlayer);
+    if(isLocalHuman) {
+      return {
+        name: USER_PROFILE.username || G.players[playerIndex]?.name || `Player ${playerIndex + 1}`,
+        img: getProfileImgSrc(),
+        crop: getProfileCropStyle(),
+        elo: CURRENT_MODE==='challenger' ? (USER_PROFILE.challengerElo||600) : (USER_PROFILE.elo||600),
+        wins: CURRENT_MODE==='challenger' ? (USER_PROFILE.challengerWins||0) : (USER_PROFILE.wins||0),
+        losses: CURRENT_MODE==='challenger' ? (USER_PROFILE.challengerLosses||0) : (USER_PROFILE.losses||0)
+      };
+    }
     const matchProfile = G.playerProfiles && G.playerProfiles[playerIndex];
     if(matchProfile) return normalizeOnlineBannerProfile(matchProfile, playerIndex);
     if(playerIndex === 0) {

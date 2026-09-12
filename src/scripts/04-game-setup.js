@@ -187,6 +187,10 @@ function clearCompletedOnlineSessionBeforeLocalGame() {
   G._onlineActionLogMode = false;
   G._onlineApplyingRemoteAction = false;
   G._phase7CurrentMultiplayer = false;
+  // Online and Warfront matches attach seat snapshots here. They must never
+  // survive into a local match, or the human banner can inherit an AI/opponent
+  // name and portrait from the previous session.
+  G.playerProfiles = null;
 }
 
 function startGame(vsAI=false) {

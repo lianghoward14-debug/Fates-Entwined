@@ -1,9 +1,11 @@
+import {filterLakesMomentum} from './lakes-momentum-heuristics.mjs';
 import {boardEntries,controllerOf} from '../engine/selectors.mjs';
 import {filterComboPlan} from './combo-plan.mjs';
 import {filterArchiveExpansionTargets} from './archive-expansion-heuristics.mjs';
 import {canUseAsConsolidationTribute,effectiveConsolidationCost,isEffectSourceSuppressed} from '../engine/modifiers.mjs';
 // Strategic restrictions belong to the AI, not the game's legal rules.
 export function filterAiTargets(commands,state,player){
+  commands=filterLakesMomentum(commands,state,player);
   commands=filterArchiveExpansionTargets(commands,state,player);
   commands=chooseWintertideSearch(commands,state,player);
   commands=keepPatienceBurstTogether(commands,state,player);
