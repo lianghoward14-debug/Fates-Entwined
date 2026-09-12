@@ -700,16 +700,19 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
       if(req.method==='POST'&&p[1]==='warfront'&&p[2]==='deploy'){
         const body=await readBody(req),uid=await requireSelf(req,body.uid),team=body.team==='a'||body.team==='b'?body.team:null,zone=warfrontEvent?.zones.find(row=>row.id===cleanId(body.zoneId,40));
         if(!team||!zone||!['enrollment','active'].includes(warfrontEvent.status)||(warfrontEvent.status==='active'&&Date.now()>=warfrontEvent.endsAt))throw new Error('Warfront is not accepting deployments');
-        if(warfrontEvent.zones.some(row=>row.a?.uid===uid||row.b?.uid===uid))throw new Error('Player is already deployed');
+        const previous=warfrontEvent.zones.find(row=>row.a?.uid===uid||row.b?.uid===uid);
+        if(previous?.activeMatch)throw new Error('Finish your current match before changing zones');
         prepareWarfrontRoster(warfrontEvent);
         const service=warfrontEvent.service[uid];
         if(service?.matchIds.length>=5)throw new Error('You have played all five matches for this campaign');
         if(service&&service.team!==team)throw new Error('Stay with your campaign alliance');
         if(warfrontPlayed(zone)>=5)throw new Error('This front is settled');
         if(zone[team]&&!zone[team].isAI)throw new Error('That command post is occupied');
+        if(previous&&previous!==zone&&!zone[team]?.isAI)throw new Error('Choose an AI post to change zones');
         const displaced=zone[team];
         for(const binding of warfrontBindings.values())if(binding.mapCode===warfrontEvent.mapCode&&binding.zoneId===zone.id&&!binding.settled)binding.participants ||= clone({a:zone.a,b:zone.b});
         if(body.profile)mergeProfile(uid,body.profile);const stored=profile(uid);
+        if(previous)for(const side of ['a','b'])if(previous[side]?.uid===uid)previous[side]=null;
         zone[team]={uid,name:cleanId(stored.chosenUsername||stored.displayName||stored.username||body.profile?.name||'Player',80),photo:resolveWarfrontPhoto(stored,body.profile?.photo),elo:Number(stored.challengerElo??stored.elo??body.profile?.elo??600),joinedAt:Date.now()};
         if(displaced)warfrontEvent.waitingAI.push({player:displaced,team});
         prepareWarfrontRoster(warfrontEvent);relocateWarfrontAI(warfrontEvent);

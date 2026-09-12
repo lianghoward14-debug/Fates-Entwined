@@ -28666,6 +28666,15 @@ html body #modal .pd-library-v3 .pd-v3-grid .pdx-stats{
   margin:.08rem 0 0!important;
 }
 
+/* Keep sparse Public Decks pages the same height as a complete four-card
+   (2 x 2) page so the surrounding window does not resize between pages. */
+@media(min-width:1051px){
+  html body #modal .modal.public-decks-hub-modal .pd-library-v3 .pd-v3-grid{
+    min-height:calc(600px + .72rem)!important;
+    align-content:start!important;
+  }
+}
+
 /* Match card information: tighten only the audio button's circle while
    preserving the music glyph at its existing size. */
 html body #modal.card-detail-overlay .card-voice-btn{

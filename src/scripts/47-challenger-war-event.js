@@ -210,14 +210,14 @@ function banCardArt(id){const c=cards().find(x=>String(x.id)===String(id)),src=c
 function awardIcon(id){const paths={fate:'<path d="M22 3 38 12v15c0 10-7 16-16 19C13 43 6 37 6 27V12Z"/><path d="M12 28h20M15 22h14M18 16h8"/><path d="m16 34 6 5 6-5"/>',speed:'<path d="M7 29h11l-5 13 25-26H26l5-12Z"/><path d="M5 14h11M3 20h9M4 35h7"/>',consolidation:'<path d="m22 4 17 10v20L22 44 5 34V14Z"/><path d="m22 12 10 6v12l-10 6-10-6V18Z"/><circle cx="22" cy="24" r="4"/>'};return'<svg viewBox="0 0 44 48" aria-hidden="true">'+paths[id]+'</svg>';}
 function dispatchIcon(){return'<svg viewBox="0 0 96 96" aria-hidden="true"><path d="M18 72V35l30-18 30 18v37"/><path d="M30 72V43l18-11 18 11v29M13 72h70"/><path d="M38 53h20M38 62h20"/><circle cx="48" cy="45" r="3"/><path d="M24 26 13 15M72 26l11-11M48 17V5"/></svg>';}
 function archiveIcon(){return'<svg viewBox="0 0 112 128" aria-hidden="true"><path d="M15 24h34l9 10h39v76H15Z"/><path d="M15 43h82M31 61h50v32H31Z"/><path d="M40 72h32M40 82h25"/></svg>';}
-function warCanDeploy(z,t){const service=state.service?.[me().uid];return ['enrollment','active'].includes(state.status)&&(!service||service.team===t)&&(!service||service.matchIds.length<5)&&score(z).played<5&&(!z[t]||z[t].isAI);}
+function warCanDeploy(z,t){const current=seat(me().uid),service=state.service?.[me().uid];return (!current||(!current.zone.activeMatch&&current.team===t&&z[t]?.isAI))&&['enrollment','active'].includes(state.status)&&(!service||service.team===t)&&(!service||service.matchIds.length<5)&&score(z).played<5&&(!z[t]||z[t].isAI);}
 function commanderContribution(z,t,uid){
   const matches=state.zones.flatMap(front=>front.matches||[]).filter(m=>!m.voidedByForfeit&&uid&&m.participants?.[t]?.uid===uid);
   const wins=matches.filter(m=>m.winnerTeam===t);
   return {victories:wins.length,stars:wins.reduce((n,m)=>n+Math.max(1,Math.min(5,+m.starValue||1)),0),matches};
 }
 function miniSeat(z,t,mine){
-  const p=z[t],pending=deploymentPending?.id===z.id&&deploymentPending.team===t,can=warCanDeploy(z,t)&&!mine&&!deploymentPending;
+  const p=z[t],pending=deploymentPending?.id===z.id&&deploymentPending.team===t,can=warCanDeploy(z,t)&&!deploymentPending;
   if(!p||pending)return'<button class="war2-seat team-'+t+' empty" '+(can?'onclick="joinWarEventZone(\''+z.id+'\',\''+t+'\')"':'disabled')+'>'+avatar(pending?me():p)+'<span class="war3-seat-copy"><b>'+esc(pending?'Deploying '+me().name+'…':'Open post')+'</b><em>'+(pending?'Deploying…':can?'Claim this zone':!selectedTeam?'Choose an alliance in Briefing':'Awaiting player')+'</em></span></button>';
   // Occupied AI and human posts share exactly the same contribution markup.
   const contribution=commanderContribution(z,t,p.uid);
@@ -499,10 +499,13 @@ window.joinWarEventZone=async(id,t)=>{
   if(deploymentPending)return;
   if(!['enrollment','active'].includes(state.status))return notify('Warfront is no longer accepting deployments.');
   if(!z||!TEAMS[t])return notify('Choose a valid command post.');
-  if(seat(p.uid))return notify('You are already deployed to a zone.');
+  const previous=seat(p.uid);
+  if(previous?.zone.activeMatch)return notify('Finish your current match before changing zones.');
   if(!warCanDeploy(z,t))return notify('This post is unavailable, or your five campaign matches are complete.');
   selectedTeam=t;
   if(simulationSession){
+    const displaced=z[t];
+    if(previous){previous.zone[previous.team]=displaced||null;}
     z[t]={...p,joinedAt:Date.now()};save({remote:false});rerender();
     warSfx('deploy','deployment-'+id,300);return notify('Deployed to '+meta(z).name+'.');
   }
