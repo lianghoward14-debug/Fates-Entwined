@@ -268,7 +268,13 @@ export class FateAuthoritativeV3SinglePlayerAdapter {
         }
         if(this.disposed)return {ok:true,results,cancelled:true};
         if(this.session.state.revision!==canonical.revision)continue;
-        const template=selected && matchingTemplate(legal,selected.type,selected.payload);
+        let template=selected && matchingTemplate(legal,selected.type,selected.payload);
+        if(!template){
+          // Recover with the shared policy and its strategic restrictions,
+          // rather than silently abandoning the still-active AI turn.
+          const recovered=chooseStrategicV3AiCommand(legal,projection,{...context,samples:1,nodeBudget:120});
+          template=recovered && matchingTemplate(legal,recovered.type,recovered.payload);
+        }
         if(!template)return rejection('AI_INVALID_COMMAND','AI search returned no legal move');
         const submitted=commandWithActorActivationIntent(template);
         const result=this.session.dispatchForPlayer(this.aiPlayerId,submitted.type,submitted.payload);

@@ -87,6 +87,18 @@ export function planDecision(commands,projection,context={}){
 export function chooseCommand(commands,projection,context={}){
   const targetingState=context.canonicalState || projection;
   if(targetingState?.board)commands=filterAiTargets(commands,targetingState,Number(context.playerIndex ?? projection?.activePlayer ?? 0));
+  const actor=Number(context.playerIndex ?? projection?.activePlayer ?? 0);
+  if(targetingState?.board && !targetingState.pendingPrompt && !targetingState.pendingHandLimit
+    && !targetingState.board.flat(3).some(c=>c && Number(c.controller ?? c.owner)===actor)){
+    const owner=targetingState.players?.[actor];
+    const known=[...(owner?.hand || []),...(owner?.deck || [])];
+    const fuel=commands.filter(c=>['SET_CARD','SET_CARD_FROM_DECK'].includes(c.type)
+      && ['09','28','98'].includes(known.find(card=>card.iid===c.payload?.cardIid)?.id));
+    if(fuel.length){
+      const priority=createCommandOrderer(targetingState,actor);
+      return fuel.map(command=>({command,score:priority(command)})).sort((a,b)=>b.score-a.score)[0].command;
+    }
+  }
   // Deliberately replan after every resolution, even if the previous intended
   // command remains legal. Legality does not prove a combo is still worthwhile.
   if(context.planCache)context.planCache.sequence=[];

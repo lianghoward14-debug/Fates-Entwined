@@ -3417,12 +3417,14 @@ function openImageCropper(card) {
   const back=document.createElement('button');back.className='btn sm';back.textContent='Pick Different Picture';
   back.onclick=openProfileImageEditor;
   const save=document.createElement('button');save.className='btn sm pri';save.textContent='Save';
+  save.disabled=true;
+  save.id='cropper-save';
   save.onclick=()=>{ saveCroppedImage(card); };
   document.getElementById('modal-acts').appendChild(back);
   document.getElementById('modal-acts').appendChild(save);
 
   // Set up cropper
-  setTimeout(()=>setupCropper(card),50);
+  setTimeout(()=>{ if(document.getElementById('cropper-img') === body.querySelector('#cropper-img')) setupCropper(card); },50);
 }
 
 function setupCropper(card) {
@@ -3432,6 +3434,7 @@ function setupCropper(card) {
   _cropState = { zoom: 1.5, offsetX: 0, offsetY: 0, dragging:false, dragStartX:0, dragStartY:0, card };
 
   img.onload = ()=>{
+    if(document.getElementById('cropper-img') !== img || _cropState?.card !== card || !img.naturalWidth || !img.naturalHeight) return;
     // Center the image initially
     const areaW=300, areaH=300;
     const iw=img.naturalWidth, ih=img.naturalHeight;
@@ -3442,7 +3445,10 @@ function setupCropper(card) {
     _cropState.offsetY = (areaH - ih*baseScale*_cropState.zoom)/2;
     clampCropperOffsets();
     updateCropperDisplay();
+    const save = document.getElementById('cropper-save');
+    if(save) save.disabled=false;
   };
+  img.onerror = ()=>{ if(document.getElementById('cropper-img') === img) toast('Picture could not load. Please pick it again.'); };
   if(img.complete) img.onload();
 
   area.onmousedown = (e)=>{

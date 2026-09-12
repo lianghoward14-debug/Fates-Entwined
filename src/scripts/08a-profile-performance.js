@@ -47,7 +47,7 @@
 
     const img = document.getElementById('cropper-img');
     const state = typeof _cropState !== 'undefined' ? _cropState : null;
-    if(!img || !state) return;
+    if(!img || !state || state.card !== card || !img.naturalWidth || !img.naturalHeight || !Number.isFinite(state.baseScale)) return;
 
     if(typeof clampCropperOffsets === 'function') clampCropperOffsets();
     const cropBox = typeof getCropBoxMetrics === 'function'
@@ -67,6 +67,12 @@
       cropFocusX:Math.max(0, Math.min(1, focusX)),
       cropFocusY:Math.max(0, Math.min(1, focusY))
     };
+    // Keep a canonical copy outside profileImg as well. Online/public profile
+    // responses use a string image URL, so these fields let the local profile
+    // reconstruct the exact crop instead of appearing to reject the change.
+    USER_PROFILE.profileCropZoom = USER_PROFILE.profileImg.cropZoom;
+    USER_PROFILE.profileCropFocusX = USER_PROFILE.profileImg.cropFocusX;
+    USER_PROFILE.profileCropFocusY = USER_PROFILE.profileImg.cropFocusY;
 
     document.onmousemove = null;
     document.onmouseup = null;

@@ -34,6 +34,38 @@ async function main(){
   stored={...stored,username:'Other device',chosenUsername:'Other device'};
   await context.syncPublicProfile();
   assert.equal(local.username,'Other device','unchanged saves read current server identity');
+  const originalRequest = context.flyApiRequest;
+  let release;
+  context.flyApiRequest = async (...args)=>{
+    const result = await originalRequest(...args);
+    await new Promise(resolve=>{ release=resolve; });
+    return result;
+  };
+  local.profileImg='zoomed.png';
+  local.profileCropZoom=4;
+  const firstSave=context.syncPublicProfile();
+  await new Promise(resolve=>setImmediate(resolve));
+  local.profileImg='new.png';
+  local.profileCropZoom=1;
+  const latestSave=context.syncPublicProfile();
+  release();
+  await firstSave;
+  assert.equal(local.profileImg,'new.png','older response cannot overwrite the latest portrait');
+  await new Promise(resolve=>setImmediate(resolve));
+  release();
+  await latestSave;
+  assert.equal(stored.profileImg,'new.png','queued revert is sent even when it matched the original baseline');
+  assert.equal(stored.profileCropZoom,1);
+  context.flyApiRequest=originalRequest;
+  local.profileImg='pfp/pfp2.png';
+  local.profileCropZoom=4;
+  local.profileCropFocusX=0.2;
+  local.profileCropFocusY=0.7;
+  await context.syncPublicProfile();
+  assert.equal(local.profileImg.pfpId,2);
+  assert.equal(local.profileImg.cropZoom,4,'maximum zoom survives canonical profile response');
+  assert.equal(local.profileImg.cropFocusX,0.2);
+  assert.equal(local.profileImg.cropFocusY,0.7);
   context.auth.currentUser={uid:'different-account'};
   assert.equal(context.applyCanonicalProfile(stored),false,'late responses cannot replace another account');
 

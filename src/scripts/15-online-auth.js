@@ -246,8 +246,26 @@ function applyCanonicalProfile(profile){
   const local = getLocalProfile();
   const name = profile.chosenUsername || profile.displayName || profile.username;
   if(name) local.username = local.chosenUsername = local.displayName = name;
-  for(const key of ['bio','profileImg','photoURL','profileCropFocusX','profileCropFocusY','profileCropY','profileCropZoom']){
+  const previousImage = local.profileImg && typeof local.profileImg === 'object' ? local.profileImg : null;
+  for(const key of ['bio','photoURL','profileCropFocusX','profileCropFocusY','profileCropY','profileCropZoom']){
     if(profile[key] !== undefined) local[key] = profile[key];
+  }
+  if(profile.profileImg !== undefined){
+    const canonicalImage = profile.profileImg;
+    const canonicalSrc = typeof canonicalImage === 'string'
+      ? canonicalImage
+      : safe(canonicalImage?.src || canonicalImage?.url || canonicalImage?.path || canonicalImage?.dataUrl || '');
+    const pfpMatch = safe(canonicalSrc).match(/(?:^|\/)pfp(\d+)\.(?:png|jpe?g|webp)(?:[?#].*)?$/i);
+    const pfpId = Number(pfpMatch?.[1] || canonicalImage?.pfpId || 0);
+    const hasCrop = profile.profileCropFocusX != null
+      || profile.profileCropFocusY != null
+      || profile.profileCropZoom != null;
+    local.profileImg = pfpId && hasCrop ? {
+      pfpId,
+      cropFocusX:Number(profile.profileCropFocusX ?? previousImage?.cropFocusX ?? 0.5),
+      cropFocusY:Number(profile.profileCropFocusY ?? previousImage?.cropFocusY ?? 0.5),
+      cropZoom:Number(profile.profileCropZoom ?? previousImage?.cropZoom ?? 1)
+    } : profile.profileImg;
   }
   if(typeof window.fateApplyServerProfileStats === 'function') window.fateApplyServerProfileStats(profile);
   window.FateOnline?.profileCache?.set(profile.uid, profile);
@@ -274,18 +292,25 @@ function syncPublicProfile(){
   const payload = buildPublicProfilePayload(active);
   // Capture edits against the last published local projection, not a later
   // response. Serialize writes so two saves cannot complete out of order.
-  const changes = {};
-  for(const key of Object.keys(payload)){
-    if(!publishedCosmetics || JSON.stringify(payload[key]) !== JSON.stringify(publishedCosmetics[key])) changes[key] = payload[key];
-  }
   const run = async()=>{
     if(generation !== accountProfileGeneration || auth.currentUser?.uid !== active.uid) return null;
+    const changes = {};
+    for(const key of Object.keys(payload)){
+      if(!publishedCosmetics || JSON.stringify(payload[key]) !== JSON.stringify(publishedCosmetics[key])) changes[key] = payload[key];
+    }
     const route = `/api/profiles/${encodeURIComponent(active.uid)}`;
     const result = await flyApiRequest(route, Object.keys(changes).length
       ? {method:'POST',body:{uid:active.uid,profile:changes}}
       : {});
     if(generation !== accountProfileGeneration || auth.currentUser?.uid !== active.uid) return null;
-    if(!result?.profile || !applyCanonicalProfile(result.profile)) return null;
+    if(!result?.profile) return null;
+    // A newer local edit must survive an older request completing. The next
+    // queued save compares against this acknowledged payload, including reverts.
+    if(JSON.stringify(buildPublicProfilePayload(active)) !== JSON.stringify(payload)){
+      publishedCosmetics = payload;
+      return result.profile;
+    }
+    if(!applyCanonicalProfile(result.profile)) return null;
     publishedCosmetics = buildPublicProfilePayload(active);
     emit();
     return state.profile;
