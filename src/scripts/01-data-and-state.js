@@ -127,7 +127,7 @@ const CARDS = [
   {id:'17',name:'Carolyn',ability:'Entropic Chaos',type:'Initiator',aff:'expanded_worlds',
     fate:2,cost:3,rarity:'triangle',
     effect:'Select any one open square on the field; that square cannot be used for the rest of the game.',
-    flavor:'"All logic breaks down, and all possibilities become equalized"',img:'17.png?v=20260826a'},
+    flavor:'"All logic breaks down, and all possibilities become equalized"',img:'17.png?v=20260912a'},
   {id:'18',name:'1st US Marines',ability:'Semper Fidelis',type:'Supporter',aff:'third_great_war',
     fate:1,cost:0,rarity:'circle',
     effect:'When set, your opponent\'s Supporters next turn cannot activate their effects.',

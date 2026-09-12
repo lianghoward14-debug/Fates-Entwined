@@ -21,7 +21,7 @@
 <link rel="stylesheet" href="src/styles/challenger-lore.css?v=1783060000">
 <link rel="stylesheet" href="src/styles/desktop-updater.css?v=1784163601">
 <link rel="stylesheet" href="src/styles/button-line-cleanup.css?v=1784359003">
-<link rel="stylesheet" href="src/styles/endgame.css?v=20260912-rank-pill-fit">
+<link rel="stylesheet" href="src/styles/endgame.css?v=20260912-rank-panel-fit">
 <link rel="stylesheet" href="src/styles/challenger-war-event.css?v=2026090601">
 <link rel="stylesheet" href="src/styles/challenger-war-event-final.css?v=20260911-ai-seat-brightness">
 <!-- The match shell is intentionally loaded last. It is a reversible, single
@@ -617,18 +617,18 @@
 <div id="toast"></div>
 
   <script src="src/scripts/00-structural-helpers.js?v=20260912-carolyn-new-lock-tone"></script>
-<script src="src/scripts/01-data-and-state.js?v=20260912-oktai-alpine"></script>
+<script src="src/scripts/01-data-and-state.js?v=20260912-carolyn-art"></script>
   <script src="src/scripts/01a-pressure-card-reworks.js?v=2026083002"></script>
 <script src="src/scripts/02-screen-and-deckbuilder.js?v=2026083002"></script>
 <script src="src/scripts/02-effect-rule-metadata.js?v=2026083102"></script>
 <script src="src/scripts/13-svg-ui-enhancements.js?v=1780269000"></script>
   <script src="src/scripts/03-profile-and-progression.js?v=2026090801"></script>
 <script src="src/scripts/04-game-setup.js?v=20260912-profile-identity"></script>
-<script src="src/scripts/05-gameplay-core.js?v=20260909-engineer-own-field"></script>
+<script src="src/scripts/05-gameplay-core.js?v=20260912-alpine-fate-audio"></script>
   <script src="src/scripts/06-rendering-and-helpers.js?v=20260912-alpine-24"></script>
   <script src="src/scripts/51-ledger-archive.js?v=2026090801"></script>
 <script src="src/scripts/render-v2/00-render-v2-flags.js?v=1780590901"></script>
-  <script src="src/scripts/render-v2/01-render-snapshot.js?v=20260908-card-parity-2"></script>
+  <script src="src/scripts/render-v2/01-render-snapshot.js?v=20260912-alpine-fate-audio"></script>
 <script src="src/scripts/render-v2/02-match-layout-engine.js?v=1788120601"></script>
 <script src="src/scripts/render-v2/03-card-texture-cache.js?v=2026083103"></script>
 <script src="src/scripts/render-v2/07-animation-timeline.js?v=1784846401"></script>
@@ -637,7 +637,7 @@
 <script src="src/scripts/render-v2/15-vfx-audio-sync.js?v=20260909-zone-sfx"></script>
 <script src="src/scripts/render-v2/13-vfx-recipes.js?v=20260909-zone-sfx"></script>
 <script src="src/scripts/render-v2/11-vfx-director.js?v=1788289101"></script>
-<script src="src/scripts/render-v2/04-match-renderer-adapter.js?v=20260912-snow-ready-border"></script>
+<script src="src/scripts/render-v2/04-match-renderer-adapter.js?v=20260912-alpine-fate-audio"></script>
 <script src="src/scripts/render-v2/06-match-scene-input.js?v=1785686105"></script>
 <script src="src/scripts/render-v2/09-hand-drag-bridge.js?v=2026090502"></script>
 <script src="src/scripts/render-v2/10-card-motion-fx.js?v=1788129101"></script>
@@ -648,7 +648,7 @@
   <script src="src/scripts/07-ai-intelligence.js?v=2026083002"></script>
   <script src="src/scripts/07-ai-learning.js?v=1784382001"></script>
 <script src="src/scripts/07-ai.js?v=20260911-carolyn-lock-sfx"></script>
-  <script src="src/scripts/08-audio-and-meta-ui.js?v=20260912-carolyn-new-lock-tone"></script>
+  <script src="src/scripts/08-audio-and-meta-ui.js?v=20260912-public-deck-grid"></script>
   <script src="src/scripts/48-zone-click-voices.js?v=2026090303"></script>
   <script src="src/scripts/50-free-world-zone-voices.js?v=2026090401"></script>
   <script src="src/scripts/08a-profile-performance.js?v=20260912-profile-save-fix"></script>
@@ -681,7 +681,7 @@
     './src/scripts/15-online-auth.js?v=20260912-profile-save-fix',
     './src/scripts/16-online-core.js?v=2026090501',
     './src/scripts/17-online-social.js?v=1788000401',
-    './src/scripts/18-online-rooms.js?v=20260912-carolyn-new-lock-tone',
+    './src/scripts/18-online-rooms.js?v=20260912-alpine-fate-audio',
     './src/scripts/19-online-elo.js?v=2026090501',
     './src/scripts/20-online-economy.js?v=2026090701'
   ];
@@ -775,7 +775,7 @@
   var params = new URLSearchParams(location.search || '');
   if(window.FATE_PHASE7_UNRANKED_BETA !== true) return;
   if(window.FATE_PHASE7_UNRANKED_BETA_BLOCKED === true) return;
-  import('./src/scripts/authoritative-v3-phase7-beta-client.mjs?v=2026090606')
+  import('./src/scripts/authoritative-v3-phase7-beta-client.mjs?v=20260912-queue-recovery')
     .then(function(){
       if(params.get('fateV3FullUiE2E') === '1' || params.get('fateV3PresentationE2E') === '1'){
         return import('./src/scripts/authoritative-v3-phase7-full-ui-e2e.mjs?v=2026083102');

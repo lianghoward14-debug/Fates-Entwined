@@ -31,17 +31,17 @@ assert.match(
 );
 assert.match(
   core,
-  /inst\.currentFate = getPlacedCardFate\(card\);[\s\S]*preparePlacementFateReveal\(inst, card, 'set'\)[\s\S]*applyLandscapePlacementBonuses/,
+  /inst\.currentFate = getPlacedCardFate\(card\);[\s\S]*preparePlacementFateReveal\(inst, card,[\s\S]{0,160}\)[\s\S]*applyLandscapePlacementBonuses/,
   'ordinary sets must arm delayed Fate presentation before placement bonuses resolve'
 );
 assert.match(
   core,
-  /inst\.currentFate = getPlacedCardFate\(card, \{bonusFate, tributeCount: tributes\.length\}\);[\s\S]*preparePlacementFateReveal\(inst, card, 'consolidation'\)[\s\S]*noteBalladConsolidation\(cp, inst\)/,
+  /inst\.currentFate = getPlacedCardFate\(card, \{bonusFate:0, tributeCount: tributes\.length\}\);[\s\S]*applyGreatOakConsolidationBonus\(inst, bonusFate\);[\s\S]*preparePlacementFateReveal\(inst, card, 'consolidation'\)[\s\S]*noteBalladConsolidation\(cp, inst\)/,
   'consolidations must retain the pre-consolidation Fate through tribute and Kvetka bonuses'
 );
 assert.match(
   ai,
-  /preparePlacementFateReveal\(inst, card, 'set'\)[\s\S]*preparePlacementFateReveal\(inst, choice\.card, 'consolidation'\)/,
+  /preparePlacementFateReveal\(inst, card,[\s\S]{0,160}\)[\s\S]*preparePlacementFateReveal\(inst, choice\.card, 'consolidation'\)/,
   'AI placements and consolidations must use the same delayed Fate presentation'
 );
 assert.match(
@@ -87,12 +87,12 @@ assert.match(
 );
 assert.match(
   adapter,
-  /kvetkaGainAmount[\s\S]*pending\.genericSoundRequested[\s\S]*kvetkaOnlyGain[\s\S]*window\.playSfx\(delta > 0 \? 'fateGain' : 'fateLose'\)/,
+  /kvetkaGainAmount[\s\S]*pending\.genericSoundRequested[\s\S]*forceFateGainSound[\s\S]*kvetkaOnlyGain[\s\S]*playFateSfxOnce\(soundType, soundKey, 700\)/,
   'the combined reveal must play ordinary Fate audio while preserving the Kvetka-only sound exception'
 );
 assert.match(
   adapter,
-  /timeline\.add\(\{[\s\S]*kind:'fate-pulse'[\s\S]*Number\.isFinite\(delta\) && delta !== 0 && typeof window\.flashIncomingCoordinatorEffects[\s\S]*window\.flashIncomingCoordinatorEffects\(record\.iid,[\s\S]*fromValue:pending\.fromValue[\s\S]*toValue:pending\.toValue[\s\S]*window\.playSfx/,
+  /function schedulePlacementFateReveal[\s\S]*window\.flashIncomingCoordinatorEffects\(record\.iid,[\s\S]*fromValue:pending\.fromValue[\s\S]*toValue:pending\.toValue[\s\S]*presentFateDelta\(\{[\s\S]*playFateSfxOnce/,
   'an existing Coordinator overlay must start in the same reveal callback as the newly placed card Fate gain or decrease'
 );
 assert.match(
@@ -119,6 +119,7 @@ const alpine = {id:'76', fate:1, currentFate:6};
 prepareRuntime.preparePlacementFateReveal(alpine, {id:'76', fate:1, currentFate:1}, 'set');
 assert.strictEqual(alpine._placementFateReveal.fromValue, 1, 'ALPINE Infantry must first show 1 before its combined reveal reaches 6');
 assert.strictEqual(alpine._placementFateReveal.genericSoundRequested, true, 'ALPINE Infantry must request the delayed Fate-gain sound');
+assert.strictEqual(alpine._placementFateReveal.forceFateGainSound, true, 'ALPINE Infantry must preserve its Fate-gain audio request across singleplayer and multiplayer projection');
 const greatOakResult = {id:'35', fate:8, currentFate:11};
 prepareRuntime.preparePlacementFateReveal(greatOakResult, {id:'35', fate:8, currentFate:8}, 'consolidation');
 assert.strictEqual(greatOakResult._placementFateReveal.fromValue, 8, 'a Great Oak consolidation must first show the original 8 before its combined reveal reaches 11');

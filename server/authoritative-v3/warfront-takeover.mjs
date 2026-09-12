@@ -1,5 +1,5 @@
 import {warfrontAiProfile,warfrontAiCommand} from './warfront-ai-profile.mjs';
-import {chooseStrategicV3AiCommand} from '../../src/scripts/authoritative-v3-ai-policy.mjs';
+import {chooseWarfrontCommand} from './warfront-ai-decision.mjs';
 
 // Keep the planner's continuation across actions: replanning each action can
 // repeatedly select a different opening instead of reaching END_TURN.
@@ -15,14 +15,15 @@ export function createWarfrontTakeoverDriver(){
       const key = `${seat}:${state.turn}`;
       let plan = plans.get(state.matchId);
       if(!plan || plan.key !== key){plan={key,sequence:[]};plans.set(state.matchId,plan);}
-      const choice = warfrontAiCommand(chooseStrategicV3AiCommand(legal,view.state,{
+      const choice = warfrontAiCommand(await chooseWarfrontCommand(legal,view.state,{
         playerId:state.players[seat].id,
         playerIndex:seat,
         canonicalState:state,
         ...warfrontAiProfile(state.players[seat]),
+        samples:1,nodeBudget:120,maxNodeBudget:120,width:6,
         planCache:plan
       }));
-      if(!choice) return null;
+      if(!choice || actor.state.revision!==state.revision || actor.state.outcome) return null;
       const result = await actor.dispatch(state.players[seat].id,{
         type:choice.type,payload:choice.payload || {},matchId:state.matchId,
         expectedRevision:state.revision,commandId:`takeover:${state.revision}:${seat}`

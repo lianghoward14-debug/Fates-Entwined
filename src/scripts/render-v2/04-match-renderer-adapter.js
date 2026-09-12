@@ -1656,13 +1656,18 @@
       const kvetkaGainAmount = Math.max(0, Number(pending.kvetkaGainAmount) || 0)
         + Math.max(0, Number(incomingCoordinatorFeedback.kvetkaGainAmount) || 0);
       const genericSoundRequested = !!pending.genericSoundRequested || !!incomingCoordinatorFeedback.hasNonKvetka;
+      const forceFateGainSound = !!pending.forceFateGainSound && delta > 0;
       const kvetkaOnlyGain = delta > 0
         && !genericSoundRequested
+        && !forceFateGainSound
         && kvetkaGainAmount > 0
         && delta === kvetkaGainAmount;
       if(Number.isFinite(delta) && delta !== 0 && !kvetkaOnlyGain) {
         try {
-          if(typeof window.playSfx === 'function') window.playSfx(delta > 0 ? 'fateGain' : 'fateLose');
+          const soundType = delta > 0 ? 'fateGain' : 'fateLose';
+          const soundKey = 'placement-fate:' + record.iid + ':' + record.createdAt + ':' + soundType;
+          if(typeof window.playFateSfxOnce === 'function') window.playFateSfxOnce(soundType, soundKey, 700);
+          else if(typeof window.playSfx === 'function') window.playSfx(soundType);
         } catch(e) {}
       }
       scheduleRender('placement-fate-after-settle');
@@ -1685,6 +1690,7 @@
         fromValue:String(meta.fromValue == null ? fateValue : meta.fromValue),
         toValue:String(fateValue),
         genericSoundRequested:!!meta.genericSoundRequested,
+        forceFateGainSound:!!meta.forceFateGainSound,
         kvetkaGainAmount:Math.max(0, Number(meta.kvetkaGainAmount) || 0),
         until:Math.max(placementFateRevealUntil(card, 0), bh07BatchUntil),
         timer:null
@@ -1693,6 +1699,7 @@
     } else {
       record.toValue = String(fateValue);
       record.genericSoundRequested = record.genericSoundRequested || !!meta.genericSoundRequested;
+      record.forceFateGainSound = record.forceFateGainSound || !!meta.forceFateGainSound;
       record.kvetkaGainAmount = Math.max(record.kvetkaGainAmount || 0, Number(meta.kvetkaGainAmount) || 0);
       record.until = Math.max(placementFateRevealUntil(card, record.until), bh07BatchUntil);
     }

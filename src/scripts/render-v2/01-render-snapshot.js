@@ -170,6 +170,7 @@
         mode:String(card._placementFateReveal.mode || 'set'),
         createdAt:Number(card._placementFateReveal.createdAt) || Date.now(),
         genericSoundRequested:!!card._placementFateReveal.genericSoundRequested,
+        forceFateGainSound:!!card._placementFateReveal.forceFateGainSound,
         kvetkaGainAmount:Math.max(0, Number(card._placementFateReveal.kvetkaGainAmount) || 0)
       };
     }

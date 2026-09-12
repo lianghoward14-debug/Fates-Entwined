@@ -1996,6 +1996,7 @@
         mode:isConsolidation ? 'consolidation' : 'set',
         createdAt,
         genericSoundRequested:Number.isFinite(storedDelta) && storedDelta !== 0 && storedDelta !== kvetkaGainAmount,
+        forceFateGainSound:String(card.id || '') === '76' && Number.isFinite(storedDelta) && storedDelta > 0,
         kvetkaGainAmount
       };
     });

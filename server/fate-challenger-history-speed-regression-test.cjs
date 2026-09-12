@@ -21,6 +21,8 @@ for(const file of ['09-challenger-mode.js', '09-challenger-v2.js']){
 }
 
 const endgame = fs.readFileSync(path.join(root, 'src/styles/endgame.css'), 'utf8');
+assert.match(endgame, /win-reward-rank-box\s*\{[\s\S]{0,180}grid-column: auto;[\s\S]{0,180}justify-self: start;[\s\S]{0,180}width: max-content;/,
+  'desktop end-screen rank panel must not span empty reward columns');
 assert.match(endgame, /win-rank-badge-large[\s\S]{0,180}width: max-content;/,
   'end-screen rank badge wrapper must shrink to its badge');
 assert.match(endgame, /grid-template-columns: auto max-content;[\s\S]{0,180}justify-content: start;/,

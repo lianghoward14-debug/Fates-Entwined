@@ -432,7 +432,10 @@
 }
 
 #s-win.endgame-redesign-v2 .win-reward-rank-box {
-  grid-column: span 2;
+  grid-column: auto;
+  justify-self: start;
+  width: max-content;
+  max-width: 100%;
   min-height: 82px;
 }
 
@@ -793,6 +796,8 @@ html.fate-performance-mode #s-win.endgame-redesign-v2:not(.active) {
 
   #s-win.endgame-redesign-v2 .win-reward-rank-box {
     grid-column: 1 / -1;
+    justify-self: stretch;
+    width: auto;
   }
 
   #s-win.endgame-redesign-v2 .win-return-action .btn {

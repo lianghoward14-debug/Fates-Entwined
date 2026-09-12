@@ -3689,7 +3689,9 @@ function showPublicDecks(page=_publicDecksPage) {
   if(sorted.length===0){
     html += `<div style="text-align:center;padding:2rem;color:var(--dim);font-style:italic;">No public decks yet. Be the first to share!</div>`;
   } else {
-    html += '<div class="pd-list">';
+    // Anchor public-deck cards to the top-left; CSS grid then fills each row
+    // left-to-right before continuing on the next row.
+    html += '<div class="pd-list pd-list-page">';
     pageDecks.forEach(d=>{
       const faceCard = d.faceCardId ? CARDS.find(c=>c.id===d.faceCardId) : null;
       const img = faceCard?.img || '';

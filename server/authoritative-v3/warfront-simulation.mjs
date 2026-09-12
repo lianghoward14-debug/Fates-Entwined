@@ -21,7 +21,7 @@ export function warfrontAiDeck(player={}){
 
 export function simulateWarfrontMatch(input){
   return new Promise((resolve,reject)=>{
-    const worker = new Worker(new URL(import.meta.url), {workerData:{...input,warfrontSimulation:true}});
+    const worker = new Worker(new URL(import.meta.url), {workerData:{...input,warfrontSimulation:true},resourceLimits:{maxOldGenerationSizeMb:192,maxYoungGenerationSizeMb:16}});
     // A whole game can take longer than ten minutes at normal AI strength.
     // Only terminate a worker that stops making accepted engine moves.
     let settled=false,progress={turn:1,actions:0};

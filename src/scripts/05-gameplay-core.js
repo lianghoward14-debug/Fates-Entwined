@@ -9352,6 +9352,8 @@ function preparePlacementFateReveal(inst, sourceCard, mode) {
     mode:String(mode || 'set'),
     createdAt:Date.now(),
     genericSoundRequested:Number(inst.currentFate ?? inst.fate ?? 0) !== fromValue,
+    forceFateGainSound:String(inst.id || source.id || '') === '76'
+      && Number(inst.currentFate ?? inst.fate ?? 0) > fromValue,
     kvetkaGainAmount:0
   };
   return inst;

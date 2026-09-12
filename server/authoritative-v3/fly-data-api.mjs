@@ -286,6 +286,8 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
       if(!player) continue;
       if(player.isAI)continue;
       const stored = profiles.get(cleanId(player.uid,128));
+      const currentName=stored?.chosenUsername||stored?.displayName||stored?.username;
+      if(currentName)player.name=cleanId(currentName,80);
       player.photo=resolveWarfrontPhoto(stored||{},player.photo);
       const rating = stored?.challengerElo ?? stored?.elo;
       player.elo = rating != null && Number.isFinite(Number(rating))

@@ -184,8 +184,21 @@ async function matchmakingRequest(route, {method = 'GET', body} = {}){
     };
   let response;
   if(API_URL==='https://fates-entwined-main.fly.dev'&&route.startsWith('/v3/beta/matchmaking/')&&globalThis.FateElectronFlyApi?.request){
-    const result=await globalThis.FateElectronFlyApi.request({route,method,headers:requestOptions.headers,authorization:requestOptions.headers.authorization,body});
-    response={ok:result.ok,status:result.status,text:async()=>result.text||JSON.stringify(result.data||{error:result.error})};
+    let result;
+    try{
+      result=await Promise.race([
+        globalThis.FateElectronFlyApi.request({route,method,headers:requestOptions.headers,authorization:requestOptions.headers.authorization,body}),
+        new Promise((_,reject)=>requestOptions.signal.addEventListener('abort',()=>reject(new Error('Desktop queue request timed out')),{once:true}))
+      ]);
+    }catch(error){result={ok:false,status:0,error:String(error?.message||error)};}
+    // Both transports retain the same session and payload: retries recover the
+    // existing queue entry/delivery rather than creating a second player.
+    if(!result.ok&&(!Number(result.status)||Number(result.status)>=500)){
+      response=await fetch(API_URL+route,{...requestOptions,signal:AbortSignal.timeout(12000)});
+    }else{
+      // Native text is a truncated diagnostic preview, never the JSON source.
+      response={ok:result.ok,status:result.status,text:async()=>result.data!=null?JSON.stringify(result.data):(result.text||JSON.stringify({error:result.error}))};
+    }
   }else response=await fetch(API_URL+route,requestOptions);
   const text = await response.text();
   let result = null;
@@ -532,9 +545,10 @@ async function startUnrankedMatchmaking({deckIds, name = '', photoURL = '', rank
         const status=Number(error?.status)||0;
         if(status>=400&&status<500&&![408,429].includes(status)) throw error;
         attempt += 1;
-        if(attempt>=6)throw new Error('Could not reconnect to the authoritative queue. '+String(error?.message||'Connection failed')+' Please try again.');
+        // Transient network/server failures must not eject a waiting player.
+        // Explicit cancellation and permanent 4xx errors still end the wait.
         if(typeof onStatus === 'function'){
-          onStatus({status:'waiting', reconnecting:true, message:'Reconnecting to the authoritative queue ('+attempt+'/6)...'});
+          onStatus({status:'waiting', reconnecting:true, message:'Queue connection interrupted; retrying ('+attempt+')... '+String(error?.message||'Connection failed').slice(0,160)});
         }
         await new Promise(resolve=>setTimeout(resolve, Math.min(4000, 500 * attempt)));
       }
