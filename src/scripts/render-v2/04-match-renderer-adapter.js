@@ -1864,7 +1864,10 @@
     }
   }
 
-  function alpineConsolidationTone(opponent){
+  function alpineConsolidationTone(opponent, state){
+    // Blue/red is the Snow on the Carpathians "ready to place" signal.
+    // A merely selected tribute keeps the ordinary gold selection cue.
+    if(state !== 'ready' && state !== 'placement') return null;
     const active = typeof isLandscapeActive === 'function'
       ? isLandscapeActive('igb15')
       : !!(typeof G !== 'undefined' && G && String(G.landscapeId || '') === 'igb15');
@@ -1880,7 +1883,7 @@
     const placement = state === 'placement';
     const ready = state === 'ready';
     if(!selected && !placement && !ready) return;
-    const tone = alpineConsolidationTone(opponent);
+    const tone = alpineConsolidationTone(opponent, state);
     const color = tone ? tone.line : (ready ? 'rgba(146,230,255,.96)' : selected ? 'rgba(255,244,132,.96)' : placement ? 'rgba(255,225,92,.92)' : 'rgba(255,220,72,.86)');
     const radius = Math.max(5, Math.min(10, r.w * .06));
     const inset = 2.4;
@@ -1902,7 +1905,7 @@
     const ready = state === 'ready';
     const placement = state === 'placement';
     if(!selected && !ready && !placement) return;
-    const tone = alpineConsolidationTone(opponent);
+    const tone = alpineConsolidationTone(opponent, state);
     const color = tone ? tone.line : (selected
       ? 'rgba(255,244,132,.98)'
       : ready

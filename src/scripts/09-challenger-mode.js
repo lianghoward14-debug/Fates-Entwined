@@ -5224,14 +5224,15 @@ function getMergedChallengerLeaderboardEntries() {
 
 showLeaderboard = async function(page=0, opts={}) {
   const modalAlreadyOpen = !!document.getElementById('modal')?.classList.contains('on');
-  if(!(opts && opts.skipFresh) && !modalAlreadyOpen && typeof window.FateOnlineReady === 'function') {
-    try { await window.FateOnlineReady(); } catch(e) {}
-  }
-  if(!(opts && opts.skipFresh) && !modalAlreadyOpen && window.FateOnline && typeof window.FateOnline.syncSharedAIRoster === 'function') {
-    try { await window.FateOnline.syncSharedAIRoster(); } catch(e) {}
-  }
-  if(!(opts && opts.skipFresh) && !modalAlreadyOpen && window.FateOnline && typeof window.FateOnline.refreshFlyLeaderboard === 'function') {
-    try { await window.FateOnline.refreshFlyLeaderboard({force:true}); } catch(e) {}
+  if(!(opts && opts.skipFresh) && !modalAlreadyOpen) {
+    const refreshes = [];
+    if(typeof window.FateOnlineReady === 'function') refreshes.push(Promise.resolve(window.FateOnlineReady()).catch(()=>{}));
+    if(window.FateOnline && typeof window.FateOnline.syncSharedAIRoster === 'function') refreshes.push(Promise.resolve(window.FateOnline.syncSharedAIRoster()).catch(()=>{}));
+    if(window.FateOnline && typeof window.FateOnline.refreshFlyLeaderboard === 'function') refreshes.push(Promise.resolve(window.FateOnline.refreshFlyLeaderboard({force:true})).catch(()=>{}));
+    if(refreshes.length) Promise.all(refreshes).then(function(){
+      const title = document.querySelector('#modal .modal-title, #modal-title');
+      if(document.getElementById('modal')?.classList.contains('on') && /leaderboard/i.test(title?.textContent || '')) showLeaderboard(page, {skipFresh:true});
+    });
   }
   if(typeof resetModalChrome === 'function') resetModalChrome();
   const sorted = getMergedChallengerLeaderboardEntries().sort((a,b)=>b.elo-a.elo);
@@ -7164,8 +7165,16 @@ function logMatch(p1, p2, winnerName, p1EloChange, p2EloChange, p1NewElo, p2NewE
   const aiList = typeof getRandomMatchAIOpponents === 'function' ? getRandomMatchAIOpponents() : AI_OPPONENTS;
   const p1Ai = aiList.find(a=>a.name===p1);
   const p2Ai = aiList.find(a=>a.name===p2);
-  const p1Img = p1Lb?.profileImg || p1Ai?.img || null;
-  const p2Img = p2Lb?.profileImg || p2Ai?.img || null;
+  const currentName = String(USER_PROFILE?.username || '');
+  const activeImg = typeof getProfileImgSrc === 'function' ? getProfileImgSrc('square') : USER_PROFILE?.profileImg;
+  const onlineProfiles = Object.values(window.FATE_ONLINE_LEADERBOARD || {});
+  const imageFor = (name, lb, ai) => {
+    if(currentName && String(name) === currentName) return activeImg || lb?.profileImg || lb?.photoURL || null;
+    const online = onlineProfiles.find(entry=>getLeaderboardDisplayName(entry) === name);
+    return lb?.profileImg || lb?.photoURL || online?.photoURL || online?.profileImg || ai?.img || null;
+  };
+  const p1Img = imageFor(p1, p1Lb, p1Ai);
+  const p2Img = imageFor(p2, p2Lb, p2Ai);
   history.push({
     p1, p2, winner: winnerName,
     p1Change: p1EloChange, p2Change: p2EloChange,
@@ -7212,8 +7221,8 @@ function showMatchHistory(page) {
       var p2Arrow = m.p2Change > 0 ? '+' : m.p2Change < 0 ? '-' : '';
       var p1EloColor = m.p1Change > 0 ? '#7fffa0' : m.p1Change < 0 ? '#ff6b6b' : 'var(--dim)';
       var p2EloColor = m.p2Change > 0 ? '#7fffa0' : m.p2Change < 0 ? '#ff6b6b' : 'var(--dim)';
-      var p1Img = m.p1Img || null;
-      var p2Img = m.p2Img || null;
+      var p1Img = m.p1Img || (m.p1 === USER_PROFILE?.username && typeof getProfileImgSrc === 'function' ? getProfileImgSrc('square') : null);
+      var p2Img = m.p2Img || (m.p2 === USER_PROFILE?.username && typeof getProfileImgSrc === 'function' ? getProfileImgSrc('square') : null);
       var timeStr = _fmtMatchTime(m.timestamp);
       html += '<div style="display:flex;align-items:center;gap:.8rem;padding:.75rem 1rem;border:1px solid var(--border);border-radius:10px;background:rgba(0,0,0,.3);">'
         // P1

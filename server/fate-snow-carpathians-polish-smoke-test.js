@@ -95,8 +95,10 @@ assert.match(rendering, /alpineOwnerClass[\s\S]*isLandscapeActive\('igb15'\)[\s\
   'Snow on the Carpathians consolidation cinematics must mark local and opponent ownership');
 assert.match(css, /cc-overlay-v2\.alpine-consolidation-owner-mine[\s\S]*cc-card-wrap-v2::after[\s\S]*--alpine-consolidation-owner-color:rgba\(83,176,255,\.92\)[\s\S]*cc-overlay-v2\.alpine-consolidation-owner-opp[\s\S]*--alpine-consolidation-owner-color:rgba\(255,96,108,\.94\)/,
   'Snow on the Carpathians consolidation cinematics must draw blue local and red opponent rings');
-assert.match(adapter, /function alpineConsolidationTone\(opponent\)[\s\S]*isLandscapeActive\('igb15'\)[\s\S]*rgba\(255,96,108,\.98\)[\s\S]*rgba\(83,176,255,\.98\)[\s\S]*drawTributeCue\(ctx, r, opts\.tributeState \|\| '', opts\.opponent\)[\s\S]*drawConsolidationCardOverlay\(ctx, r, tributeState, entry\.card && entry\.card\.owner !== snapshot\.viewer\)/,
-  'renderer-v2 must tint Alpine consolidation cues blue for local cards and red for opponent cards');
+assert.match(adapter, /function alpineConsolidationTone\(opponent, state\)[\s\S]{0,300}state !== 'ready' && state !== 'placement'[\s\S]*isLandscapeActive\('igb15'\)[\s\S]*rgba\(255,96,108,\.98\)[\s\S]*rgba\(83,176,255,\.98\)/,
+  'renderer-v2 must reserve Snow blue/red consolidation cues for ready-to-place cards');
+assert.match(adapter, /drawTributeCue\(ctx, r, state, opponent\)[\s\S]{0,500}alpineConsolidationTone\(opponent, state\)[\s\S]*drawConsolidationCardOverlay\(ctx, r, state, opponent\)[\s\S]{0,500}alpineConsolidationTone\(opponent, state\)/,
+  'both Snow consolidation border passes must use the readiness-gated tone');
 assert.match(data, /id:'04',name:'Zoe'[\s\S]{0,160}cost:1/,
   'Zoe must have a reinforcement cost of 1');
 assert.match(rendering, /TOPBAR_STATUS_TARGET_VISIBLE = 4[\s\S]*TOPBAR_STATUS_FLEX_MIN_WIDTH = 92[\s\S]*function getTopbarStatusAvailableWidth[\s\S]*function fitTopbarStatusTail[\s\S]*effect-pill-flex-tail[\s\S]*visibleCount--[\s\S]*isOverflow: true[\s\S]*function showStatusEffectOverflowDropdown/,

@@ -481,7 +481,7 @@
 
 #s-win.endgame-redesign-v2 .win-rank-badge-large,
 #s-win.endgame-redesign-v2 .win-rank-badge-large .rank-badge {
-  width: 100%;
+  width: max-content;
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
@@ -489,9 +489,9 @@
 
 #s-win.endgame-redesign-v2 .win-rank-badge-large .rank-badge {
   display: grid !important;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto max-content;
   align-items: center;
-  justify-content: stretch;
+  justify-content: start;
   gap: 8px !important;
   box-sizing: border-box;
   height: auto !important;
