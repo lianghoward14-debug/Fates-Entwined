@@ -1274,9 +1274,7 @@ function renderMissionDaily(){
   });
   var allDone = doneCount >= 3;
   var bonusClaimed = !!localStorage.getItem('fate_daily_bonus_' + today);
-  var allMissionsIcon = '<svg class="dc-all-missions-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
-    + '<path d="M12 3.4l2.4 5 5.5.8-4 3.9.9 5.5-4.8-2.6-4.8 2.6.9-5.5-4-3.9 5.5-.8L12 3.4Z" />'
-    + '</svg>';
+  var allMissionsIcon = typeof renderDailyChallengeIcon === 'function' ? renderDailyChallengeIcon('ALL') : '<span class="dc-icon-mark dc-icon-svg-host dc-icon-all"><svg class="dc-icon-svg" viewBox="0 0 32 32"><text class="dc-emblem-stamp" x="16" y="21" text-anchor="middle">✪</text></svg></span>';
   html += '<div class="dc-item dc-bonus-row' + (allDone ? ' dc-done' : '') + '" style="border-color:rgba(199,168,91,.18)!important;background:linear-gradient(135deg,rgba(130,200,239,.045),rgba(199,168,91,.025))!important;margin-top:.15rem;">'
     + '<div class="dc-item-icon-wrap" style="background:rgba(130,200,239,.075)!important;border-color:rgba(130,200,239,.26)!important;"><span class="dc-icon">' + allMissionsIcon + '</span></div>'
     + '<div class="dc-item-center">'

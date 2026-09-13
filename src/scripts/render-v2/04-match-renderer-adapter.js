@@ -1665,7 +1665,9 @@
       if(Number.isFinite(delta) && delta !== 0 && !kvetkaOnlyGain) {
         try {
           const soundType = delta > 0 ? 'fateGain' : 'fateLose';
-          const soundKey = 'placement-fate:' + record.iid + ':' + record.createdAt + ':' + soundType;
+          const soundKey = forceFateGainSound
+            ? 'alpine-infantry-fate:' + record.iid + ':' + String(pending.toValue)
+            : 'placement-fate:' + record.iid + ':' + record.createdAt + ':' + soundType;
           if(typeof window.playFateSfxOnce === 'function') window.playFateSfxOnce(soundType, soundKey, 700);
           else if(typeof window.playSfx === 'function') window.playSfx(soundType);
         } catch(e) {}

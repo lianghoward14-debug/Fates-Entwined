@@ -1,10 +1,26 @@
 import {filterLakesMomentum} from './lakes-momentum-heuristics.mjs';
+import {legalCommandTemplates} from '../engine/legal-commands.mjs';
 import {boardEntries,controllerOf} from '../engine/selectors.mjs';
 import {filterComboPlan} from './combo-plan.mjs';
 import {filterArchiveExpansionTargets} from './archive-expansion-heuristics.mjs';
-import {canUseAsConsolidationTribute,effectiveConsolidationCost,isEffectSourceSuppressed} from '../engine/modifiers.mjs';
+import {canUseAsConsolidationTribute,effectiveConsolidationCost,isEffectSourceSuppressed,runtimeRuleId} from '../engine/modifiers.mjs';
 // Strategic restrictions belong to the AI, not the game's legal rules.
 export function filterAiTargets(commands,state,player){
+  if(!state.pendingPrompt && !state.pendingHandLimit){
+    const entries=boardEntries(state);
+    commands=commands.filter(command=>{
+      if(command.type!=='DISCARD_CARD' || command.payload?.reason!=='MANUAL_DISCARD')return true;
+      const e=entries.find(e=>e.card.iid===(command.payload.targetIid || command.payload.sourceIid));
+      if(!e)return false;
+      // Free destruction is not development. Require a concrete replacement
+      // route in this square; never clear an ordinary body in an open zone.
+      if(state.board[e.z].some((row,r)=>row.some(c=>!c) && (r===1 || (player===0?r===2:r===0))))return false;
+      const board=state.board.map(zone=>zone.map(row=>row.slice()));board[e.z][e.r][e.c]=null;
+      const after={...state,board};
+      return legalCommandTemplates(after,player).some(c=>['SET_CARD','SET_CARD_FROM_DECK','CONSOLIDATE_CARD','SET_ADAPTIVE_TOKEN'].includes(c.type)
+        && c.payload?.destination?.z===e.z && c.payload.destination.r===e.r && c.payload.destination.c===e.c);
+    });
+  }
   commands=filterLakesMomentum(commands,state,player);
   commands=filterArchiveExpansionTargets(commands,state,player);
   commands=chooseWintertideSearch(commands,state,player);
@@ -25,15 +41,24 @@ export function filterAiTargets(commands,state,player){
       if(tgw.length)return tgw;
     }
   }
-  if(source?.id!=='31')return commands;
-  const opponents=new Set(board.filter(c=>Number(c.controller ?? c.owner)!==player).map(c=>c.iid));
-  return commands.filter(command=>{
+  const ruleId=runtimeRuleId(source);
+  // These effects allow either owner in the rules. AI intent is narrower:
+  // Oathbound reduces opponents, Howard/Marines buff allies, and Chingachlook
+  // removes opponents. Resolve copied effects through their runtime rule.
+  if(!['31','03','05','45'].includes(ruleId) || prompt.type!=='BOARD_TARGET')return commands;
+  const beneficial=['03','05'].includes(ruleId);
+  const preferred=new Set(board.filter(c=>(controllerOf(c)===player)===beneficial).map(c=>c.iid));
+  const filtered=commands.filter(command=>{
     if(command.type!=='ANSWER_PROMPT')return true;
     const p=command.payload || {};
     if(p.cancel===true)return true;
     const targets=p.selectedIids || (p.selectedIid?[p.selectedIid]:p.targetIid?[p.targetIid]:[]);
-    return targets.every(iid=>opponents.has(iid));
+    return targets.every(iid=>preferred.has(iid));
   });
+  // Oathbound is optional: never deliberately damage a friendly card.
+  // Mandatory effects must still resolve if the engine offers no preferred
+  // target (for example the last enemy disappeared during a reaction).
+  return filtered.length || ruleId==='31'?filtered:commands;
 }
 
 function chooseWintertideSearch(commands,state,player){

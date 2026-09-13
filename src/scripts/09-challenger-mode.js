@@ -488,7 +488,7 @@ const STARTER_DECKS = [
   {
     id: 'starter_maelstrom',
     name: 'Relentless Maelstrom',
-    description: 'Maximize Alondra\'s Fate with Expeditionary reinforcement, Isaac, and Erbs-assisted draws arranged by Ledger-keepers. Protect her with Makenna and recover key supporters through Crossroads.',
+    description: 'Build Alondra with Expeditionary reinforcements and Isaac, then protect her and recycle key supporters.',
     theme: 'Concentrated Fate',
     faceCardId: '14',
     displayCardIds: ['14','12','40','75','73','22','05'],
@@ -516,7 +516,7 @@ const STARTER_DECKS = [
   {
     id: 'starter_incel',
     name: 'Reign of the Furious Incel',
-    description: "Search Post-Modernist Dylan with Great Oak High Schooler, build Jimmy through Oathbound reductions and Guerilla interference, and use Lina to deploy Jimmy efficiently.",
+    description: 'Search Dylan, grow Jimmy through Oathbound reductions, and use Lina to deploy him efficiently.',
     theme: 'Fate Leech',
     faceCardId: '41',
     displayCardIds: ['41','10','68','08','70','31','58'],
@@ -7529,7 +7529,60 @@ function getDailyChallengeIconKind(defOrIcon) {
 function renderDailyChallengeIcon(defOrIcon, extraClass) {
   var label = getDailyChallengeIconLabel(defOrIcon);
   var kind = getDailyChallengeIconKind(defOrIcon);
-  return '<span class="dc-icon-mark dc-icon-' + kind + (extraClass ? ' ' + extraClass : '') + '" data-icon-label="' + escapeHtml(label) + '" aria-label="' + escapeHtml(label) + '"></span>';
+  var icons = {
+    all:'<path d="M7 5h10v4a5 5 0 0 1-10 0V5Z"/><path d="M9 17h6M12 14v3M8 20h8"/><path d="M7 7H4v1a4 4 0 0 0 4 4M17 7h3v1a4 4 0 0 1-4 4"/>',
+    laurel:'<path d="M8 17C4 14 4 8 7 5M16 17c4-3 4-9 1-12"/><path d="m8 11 3 3 5-6"/><path d="M6 8 4 7M6 12l-3 1M18 8l2-1M18 12l3 1"/>',
+    triple:'<circle cx="6" cy="12" r="3"/><circle cx="12" cy="8" r="3"/><circle cx="18" cy="12" r="3"/><path d="M8 18h8"/>',
+    warpath:'<path d="m14 2-7 11h5l-2 9 7-12h-5l2-8Z"/>',
+    bolt:'<path d="m14 2-7 11h5l-2 9 7-12h-5l2-8Z"/>',
+    drop:'<path d="M12 3s6 6.2 6 11a6 6 0 0 1-12 0c0-4.8 6-11 6-11Z"/><path d="M9 15c.5 1.5 1.5 2 3 2"/>',
+    needle:'<path d="M4 18 18 4M14 4h4v4M5 15l4 4M3 21l3-3"/>',
+    dual:'<path d="m5 6 5-3v8l-5 3V6ZM14 10l5-3v8l-5 3v-8Z"/><path d="m8 18 4 3 4-3"/>',
+    deploy:'<path d="M4 18h16M6 18v-5h5v5M13 18V8h5v10M8 9l4-5 4 3"/>',
+    support:'<circle cx="8" cy="8" r="3"/><circle cx="16" cy="8" r="3"/><path d="M3 19c0-4 2-6 5-6s5 2 5 6M11 19c0-4 2-6 5-6s5 2 5 6"/>',
+    council:'<circle cx="12" cy="6" r="2.5"/><circle cx="6" cy="11" r="2.5"/><circle cx="18" cy="11" r="2.5"/><path d="M3 20c0-3 1-5 3-5s3 2 3 5M9 20c0-4 1-7 3-7s3 3 3 7M15 20c0-3 1-5 3-5s3 2 3 5"/>',
+    merge:'<path d="M5 4v4c0 5 3 8 7 8h7M19 16l-3-3M19 16l-3 3M19 8h-3c-2 0-3 1-4 3"/>',
+    chain:'<path d="m9 15-2 2a3 3 0 0 1-4-4l4-4a3 3 0 0 1 4 0M15 9l2-2a3 3 0 0 1 4 4l-4 4a3 3 0 0 1-4 0M8 12h8"/>',
+    spark:'<path d="m12 2 1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8L12 2Z"/><path d="m19 17 .7 2.3L22 20l-2.3.7L19 23l-.7-2.3L16 20l2.3-.7L19 17Z"/>',
+    wand:'<path d="m4 20 12-12M14 4l1 3 3 1-3 1-1 3-1-3-3-1 3-1 1-3ZM19 14l.7 2.3L22 17l-2.3.7L19 20l-.7-2.3L16 17l2.3-.7L19 14Z"/>',
+    mind:'<path d="M2 12s4-6 10-6 10 6 10 6-4 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
+    eye:'<path d="M2 12s4-6 10-6 10 6 10 6-4 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
+    network:'<circle cx="12" cy="5" r="2"/><circle cx="5" cy="18" r="2"/><circle cx="19" cy="18" r="2"/><path d="m11 7-5 9M13 7l5 9M7 18h10"/>',
+    crown:'<path d="m3 7 5 4 4-7 4 7 5-4-2 11H5L3 7Z"/><path d="M5 21h14"/>',
+    zone:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>',
+    crosshair:'<circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>',
+    shield:'<path d="m12 3 7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6l7-3Z"/><path d="m8.5 12 2.2 2.2 4.8-5"/>',
+    flag:'<path d="M5 21V4M5 5h12l-2 4 2 4H5"/>',
+    banner:'<path d="M5 21V4M19 21V4M5 5h14v10l-7-3-7 3V5Z"/>',
+    road:'<path d="M8 22 10 2M16 22 14 2M12 4v3M12 10v3M12 16v3"/>',
+    anchor:'<circle cx="12" cy="5" r="2.5"/><path d="M12 8v13M5 12H2M22 12h-3M4 14c1 5 4 7 8 7s7-2 8-7M8 10h8"/>',
+    hammer:'<path d="m14 5 5 5M16 3l5 5-4 4-5-5 4-4ZM13 8 4 20"/>',
+    coin:'<circle cx="12" cy="12" r="9"/><path d="M15 8h-4a2 2 0 0 0 0 4h2a2 2 0 0 1 0 4H9M12 6v12"/>',
+    fate:'<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18 4.5 4.5 0 0 1 0-9 4.5 4.5 0 0 0 0-9Z"/><circle cx="12" cy="7.5" r="1"/><circle cx="12" cy="16.5" r="1"/>',
+    pack:'<path d="M5 7h14v14H5V7ZM8 3h8l2 4H6l2-4Z"/><path d="M9 12h6M12 9v6"/>',
+    deck:'<rect x="6" y="4" width="13" height="16" rx="2"/><path d="M3 8v11a2 2 0 0 0 2 2h10M9 8h7M9 12h7"/>',
+    star:'<path d="m12 2 3 6 7 .9-5 4.8 1.4 6.8L12 17l-6.4 3.5L7 13.7 2 9l7-.9 3-6Z"/>',
+    moon:'<path d="M20 15.5A9 9 0 0 1 8.5 4 9 9 0 1 0 20 15.5Z"/>',
+    horizon:'<path d="M3 16h18M5 16a7 7 0 0 1 14 0M12 5v3M5.5 9.5l2 2M18.5 9.5l-2 2"/>',
+    mosaic:'<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>',
+    circle:'<circle cx="12" cy="12" r="8"/>',
+    triangle:'<path d="m12 4 9 16H3L12 4Z"/>',
+    square:'<rect x="4" y="4" width="16" height="16" rx="1"/>',
+    xp:'<path d="M4 5h16v14H4V5Z"/><path d="m7 9 3 3-3 3M12 15h5"/>',
+    mission:'<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3.5h6M8 9l1.5 1.5L12 8M8 15l1.5 1.5L12 14M14 9h2M14 15h2"/>'
+  };
+  /* New art direction: filled stamped pictograms, independent from the old line glyphs. */
+  var stamps = {all:'✪',laurel:'✓',triple:'⋮',warpath:'ϟ',bolt:'ϟ',drop:'◆',needle:'➤',dual:'Ⅱ',deploy:'▰',support:'✚',council:'♟',merge:'↗',chain:'∞',spark:'✧',wand:'✦',mind:'◉',eye:'⊙',network:'⌘',crown:'♛',zone:'◎',crosshair:'⊕',shield:'⬟',flag:'⚑',banner:'▰',road:'⟫',anchor:'⚓',hammer:'⚒',coin:'●',fate:'◌',pack:'▣',deck:'▤',star:'★',moon:'☾',horizon:'⌒',mosaic:'▦',circle:'○',triangle:'△',square:'□',xp:'»',mission:'◆'};
+  var stamp = stamps[kind] || stamps.mission;
+  var tone = /^(warpath|bolt|drop|needle|hammer|road|anchor|flag|banner)$/.test(kind) ? 'crimson'
+    : /^(support|council|merge|chain|network|deploy)$/.test(kind) ? 'verdant'
+    : /^(mind|eye|spark|wand|fate|moon|horizon|mosaic)$/.test(kind) ? 'violet'
+    : /^(all|laurel|triple|dual|crown|shield|star|coin)$/.test(kind) ? 'gold'
+    : 'azure';
+  var centerMark = kind === 'all'
+    ? '<circle class="dc-all-ring" cx="16" cy="16" r="7.2"/><path class="dc-all-check" d="m11.8 16.1 2.7 2.7 5.8-6.1"/>'
+    : '<text class="dc-emblem-stamp" x="16" y="21" text-anchor="middle">' + stamp + '</text>';
+  return '<span class="dc-icon-mark dc-icon-svg-host dc-icon-' + kind + ' dc-icon-tone-' + tone + (extraClass ? ' ' + extraClass : '') + '" data-icon-label="' + escapeHtml(label) + '" aria-label="' + escapeHtml(label) + '"><svg class="dc-icon-svg" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><path class="dc-emblem-plate" d="M16 1.5 27.8 8v16L16 30.5 4.2 24V8L16 1.5Z"/><path class="dc-emblem-bevel" d="m16 5 8.6 4.8v12.4L16 27l-8.6-4.8V9.8L16 5Z"/>' + centerMark + '<circle class="dc-emblem-rivet" cx="16" cy="3.4" r="1"/><circle class="dc-emblem-rivet" cx="16" cy="28.6" r="1"/></svg></span>';
 }
 
 function getDailyChallengeDate() {

@@ -269,10 +269,10 @@ export function collectTriggeredOperations(state, event){
       )){
         operations.push({
           type:'SET_CARD_COUNTER',
-          targetIid:entry.card.iid,
+          targetIid:target.card.iid,
           counterKey:'wintertideTriggerCount',
-          value:Math.max(0, Number(entry.card.counters?.wintertideTriggerCount) || 0) + 1,
-          sourceIid:entry.card.iid,
+          value:Math.max(0, Number(target.card.counters?.wintertideTriggerCount) || 0) + 1,
+          sourceIid:target.card.iid,
           sourceController:Number(event.playerIndex)
         });
         operations.push({

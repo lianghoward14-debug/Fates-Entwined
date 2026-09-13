@@ -63,7 +63,7 @@ export function completeContinuation(initial,player,{budget=48,personality,rootT
   if(resolutionOnly){
     const resolved=settle(initial,budget,maxSteps);
     trace.completed=!pendingOf(resolved.state) || !!resolved.state.outcome;
-    return {state:resolved.state,score:resolved.score,principalVariation:resolved.variation,trace};
+    return {state:resolved.state,score:resolved.score,unresolved:pendingOf(resolved.state),principalVariation:resolved.variation,trace};
   }
   while(used<budget && variation.length<maxSteps && !state.outcome && state.turn<=rootTurn+1){
     if(state.turn!==previousTurn){actions=0;previousTurn=state.turn;}
@@ -109,5 +109,5 @@ export function completeContinuation(initial,player,{budget=48,personality,rootT
     if(!pending)actions++;
   }
   trace.completed=!!state.outcome || state.turn>rootTurn+1;
-  return {score:evaluatePosition(state,player,personality),principalVariation:variation,trace};
+  return {state,score:evaluatePosition(state,player,personality),unresolved:pendingOf(state),principalVariation:variation,trace};
 }

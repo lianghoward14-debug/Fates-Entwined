@@ -5,6 +5,7 @@ import {createCommandOrderer} from './ordering.mjs';
 import {filterAiTargets} from './targeting.mjs';
 import {personalityFor} from './personality.mjs';
 import {reviewPass} from './pass-review.mjs';
+import {searchBudget} from './search-budget.mjs';
 
 export function planDecision(commands,projection,context={}){
   const state=context.canonicalState;
@@ -12,9 +13,10 @@ export function planDecision(commands,projection,context={}){
   if(!state)return null;
   const personality=personalityFor(context.style || context.personality);
   const integer=(value,fallback,min,max)=>Number.isFinite(Number(value))?Math.max(min,Math.min(max,Math.floor(Number(value)))):fallback;
-  const samples=integer(context.samples,context.difficulty==='easy'?1:3,1,8);
+  const samples=integer(context.samples,context.difficulty==='easy'?2:3,1,8);
   const maxNodeBudget=integer(context.maxNodeBudget,4000,24,4000);
-  const nodeBudget=Math.min(maxNodeBudget,integer(context.nodeBudget,context.difficulty==='easy'?240:context.difficulty==='extreme'?960:600,24,4000));
+  const allocation=searchBudget(state,commands,{...context,maxNodeBudget});
+  const nodeBudget=allocation.nodeBudget;
   const results=[];
   let candidates=filterAiTargets(commands,state,player).filter(c=>c.type!=='CONCEDE');
   // Makenna's protection must include an eligible friendly Alondra. Use the
@@ -51,7 +53,7 @@ export function planDecision(commands,projection,context={}){
     if(best && !rootCommands.includes(best))rootCommands[rootCommands.length-i]=best;
   }
   for(const world of worlds){
-    results.push(searchWorld(world,player,{nodeBudget,maxSteps:20,width:rootCommands.length || 1,rootCommands,personality}));
+    results.push(searchWorld(world,player,{nodeBudget,maxSteps:allocation.maxSteps,width:rootCommands.length || 1,rootCommands,personality}));
   }
   const aggregate=new Map();
   for(const result of results)for(const option of result.alternatives || []){
@@ -71,7 +73,7 @@ export function planDecision(commands,projection,context={}){
   if(!best)return null;
   const sequence=[];
   for(const step of best.principalVariation){if(step.player!==player)break;sequence.push(step.command);if(step.command.type==='END_TURN')break;}
-  const trace={policy:'rules-search-v1',personality,samples,simulations:results.reduce((n,r)=>n+r.trace.simulated,0),
+  const trace={policy:'rules-search-v2',allocation,personality,samples,simulations:results.reduce((n,r)=>n+r.trace.simulated,0),
     opponentSimulations:results.reduce((n,r)=>n+r.trace.opponentSimulations,0),
     resolutionSimulations:results.reduce((n,r)=>n+r.trace.resolutionSimulations,0),
     completedContinuations:results.reduce((n,r)=>n+(r.trace.completedContinuations || 0),0),

@@ -1562,7 +1562,7 @@ async function nextPlayerTurn() {
       st.resolvedTurns.igb24 = true;
       let strengthened = 0;
       forEachBoardCard(function(card){
-        if(!card || String(card.type || '') !== 'Supporter' || card._igb24DawnFateGranted === true) return;
+        if(!card || card.id === '76' || String(card.type || '') !== 'Supporter' || card._igb24DawnFateGranted === true) return;
         const enteredTurn = Number(card._setTurn ?? card.counters?.fieldEnteredTurn);
         if(!Number.isFinite(enteredTurn) || Number(G.turn) - enteredTurn < 10) return;
         card._igb24DawnFateGranted = true;
@@ -7831,6 +7831,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       if(typeof applyPermanentEffectImmunity === 'function') applyPermanentEffectImmunity(inst);
       inst._suppressNextFatePulse = true;
       inst.currentFate = (typeof getPlacedCardFate === 'function' ? getPlacedCardFate(inst) : 1) + 5;
+      playAlpineInfantryFateGainSound(inst, 340);
       inst.immuneFlag = true;
       inst.noBonus = true;
       inst.noConsolidate = true;
@@ -9359,6 +9360,25 @@ function preparePlacementFateReveal(inst, sourceCard, mode) {
   return inst;
 }
 if(typeof window !== 'undefined') window.preparePlacementFateReveal = preparePlacementFateReveal;
+
+function playAlpineInfantryFateGainSound(card, delayMs) {
+  if(!card || String(card.id || '') !== '76') return false;
+  const play = function(){
+    const key = 'alpine-infantry-fate:' + String(card.iid || '76') + ':' + String(card.currentFate ?? card.fate ?? 'gain');
+    try {
+      if(typeof window !== 'undefined' && typeof window.playFateSfxOnce === 'function') {
+        window.playFateSfxOnce('fateGain', key, 900);
+        return;
+      }
+      if(typeof playSfx === 'function') playSfx('fateGain');
+    } catch(e) {}
+  };
+  const wait = Math.max(0, Number(delayMs) || 0);
+  if(wait && typeof setTimeout === 'function') setTimeout(play, wait);
+  else play();
+  return true;
+}
+if(typeof window !== 'undefined') window.playAlpineInfantryFateGainSound = playAlpineInfantryFateGainSound;
 
 function clampCardToLandscapeFateCap(card, z) {
   if(!card || typeof getLandscapeFateCapForZone !== 'function') return false;

@@ -1,3 +1,4 @@
+import {havanoDestinations} from './havano-destinations.mjs';
 import {cardRule} from './cards/registry.mjs';
 import {MAX_SUPPORTERS_SET_PER_TURN} from './constants.mjs';
 import {
@@ -159,6 +160,7 @@ export function legalCommandTemplates(state, playerIndex){
     if(prompt.type === 'REACTION'){
       commands.push({type:'ANSWER_PROMPT', payload:{promptId:prompt.promptId, choice:'DECLINE'}});
       for(const option of prompt.options || []){
+        if(option.kind==='HAVANO' && !havanoDestinations(state,player).length)continue;
         for(const mode of option.modes || []){
           commands.push({
             type:'ANSWER_PROMPT',
@@ -206,6 +208,10 @@ export function legalCommandTemplates(state, playerIndex){
       }
       if(prompt.cancellable) commands.push({type:'ANSWER_PROMPT', payload:{promptId:prompt.promptId, cancel:true}});
     }else if(prompt.type === 'BOARD_DESTINATION'){
+      if(prompt.context==='HAVANO_SET'){
+        for(const destination of havanoDestinations(state,player))commands.push({type:'ANSWER_PROMPT',payload:{promptId:prompt.promptId,destination}});
+        return commands;
+      }
       if(prompt.multi){
         const eligible = prompt.eligible || [];
         const min = Number(prompt.min || 0);

@@ -1,6 +1,6 @@
 import {boardEntries, controllerOf} from '../engine/selectors.mjs';
 import {zoneScore} from '../engine/scoring.mjs';
-import {canUseAsConsolidationTribute} from '../engine/modifiers.mjs';
+import {canUseAsConsolidationTribute,runtimeRuleId,isEffectSourceSuppressed} from '../engine/modifiers.mjs';
 import {resolveMoralePressureCycle} from '../engine/morale-pressure.mjs';
 import {personalityFor} from './personality.mjs';
 import {cardRule} from '../engine/cards/registry.mjs';
@@ -79,13 +79,19 @@ export function evaluatePosition(state, player, preferences=personalityFor()) {
   score+=(ownAccess.access-enemyAccess.access)*preferences.development;
   score-=(ownAccess.stranded-enemyAccess.stranded)*preferences.resources;
   score+=(ownAccess.interaction-enemyAccess.interaction)*preferences.disruption;
+  score+=(ownAccess.readiness-enemyAccess.readiness)*preferences.development;
+  score-=(ownAccess.congestion-enemyAccess.congestion)*preferences.resources;
   const entries=boardEntries(state);
   score+=(majaResponsePotential(state,player,entries)-majaResponsePotential(state,opponent,entries))*preferences.disruption;
-  for(const {card} of boardEntries(state)){
+  for(const entry of entries){
+    const {card}=entry;
     const sign=controllerOf(card)===player?1:-1;
-    if(card.faceDown)continue;
-    const rule=cardRule(card.id,state);
-    if(rule?.timings?.includes('ACTIVATE'))score+=sign*preferences.development;
+    if(card.faceDown || isEffectSourceSuppressed(state,entry))continue;
+    const rule=cardRule(runtimeRuleId(card),state);
+    const available=(!rule?.maxUses || Number(card.counters?.effectUses || 0)<rule.maxUses)
+      && !(rule?.oncePerTurn && Number(card.counters?.lastEffectTurn)===state.turn)
+      && !(rule?.blockedWhileStatus && card.statuses?.includes(rule.blockedWhileStatus));
+    if(rule?.timings?.includes('ACTIVATE') && available)score+=sign*preferences.development;
     // Public, reusable interaction is a resource even before it fires.
   }
   return score;

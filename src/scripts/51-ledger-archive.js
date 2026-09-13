@@ -93,6 +93,11 @@
       try{
         const accepted = options.onConfirm ? await options.onConfirm(ordered.slice()) : true;
         if(accepted === false) throw new Error('The order could not be saved. Please try again.');
+        try {
+          const soundKey = 'ledger-confirm:' + String(options.key || Date.now());
+          if(typeof window.playFateSfxOnce === 'function') window.playFateSfxOnce('modalConfirm', soundKey, 500);
+          else if(typeof playSfx === 'function') playSfx('modalConfirm');
+        } catch(e) {}
         if(active === session){ active = null; root.remove(); session.focus?.focus?.(); }
         resolve(ordered.slice());
       }catch(error){

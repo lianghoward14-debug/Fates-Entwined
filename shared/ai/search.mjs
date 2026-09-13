@@ -8,7 +8,11 @@ import {turnActionHorizon} from './turn-horizon.mjs';
 
 export function diverseCommands(commands, limit) {
   const buckets = new Map();
+  const exact=new Set();
   for (const command of commands) {
+    const signature=stableStringify(command);
+    if(exact.has(signature))continue;
+    exact.add(signature);
     const p = command.payload || {};
     const key = [command.type,p.cardIid || p.sourceIid || p.reactionIid || '',
       p.choice || p.cancel || '',p.selectedIid || p.targetIid || '',
@@ -43,28 +47,57 @@ export function diverseCommands(commands, limit) {
 
 // This entry point searches hypothetical worlds. Live callers must use the
 // observation/belief boundary in policy.mjs, never pass a live hidden state.
-export function searchWorld(world, player, {nodeBudget=480,maxSteps=16,width=6,rootCommands,personality=personalityFor()}={}) {
+export function searchWorld(world, player, {nodeBudget=480,maxSteps=16,width=6,rootCommands,personality=personalityFor(),isolated=false}={}) {
   if (![0,1].includes(player)) throw new RangeError('Invalid player');
   if (![nodeBudget,maxSteps,width].every(n=>Number.isInteger(n)&&n>0)) throw new RangeError('Positive integer search limits required');
+  // Allocate each root its own complete budget. Target-heavy effects must
+  // not consume the resolution work reserved for later alternatives.
+  if(!isolated && rootCommands?.length>1){
+    const roots=diverseCommands(rootCommands,Math.min(rootCommands.length,nodeBudget));
+    const alternatives=[],trace={generated:0,simulated:0,rejected:0,pruned:0,budgetExhausted:false,maxDepth:0,opponentSimulations:0,resolutionSimulations:0,completedContinuations:0,incompleteContinuations:0};
+    for(let i=0;i<roots.length;i++){
+      const budget=Math.floor(nodeBudget/roots.length)+(i<nodeBudget%roots.length?1:0);
+      const result=searchWorld(world,player,{nodeBudget:budget,maxSteps,width:1,rootCommands:[roots[i]],personality,isolated:true});
+      alternatives.push(...(result.alternatives || []));
+      for(const key of Object.keys(trace)){
+        if(key==='maxDepth')trace[key]=Math.max(trace[key],result.trace[key]);
+        else if(key==='budgetExhausted')trace[key] ||= result.trace[key];
+        else trace[key]+=result.trace[key] || 0;
+      }
+    }
+    alternatives.sort((a,b)=>b.score-a.score || stableStringify(a.command).localeCompare(stableStringify(b.command)));
+    const best=alternatives[0];
+    return {...best,command:best?.command || null,principalVariation:best?.principalVariation || [],sequence:(best?.principalVariation || []).map(s=>s.command),alternatives,trace};
+  }
   const trace={generated:0,simulated:0,rejected:0,pruned:0,budgetExhausted:false,maxDepth:0,opponentSimulations:0,resolutionSimulations:0,completedContinuations:0,incompleteContinuations:0};
   const rootTurn=world.turn;
   const values=new WeakMap();
+  const transpositions=new Map();
   const evaluate=state=>{
-    if(!values.has(state))values.set(state,evaluatePosition(state,player,personality));
+    if(!values.has(state)){
+      // Keep every mutable rule field, including RNG and effect stack. Only
+      // the immutable catalog is omitted; no unsafe board-only equivalence.
+      const {cardCatalog,...position}=state,key=stableStringify(position);
+      if(!transpositions.has(key)){
+        if(transpositions.size>=512)transpositions.delete(transpositions.keys().next().value);
+        transpositions.set(key,evaluatePosition(state,player,personality));
+      }
+      values.set(state,transpositions.get(key));
+    }
     return values.get(state);
   };
   function visit(state,steps,budget,turnActions=0) {
     const score=evaluate(state);
     trace.maxDepth=Math.max(trace.maxDepth,steps);
-    if (state.outcome || steps>=maxSteps || state.turn>rootTurn+1 || budget<1) {
+    if (state.outcome || state.turn>rootTurn+1 || budget<1) {
       if(budget<1)trace.budgetExhausted=true;
-      return {score,principalVariation:[]};
+      return {score,unresolved:!!(state.pendingPrompt || state.pendingHandLimit),principalVariation:[]};
     }
     // Recursive width otherwise divides the remaining budget until every
     // leaf ends mid-combo. Spend the last branch budget finishing the turn
     // and a reply instead of opening another shallow layer.
-    if(steps>0 && budget<=48){
-      const continuation=completeContinuation(state,player,{budget,personality,rootTurn,maxSteps:maxSteps-steps,turnActions});
+    if(steps>0 && (budget<=48 || steps>=maxSteps-4)){
+      const continuation=completeContinuation(state,player,{budget,personality,rootTurn,maxSteps:Math.max(4,maxSteps-steps),turnActions});
       for(const key of ['simulated','rejected','opponentSimulations','resolutionSimulations'])trace[key]+=continuation.trace[key];
       trace[continuation.trace.completed?'completedContinuations':'incompleteContinuations']++;
       trace.maxDepth=Math.max(trace.maxDepth,steps+continuation.principalVariation.length);
@@ -151,7 +184,10 @@ export function searchWorld(world, player, {nodeBudget=480,maxSteps=16,width=6,r
       const share=Math.floor(budget/selected.length)+(index<budget%selected.length?1:0);
       const nextActions=child.state.turn!==state.turn?0:turnActions+(resolving?0:1);
       const tail=visit(child.state,steps+1+child.settlement.length,share,nextActions);
-      alternatives.push({command:child.command,score:tail.score,principalVariation:[{player:current,command:child.executableCommand},...child.settlement,...tail.principalVariation]});
+      // Do not award an unfinished effect its speculative benefit. A line
+      // that runs out inside a picker retains its pre-action evaluation.
+      alternatives.push({command:child.command,score:tail.unresolved?score:tail.score,unresolved:tail.unresolved,
+        principalVariation:[{player:current,command:child.executableCommand},...child.settlement,...tail.principalVariation]});
     }
     alternatives.sort((a,b)=>(maximizing?b.score-a.score:a.score-b.score)||stableStringify(a.command).localeCompare(stableStringify(b.command)));
     return alternatives.length ? {...alternatives[0],alternatives:steps===0?alternatives:undefined} : {score,principalVariation:[]};

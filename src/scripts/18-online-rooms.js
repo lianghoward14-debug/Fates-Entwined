@@ -1999,6 +1999,9 @@
         forceFateGainSound:String(card.id || '') === '76' && Number.isFinite(storedDelta) && storedDelta > 0,
         kvetkaGainAmount
       };
+      if(String(card.id || '') === '76' && storedDelta > 0 && typeof window.playAlpineInfantryFateGainSound === 'function') {
+        window.playAlpineInfantryFateGainSound(card, 340);
+      }
     });
     const addedCharacters = added.filter(function(entry){
       return onlineCardIsCharacter(entry.card);

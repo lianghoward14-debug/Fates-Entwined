@@ -1,5 +1,6 @@
 import {projectStateForPlayer,stableStringify} from '../engine/index.mjs';
 import {createRngState,nextInt,shuffleInPlace} from '../engine/rng.mjs';
+import {cardRule} from '../engine/cards/registry.mjs';
 
 function instance(definition,owner,iid){
   return {iid,id:definition.id,name:definition.name || definition.id,ability:definition.ability || '',
@@ -18,10 +19,11 @@ export function sampleWorld(state,player,sample=0){
   const catalog=state.cardCatalog || [];
   const publicCards=[...view.board.flat(3).filter(c=>c && !c.faceDown),...view.players.flatMap(p=>p.discard || [])];
   const affiliations=new Set(publicCards.filter(c=>Number(c.controller ?? c.owner)===enemy).map(c=>c.affiliation));
-  const candidates=catalog;
+  const candidates=catalog.filter(c=>!c.retired && !c.temporarilyDisabled && !String(c.id).startsWith('token'));
+  const visibleHand=Array.isArray(view.players[enemy].hand)?view.players[enemy].hand:[];
   const counts=new Map();
   let stars=0;
-  for(const card of publicCards.filter(c=>Number(c.owner)===enemy)){
+  for(const card of [...publicCards.filter(c=>Number(c.owner)===enemy),...visibleHand]){
     counts.set(card.id,(counts.get(card.id) || 0)+1);
     if(card.rarity==='star')stars++;
   }
@@ -33,7 +35,18 @@ export function sampleWorld(state,player,sample=0){
     const typed=pool.filter(c=>(c.type==='Supporter')===supporter);
     const preferred=typed.filter(c=>affiliations.has(c.affiliation || c.aff));
     const selection=preferred.length && nextInt(rng,100)<70 ? preferred : typed.length?typed:pool;
-    const definition=selection.length ? selection[nextInt(rng,selection.length)] : {id:'ai-unknown',type:'Supporter',fate:1,cost:0};
+    // Publicly seen cards are evidence of a strategy, not proof of the
+    // hidden list. Mix continuation, interaction and broad samples so the
+    // planner sees credible replies without assuming an archive deck.
+    const weighted=selection.map(c=>{
+      const rule=cardRule(c.id,state),operations=rule?.operations || [];
+      const interaction=rule?.reactionKind || operations.some(op=>['DISCARD_CARD','MODIFY_FATE','CHANGE_CONTROL'].includes(op));
+      const weight=1+(publicCards.some(x=>x.owner===enemy && x.id===c.id)?2:0)
+        +(sample%3===1 && interaction?3:0)+(sample%3===2 && Number(c.cost)<=2?2:0);
+      return {c,weight};
+    });
+    let draw=nextInt(rng,Math.max(1,weighted.reduce((n,x)=>n+x.weight,0)));
+    const definition=weighted.find(x=>(draw-=x.weight)<0)?.c || {id:'ai-unknown',type:'Supporter',fate:1,cost:0};
     counts.set(definition.id,(counts.get(definition.id) || 0)+1);
     if(definition.rarity==='star')stars++;
     return instance(definition,owner,iid);

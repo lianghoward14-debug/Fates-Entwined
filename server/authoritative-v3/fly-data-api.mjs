@@ -171,16 +171,14 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
     if(binding.uids[1-teamASeat]!==participants.b.uid) return false;
     const winnerTeam=lock.winner===teamASeat?'a':'b',loserTeam=winnerTeam==='a'?'b':'a';
     if(!record){
-      // A zone sweep replaces earlier battle results, but not their earned stats.
-      zone.matches.forEach(m=>{m.voidedByForfeit=true;});
+      // A concession settles only this match; previous results remain valid.
       record={id:recordId,winnerTeam,teamASeat,completedAt:Date.now(),forfeitSweep:true,
-        starValue:5,commendationExcluded:true,playerStats:{a:{},b:{}}};
+        starValue:1,commendationExcluded:true,playerStats:{a:{},b:{}}};
       record.participants=clone(participants);
       zone.matches.push(record);
     }
-    // Never trust a client-authored match record to decide the sweep or ELO.
-    zone.matches.forEach(m=>{if(m.id!==recordId)m.voidedByForfeit=true;});
-    Object.assign(record,{winnerTeam,teamASeat,starValue:5,forfeitSweep:true,voidedByForfeit:false});
+    // The authority fixes the value of a forfeited match at one star.
+    Object.assign(record,{winnerTeam,teamASeat,starValue:1,forfeitSweep:true,voidedByForfeit:false});
     if(!match.outcome){record.commendationExcluded=true;record.continuationCompleted=false;record.playerStats={a:{},b:{}};}
     if(!binding.ratingsSettled){
       const winnerElo=profile(participants[winnerTeam].uid).challengerElo;
@@ -341,7 +339,32 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
   }
   let lifecycleBusy=false;
   async function tickWarfront(){
-    if(lifecycleBusy || !warfrontEvent)return;
+    if(!warfrontEvent)return;
+    // Deadline settlement must run even while a background game is awaiting CPU.
+    if(warfrontEvent.status==='active'&&Date.now()>=Number(warfrontEvent.endsAt)){
+      try{
+        refreshWarfrontForfeits();
+        const event=warfrontEvent,now=Date.now();
+        for(const zone of event.zones){
+          const aiWinner=zone.a?.isAI&&zone.b&&!zone.b.isAI?'a':zone.b?.isAI&&zone.a&&!zone.a.isAI?'b':null;
+          // An unfinished human-vs-AI front defaults to the waiting AI at
+          // deadline, including a match still open when the war expires.
+          if((aiWinner||!zone.activeMatch)&&(zone.a?.isAI||zone.b?.isAI)&&!event.humanOnly){
+            while(warfrontPlayed(zone)<5){
+              zone.matches.push({id:`WF_AI_${event.sequence}_${event.zones.indexOf(zone)}_${warfrontPlayed(zone)}`,
+                winnerTeam:aiWinner||(Math.random()<.5?'a':'b'),completedAt:now,simulated:true,starValue:1,
+                resolutionReason:aiWinner?'human-unfinished-at-deadline':'deadline',
+                simulationKind:'deadline',commendationExcluded:true,stats:{},playerStats:{},
+                participants:clone({a:zone.a,b:zone.b})});
+            }
+          }
+          zone.activeMatch=null;
+        }
+        finishWarfrontEvent();
+      }catch(error){console.error('Warfront deadline settlement failed:',error);}
+      return;
+    }
+    if(lifecycleBusy)return;
     lifecycleBusy=true;
     try{
       const now=Date.now();
@@ -360,8 +383,8 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
         try{
           match=due.deadline
             ? {id,winnerTeam:Math.random()<.5?'a':'b',completedAt:now,simulated:true,simulationKind:'deadline',commendationExcluded:true,stats:{},playerStats:{}}
-            : await simulateWarfrontMatch({id,landscapeId:zone.landscape?.id,participants});
-        }catch(error){zone.aiRetryAt=Date.now()+60000;persist();throw error;}
+            : await simulateWarfrontMatch({id,landscapeId:zone.landscape?.id,participants,deadline:event.endsAt});
+        }catch(error){if(warfrontEvent!==event||event.status!=='active')return;zone.aiRetryAt=Date.now()+60000;persist();throw error;}
         if(warfrontEvent!==event || event.status!=='active' || zone.activeMatch || zone.a?.uid!==participants.a?.uid || zone.b?.uid!==participants.b?.uid)return;
         if(!zone.matches.some(row=>row.id===id)){
           match.participants=participants;

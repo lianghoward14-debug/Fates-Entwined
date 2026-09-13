@@ -757,8 +757,14 @@ const AI_OPPONENTS = [
    desc:'All aggression, no strategy. Throws cards down and hopes for the best.',
    deckPool:'starter', deckRef:'starter_freeworld', deck:[]},
   {name:'Protector of Bird-Kind Makenna',elo:750,rank:'Footman',style:'distracted',img:'aiicons/ai17.png',
-   desc:'Gets sidetracked easily. Strong openings that fizzle out mid-game.',
-   deckPool:'starter', deckRef:'starter_assault', deck:[]},
+    desc:'Gets sidetracked easily. Strong openings that fizzle out mid-game.',
+    deckPool:'starter', deckRef:'starter_assault', deck:[]},
+  {name:'Housekeeper Wojciech',elo:650,rank:'Footman',style:'laid-back',img:'pfp/pfp81.png',
+    desc:'Plays a patient Maelstrom game, building steadily and rarely forcing a risky line.',
+    deckPool:'starter', deckRef:'starter_maelstrom', deck:[]},
+  {name:'Monarch Louis LeJuene',elo:775,rank:'Footman',style:'aloof',img:'pfp/pfp112.png',
+    desc:'Uses a direct Assault deck, favoring simple pressure and efficient consolidations.',
+    deckPool:'starter', deckRef:'starter_assault', deck:[]},
 
   // === CAPTAIN-OFFICER (800-999) — advanced AI decks ===
   {name:'Explorer Anicka Konvicka',elo:850,rank:'Captain-Officer',style:'methodical',img:'aiicons/ai15.png',
@@ -768,8 +774,14 @@ const AI_OPPONENTS = [
    desc:'Always experimenting with new lines. Unpredictable but sometimes brilliant.',
    deckPool:'advanced', deckRef:'ai_selva_tidal_strike', deck:[]},
   {name:'El Matador Santiago Alvarez',elo:950,rank:'Captain-Officer',style:'disciplined',img:'aiicons/ai13.png',
-   desc:'Follows the game plan no matter what. Rigid but effective fundamentals.',
-   deckPool:'advanced', deckRef:'ai_high_t_draw_mill', deck:[]},
+    desc:'Follows the game plan no matter what. Rigid but effective fundamentals.',
+    deckPool:'advanced', deckRef:'ai_high_t_draw_mill', deck:[]},
+  {name:'Great Oak Teacher Mr. Secules',elo:825,rank:'Captain-Officer',style:'reasonable',img:'pfp/pfp67.png',
+    desc:'Answers key effects with University counters, then turns disruption into a controlled board lead.',
+    deckPool:'advanced', deckRef:'ai_university_counterbattery', deck:[]},
+  {name:'Poli Sci Major Lydia',elo:925,rank:'Captain-Officer',style:'resourceful',img:'pfp/pfp56-portrait.png',
+    desc:'Quarantines your hand, denies important effects, and wins by exhausting your best options.',
+    deckPool:'advanced', deckRef:'ai_hand_quarantine', deck:[]},
 
   // === LIEUTENANT AT ARMS (1000-1199) — purpose-built AI decks ===
   {name:'Postmodernist Dylan',elo:1050,rank:'Lieutenant at Arms',style:'disruptive',img:'aiicons/ai12.png',
@@ -779,8 +791,14 @@ const AI_OPPONENTS = [
    desc:'Controls the tempo of the match. You play on her schedule or not at all.',
    deckPool:'advanced', deckRef:'ai_selva_tidal_strike', deck:[]},
   {name:'Cheez Its Overlord Cathy',elo:1150,rank:'Lieutenant at Arms',style:'resourceful',img:'aiicons/ai10.png',
-    desc:'Squeezes maximum value out of every card. Never wastes a placement.',
-     deckPool:'advanced', deckRef:'ai_high_t_draw_mill', deck:[]},
+     desc:'Squeezes maximum value out of every card. Never wastes a placement.',
+      deckPool:'advanced', deckRef:'ai_high_t_draw_mill', deck:[]},
+  {name:'Swordsmaster Li Hua',elo:1175,rank:'Lieutenant at Arms',style:'disciplined',img:'pfp/pfp116.png',
+    desc:'Builds an Eventide blockade, restricting movement and punishing opponents who overcommit.',
+    deckPool:'advanced', deckRef:'ai_eventide_blockade', deck:[]},
+  {name:'Twin Monarch Zsofia Szocs',elo:1125,rank:'Lieutenant at Arms',style:'commanding',img:'pfp/pfp15.png',
+    desc:'Develops a balanced Hungarian formation, then converts careful setup into coordinated zone pressure.',
+    deckPool:'advanced', deckRef:'ai_hungarian_war_dance', deck:[]},
 
   // === SERGEANT OF THE GUARD (1200-1399) — purpose-built AI decks ===
   {name:'Queen Felicyta Janowicz',elo:1250,rank:'Sergeant of the Guard',style:'commanding',img:'aiicons/ai9.png',
@@ -790,8 +808,14 @@ const AI_OPPONENTS = [
    desc:'Reads your hand through your plays. Always two steps ahead.',
     deckPool:'advanced', deckRef:'ai_university_counterbattery', deck:[]},
   {name:'Fighter Alondra Hopkins',elo:1350,rank:'Sergeant of the Guard',style:'relentless',img:'aiicons/ai7.png',
-   desc:'Overwhelming force concentrated at the perfect moment.',
-    deckPool:'advanced', deckRef:'ai_hellenic_heartbreaker', deck:[]},
+    desc:'Overwhelming force concentrated at the perfect moment.',
+     deckPool:'advanced', deckRef:'ai_hellenic_heartbreaker', deck:[]},
+  {name:'General Hseih Ling',elo:1275,rank:'Sergeant of the Guard',style:'bombastic',img:'pfp/pfp115.png',
+    desc:'Cycles cards aggressively, pressures your hand, and keeps attacking before you can stabilize.',
+    deckPool:'advanced', deckRef:'ai_high_t_draw_mill', deck:[]},
+  {name:'Bookworm Kazumi',elo:1375,rank:'Sergeant of the Guard',style:'empathetic',img:'pfp/pfp27.png',
+    desc:'Locks down your hand with precise disruption, patiently removing the answers you need most.',
+    deckPool:'advanced', deckRef:'ai_hand_quarantine', deck:[]},
 
   // === COMMANDER-GENERAL (1400-1599) — advanced AI decks ===
   {name:'Financial Consultant Phil',elo:1450,rank:'Commander-General',style:'efficient',img:'aiicons/ai6.png',
@@ -801,8 +825,14 @@ const AI_OPPONENTS = [
    desc:'You never know where the next threat is coming from.',
     deckPool:'advanced', deckRef:'ai_university_counterbattery', deck:[]},
   {name:'Divine Entity Cosmic GF',elo:1550,rank:'Commander-General',style:'visionary',img:'aiicons/ai4.png',
-   desc:'Sees the entire board as one interconnected puzzle. Plays three turns ahead.',
-    deckPool:'advanced', deckRef:'ai_great_oak_salvo', deck:[]},
+    desc:'Sees the entire board as one interconnected puzzle. Plays three turns ahead.',
+     deckPool:'advanced', deckRef:'ai_great_oak_salvo', deck:[]},
+  {name:'Master of Disguises Taylor',elo:1425,rank:'Commander-General',style:'adaptive',img:'pfp/pfp105.png',
+    desc:'Snowballs small advantages through flexible placements and pivots quickly when a zone becomes contested.',
+    deckPool:'advanced', deckRef:'ai_snowball_fight_club', deck:[]},
+  {name:'ALPINE Scientist Isaac Perez',elo:1525,rank:'Commander-General',style:'methodical',img:'pfp/pfp22.png',
+    desc:'Feeds an ALPINE engine that compounds Fate over time, protecting its setup until it becomes overwhelming.',
+    deckPool:'advanced', deckRef:'ai_alpine_furnace', deck:[]},
 
   // === HIGH MARSHALL (1600+) — advanced AI decks ===
   {name:'Mastermind Duncan Heyward',elo:1650,rank:'High Marshall',style:'inevitable',handKnowledge:'perfect',img:'aiicons/ai3.png',
@@ -812,8 +842,14 @@ const AI_OPPONENTS = [
    desc:'Reads your hand and strategy, then dismantles both before you can adjust.',
     deckPool:'advanced', deckRef:'ai_adjacency_doctrine', deck:[]},
   {name:'Commander Maja Kaminska',elo:1850,rank:'High Marshall',style:'overwhelming',handKnowledge:'perfect',img:'aiicons/ai1.png',
-   desc:'Perfect knowledge of your hand backs overwhelming force and flawless execution.',
-    deckPool:'advanced', deckRef:'ai_great_oak_salvo', deck:[]}
+    desc:'Perfect knowledge of your hand backs overwhelming force and flawless execution.',
+     deckPool:'advanced', deckRef:'ai_great_oak_salvo', deck:[]},
+  {name:'Neo Comintern Leader Henry Dong',elo:1675,rank:'High Marshall',style:'commanding',handKnowledge:'perfect',img:'pfp/pfp21.png',
+    desc:'Manipulates Reinforcement efficiently, coordinating every zone with full knowledge of your hand.',
+    deckPool:'advanced', deckRef:'ai_reinforcement_exchange', deck:[]},
+  {name:'King Alexander the Magnificient',elo:1725,rank:'High Marshall',style:'relentless',handKnowledge:'perfect',img:'pfp/pfp35.png',
+    desc:'Concentrates Hellenic pressure at decisive moments and relentlessly attacks the weakest zone.',
+    deckPool:'advanced', deckRef:'ai_hellenic_heartbreaker', deck:[]}
 ];
 
 // Add trueElo to all AI opponents (base + 200 competence boost)
@@ -986,9 +1022,9 @@ applyStoredAIEloStateToList(AI_OPPONENTS);
 // Map old difficulty keys to AI opponent selection — resolve dynamically so deckRef works
 const AI_DECKS = {
   get easy(){ return getPlayableAIDeck(AI_OPPONENTS[0]) || []; },
-  get medium(){ return getPlayableAIDeck(AI_OPPONENTS[3]) || []; },
-  get hard(){ return getPlayableAIDeck(AI_OPPONENTS[9]) || []; },
-  get extreme(){ return getPlayableAIDeck(AI_OPPONENTS[AI_OPPONENTS.length-1]) || []; }
+  get medium(){ return getPlayableAIDeck(AI_OPPONENTS.find(ai=>ai.name === 'High Envoy Chloe Kirk')) || []; },
+  get hard(){ return getPlayableAIDeck(AI_OPPONENTS.find(ai=>ai.name === 'Queen Felicyta Janowicz')) || []; },
+  get extreme(){ return getPlayableAIDeck(AI_OPPONENTS.reduce((best,ai)=>!best || Number(ai.elo)>Number(best.elo) ? ai : best,null)) || []; }
 };
 
 // --- TRUE ELO & AI SIMULATION ENGINE ---

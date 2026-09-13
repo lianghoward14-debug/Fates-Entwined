@@ -2,6 +2,7 @@ import {createLakesMomentumPrior} from './lakes-momentum-heuristics.mjs';
 import {boardEntries,controllerOf} from '../engine/selectors.mjs';
 import {zoneScore} from '../engine/scoring.mjs';
 import {cardRule} from '../engine/cards/registry.mjs';
+import {runtimeRuleId} from '../engine/modifiers.mjs';
 import {createIncelPrior} from './incel-heuristics.mjs';
 import {createAssaultPrior} from './assault-heuristics.mjs';
 import {createFreeWorldPrior} from './freeworld-heuristics.mjs';
@@ -54,7 +55,7 @@ export function createCommandOrderer(state,player){
   function value(card){
     if(!card)return 0;
     if(values.has(card.iid))return values.get(card.iid);
-    const operations=cardRule(card.id,state)?.operations || [];
+    const operations=cardRule(runtimeRuleId(card),state)?.operations || [];
     let score=Number(card.currentFate ?? card.fate ?? card.baseFate ?? 0)*.3;
     score+=operations.includes('DRAW_CARDS')?5:0;
     score+=operations.includes('TRANSFER_CARDS')?4:0;
@@ -78,6 +79,12 @@ export function createCommandOrderer(state,player){
       return -8-departureValue([p.targetIid || p.sourceIid])+deckPreservationPrior(command)+contestedCommandDelta(state,player,command,cards);
     }
     let score=lakesMomentumPrior(command)+value(card)+incelPrior(command)+assaultPrior(command)+freeWorldPrior(command)+majaPrior(command)+timePrior(command)+patiencePrior(command)+wintertidePrior(command)+endlessSeaPrior(command)+publicComboPrior(command)+archiveExpansionPrior(command)+comboPlanPrior(command)+deckPreservationPrior(command);
+    if(command.type==='ACTIVATE_EFFECT' && card){
+      // Explore live draw/search actions before dismissing the source as a
+      // low-Fate body. Copied effects inherit the runtime rule's operations.
+      const operations=cardRule(runtimeRuleId(card),state)?.operations || [];
+      if(operations.some(op=>['DRAW_CARD','DRAW_CARDS','TRANSFER_CARDS'].includes(op)))score+=8;
+    }
     if(command.type==='ACTIVATE_EFFECT' && card?.id==='40'){
       // A real draw, including a blind one, can turn this activation into
       // cheap Fate. Do not require Ledger or Alondra to use the effect.

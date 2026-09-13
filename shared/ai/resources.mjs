@@ -1,4 +1,4 @@
-import {boardEntries,controllerOf} from '../engine/selectors.mjs';
+import {boardEntries,controllerOf,rowOwner} from '../engine/selectors.mjs';
 import {canUseAsConsolidationTribute,effectiveConsolidationCost} from '../engine/modifiers.mjs';
 import {cardRule} from '../engine/cards/registry.mjs';
 
@@ -11,6 +11,11 @@ export function resourcePotential(state,player){
   const futureTurns=Math.max(0,Math.ceil((state.maxTurns-state.turn)/2));
   const placements=Math.max(0,Math.min(5-Number(state.supportersSetForCapThisTurn?.[player] || 0),Math.min(5,Number(state.baseSupportersPerTurn ?? 2)+Number(state.extraSupportersThisTurn?.[player] || 0))-Number(state.supportersSetThisTurn?.[player] || 0)));
   let access=0,stranded=0;
+  let open=0;
+  state.board.forEach((zone,z)=>zone.forEach((row,r)=>{
+    if(rowOwner(state,z,r)===1-player)return;
+    open+=row.filter(c=>!c).length;
+  }));
   const routes=[];
   for(const card of hand.filter(c=>c.type!=='Supporter')){
     const tributes=entries.map(e=>({e,result:canUseAsConsolidationTribute(state,e,player,card)})).filter(x=>x.result.ok);
@@ -50,5 +55,12 @@ export function resourcePotential(state,player){
   if(Number(state.supportersSetForCapThisTurn?.[player] || 0)<5){
     interaction+=Math.min(2,hand.filter(c=>cardRule(c.id,state)?.reactionKind==='HAVANO').length)*2;
   }
-  return {access,stranded,interaction,routes};
+  // Extra hand bodies have little immediate utility without a square or
+  // placement allowance. Retain some future value rather than valuing all
+  // twelve cards like twelve currently available actions.
+  const deployableSupporters=Math.min(supporters.length,placements,open);
+  const reserveSupporters=Math.min(Math.max(0,supporters.length-deployableSupporters),Math.max(0,futureTurns)*2);
+  const readiness=deployableSupporters*2+reserveSupporters*.4;
+  const congestion=open===0 && supporters.length?Math.min(6,supporters.length):0;
+  return {access,stranded,interaction,routes,readiness,congestion};
 }

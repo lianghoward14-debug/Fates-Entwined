@@ -374,7 +374,7 @@ ipcMain.handle('fate:fly-api-request', async (_event, request = {}) => {
   const headers = {'accept':'application/json'};
   const authorization = String(request.authorization || '');
   if(authorization.startsWith('Bearer ')) headers.authorization = authorization;
-  for(const key of ['x-fate-client-version','x-fate-client-session'])if(request.headers?.[key])headers[key]=String(request.headers[key]);
+  for(const key of ['x-fate-client-version','x-fate-client-session','x-fate-spectator-account-token'])if(request.headers?.[key])headers[key]=String(request.headers[key]);
   const init = {method, headers};
   if(method === 'POST'){
     headers['content-type'] = 'application/json';

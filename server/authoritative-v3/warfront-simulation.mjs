@@ -25,6 +25,8 @@ export function simulateWarfrontMatch(input){
     // A whole game can take longer than ten minutes at normal AI strength.
     // Only terminate a worker that stops making accepted engine moves.
     let settled=false,progress={turn:1,actions:0};
+    const deadlineTimer=Number(input.deadline)>0?setTimeout(()=>{void worker.terminate();},Math.max(1,Number(input.deadline)-Date.now())):null;
+    worker.once('exit',()=>clearTimeout(deadlineTimer));
     const timer = setTimeout(()=>{
       settled=true;worker.terminate();
       reject(new Error('Warfront simulation stalled at turn '+progress.turn+' after '+progress.actions+' actions'));

@@ -12,9 +12,9 @@
 <link rel="icon" href="blank.png">
   <link rel="stylesheet" href="src/styles/game.css?v=2026083002">
 <link rel="stylesheet" href="src/styles/99-ui-final.css?v=2026090108">
-<link rel="stylesheet" href="src/styles/zz-codex-last.css?v=20260912-legacy-card-audio-up-2">
+<link rel="stylesheet" href="src/styles/zz-codex-last.css?v=20260912-all-missions-centered">
 <link rel="stylesheet" href="src/styles/profile-view-v2.css?v=2026090701">
-<link rel="stylesheet" href="src/styles/ledger-archive.css?v=2026090801">
+<link rel="stylesheet" href="src/styles/ledger-archive.css?v=20260912-confirm-audio">
 <link rel="stylesheet" href="src/styles/profile-picker-performance.css?v=1788280003">
 <link rel="stylesheet" href="src/styles/match-scene-v2.css?v=1788000201">
 <link rel="stylesheet" href="src/styles/campaign-intro.css?v=1785023024">
@@ -23,7 +23,7 @@
 <link rel="stylesheet" href="src/styles/button-line-cleanup.css?v=1784359003">
 <link rel="stylesheet" href="src/styles/endgame.css?v=20260912-rank-panel-fit">
 <link rel="stylesheet" href="src/styles/challenger-war-event.css?v=2026090601">
-<link rel="stylesheet" href="src/styles/challenger-war-event-final.css?v=20260911-ai-seat-brightness">
+<link rel="stylesheet" href="src/styles/challenger-war-event-final.css?v=20260912-dispatch-roster-spacing">
 <!-- The match shell is intentionally loaded last. It is a reversible, single
      authority layer; fateMatchUI=0 restores the retained legacy match UI. -->
 <link rel="stylesheet" href="src/styles/zzzzzzzzzzzzzzzzzzzzzzz-match-ui-svg-v20.css?v=2026090801">
@@ -623,10 +623,10 @@
 <script src="src/scripts/02-effect-rule-metadata.js?v=2026083102"></script>
 <script src="src/scripts/13-svg-ui-enhancements.js?v=1780269000"></script>
   <script src="src/scripts/03-profile-and-progression.js?v=2026090801"></script>
-<script src="src/scripts/04-game-setup.js?v=20260912-profile-identity"></script>
-<script src="src/scripts/05-gameplay-core.js?v=20260912-alpine-fate-audio"></script>
+<script src="src/scripts/04-game-setup.js?v=20260912-expanded-ai-roster"></script>
+<script src="src/scripts/05-gameplay-core.js?v=20260912-alpine-fate-audio-direct"></script>
   <script src="src/scripts/06-rendering-and-helpers.js?v=20260912-alpine-24"></script>
-  <script src="src/scripts/51-ledger-archive.js?v=2026090801"></script>
+  <script src="src/scripts/51-ledger-archive.js?v=20260912-confirm-audio"></script>
 <script src="src/scripts/render-v2/00-render-v2-flags.js?v=1780590901"></script>
   <script src="src/scripts/render-v2/01-render-snapshot.js?v=20260912-alpine-fate-audio"></script>
 <script src="src/scripts/render-v2/02-match-layout-engine.js?v=1788120601"></script>
@@ -637,7 +637,7 @@
 <script src="src/scripts/render-v2/15-vfx-audio-sync.js?v=20260909-zone-sfx"></script>
 <script src="src/scripts/render-v2/13-vfx-recipes.js?v=20260909-zone-sfx"></script>
 <script src="src/scripts/render-v2/11-vfx-director.js?v=1788289101"></script>
-<script src="src/scripts/render-v2/04-match-renderer-adapter.js?v=20260912-alpine-fate-audio"></script>
+<script src="src/scripts/render-v2/04-match-renderer-adapter.js?v=20260912-alpine-fate-audio-direct"></script>
 <script src="src/scripts/render-v2/06-match-scene-input.js?v=1785686105"></script>
 <script src="src/scripts/render-v2/09-hand-drag-bridge.js?v=2026090502"></script>
 <script src="src/scripts/render-v2/10-card-motion-fx.js?v=1788129101"></script>
@@ -657,15 +657,15 @@
   <script src="src/scripts/45-match-ui-codex.js?v=2026090801"></script>
 <script src="src/scripts/46-bh21-hooks.js?v=1788372001"></script>
   <script src="src/scripts/25-profile-view-v2.js?v=2026090701"></script>
-<script src="src/scripts/09-challenger-mode.js?v=20260912-profile-speed"></script>
-<script src="src/scripts/47-challenger-war-event.js?v=20260912-zone-switch"></script>
+<script src="src/scripts/09-challenger-mode.js?v=20260912-all-missions-centered"></script>
+<script src="src/scripts/47-challenger-war-event.js?v=20260912-dispatch-report-cleanup"></script>
 <script src="src/scripts/49-warfront-zone-voice-hook.js?v=2026090304"></script>
 <script src="src/scripts/09a-card-information-5-lore.js?v=1784293501"></script>
 <script src="src/scripts/09-challenger-lore.js?v=1788000201"></script>
 <script src="src/scripts/campaign/01-campaign-intro.js?v=1785023024"></script>
 <script src="src/scripts/11-tutorial.js?v=1784663001"></script>
-<script src="src/scripts/12-ai-dialogue.js?v=1788172201"></script>
-  <script src="src/scripts/10-init.js?v=1784760018"></script>
+<script src="src/scripts/12-ai-dialogue.js?v=20260912-expanded-ai-roster"></script>
+  <script src="src/scripts/10-init.js?v=20260912-all-missions-seal-fix"></script>
 <script src="src/scripts/26-desktop-updater.js?v=1784365201"></script>
 
 <!-- Online play uses the Fate authoritative service and a local installation identity. -->
@@ -681,7 +681,7 @@
     './src/scripts/15-online-auth.js?v=20260912-profile-save-fix',
     './src/scripts/16-online-core.js?v=2026090501',
     './src/scripts/17-online-social.js?v=1788000401',
-    './src/scripts/18-online-rooms.js?v=20260912-alpine-fate-audio',
+    './src/scripts/18-online-rooms.js?v=20260912-alpine-fate-audio-direct',
     './src/scripts/19-online-elo.js?v=2026090501',
     './src/scripts/20-online-economy.js?v=2026090701'
   ];
@@ -775,7 +775,7 @@
   var params = new URLSearchParams(location.search || '');
   if(window.FATE_PHASE7_UNRANKED_BETA !== true) return;
   if(window.FATE_PHASE7_UNRANKED_BETA_BLOCKED === true) return;
-  import('./src/scripts/authoritative-v3-phase7-beta-client.mjs?v=20260912-queue-recovery')
+  import('./src/scripts/authoritative-v3-phase7-beta-client.mjs?v=20260912-war-ai-matchup')
     .then(function(){
       if(params.get('fateV3FullUiE2E') === '1' || params.get('fateV3PresentationE2E') === '1'){
         return import('./src/scripts/authoritative-v3-phase7-full-ui-e2e.mjs?v=2026083102');

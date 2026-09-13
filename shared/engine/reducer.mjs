@@ -1,3 +1,4 @@
+import {havanoDestinations} from './havano-destinations.mjs';
 import {
   COMMAND_TYPES,
   ENGINE_VERSION,
@@ -662,7 +663,7 @@ function activationReactionOptions(state, frame){
   if((sourceRule?.havanoTargeting === 'OPPONENT' || (frame.kind === 'COPIED_CARD_EFFECT' && sourceRule?.havanoPassiveEntry === true))
     && Number(state.supportersSetForCapThisTurn?.[opponent] || 0) < MAX_SUPPORTERS_SET_PER_TURN){
     for(const card of state.players[opponent].hand){
-      if(cardRule(card.id, state)?.reactionKind === 'HAVANO'){
+      if(cardRule(card.id, state)?.reactionKind === 'HAVANO' && havanoDestinations(state,opponent).length){
         options.push({reactionIid:card.iid, kind:'HAVANO', modes:['NEGATE', 'SUPPRESS']});
       }
     }
@@ -682,7 +683,7 @@ function targetReactionOptions(state, frame, operation){
   if(targetController === frame.controller) return [];
   if(Number(state.supportersSetForCapThisTurn?.[targetController] || 0) >= MAX_SUPPORTERS_SET_PER_TURN) return [];
   return state.players[targetController].hand
-    .filter(card=>cardRule(card.id, state)?.reactionKind === 'HAVANO')
+    .filter(card=>cardRule(card.id, state)?.reactionKind === 'HAVANO' && havanoDestinations(state,targetController).length)
     .map(card=>({reactionIid:card.iid, kind:'HAVANO', modes:['NEGATE', 'SUPPRESS']}))
     .sort((a, b)=>a.reactionIid.localeCompare(b.reactionIid));
 }
@@ -1434,7 +1435,7 @@ function completeEndTurn(state, ctx, actorIndex){
     state.landscapeState.resolvedTurns.igb24 = true;
     const affectedIids = [];
     for(const entry of boardEntries(state)){
-      if(effectiveCardType(state, entry.card) !== 'Supporter' || entry.card.counters?.igb24DawnFateGranted === true) continue;
+      if(effectiveCardType(state, entry.card) !== 'Supporter' || isEffectImmutable(entry.card) || entry.card.counters?.igb24DawnFateGranted === true) continue;
       const enteredTurn = Number(entry.card.counters?.fieldEnteredTurn);
       if(!Number.isFinite(enteredTurn) || state.turn - enteredTurn < 10) continue;
       applyOperation(ctx, {
@@ -1938,7 +1939,7 @@ function resolveReaction(state, ctx, frame, prompt, payload){
     frame.havanoIid = reactionEntry.card.iid;
     frame.waitingFor = 'HAVANO_DESTINATION';
     frame.reactionPhase = null;
-    const eligible = eligibleDestinations(state, {...frame, controller:prompt.playerIndex}, {ownSide:true, open:true});
+    const eligible = havanoDestinations(state,Number(prompt.playerIndex));
     if(!eligible.length) throw Object.assign(new Error('Havano has no legal destination'), {code:'NO_LEGAL_DESTINATIONS'});
     state.pendingPrompt = {
       promptId:nextId(state, 'prompt'),
@@ -2103,22 +2104,12 @@ function performCommand(state, ctx, command, actorIndex, options){
   // disconnect forfeits must be able to terminate every active match state.
   if(command.type === 'CONCEDE'){
     if(state.warfrontMatch){
-      // The first forfeit decides the competitive result permanently. The
-      // remaining human may continue only to earn commendation statistics.
-      if(!state.warfrontForfeit){
-        const loser = state.aiTakeoverSeats?.[0] ?? actorIndex;
-        state.warfrontForfeit = {winner:1-loser,loser,turn:state.turn};
-      }
-      if(actorIndex === state.warfrontForfeit.winner){
-        state.outcome = {type:'WARFRONT_FORFEIT',...state.warfrontForfeit,commendationsEligible:false};
-        state.phase = 'ended';
-        state.pendingPrompt = null;
-        state.pendingHandLimit = null;
-        state.effectStack = [];
-        return;
-      }
-      state.aiTakeoverSeats = [...new Set([...(state.aiTakeoverSeats || []), actorIndex])];
-      ctx.events.push({type:'WARFRONT_AI_TAKEOVER',playerIndex:actorIndex});
+      state.warfrontForfeit = {winner:1-actorIndex,loser:actorIndex,turn:state.turn};
+      state.outcome = {type:'WARFRONT_FORFEIT',...state.warfrontForfeit,commendationsEligible:false};
+      state.phase = 'ended';
+      state.pendingPrompt = null;
+      state.pendingHandLimit = null;
+      state.effectStack = [];
       return;
     }
     state.outcome = {

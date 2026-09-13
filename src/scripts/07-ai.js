@@ -3233,16 +3233,16 @@ function buildAIDifficultyPickerHtml(page) {
         <button class="btn sm ai-division-nav ai-division-next" onclick="showAIDifficultyPicker(${targetPage+1})" ${targetPage>=AI_DIVISIONS.length-1?'disabled':''}>Next</button>
       </div>
       <p class="ai-picker-subcopy">Page through the rank banners and pick the AI you want to face.</p>
-      <div style="display:flex;flex-direction:column;gap:.55rem;max-height:68vh;overflow-y:auto;padding-right:.3rem;">`;
+      <div class="ai-opponent-list">`;
     opponents.forEach(opp=>{
       const displayElo = aiPickerDisplayElo(opp);
       const aiIndex = AI_OPPONENTS.indexOf(opp);
       const avatar = opp.img
         ? '<div class="ai-avatar ai-avatar-lg"><img src="'+opp.img+'" alt="" loading="eager" decoding="async" draggable="false" onerror="this.style.display=&quot;none&quot;"></div>'
         : '<div class="ai-avatar ai-avatar-lg"><span style="font-size:1.25rem;opacity:.72;font-family:Cinzel,serif;">AI</span></div>';
-      html += '<div class="ai-diff-option" data-ai-index="'+aiIndex+'" style="cursor:pointer;padding:.85rem 1rem;border:1.5px solid var(--border);border-radius:12px;background:rgba(0,0,0,.35);transition:all .18s;display:flex;align-items:center;gap:1rem;">'
+      html += '<div class="ai-diff-option" data-ai-index="'+aiIndex+'">'
         + avatar
-        + '<div style="flex:1;min-width:0;"><div style="display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;"><span style="font-family:Cinzel,serif;font-size:1.02rem;color:var(--gold);font-weight:800;letter-spacing:.03em;">'+escapeHtml(opp.name)+'</span><span style="font-family:Cinzel,serif;font-size:.66rem;color:'+rankData.color+';background:'+rankData.bg+';padding:.14rem .45rem;border-radius:999px;border:1px solid '+rankData.color+'40;">'+displayElo+' ELO</span></div><div style="font-size:.79rem;color:var(--text);font-style:italic;margin-top:.22rem;line-height:1.42;opacity:.92;">'+escapeHtml(opp.desc)+'</div></div>'
+        + '<div style="flex:1;min-width:0;"><div style="display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;"><span style="font-family:Cinzel,serif;font-size:1.02rem;color:var(--gold);font-weight:800;letter-spacing:.03em;">'+escapeHtml(opp.name)+'</span><span class="ai-opponent-elo" style="font-family:Cinzel,serif;font-size:.66rem;color:'+rankData.color+';background:'+rankData.bg+';padding:.14rem .45rem;border-radius:999px;border:1px solid '+rankData.color+'40;">'+displayElo+' ELO</span></div><div class="ai-opponent-desc" style="font-size:.79rem;color:var(--text);font-style:italic;margin-top:.22rem;line-height:1.42;opacity:.92;">'+escapeHtml(opp.desc)+'</div></div>'
         + '<button class="btn sm pri ai-pick-btn" type="button" data-ai-index="'+aiIndex+'" style="flex-shrink:0;">Play</button></div>';
     });
     html += '</div>';
@@ -4707,7 +4707,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       }));
       opponents.sort((a,b)=>aiOpponentCardDecisionFate(b,z)-aiOpponentCardDecisionFate(a,z));
       friendly.sort((a,b)=>(Number(a.currentFate ?? a.fate)||0)-(Number(b.currentFate ?? b.fate)||0));
-      const target = opponents[0] || friendly[0];
+      const target = opponents[0];
       if(target){
         const before = target.currentFate || target.fate || 0;
         const changed = typeof reduceStoredCardFateBy === 'function'

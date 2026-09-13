@@ -23,6 +23,16 @@ assert.match(
   /case '76':[\s\S]{0,500}getPlacedCardFate\(inst\)[\s\S]{0,120}\+ 5/,
   'ALPINE Infantry must receive exactly its current +5 when-set gain'
 );
+assert.match(
+  core,
+  /case '76':[\s\S]{0,500}playAlpineInfantryFateGainSound\(inst, 340\)/,
+  'singleplayer ALPINE Infantry must explicitly schedule its Fate-gain sound'
+);
+assert.match(
+  rooms,
+  /String\(card\.id \|\| ''\) === '76'[\s\S]{0,180}storedDelta > 0[\s\S]{0,180}playAlpineInfantryFateGainSound\(card, 340\)/,
+  'multiplayer ALPINE Infantry must explicitly schedule its Fate-gain sound after authoritative placement'
+);
 
 assert.match(
   core,

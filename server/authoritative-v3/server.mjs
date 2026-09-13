@@ -344,6 +344,7 @@ function scheduleDisconnectForfeit(matchId, playerId){
   if(disconnectForfeitTimers.has(key)) return;
   const actor = manager.actor(id);
   if(!actor || actor.state.outcome || actor.state.phase === 'ended') return;
+  if(actor.state.warfrontAiSeats?.includes(actor.state.players.findIndex(player=>player.id===pid)))return;
   const timer = setTimeout(async ()=>{
     disconnectForfeitTimers.delete(key);
     if((matchSockets.get(id)?.get(pid)?.size || 0) > 0) return;
@@ -363,7 +364,7 @@ function scheduleDisconnectForfeit(matchId, playerId){
     }catch(error){
       console.error(`authoritative v3 disconnect forfeit failed for ${id}/${pid}:`, error.message || error);
     }
-  }, DISCONNECT_FORFEIT_MS);
+  }, Math.max(DISCONNECT_FORFEIT_MS,60000-process.uptime()*1000));
   timer.unref?.();
   disconnectForfeitTimers.set(key, timer);
 }
@@ -784,6 +785,10 @@ const server = http.createServer(async (req, res)=>{
         writeJson(res, 200, {ok:true, status:'matched', credential:pendingDelivery});
         return;
       }
+      let warfrontAccountUid=identity.uid;
+      if(body.queueMode==='warfront'&&req.headers['x-fate-spectator-account-token']){
+        warfrontAccountUid=await flyDataApi.verifiedUid({...req,headers:{...req.headers,authorization:'Bearer '+req.headers['x-fate-spectator-account-token']}});
+      }
       const requestedTestPool = String(body.testPool || '');
       const organicFixtureIdentity = PHASE7_ALLOW_ORGANIC_TEST_FIXTURES
         && phase7OrganicFixtureIdentity(req, identity, requestedTestPool);
@@ -794,7 +799,7 @@ const server = http.createServer(async (req, res)=>{
         : '';
       const queued = {
         uid:queuePlayerId,
-        authUid:identity.uid,
+        authUid:warfrontAccountUid,
         name:String(body.name || identity.uid).slice(0, 80),
         photoURL:normalizeMultiplayerPhoto(body.photoURL),
         rankElo:Math.max(0, Math.round(Number(body.rankElo) || 600)),

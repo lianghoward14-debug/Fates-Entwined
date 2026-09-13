@@ -6,7 +6,7 @@ const {extractArrayLiteral,getDeckCatalog}=require('../fate-deck-catalog.js');
 const source=readFileSync(new URL('../../src/scripts/04-game-setup.js',import.meta.url),'utf8');
 const opponents=runInNewContext('('+extractArrayLiteral(source,'AI_OPPONENTS')+')',Object.create(null),{timeout:1000});
 export function warfrontAiProfile(player={}){
-  const named=opponents.find(p=>p.name===player.name);
+  const named=opponents.find(p=>p.name===String(player.name||'').replace(/^\d{4}-Q\d+:/,''));
   const elo=Number(player.elo ?? player.rankElo ?? named?.elo)||600;
   return {...named,name:player.name||named?.name,style:named?.style||'balanced',
     difficulty:elo>=1400?'extreme':elo>=1200?'hard':elo>=800?'medium':'easy'};

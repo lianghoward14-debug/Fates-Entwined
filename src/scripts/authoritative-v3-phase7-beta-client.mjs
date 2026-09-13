@@ -167,7 +167,7 @@ async function matchmakingIdentityToken(){
 }
 
 async function matchmakingRequest(route, {method = 'GET', body} = {}){
-  const spectatorAccount=route.includes('/spectator-snapshot')?(globalThis.FateOnline?.auth?.currentUser||globalThis.FATE_ONLINE?.user):null;
+  const spectatorAccount=(route.includes('/spectator-snapshot')||body?.queueMode==='warfront')?(globalThis.FateOnline?.auth?.currentUser||globalThis.FATE_ONLINE?.user):null;
   const spectatorToken=await spectatorAccount?.getIdToken?.();
   const requestOptions = {
       signal:AbortSignal.timeout(12000),

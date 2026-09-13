@@ -14,9 +14,10 @@ const cardDataSource = fs.readFileSync(new URL('../../src/scripts/01-data-and-st
 assert.match(localGameplaySource,/case '75':[\s\S]{0,160}resolveLedgerArchive\(cp, inst\)/,'single-player must use the shared Ledger Archive resolver');
 assert.match(onlineGameplaySource,/window\.openLedgerArchive\(/,'multiplayer must use the shared Ledger Archive window');
 assert.match(ledgerUiSource,/ledger-archive-v2/,'shared Ledger Archive window must use the current UI');
-assert.match(indexSource,/ledger-archive\.css\?v=2026090801[\s\S]*51-ledger-archive\.js\?v=2026090801/,'Ledger Archive script and style cache versions must remain synchronized');
+assert.match(ledgerUiSource,/playFateSfxOnce\('modalConfirm', soundKey, 500\)/,'confirming a Ledger Archive order must play confirmation audio');
+assert.match(indexSource,/ledger-archive\.css\?v=20260912-confirm-audio[\s\S]*51-ledger-archive\.js\?v=20260912-confirm-audio/,'Ledger Archive script and style cache versions must remain synchronized');
 assert.match(cardDataSource,/id:'75'[\s\S]{0,600}img:'75\.png\?v=20260907-ledger2'/,'Ledger Keepers must use the current card art cache key');
-assert.match(indexSource,/01-data-and-state\.js\?v=2026090705/,'the card database cache must refresh with the Ledger Keepers art');
+assert.match(indexSource,/01-data-and-state\.js\?v=20260912-carolyn-art/,'the card database cache must use the current card catalog version');
 
 const definitions = ['75','32','60','42','05','31','33','68'].map(id=>({
   id,name:'Card '+id,type:'Supporter',aff:'eventide',fate:1,cost:0,rarity:'circle'

@@ -5,6 +5,7 @@ export function warfrontReportStats(zones){
   for(const zone of zones)for(const match of zone.matches||[]){
     if(match.voidedByForfeit||match.commendationExcluded||(match.forfeitSweep&&!match.continuationCompleted))continue;
     for(const team of ['a','b']){
+      if(team!==match.winnerTeam)continue;
       const player=match.participants?.[team]||zone[team];if(!player)continue;
       const stats=match.playerStats?.[team]||(team===match.winnerTeam?match.stats:null)||{};
       rows.push({uid:player.uid,name:player.name,photo:player.photo,team,

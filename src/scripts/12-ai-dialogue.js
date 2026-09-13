@@ -260,6 +260,16 @@ const AI_RANDOM_DIALOGUE_ENDINGS = [
   }
 })();
 
+function buildPresetCharacterDialogue(openers, observations, closers) {
+  const lines = [];
+  openers.forEach(function(opener){
+    observations.forEach(function(observation){
+      closers.forEach(function(closer){ lines.push(opener + ' ' + observation + ' ' + closer); });
+    });
+  });
+  return lines.slice(0, 50);
+}
+
 const AI_PRESET_DIALOGUE_BANK = {
   maja: [
     "Man, Pink Lizards just released a new album today. Do you know what happened the last time the 5th, 15th, and 7th Russian armies interrupted Pink Lizard album release day at Leipzig?",
@@ -571,6 +581,7 @@ const AI_PRESET_DIALOGUE_BANK = {
     "Your strength meets my grace and ambition.",
     "Santiago claims his rightful victory.",
     "Ambition, grace, and relentless hunger.",
+    "A true matador turns pressure into poise, then poise into victory.",
   ],
   dylan: [
     "Folks, this is quite a game we're having here.",
@@ -1196,6 +1207,210 @@ const AI_PRESET_DIALOGUE_BANK = {
     "I-I'm going to make this move now. Please don't watch. I know you have to watch. I'm sorry.",
     "E-equilibrium isn't just a physics concept for me. It's... it's kind of my whole thing. Unfortunately.",
   ],
+  wojciech: buildPresetCharacterDialogue(
+    [
+      "Back in the army, we called this the quiet part before somebody burned supper.",
+      "Take it easy, friend; a good battle and a good stew both punish rushing.",
+      "I have commanded generals, cleaned trout, and folded more pierogi than you have cards.",
+      "Kvetka would already be asking whether the fish are biting, and she would be right to ask.",
+      "In Wodny Potok we solve most crises with a warm fire, a full plate, and one unbelievable story."
+    ],
+    [
+      "Your strongest zone looks like a river pool with too many boots around it.",
+      "I will leave that tempting opening there and see whether you nibble.",
+      "The Carpathians teach patience; the trout come when they come.",
+      "This formation reminds me of a campaign I survived mostly through luck and excellent soup.",
+      "You can laugh now, but I have won worse positions before breakfast."
+    ],
+    ["Now, let us see what is cooking.", "No worries—there is always another cast." ]
+  ),
+  louis: buildPresetCharacterDialogue(
+    [
+      "The council insists this battle is important; my roses remain unconvinced.",
+      "Flanders may be at war, but the delphiniums will not prune themselves.",
+      "I have left a perfectly peaceful garden to attend to this regrettable necessity.",
+      "A crown is mostly paperwork performed between seasons of bloom.",
+      "Do proceed; I am deciding whether the western terrace needs more lavender."
+    ],
+    [
+      "Your formation has symmetry, though less than my south parterre.",
+      "That move is intelligent enough to earn a moment of my attention.",
+      "Pressure should be applied like water to roots: precisely and without spectacle.",
+      "The war on my shoulders is heavy, but apparently not heavy enough to excuse poor composition.",
+      "I see the line you intend, and I find it mildly inconvenient."
+    ],
+    ["I shall resolve it before the peonies open.", "Try not to trample anything on your way out." ]
+  ),
+  secules: buildPresetCharacterDialogue(
+    [
+      "Let us slow down and distinguish what the board shows from what we assume.",
+      "At Great Oak, I would ask the class to support that interpretation with evidence.",
+      "A mature argument does not become stronger merely because it is louder.",
+      "Composition, context, and intent—those principles work beyond art history.",
+      "I have heard more dramatic claims from students who skipped the assigned reading."
+    ],
+    [
+      "Your placement has a clear focal point, but the surrounding structure is unresolved.",
+      "This exchange is reasonable only if the next move completes its argument.",
+      "The negative space in that zone may matter more than the cards occupying it.",
+      "I understand your interpretation; I simply do not find it persuasive yet.",
+      "There is no need to panic when a careful revision will do."
+    ],
+    ["Consider this constructive criticism.", "We can evaluate the result when the whole work is visible." ]
+  ),
+  lydia: buildPresetCharacterDialogue(
+    [
+      "Carolyn, if you can hear me, the sword is talking again and it has strategic opinions.",
+      "I came to Berkeley for political science, not armed negotiations with floating objects.",
+      "After the World of Weird, a card game is honestly a manageable emergency.",
+      "My roommate bends probability; I negotiate with a sword that refuses to use an indoor voice.",
+      "Unit 1 survived undead hippies, giant crayfish, and dining-hall cookies with demands."
+    ],
+    [
+      "Your move has the legitimacy of a government formed at three in the morning.",
+      "The sword says to attack; I am requesting a slightly more nuanced policy platform.",
+      "I can work with this coalition if none of the cards begin speaking Latin.",
+      "That zone needs containment before Evans Hall notices it.",
+      "Political theory did not cover this, but office hours rarely cover anything useful."
+    ],
+    ["Fine—sword, you get one swing.", "Let us finish before Carolyn accidentally equalizes the universe." ]
+  ),
+  lihua: buildPresetCharacterDialogue(
+    [
+      "On my island, the old forms are practiced until motion and thought become one.",
+      "Pacifica forgot much of the old culture; I have not.",
+      "A sword is not loud. The hand holding it should be quieter still.",
+      "Isolation preserves what noise and haste would erode.",
+      "The masters taught that discipline begins before the blade leaves its sheath."
+    ],
+    [
+      "Your center is strong, but strength without balance invites a clean cut.",
+      "I will not chase the opening; I will allow it to reveal itself.",
+      "Every zone has a rhythm, and yours has broken cadence.",
+      "The old teachings survive because they remain useful under unfamiliar skies.",
+      "One exact movement is worth a hundred gestures made for display."
+    ],
+    ["Observe carefully; the answer will be brief.", "When the water stills, the correct line appears." ]
+  ),
+  zsofia: buildPresetCharacterDialogue(
+    [
+      "Rozsi would give the speech; I will make certain the state still functions afterward.",
+      "Wodny Potok was quiet, but Sebastyen never allowed any of us an unprepared hour.",
+      "A twin monarchy succeeds when ceremony and administration understand one another.",
+      "Hungary did not raise the Danube defenses for decoration.",
+      "Felicyta called our armament dangerous; I called surrender more dangerous still."
+    ],
+    [
+      "Your pressure is real, so I will reinforce the structure rather than deny it.",
+      "This zone needs an administrator’s eye: resources first, sentiment afterward.",
+      "A defensive line is a promise to the people behind it, not merely a mark on a map.",
+      "I know what exile costs; I will not treat control casually.",
+      "Rozsi and I learned to carry one crown between two different strengths."
+    ],
+    ["The Danube line will answer for us.", "Duty remains when confidence becomes difficult." ]
+  ),
+  hseih: buildPresetCharacterDialogue(
+    [
+      "Sunglasses on—the Chinese MacArthur has arrived!",
+      "At Qingdao in 2033, hesitation would have thrown our foothold back into the sea.",
+      "The Nationalist line advances because I tell it that retreat is unfashionable.",
+      "A cautious commander sees danger; I see a stage prepared for my entrance.",
+      "Make room on the map! Hseih Ling is about to improve its borders."
+    ],
+    [
+      "Your flank is practically issuing me an engraved invitation.",
+      "I will turn that narrow opening into an aggressive foothold.",
+      "Bold action creates its own supply line—eventually.",
+      "This operation needs speed, nerve, and a photograph of me looking magnificent.",
+      "You call it overextension; history will call it dramatic vision."
+    ],
+    ["Forward, before good sense catches us!", "Qingdao was only the opening act!" ]
+  ),
+  kazumi: buildPresetCharacterDialogue(
+    [
+      "The old books say courage is quiet when it has nothing to prove.",
+      "Anicka showed me the cliffs; I showed her that blue eyes could resemble the sea without belonging to it.",
+      "I remember very little of my beginning, so I try to choose carefully what comes next.",
+      "A story from the Old Age is never truly lost while someone is willing to carry it.",
+      "Kindness offered to a stranger may become the only home either person remembers."
+    ],
+    [
+      "I can yield this card without believing that its value was small.",
+      "Your position is dangerous, but I do not need to be cruel to answer it.",
+      "Sometimes protecting another person means accepting the harder path yourself.",
+      "The sea takes much; that does not mean we must imitate it.",
+      "I have read endings like this, and the gentlest choice is often the bravest."
+    ],
+    ["Let us make the next page worth preserving.", "Whatever happens, choose without hatred." ]
+  ),
+  taylor: buildPresetCharacterDialogue(
+    [
+      "Okay, disguise checked, exit route checked, cheerful smile extremely checked.",
+      "ALPINE taught me that the best infiltration begins with looking like you belong there.",
+      "Chris says I improvise too much; Isaac calls it rapid field research.",
+      "I can be a guard, a scientist, a courier, or the person who already stole your plan.",
+      "Broken Arrow taught me to pack light, think fast, and never trust the restaurant staff."
+    ],
+    [
+      "Your strategy is clever, so I may borrow its outfit for a turn.",
+      "There is always another identity and usually another way out.",
+      "I spotted the weak seam; now I just need the right uniform.",
+      "This is the fun part where preparation pretends to be luck.",
+      "You planned for the operative you saw, not the one already behind you."
+    ],
+    ["Smile—this is going to work beautifully.", "Adapt, improvise, and leave before anyone checks the badge." ]
+  ),
+  isaac: buildPresetCharacterDialogue(
+    [
+      "A miniature star is easier to contain when everyone respects the procedure.",
+      "At ALPINE, every breakthrough created two questions and at least one alarming memorandum.",
+      "Fusion rewards patience; unstable systems punish confidence without evidence.",
+      "Jeremiah recruited me to solve an anomaly, not to stop asking who might weaponize the answer.",
+      "Chris and Taylor prefer field improvisation; I prefer measurements that survive peer review."
+    ],
+    [
+      "The energy balance in that zone is approaching a useful threshold.",
+      "Your result is interesting, but I would like to see whether it replicates.",
+      "A controlled reaction produces more value than a spectacular accident.",
+      "I can improve this system without pretending its consequences are someone else’s problem.",
+      "The data suggests a narrow line, and the margin of error is shrinking."
+    ],
+    ["Let us test the hypothesis carefully.", "If the chamber holds, the position will too." ]
+  ),
+  henry: buildPresetCharacterDialogue(
+    [
+      "In the Udokan camps, organization began with people deciding despair was not inevitable.",
+      "A revolution is not a speech; it is thousands of ordinary choices held together.",
+      "The oligarchs mistook isolation for power until the prisoners learned to coordinate.",
+      "From the Urals to the Lena, workers joined because liberation had to become material.",
+      "Conviction without structure burns brightly and disappears; I intend to build something lasting."
+    ],
+    [
+      "This zone will hold because every piece understands its role in the whole.",
+      "You may remove a card, but the movement does not depend on one card.",
+      "Pressure reveals whether a formation serves only itself or a common purpose.",
+      "I will turn scattered strength into disciplined collective action.",
+      "Your advantage is concentrated; ours is organized."
+    ],
+    ["The line advances together.", "History moves when people discover their shared strength." ]
+  ),
+  alexander: buildPresetCharacterDialogue(
+    [
+      "Greece remembers what timid ages tried to bury beneath the hillside.",
+      "I did not inherit the name Alexander; I made myself worthy of it.",
+      "At Thessaloniki, leadership meant standing where the enemy fire was thickest.",
+      "The hills of Greece are temples, fortresses, and witnesses to our return.",
+      "A king who asks courage of his people must be visible at the front."
+    ],
+    [
+      "Your ranged line can pin ordinary soldiers; mine are coming forward with spears.",
+      "This terrain favors the commander who treats history as a living weapon.",
+      "One decisive charge will say more than a month of cautious maneuver.",
+      "The Hellenic formation bends around the hill and closes like a bronze gate.",
+      "You see theatrical armor; my soldiers see proof that I share their danger."
+    ],
+    ["Forward—let the old glory become present fact.", "The next victory will be carved in marble." ]
+  ),
 };
 
 function getPresetAIDialogueKey() {
@@ -1217,6 +1432,18 @@ function getPresetAIDialogueKey() {
   if(aiName.includes('cathy')) return 'cathy';
   if(aiName.includes('felicyta')) return 'felicyta';
   if(aiName.includes('anne')) return 'anne';
+  if(aiName.includes('wojciech')) return 'wojciech';
+  if(aiName.includes('louis') || aiName.includes('lejeune')) return 'louis';
+  if(aiName.includes('secules')) return 'secules';
+  if(aiName.includes('lydia')) return 'lydia';
+  if(aiName.includes('li hua')) return 'lihua';
+  if(aiName.includes('zsofia')) return 'zsofia';
+  if(aiName.includes('hseih')) return 'hseih';
+  if(aiName.includes('kazumi')) return 'kazumi';
+  if(aiName.includes('taylor')) return 'taylor';
+  if(aiName.includes('isaac') || aiName.includes('perez')) return 'isaac';
+  if(aiName.includes('henry dong')) return 'henry';
+  if(aiName.includes('alexander')) return 'alexander';
   if(aiName.includes('alondra')) return 'alondra';
   if(aiName.includes('phil')) return 'phil';
   if(aiName.includes('agent k') || aiName.includes('codebreaker')) return 'agentk';
