@@ -169,7 +169,7 @@ function fadeWarAudio(audio,to,duration,token,done){
   const frame=now=>{if(token!==_warfrontMusicTransition)return;const p=Math.min(1,(now-started)/span),ease=p*p*(3-2*p);try{audio.volume=from+(to-from)*ease;}catch(e){}if(p<1)requestAnimationFrame(frame);else if(typeof done==='function')done();};requestAnimationFrame(frame);
 }
 function activeScreenId(){return document.querySelector('.screen.active')?.id||'';}
-function shouldResumeMenuAfterWarfront(){const id=activeScreenId();return id!=='s-game'&&id!=='s-win'&&id!=='';}
+function shouldResumeMenuAfterWarfront(){const id=activeScreenId();return !window.FATE_PENDING_WAR_MATCH&&id!=='s-game'&&id!=='s-win'&&id!==''&&!(typeof _currentScreen!=='undefined'&&_currentScreen==='s-game');}
 function setWarfrontMusicActive(active){
   active=!!active;
   if(active===_warfrontMusicActive){
@@ -191,7 +191,8 @@ function setWarfrontMusicActive(active){
     if(war)fadeWarAudio(war,0,750,token,()=>{try{war.pause();}catch(e){}});
     setTimeout(()=>{
       if(token!==_warfrontMusicTransition||!wasPlaying||!menu||!shouldResumeMenuAfterWarfront()||(typeof _musicEnabled!=='undefined'&&!_musicEnabled))return;
-      try{menu.volume=0;const play=menu.play();if(play&&typeof play.then==='function')play.then(()=>fadeWarAudio(menu,warfrontMusicTarget(),900,token)).catch(()=>{});else fadeWarAudio(menu,warfrontMusicTarget(),900,token);}catch(e){}
+      // Resume through the music owner; never revive a detached menu track.
+      if(typeof playBgMusic==='function')playBgMusic();
     },180);
     _warfrontMenuTrack=null;_warfrontMenuWasPlaying=false;
   }
@@ -762,6 +763,8 @@ async function prepareWarfrontQueue(req){
 }
 const warQueueWithoutWaitingScreen=window.FATE_ONLINE_JOIN_WAR_QUEUE;
 window.FATE_ONLINE_JOIN_WAR_QUEUE=async req=>{
+  window.FATE_PENDING_WAR_MATCH=req;
+  window.stopMenuMusicForWarfrontStart?.();
   if(!req.isAI&&typeof window.showMatchmakingScreen==='function')window.showMatchmakingScreen({onlineQueue:false,queueMode:'warfront',externallyManaged:true});
   const status=message=>{const label=document.getElementById('mm-status')||document.querySelector('#s-matchmaking .mm-status');if(label)label.textContent=message;};
   status('Checking your live Warfront assignment…');

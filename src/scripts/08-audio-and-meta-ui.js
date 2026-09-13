@@ -2639,8 +2639,16 @@ function startMusic() {
   else playBgMusic(); // fallback: always play bg music
 }
 
+function menuMusicBlocked(){
+  return _currentScreen==='s-game' || !!window.FATE_PENDING_WAR_MATCH;
+}
+window.stopMenuMusicForWarfrontStart=()=>{
+  ++_musicRunId;
+  if(_bgMusic){try{_bgMusic.pause();_bgMusic.currentTime=0;}catch(e){} _bgMusic=null;}
+};
 function playBgMusic() {
   if(!_musicEnabled) return;
+  if(menuMusicBlocked()) return;
   if(_bgMusic && !_bgMusic.paused) return;
   if(_gameMusic){ _gameMusic.pause(); _gameMusic.currentTime=0; _gameMusic=null; }
   try {
@@ -2658,7 +2666,7 @@ function playBgMusic() {
     _bgMusic = audio;
     const p = audio.play();
     if(p) p.then(()=>{
-      if(runId !== _musicRunId){ try{audio.pause();audio.currentTime=0;}catch(e){} return; }
+      if(runId !== _musicRunId || menuMusicBlocked()){ try{audio.pause();audio.currentTime=0;}catch(e){} return; }
     }).catch((err)=>{
       if(err && !/NotAllowed|Abort/i.test(String(err.name || err.message || err))) markBadMusicSource(src, err);
       if(_bgMusic === audio) _bgMusic = null;
@@ -2891,7 +2899,7 @@ function resumeMusicAfterTabHidden() {
   _tabHiddenMusicState = null;
   if(!_musicEnabled || !state) return;
   try{
-    if(state.bg && _bgMusic && _currentScreen !== 's-game') _bgMusic.play().catch(()=>{});
+    if(state.bg && _bgMusic && !menuMusicBlocked()) _bgMusic.play().catch(()=>{});
     if(state.game && _gameMusic && _currentScreen === 's-game') _gameMusic.play().catch(()=>{});
     if(state.bh19 && _bh19TurnSong && _currentScreen === 's-game') _bh19TurnSong.play().catch(()=>{});
   }catch(e){}

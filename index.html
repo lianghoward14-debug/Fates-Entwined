@@ -27,7 +27,7 @@
 <!-- The match shell is intentionally loaded last. It is a reversible, single
      authority layer; fateMatchUI=0 restores the retained legacy match UI. -->
 <link rel="stylesheet" href="src/styles/zzzzzzzzzzzzzzzzzzzzzzz-match-ui-svg-v20.css?v=2026090801">
-<link rel="stylesheet" href="src/styles/widescreen.css?v=2026090801">
+<link rel="stylesheet" href="src/styles/widescreen.css?v=2026091301">
 <script defer src="src/scripts/52-widescreen.js?v=2026090801"></script>
 <!-- Inline emergency overrides moved to src/styles/99-ui-final.css?v=208. -->
 </head>
@@ -168,7 +168,7 @@
           <input type="range" min="0" max="100" value="80" id="vol-voice" style="width:120px;" oninput="setVoiceVolume(this.value)">
           <span class="vol-val" id="vol-voice-val">80</span>
         </div>
-        <button class="btn sm" id="widescreen-toggle-btn" onclick="FateWidescreen.toggle()" aria-pressed="false" title="Keep the interface centered in a 16:9 play area on ultrawide monitors, including 3440 × 1440." style="margin-top:.2rem;">Widescreen Off</button>
+        <button class="btn sm" id="widescreen-toggle-btn" onclick="FateWidescreen.toggle()" aria-pressed="false" title="Use the full screen width with a wider hand and larger board cards when space allows." style="margin-top:.2rem;">Widescreen Off</button>
         <div id="game-version" class="btn sm title-version-badge" aria-label="Version" style="margin-top:.2rem;">Version 1.39.95</div>
       </div>
     </div>
@@ -629,7 +629,7 @@
   <script src="src/scripts/51-ledger-archive.js?v=20260912-confirm-audio"></script>
 <script src="src/scripts/render-v2/00-render-v2-flags.js?v=1780590901"></script>
   <script src="src/scripts/render-v2/01-render-snapshot.js?v=20260912-alpine-fate-audio"></script>
-<script src="src/scripts/render-v2/02-match-layout-engine.js?v=1788120601"></script>
+<script src="src/scripts/render-v2/02-match-layout-engine.js?v=2026091301"></script>
 <script src="src/scripts/render-v2/03-card-texture-cache.js?v=2026083103"></script>
 <script src="src/scripts/render-v2/07-animation-timeline.js?v=1784846401"></script>
 <script src="src/scripts/render-v2/14-vfx-particle-pool.js?v=1780609701"></script>
@@ -681,7 +681,7 @@
     './src/scripts/15-online-auth.js?v=20260912-profile-save-fix',
     './src/scripts/16-online-core.js?v=2026090501',
     './src/scripts/17-online-social.js?v=1788000401',
-    './src/scripts/18-online-rooms.js?v=20260912-alpine-fate-audio-direct',
+    './src/scripts/18-online-rooms.js?v=20260913-negation-result-sfx',
     './src/scripts/19-online-elo.js?v=2026090501',
     './src/scripts/20-online-economy.js?v=2026090701'
   ];

@@ -9,7 +9,7 @@ import {FateAuthoritativeV3LocalSession} from './authoritative-v3-local-session.
 import {resolveOpeningHandArrivals} from '../../shared/engine/reducer.mjs';
 import {chooseStrategicV3AiCommand} from './authoritative-v3-ai-policy.mjs';
 import {AiSearchWorker} from './new-ai-worker-client.mjs';
-import {FateAuthoritativeV3SinglePlayerScreen} from './authoritative-v3-single-player-screen.mjs?v=2026083101';
+import {FateAuthoritativeV3SinglePlayerScreen} from './authoritative-v3-single-player-screen.mjs?v=20260913-negation-result-sfx';
 
 export const FATE_V3_SINGLE_PLAYER_QUERY_FLAG = 'fateV3SinglePlayer';
 const RECORDER_QUERY_FLAG = 'fateV3Recorder';

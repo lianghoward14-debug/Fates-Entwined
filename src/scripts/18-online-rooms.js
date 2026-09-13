@@ -6872,6 +6872,9 @@
       }
       if(type === 'EFFECT_REACTED'){
         const reaction = phase7FindAnyCard(event?.reactionIid);
+        if(typeof window.playSfx === 'function'){
+          window.playSfx(String(event?.mode || '').toUpperCase() === 'SUPPRESS' ? 'effectSuppressed' : 'effectNegated');
+        }
         if(window.toast) toast((reaction?.name || 'An Improvisor') + ' interrupted the effect.');
         return;
       }
@@ -7215,8 +7218,8 @@
       const outcomeType = String(outcome.type || '').toUpperCase();
       const outcomeReason = String(outcome.reason || '').toUpperCase();
       if(outcomeType === 'WARFRONT_FORFEIT') sub.textContent = won
-        ? (outcome.commendationsEligible ? 'Zone won 5–0 by forfeit · AI continuation completed' : 'Zone win retained · no commendation credit for leaving the AI continuation')
-        : 'Zone lost by forfeit';
+        ? (outcome.commendationsEligible ? 'Match won by forfeit · AI continuation completed' : 'Match win retained · no commendation credit for leaving the AI continuation')
+        : 'Match lost by forfeit';
       else if(outcomeType === 'CONCEDED') sub.textContent = won ? 'Your opponent conceded the match' : 'You conceded the match';
       else if(outcomeReason === 'MORALE_DOUBLE_KO') sub.textContent = 'Both players reached 0 Morale';
       else if(outcomeReason === 'MORALE_DEPLETED'){

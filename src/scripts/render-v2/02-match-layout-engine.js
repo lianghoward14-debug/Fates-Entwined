@@ -97,13 +97,20 @@
     // The four-column board intentionally retains the classic 3x3 card footprint.
     // At the reference 1920px viewport this resolves to ~146x204px, only yielding
     // when the actual board viewport cannot physically contain twelve columns.
-    const targetCw = zoneLayout444
+    const widescreen = refinedV20 && document.documentElement.classList.contains('fate-widescreen')
+      && windowW / (vp.windowH || window.innerHeight) > 16 / 9;
+    // Enlarge cards only when both dimensions allow it. Reserve the two header
+    // tracks, bottom padding and row gutters before fitting three card rows.
+    const wideCardLimit = widescreen
+      ? Math.max(151, Math.min(240, Math.floor(((vp.h - 80) / 3 - rem * 0.34 * zoneScale) / 1.4)))
+      : 151;
+    const targetCw = widescreen ? clamp(windowW * 0.079 * zoneScale, 110, wideCardLimit) : zoneLayout444
       ? clamp(windowW * 0.079 * zoneScale, 110, 151)
       : clamp(windowW * 0.079 * zoneScale, 110, 151);
     const availableZoneW = Math.max(260, ((Number(vp.w) || windowW) - boardPadX * 2 - boardGap * Math.max(0, zoneCount - 1)) / zoneCount);
     const zoneSafetyGutter = commandUi ? 4 : (wideZoneLayout444 ? 0 : 12);
     const maxCwByZone = Math.max(70, (availableZoneW - zonePadX * 2 - rowLabelW - rowLabelGap - cellGap * (baseColumns - 1) - zoneSafetyGutter) / baseColumns);
-    const baseCw = clamp(Math.min(targetCw, maxCwByZone), 96, 151);
+    const baseCw = clamp(Math.min(targetCw, maxCwByZone), 96, wideCardLimit);
     const cw = Number.isFinite(opts.cardW) ? opts.cardW : Math.max(70, Math.round(baseCw * expandedScale));
     const ch = Number.isFinite(opts.cardH) ? opts.cardH : Math.round(cw * 1.4);
     const rowH = Number.isFinite(opts.rowH) ? opts.rowH : (ch + rem * 0.34 * zoneScale);

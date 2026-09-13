@@ -273,7 +273,7 @@ function updateTakeoverNotice(state, playerIndex){
   notice.style.cssText='position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:100000;background:#241707;color:#ffe29a;border:2px solid #e8b64c;padding:12px 22px;font-weight:bold;text-align:center;pointer-events:none';
   notice.textContent=state.aiTakeoverSeats.includes(playerIndex)
     ? 'YOU FORFEITED — AI CONTROLS YOUR SEAT'
-    : 'ZONE WON 5–0 — Continue against AI for commendations';
+    : 'OPPONENT LEFT — AI HAS TAKEN OVER';
   document.getElementById('s-game')?.appendChild(notice);
   takeoverNoticeTimer=setTimeout(()=>notice.remove(),5000);
   globalThis.refreshFateWarfrontState?.();
@@ -644,6 +644,10 @@ const networkAdapter = Object.freeze({
 });
 
 function unmountGameScreen(){
+  clearTimeout(takeoverNoticeTimer);
+  takeoverNoticeTimer=null;
+  takeoverNoticeKey='';
+  globalThis.document?.getElementById('warfront-ai-takeover-notice')?.remove();
   activeScreen?.unmount?.();
   activeScreen = null;
 }

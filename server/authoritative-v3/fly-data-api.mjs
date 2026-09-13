@@ -828,6 +828,12 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
       return false;
     }catch(error){ writeJson(res,Number(error?.status)||400,{ok:false,error:String(error?.message||error)});return true; }
   }
+  // Publish startup stat backfills to clients using conditional revision polls.
+  if(warfrontEvent&&JSON.stringify(snapshot.warfrontEvent)!==JSON.stringify(warfrontEvent)){
+    warfrontEvent._syncRevision=Number(warfrontEvent._syncRevision||0)+1;
+    warfrontEvent._updatedAt=Date.now();
+    flush();
+  }
   const requestedMapReset=String(process.env.FATE_WARFRONT_MAP_RESET_ID||'').replace(/[^A-Za-z0-9_-]/g,'').slice(0,80);
   if(requestedMapReset&&warfrontEvent&&snapshot.warfrontMapResetId!==requestedMapReset){
     // Back up all persisted data before resetting only the current campaign.

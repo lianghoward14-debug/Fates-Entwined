@@ -1,8 +1,7 @@
-/* Preserve the established play-area proportions without transforms: canvas
-   measurement and pointer coordinates continue to use real DOM rectangles. */
+/* Use real viewport space so canvas measurements and pointer coordinates agree. */
 @media (min-aspect-ratio: 16/9) {
   html.fate-widescreen body > .screen {
-    width: min(100%, 177.777778vh) !important;
+    width: 100% !important;
     max-width: 100% !important;
     margin-left: auto !important;
     margin-right: auto !important;
@@ -10,6 +9,6 @@
 }
 @media (min-aspect-ratio: 16/9) and (min-width: 1800px) {
   html.fate-widescreen #s-game.svg-board-v20-live .codex-v19-hand {
-    width: min(900px, max(120px, calc(100% - 1020px))) !important;
+    width: min(1600px, max(120px, calc(100% - 1020px))) !important;
   }
 }
