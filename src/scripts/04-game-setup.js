@@ -195,6 +195,9 @@ function clearCompletedOnlineSessionBeforeLocalGame() {
 
 function startGame(vsAI=false) {
   clearCompletedOnlineSessionBeforeLocalGame();
+  const keepHowardDevMode = !!window.__fateHowardDevLaunchPending;
+  window.__fateHowardDevLaunchPending = false;
+  if(!keepHowardDevMode) clearHowardDevMode();
   const authoritativeV3SinglePlayerRequested = new URLSearchParams(window.location.search || '')
     .get('fateV3SinglePlayer') === '1';
   if(authoritativeV3SinglePlayerRequested){
@@ -210,13 +213,6 @@ function startGame(vsAI=false) {
       if(typeof toast === 'function') toast(error?.message || 'Authoritative v3 single-player could not start');
       return false;
     }
-  }
-  const keepHowardDevMode = !!window.__fateHowardDevLaunchPending;
-  window.__fateHowardDevLaunchPending = false;
-  if(!keepHowardDevMode && typeof isHowardDevMode === 'function' && isHowardDevMode()){
-    window.__fateHowardDevMode = false;
-    G._howardDevMode = false;
-    G._onlineGameSong = null;
   }
   if(typeof window.invalidateFateRenderCaches === 'function') window.invalidateFateRenderCaches();
   if(typeof playSfx==='function') playSfx('startGame');
@@ -282,6 +278,7 @@ function startGame(vsAI=false) {
 }
 
 function startOnlineServerBootstrappedGame(options) {
+  clearHowardDevMode();
   const opts = options || {};
   if(typeof cleanupLeavingGameScreenArtifacts === 'function') cleanupLeavingGameScreenArtifacts();
   if(typeof G !== 'undefined' && G && G._bootInitPromise) G._bootInitPromise = null;
@@ -350,9 +347,21 @@ function startOnlineServerBootstrappedGame(options) {
 window.startOnlineServerBootstrappedGame = startOnlineServerBootstrappedGame;
 
 function isHowardDevMode() {
-  return !!(window.__fateHowardDevMode || (typeof G !== 'undefined' && G && G._howardDevMode));
+  return !!(window.__fateHowardDevMode && typeof G !== 'undefined' && G
+    && G._howardDevMode && !G._onlineRoomCode && !G._onlineGameId);
 }
 window.isHowardDevMode = isHowardDevMode;
+
+function clearHowardDevMode() {
+  window.__fateHowardDevMode = false;
+  window.__fateHowardDevLaunchPending = false;
+  window.__fateHowardDevLaunchToken = null;
+  if(typeof G !== 'undefined' && G){
+    if(G._howardDevMode) G._onlineGameSong = null;
+    G._howardDevMode = false;
+  }
+}
+window.clearHowardDevMode = clearHowardDevMode;
 
 function pickHowardDevAI() {
   const source = typeof getRandomMatchAIOpponents === 'function' ? getRandomMatchAIOpponents() : (typeof AI_OPPONENTS !== 'undefined' ? AI_OPPONENTS : []);
@@ -369,6 +378,8 @@ function startHowardDevMode() {
   if(typeof CURRENT_MODE !== 'undefined') CURRENT_MODE = 'free';
   window.__fateHowardDevMode = true;
   G._howardDevMode = true;
+  const launchToken = {};
+  window.__fateHowardDevLaunchToken = launchToken;
   G._onlineRoomCode = null;
   G._onlineGameId = null;
   G._onlinePlayerIndex = null;
@@ -378,6 +389,7 @@ function startHowardDevMode() {
     G._aiOpponentElo = G._selectedAI.elo || getDailyTrueElo(G._selectedAI) || 1000;
   }
   const launchWithLandscape = function(song){
+    if(window.__fateHowardDevLaunchToken !== launchToken) return;
     G._howardDevMode = true;
     window.__fateHowardDevMode = true;
     window.__fateHowardDevLaunchPending = true;

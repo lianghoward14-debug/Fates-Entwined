@@ -11909,7 +11909,7 @@ function executeReaction(reaction, actionData) {
     const resultWord = 'negated and suppressed';
     toast('Lydia '+resultWord+' '+(actionData.card ? actionData.card.name : 'effect')+'! ('+reaction.card.usesLeft+' uses left)');
     log(opp===0?'p1':'p2', 'Lydia '+resultWord+' '+(actionData.card ? actionData.card.name : 'effect'));
-    playSfx('effectSuppressed');
+    playSfx('effectNegated');
     if(typeof triggerMajaMischievousActivities === 'function') triggerMajaMischievousActivities(opp, {mode:resultWord, sourceCard:actionData && actionData.card});
     if(typeof showEffectNegatedBanner === 'function') showEffectNegatedBanner('EFFECT '+resultWord.toUpperCase()+' by Lydia');
     else showBlockedAnimation(resultWord.toUpperCase()+' by Lydia!');

@@ -6873,7 +6873,8 @@
       if(type === 'EFFECT_REACTED'){
         const reaction = phase7FindAnyCard(event?.reactionIid);
         if(typeof window.playSfx === 'function'){
-          window.playSfx(String(event?.mode || '').toUpperCase() === 'SUPPRESS' ? 'effectSuppressed' : 'effectNegated');
+          const isLydia = String(event?.reactionKind || '').toUpperCase() === 'LYDIA' || String(reaction?.id || '') === '56';
+          window.playSfx(!isLydia && String(event?.mode || '').toUpperCase() === 'SUPPRESS' ? 'effectSuppressed' : 'effectNegated');
         }
         if(window.toast) toast((reaction?.name || 'An Improvisor') + ' interrupted the effect.');
         return;
@@ -7367,6 +7368,7 @@
   }
   function phase7CommitCurrentView(view, reason){
     if(!view?.state || !Number.isInteger(Number(view.playerIndex))) return false;
+    if(typeof window.clearHowardDevMode === 'function') window.clearHowardDevMode();
     const previousView = phase7CurrentUiSession.view;
     const previousPhase = String(previousView?.state?.phase || '');
     const sameInteractionRevision = !!previousView
@@ -10631,7 +10633,7 @@
       ? 'NEGATED & SUPPRESSED'
       : (resolutionMode === 'suppressed' ? 'SUPPRESSED' : 'NEGATED');
     if(typeof window.playSfx === 'function') {
-      if(resolutionMode === 'suppressed' || resolutionMode === 'negated-and-suppressed') window.playSfx('effectSuppressed');
+      if(resolutionMode === 'suppressed') window.playSfx('effectSuppressed');
       else window.playSfx('effectNegated');
     }
     if(typeof window.showEffectNegatedBanner === 'function'){

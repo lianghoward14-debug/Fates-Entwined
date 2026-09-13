@@ -85,6 +85,7 @@ function installFateMenuViewRuntime() {
 installFateMenuViewRuntime();
 
 function showScreen(id) {
+  if(id !== 's-game' && id !== 's-coin' && typeof clearHowardDevMode === 'function') clearHowardDevMode();
   const prev = document.querySelector('.screen.active');
   const prevId = prev ? prev.id : null;
   const lightMenuChange = !!(
