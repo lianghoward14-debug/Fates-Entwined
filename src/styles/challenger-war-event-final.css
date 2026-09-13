@@ -477,7 +477,7 @@ html body #s-challenger .war2-zone-command-v3{border:2px solid #c19a43!important
 #s-challenger .war3-match-report .war2-match-versus dt{color:#f0cb6a;font:900 16px/1 Cinzel,serif}
 #s-challenger .war3-match-report .war2-match-versus dd{margin:5px 0 0;color:#87999d;font:800 7px/1 Cinzel,serif}
 #s-challenger .war3-match-report .war2-match-versus>strong{display:flex;flex-direction:column;align-items:center;gap:7px;font-size:10px!important}
-#s-challenger .war3-match-report .war2-match-versus>strong i{font-size:34px;font-style:normal}.war3-match-report .war2-match-versus>strong b{font-size:14px}
+#s-challenger .war3-match-report .war2-match-versus>strong i{font-size:34px;font-style:normal}.war3-match-report .war2-match-versus>strong .war-report-winner-name{display:block;width:145px;max-width:calc(100% - 24px);font-size:14px;line-height:1.2;white-space:normal;text-align:center;text-wrap:balance;overflow-wrap:break-word}.war3-match-report .war2-match-versus>strong .war-report-winner-name.is-long{width:128px;font-size:13px}.war3-match-report .war2-match-versus>strong .war-report-winner-name.is-extra-long{width:136px;font-size:11px;line-height:1.25}
 #s-challenger .war3-match-report .war2-match-meta{grid-column:2!important;grid-row:3!important;justify-content:space-around!important;padding:15px!important;font-size:10px!important}
 #s-challenger .war3-match-report .war2-replay-launch{grid-column:2!important;grid-row:4!important;width:100%;height:60px;margin:0!important;border:0!important}
 

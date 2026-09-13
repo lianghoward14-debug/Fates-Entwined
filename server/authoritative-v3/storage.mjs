@@ -321,6 +321,11 @@ export class SQLiteAuthorityStore {
     }
   }
 
+  latestStoredState(matchId){
+    const row=this.db.prepare('SELECT state_json AS stateJson FROM snapshots WHERE match_id = ? ORDER BY revision DESC LIMIT 1').get(matchId);
+    return row?JSON.parse(row.stateJson):null;
+  }
+
   loadRecovery(matchId){
     const metadata = this.db.prepare(`
       SELECT

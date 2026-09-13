@@ -6,8 +6,8 @@ import {resolveWarfrontPhoto} from '../../shared/profile-photo.mjs';
 import {warfrontReportStats} from './warfront-report.mjs';
 import {WARFRONT_PHASE_MS, startWarfrontBattle, warfrontDueMatch, warfrontPlayed, prepareWarfrontRoster, relocateWarfrontAI, releaseWarfrontPlayers} from './warfront-lifecycle.mjs';
 import {assignWarfrontCommanderProfiles} from './warfront-commanders.mjs';
-import {simulateWarfrontMatch} from './warfront-simulation.mjs';
 import {warfrontWinProbability} from './warfront-ai-profile.mjs';
+import {addWarfrontSimulatedStats} from './warfront-simulated-stats.mjs';
 
 const FIREBASE_PROJECT_ID = String(process.env.FATE_FIREBASE_PROJECT_ID || 'fates-entwined-41491');
 const DATA_DIR = path.resolve(process.env.FATE_FLY_DATA_API_DIR || path.join(process.cwd(), '.tmp', 'fate-authority'));
@@ -99,6 +99,7 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
     next.archives=(Array.isArray(next.archives)?next.archives:[]).slice(0,30);
     const sanitizeReplayMatch=match=>{
       if(!match||typeof match!=='object')return match;
+      addWarfrontSimulatedStats(match);
       const replay=match.replay;
       if(replay?.storageKey){match.replay=replayStore.save(replay);return match;}
       if(!replay||typeof replay!=='object'||!Array.isArray(replay.actions)){delete match.replay;return match;}
@@ -244,6 +245,7 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
     let changed=false;
     for(const zone of warfrontEvent?.zones||[]){
       const active=zone.activeMatch;if(!active?.matchId)continue;
+      if(warfrontBindings.get(active.matchId)?.settled){zone.activeMatch=null;changed=true;continue;}
       if(warfrontBindings.has(active.matchId))recoverDisconnectedMatch(active.matchId);
       const match=resolveMatchState(active.matchId);
       if(!match){
@@ -264,7 +266,7 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
       }
     }
     for(const binding of warfrontBindings.values()){
-      if(binding.mapCode===warfrontEvent?.mapCode) settleWarfrontForfeit(resolveMatchState(binding.matchId));
+      if(binding.mapCode===warfrontEvent?.mapCode&&!binding.settled) settleWarfrontForfeit(resolveMatchState(binding.matchId));
     }
     if(warfrontEvent?.waitingAI?.length){const waiting=warfrontEvent.waitingAI.length;relocateWarfrontAI(warfrontEvent);if(waiting!==warfrontEvent.waitingAI.length)changed=true;}
     if(changed){warfrontEvent._syncRevision=Number(warfrontEvent._syncRevision||0)+1;persist();}
@@ -272,7 +274,7 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
   // Seat ratings are enrollment snapshots, not a source of current ratings.
   // Project live server profiles on every response without changing archives.
   function warfrontStateForClient(){
-    refreshWarfrontForfeits();
+    // Settlement runs in tickWarfront. HTTP responses must never recover games.
     warfrontEvent=sanitizeWarfrontState(warfrontEvent);
     if(warfrontEvent){const before=JSON.stringify(warfrontEvent);prepareWarfrontRoster(warfrontEvent);if(before!==JSON.stringify(warfrontEvent)){warfrontEvent._syncRevision=Number(warfrontEvent._syncRevision||0)+1;persist();}}
     if(assignWarfrontCommanderProfiles(warfrontEvent)){
@@ -386,9 +388,11 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
         if(Number(zone.aiRetryAt||0)>now)return;
         let match;
         try{
-          match=due.deadline
-            ? {id,winnerTeam:Math.random()<warfrontWinProbability(participants.a,participants.b)?'a':'b',completedAt:now,simulated:true,simulationKind:'deadline',commendationExcluded:true,stats:{},playerStats:{}}
-            : await simulateWarfrontMatch({id,landscapeId:zone.landscape?.id,participants,deadline:event.endsAt});
+          const winProbabilityA=warfrontWinProbability(participants.a,participants.b);
+          match={id,winnerTeam:Math.random()<winProbabilityA?'a':'b',completedAt:now,
+            simulated:true,simulationKind:due.deadline?'deadline':'strength-probability',
+            winProbabilityA,commendationExcluded:true,stats:{},playerStats:{}};
+          addWarfrontSimulatedStats(match);
         }catch(error){if(warfrontEvent!==event||event.status!=='active')return;zone.aiRetryAt=Date.now()+60000;persist();throw error;}
         if(warfrontEvent!==event || event.status!=='active' || zone.activeMatch || zone.a?.uid!==participants.a?.uid || zone.b?.uid!==participants.b?.uid)return;
         if(!zone.matches.some(row=>row.id===id)){
@@ -627,6 +631,11 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
   async function handle(req, res, url){
     if(!url.pathname.startsWith('/api/')) return false;
     const p = routeParts(url);
+    if(p[1]==='warfront'&&p[2]==='deploy'){
+      const started=Date.now();
+      console.info('Warfront deployment request received');
+      res.once?.('finish',()=>console.info('Warfront deployment response',res.statusCode,'elapsedMs',Date.now()-started));
+    }
     try{
       if(req.method==='GET' && p[1]==='warfront' && p[2]==='replays'){
         await verifiedUid(req);
@@ -720,7 +729,7 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
         writeJson(res,200,{ok:true,profiles:found});return true;
       }
       if(p[1]==='warfront'&&p[2]==='state'){
-        if(req.method==='GET'){const uid=await verifiedUid(req);refreshWarfrontForfeits();if(warfrontEvent&&url.searchParams.get('revision')===String(warfrontEvent._syncRevision)){writeJson(res,200,{ok:true,unchanged:true});return true;}const state=warfrontStateForClient(),archivesUnchanged=!!state&&url.searchParams.has('archives')&&url.searchParams.get('archives')===(state.archives||[]).map(r=>r.mapCode).join(',');if(archivesUnchanged)delete state.archives;writeJson(res,200,{ok:true,state,archivesUnchanged,profile:profile(uid)});return true;}
+        if(req.method==='GET'){const uid=await verifiedUid(req);if(warfrontEvent&&url.searchParams.get('revision')===String(warfrontEvent._syncRevision)){writeJson(res,200,{ok:true,unchanged:true});return true;}const state=warfrontStateForClient(),archivesUnchanged=!!state&&url.searchParams.has('archives')&&url.searchParams.get('archives')===(state.archives||[]).map(r=>r.mapCode).join(',');if(archivesUnchanged)delete state.archives;writeJson(res,200,{ok:true,state,archivesUnchanged,profile:profile(uid)});return true;}
         const body=await readBody(req);await requireSelf(req,body.uid);const incoming=sanitizeWarfrontState(body.state);
         if(!incoming)throw new Error('invalid Warfront event state');
         // A delayed upload from the previous campaign must not import its
@@ -736,8 +745,12 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
         const body=await readBody(req);await requireSelf(req,body.uid);writeJson(res,200,{ok:true,state:applyWarfrontCommand(cleanId(body.action,30))});return true;
       }
       if(req.method==='POST'&&p[1]==='warfront'&&p[2]==='deploy'){
-        refreshWarfrontForfeits();
-        const body=await readBody(req),uid=await requireSelf(req,body.uid),team=body.team==='a'||body.team==='b'?body.team:null,zone=warfrontEvent?.zones.find(row=>row.id===cleanId(body.zoneId,40));
+        const deploymentStarted=Date.now();
+        const body=await readBody(req);
+        console.info('Warfront deployment body read',Date.now()-deploymentStarted);
+        const uid=await requireSelf(req,body.uid);
+        console.info('Warfront deployment authenticated',Date.now()-deploymentStarted);
+        const team=body.team==='a'||body.team==='b'?body.team:null,zone=warfrontEvent?.zones.find(row=>row.id===cleanId(body.zoneId,40));
         if(!team||!zone||!['enrollment','active'].includes(warfrontEvent.status)||(warfrontEvent.status==='active'&&Date.now()>=warfrontEvent.endsAt))throw new Error('Warfront is not accepting deployments');
         const previous=warfrontEvent.zones.find(row=>row.a?.uid===uid||row.b?.uid===uid);
         if(zone[team]?.uid===uid){writeJson(res,200,{ok:true,state:warfrontStateForClient()});return true;}

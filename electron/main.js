@@ -381,7 +381,8 @@ ipcMain.handle('fate:fly-api-request', async (_event, request = {}) => {
     init.body = JSON.stringify(request.body || {});
   }
   try{
-    const response = await fetch(DEFAULT_FLY_AUTHORITY_API_URL + route, {...init,signal:AbortSignal.timeout(10000)});
+    const timeoutMs=Math.min(60000,Math.max(1000,Number(request.timeoutMs)||10000));
+    const response = await fetch(DEFAULT_FLY_AUTHORITY_API_URL + route, {...init,signal:AbortSignal.timeout(timeoutMs)});
     const text = await response.text();
     let data = null;
     try{ data = text ? JSON.parse(text) : {}; }catch(_err){}

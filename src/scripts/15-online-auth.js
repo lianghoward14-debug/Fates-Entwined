@@ -372,7 +372,7 @@ async function flyApiRequest(route, options={}){
   try{
     if(route.startsWith('/api/warfront/') && baseUrl==='https://fates-entwined-main.fly.dev' && window.FateElectronFlyApi?.request){
       if(options.signal?.aborted)throw new Error('Warfront request cancelled');
-      const result=await window.FateElectronFlyApi.request({route,method:init.method,authorization:headers.authorization,body:options.body});
+      const result=await window.FateElectronFlyApi.request({route,method:init.method,authorization:headers.authorization,body:options.body,timeoutMs:options.timeoutMs});
       response={ok:result.ok,status:result.status,text:async()=>result.text||result.error||'',json:async()=>result.data};
     }else response = await fetch(baseUrl + route, init);
   }
@@ -380,7 +380,7 @@ async function flyApiRequest(route, options={}){
     // The installed app can recover a renderer transport failure through its
     // existing native bridge, using the same account and production authority.
     if(options.signal?.aborted || baseUrl!=='https://fates-entwined-main.fly.dev' || !window.FateElectronFlyApi?.request)throw error;
-    const result=await window.FateElectronFlyApi.request({route,method:init.method,authorization:headers.authorization,body:options.body});
+    const result=await window.FateElectronFlyApi.request({route,method:init.method,authorization:headers.authorization,body:options.body,timeoutMs:options.timeoutMs});
     response={ok:result.ok,status:result.status,text:async()=>result.text||result.error||'',json:async()=>result.data};
   }
   if(response.status===401 && auth.currentUser && options.refreshToken!==true){
