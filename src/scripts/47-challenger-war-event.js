@@ -34,8 +34,8 @@ function load(){try{const n=normalize(JSON.parse(localStorage.getItem(storageKey
 function save(opts={}){try{localStorage.setItem(storageKey(KEY),JSON.stringify(state));}catch(e){}window.dispatchEvent(new CustomEvent('fate-war-event-updated',{detail:{state}}));if(opts.remote!==false)scheduleRemotePush();}
 function onlineIdentity(){const signedIn=window.FATE_ONLINE?.user;if(signedIn?.uid)return signedIn;try{return window.FateOnline?.getEphemeralMultiplayerGuestUser?.()||null;}catch(e){return null;}}
 function remoteEligible(){const api=window.FateOnline,u=onlineIdentity();return!!(u&&u.uid&&typeof api?.flyApiRequest==='function'&&!simulationSession);}
-function remoteCopy(value){const next=clone(value),compactMatch=m=>{if(!m||typeof m!=='object'||!m.replay)return;const replay=m.replay;if(!Array.isArray(replay.actions)){delete m.replay;return;}/* Keep every action; server storage enforces the byte limit. */},strip=r=>{if(r&&typeof r==='object'){delete r.localReward;(r.zones||[]).forEach(z=>(z.matches||[]).forEach(compactMatch));}};(next.zones||[]).forEach(z=>(z.matches||[]).forEach(compactMatch));strip(next.lastResult);(next.archives||[]).forEach(strip);return next;}
-function adoptRemoteState(value){if(!remoteEligible())return false;const next=normalize(clone(value));if(!next)return false;if(Number(next._syncRevision||0)<acceptedRemoteRevision)return false;acceptedRemoteRevision=Number(next._syncRevision||0);const visual=value=>JSON.stringify(remoteCopy(value),(key,v)=>key==='_syncRevision'||key==='_updatedAt'?undefined:v),previousVisual=visual(state);if(typeof releasedWarfrontSeat!=='undefined'&&releasedWarfrontSeat?.mapCode===next.mapCode){const released=releasedWarfrontSeat;if(next.service?.[released.uid]?.matchIds?.includes(released.matchId))releasedWarfrontSeat=null;else{const zone=next.zones.find(z=>z.id===released.zoneId);if(zone?.[released.team]?.uid===released.uid)zone[released.team]=null;if(zone?.activeMatch?.matchId===released.matchId)zone.activeMatch=null;next.service ||= {};if(state.service?.[released.uid])next.service[released.uid]=clone(state.service[released.uid]);}}const localReplays=new Map();const remember=zones=>(zones||[]).forEach(z=>(z.matches||[]).forEach(m=>{if(m&&m.id&&m.replay)localReplays.set(String(m.id),m.replay);}));remember(state.zones);(state.archives||[]).forEach(r=>remember(r.zones));const restore=zones=>(zones||[]).forEach(z=>(z.matches||[]).forEach(m=>{const replay=localReplays.get(String(m&&m.id||''));if(replay)m.replay=replay;}));restore(next.zones);(next.archives||[]).forEach(r=>restore(r.zones));if(next.lastResult)next.lastResult.localReward=reward(next.lastResult);(next.archives||[]).forEach(r=>{if(!r.localReward)r.localReward=reward(r);});const visibleChanged=previousVisual!==visual(next);state=next;try{localStorage.setItem(storageKey(KEY),JSON.stringify(state));}catch(e){}window.dispatchEvent(new CustomEvent('fate-war-event-updated',{detail:{state,remote:true}}));if(visibleChanged)rerender();return visibleChanged;}
+function remoteCopy(value){const next=clone(value),compactMatch=m=>{if(!m||typeof m!=='object'||!m.replay)return;const replay=m.replay;if(replay.storageKey)return;if(!Array.isArray(replay.actions)){delete m.replay;return;}/* Keep every action; server storage enforces the byte limit. */},strip=r=>{if(r&&typeof r==='object'){delete r.localReward;(r.zones||[]).forEach(z=>(z.matches||[]).forEach(compactMatch));}};(next.zones||[]).forEach(z=>(z.matches||[]).forEach(compactMatch));strip(next.lastResult);(next.archives||[]).forEach(strip);return next;}
+function adoptRemoteState(value){if(!remoteEligible())return false;const next=normalize(clone(value));if(!next)return false;if(Number(next._syncRevision||0)<acceptedRemoteRevision)return false;acceptedRemoteRevision=Number(next._syncRevision||0);const visual=value=>JSON.stringify(remoteCopy(value),(key,v)=>key==='_syncRevision'||key==='_updatedAt'?undefined:v),previousVisual=visual(state);if(typeof releasedWarfrontSeat!=='undefined'&&releasedWarfrontSeat?.mapCode===next.mapCode){const released=releasedWarfrontSeat;if(next.service?.[released.uid]?.matchIds?.includes(released.matchId))releasedWarfrontSeat=null;else{const zone=next.zones.find(z=>z.id===released.zoneId);if(zone?.[released.team]?.uid===released.uid)zone[released.team]=null;if(zone?.activeMatch?.matchId===released.matchId)zone.activeMatch=null;next.service ||= {};if(state.service?.[released.uid])next.service[released.uid]=clone(state.service[released.uid]);}}const localReplays=new Map();const remember=zones=>(zones||[]).forEach(z=>(z.matches||[]).forEach(m=>{if(m&&m.id&&m.replay)localReplays.set(String(m.id),m.replay);}));remember(state.zones);(state.archives||[]).forEach(r=>remember(r.zones));const restore=zones=>(zones||[]).forEach(z=>(z.matches||[]).forEach(m=>{const replay=localReplays.get(String(m&&m.id||''));if(replay&&!m.replay?.storageKey)m.replay=replay;}));restore(next.zones);(next.archives||[]).forEach(r=>restore(r.zones));if(next.lastResult)next.lastResult.localReward=reward(next.lastResult);(next.archives||[]).forEach(r=>{if(!r.localReward)r.localReward=reward(r);});const visibleChanged=previousVisual!==visual(next);state=next;try{localStorage.setItem(storageKey(KEY),JSON.stringify(state));}catch(e){}window.dispatchEvent(new CustomEvent('fate-war-event-updated',{detail:{state,remote:true}}));if(visibleChanged)rerender();return visibleChanged;}
 async function pushRemoteState(){
   resetRemoteWritesIfNeeded();
   if(!remoteEligible())return false;
@@ -253,7 +253,8 @@ function matchPanel(){const rows=allMatches().slice(0,50),fronts=new Set(rows.ma
 function viewedWarZones(){return postWarMap&&state.lastResult?.zones?.length?state.lastResult.zones:state.zones;}
 function viewedWarMapCode(){return postWarMap&&state.lastResult?.mapCode?state.lastResult.mapCode:state.mapCode;}
 function zoneHistoryPanel(){const zones=viewedWarZones(),z=zones.find(x=>x.id===selectedZoneId)||zones[0],m=meta(z),s=score(z),rows=(z.matches||[]).map((match,i)=>({...match,zoneId:z.id,zoneName:m.name,mapCode:viewedWarMapCode(),a:m.participants?.a||z.a,b:m.participants?.b||z.b,number:i+1})),longName=String(m.name||'').length>15?' class="war5-long-zone-name"':'';return'<section class="war2-zone-history"><header><img class="war5-history-landscape" src="'+landscapeArt(z.landscape||{})+'" alt="" onerror="this.style.display=\'none\'"><button class="back" onclick="openWarZone(\''+z.id+'\')">‹</button><div'+longName+'><span>ZONE '+m.no+' · MATCHUP DOSSIER</span><h2>'+esc(m.name)+'</h2></div><button onclick="closeWarDrawer()">×</button></header><div class="war2-zone-history-score"><article class="team-a">'+avatar(z.a,true)+'<div><span>'+esc(state.teams.a.name)+'</span><b>'+esc(z.a?.name||'Open post')+'</b><em>'+s.a+' Stars Contributed</em></div></article><div class="war2-ledger-tally"><span class="war2-ledger-score"><i>'+s.a+'</i><small>CURRENT SCORE</small><i>'+s.b+'</i></span><b>'+s.played+'/5</b><span>BATTLES CONDUCTED</span></div><article class="team-b"><div><span>'+esc(state.teams.b.name)+'</span><b>'+esc(z.b?.name||'Open post')+'</b><em>'+s.b+' Stars Contributed</em></div>'+avatar(z.b,true)+'</article></div><div class="war2-zone-history-facts"><span><b>'+esc(z.landscape?.shortName||'Classified')+'</b>Fixed landscape</span><span><b>'+s.a+'–'+s.b+'</b>Current score</span><span><b>'+Math.max(0,5-s.played)+'</b>Battles remaining</span><span><b>'+esc(s.bonus?state.teams[s.bonus].name:'Unsettled')+'</b>Front control</span></div><div class="war2-zone-history-list">'+(rows.length?rows.map(ledgerCard).join(''):'<div class="war2-empty"><b>No battles conducted</b><span>This dossier will populate after the first matchup.</span></div>')+'</div></section>';}
-function findMatch(id){return allMatches(true).find(m=>m.id===id);}
+const loadedWarReplays=new Map();
+function findMatch(id){const m=allMatches(true).find(m=>m.id===id);if(m&&loadedWarReplays.has(m.replay?.storageKey))m.replay=loadedWarReplays.get(m.replay.storageKey);return m;}
 function matchDetailPanel(){const m=findMatch(selectedMatchId);if(!m)return matchPanel();const a=m.playerStats&&m.playerStats.a||{},b=m.playerStats&&m.playerStats.b||{},num=v=>Math.max(0,+v||0),winner=m.winnerTeam==='a'?m.a:m.b,total=num(a.totalFateGenerated)+num(b.totalFateGenerated),diff=Math.max(num(a.fateDifferential),num(b.fateDifferential)),elapsed=Math.max(num(a.durationMs),num(b.durationMs),num(m.stats&&m.stats.durationMs));const combatant=(p,s,t)=>'<article class="team-'+t+'">'+avatar(p)+'<h3>'+esc(p&&p.name||'Unknown commander')+'</h3><span>'+esc(state.teams[t].name)+'</span><dl><div><dt>'+num(s.totalFateGenerated)+'</dt><dd>FATE GENERATED</dd></div><div><dt>+'+num(s.fateDifferential)+'</dt><dd>DIFFERENTIAL</dd></div><div><dt>'+num(s.consolidations)+'</dt><dd>CONSOLIDATIONS</dd></div><div><dt>'+duration(s.durationMs||elapsed)+'</dt><dd>TIME</dd></div></dl></article>';return'<section class="war2-match-detail war3-match-report"><header><img class="war7-report-landscape" src="'+landscapeArt(m.landscape||{})+'" alt="" onerror="this.style.display=\'none\'"><div><span>'+esc(m.mapCode)+' · '+esc(m.zoneName)+'</span><h2>Match '+m.number+' Report</h2><em>'+new Date(m.completedAt).toLocaleString()+'</em></div></header><button type="button" class="war-report-close" aria-label="Close match report" title="Back to matches" onclick="openWarMatches()">×</button><div class="war3-report-summary"><span>OFFICIAL RESULT</span><h3>'+esc(winner&&winner.name||'Commander')+' Victory</h3>'+(m.forfeitSweep?'<p class="war-report-forfeit">Forfeited</p>':'')+'<div><b>'+total+'<small>COMBINED FATE</small></b><b>+'+diff+'<small>DECISIVE DIFFERENTIAL</small></b><b>'+duration(elapsed)+'<small>MATCH LENGTH</small></b></div></div><div class="war2-match-versus">'+combatant(m.a,a,'a')+'<strong><i>★</i><span>VICTOR</span><b>'+esc(winner&&winner.name||'Commander')+'</b></strong>'+combatant(m.b,b,'b')+'</div><div class="war2-match-meta"><span>Front: '+esc(m.zoneName)+'</span><span>Battle '+m.number+' of 5</span><span>'+(m.replay?'Replay recorded':'Stat report only')+'</span></div>'+(m.replay?'<button class="war2-replay-launch" onclick="openWarReplay(\''+esc(m.id)+'\')">WATCH TACTICAL REPLAY</button>':'<button class="war2-replay-launch" disabled>REPLAY NOT RECORDED</button>')+'</section>';}
 function replayPanel(){return'';}
 function banPanel(z,mine){if(!mine||mine.zone.id!==z.id)return'';const t=mine.team,chosen=z.bans[t],q=banSearch.toLowerCase(),list=cards().filter(c=>!q||String(c.name||'').toLowerCase().includes(q)||String(c.id).includes(q)).slice(0,120);return'<section class="war2-ban-editor"><header><div><span>'+esc(state.teams[t].name)+' · '+chosen.length+'/3</span><h2>Ban three cards</h2></div><button onclick="closeWarDrawer()">×</button></header><p>Your opponent cannot queue with a selected card in the next match.</p><input type="search" value="'+esc(banSearch)+'" placeholder="Search cards" oninput="searchWarBanCards(this.value)"><div class="war2-card-grid">'+list.map(c=>'<button class="'+(chosen.includes(String(c.id))?'selected':'')+'" onclick="toggleWarBanCard(\''+z.id+'\',\''+esc(c.id)+'\')"><span>#'+esc(c.id)+'</span><b>'+esc(c.name)+'</b><em>'+esc(c.type||c.aff||'Card')+'</em></button>').join('')+'</div><footer><span>'+(chosen.length===3?'Ready to lock':'Select '+(3-chosen.length)+' more')+'</span><button onclick="lockWarBans(\''+z.id+'\')" '+(chosen.length===3?'':'disabled')+'>Lock bans</button></footer></section>';}
@@ -330,16 +331,34 @@ function revealReplayPerspectiveHand(view,rp,perspective){
   const selectedTeam=perspective==='b'?'b':'a';
   const selectedSeat=selectedTeam==='a'?teamASeat:1-teamASeat;
   const hiddenSeat=1-selectedSeat;
-  const recordedHand=Array.isArray(rp.hands?.[selectedTeam])?rp.hands[selectedTeam]:[];
+  // rp.hands is the final hand, not the hand at this replay step.
+  // Preserve the historical snapshot, including an explicitly empty hand.
+  const snapshotHand=view.state.players[selectedSeat].hand;
+  const atEnd=Number(replayView?.step)>=Number(rp.actions?.length || 0);
+  const recordedHand=Array.isArray(snapshotHand)?snapshotHand:
+    atEnd && Array.isArray(rp.hands?.[selectedTeam])?rp.hands[selectedTeam]:null;
   const hydrate=(raw,index)=>{
     const def=cards().find(card=>String(card.id)===String(raw?.id))||{};
-    return {...def,...raw,owner:selectedSeat,controller:selectedSeat,iid:String(raw?.iid||('war-replay-hand-'+selectedTeam+'-'+index)),currentFate:+raw?.fate||+raw?.currentFate||+def.fate||0};
+    return {...def,...raw,owner:selectedSeat,controller:selectedSeat,iid:String(raw?.iid||('war-replay-hand-'+selectedTeam+'-'+index)),currentFate:Number(raw?.currentFate ?? raw?.fate ?? def.fate ?? 0)};
   };
+  // Attach recorded draw identities before hiding the other seat's hand.
+  // This is playback-only; live match secrecy is unchanged.
+  const knownCards=[...(view.privateActionCards || []),...view.state.players.flatMap(p=>p.hand || [])];
+  for(const event of [...(view.events || []),...(view.presentationBatch?.events || [])]){
+    if(event.type!=='CARD_DRAWN' && !(event.type==='CARD_TRANSFERRED' && event.to==='hand'))continue;
+    const raw=knownCards.find(c=>c.iid && String(c.iid)===String(event.cardIid)) || event.card;
+    if(raw){
+      const def=cards().find(c=>String(c.id)===String(raw.id)) || {};
+      event.card={...def,...raw};
+    }
+  }
   view.playerIndex=selectedSeat;
-  view.state.players[selectedSeat].hand=recordedHand.map(hydrate);
-  view.state.players[selectedSeat].handCount=recordedHand.length;
+  if(recordedHand){
+    view.state.players[selectedSeat].hand=recordedHand.map(hydrate);
+    view.state.players[selectedSeat].handCount=recordedHand.length;
+  }
   delete view.state.players[hiddenSeat].hand;
-  view.privateActionCards=[];
+  view.privateActionCards=[...(view.privateActionCards || []).filter(c=>Number(c.controller ?? c.owner)===selectedSeat),...(view.state.players[selectedSeat].hand || [])];
   view.legalCommands=[];
   return view;
 }
@@ -470,8 +489,19 @@ function scheduleReplayTick(){
     finally{if(replayView===v){updateReplayClock();v.busy=false;scheduleReplayTick();ensureReplayControls(m);}}
   },delay);
 }
-window.openWarReplay=id=>{
-  const m=findMatch(id);if(!m||!m.replay)return;warSfx('deploy','replay-launch',300);if(replayGameBackup)window.exitWarReplay();
+window.openWarReplay=async id=>{
+  let m=findMatch(id);if(!m||!m.replay)return;
+  if(m.replay.storageKey){
+    const key=m.replay.storageKey;
+    try{
+      window.toast&&toast('Loading replay…');
+      const result=await warfrontRequest('/api/warfront/replays/'+encodeURIComponent(key),{method:'GET'});
+      if(!Array.isArray(result?.replay?.actions))throw new Error('Replay recording unavailable');
+      loadedWarReplays.clear();loadedWarReplays.set(key,result.replay);m=findMatch(id);
+      if(!m)return;
+    }catch(error){window.toast&&toast(error.message||'Replay could not be loaded. Please retry.');return;}
+  }
+  warSfx('deploy','replay-launch',300);if(replayGameBackup)window.exitWarReplay();
   window.fateAuthorityV3Beta?.unmountGameScreen?.();
   selectedMatchId=id;replayView={step:m.replay.actions?.[0]?.view?.state?1:0,speed:1,playing:true,perspective:m.replay.recordedPerspective||'a',positionMs:0,clockAt:Date.now(),busy:false};window.FATE_WAR_REPLAY_SPEED=1;drawer='match-detail';replayGameBackup=G;
   const landscape=m.landscape||state.zones.find(z=>z.id===m.zoneId)?.landscape||null;
@@ -521,15 +551,25 @@ window.joinWarEventZone=async(id,t)=>{
   let timer;
   try{
     const r=await Promise.race([
-      window.FateOnline.flyApiRequest('/api/warfront/deploy',{method:'POST',signal:controller.signal,body:{uid:p.uid,zoneId:id,team:t,profile:p}}),
-      new Promise((_,reject)=>{timer=setTimeout(()=>{controller.abort();reject(new Error('Deployment confirmation timed out. Refreshing the map; check your post before retrying.'));},12000);})
+      window.FateOnline.flyApiRequest('/api/warfront/deploy',{method:'POST',timeoutMs:30000,signal:controller.signal,body:{uid:p.uid,zoneId:id,team:t,profile:p}}),
+      new Promise((_,reject)=>{timer=setTimeout(()=>{controller.abort();reject(new Error('Deployment confirmation timed out. Refreshing the map; check your post before retrying.'));},31000);})
     ]);
     if(me().uid!==pending.uid)return;
     if(!r?.state)throw new Error('Deployment was not confirmed. Please try again.');
     adoptRemoteState(r.state);
     if(!seat(p.uid))throw new Error('Deployment was not confirmed. Refreshing the map.');
     warSfx('deploy','deployment-'+id,300);notify('Deployed to '+meta(seat(p.uid).zone).name+'.');
-  }catch(e){if(me().uid===pending.uid){notify(e?.message||'Deployment failed. Please try again.');void pullRemoteState();}}
+  }catch(e){if(me().uid===pending.uid){
+    // Read directly: a pending replay upload must not block confirmation recovery.
+    try{
+      const recovered=await warfrontRequest('/api/warfront/state',{method:'GET'});
+      if(me().uid!==pending.uid)return;
+      if(recovered?.state)adoptRemoteState(recovered.state);
+      const confirmed=seat(p.uid);
+      if(confirmed?.zone.id===id&&confirmed.team===t){notify('Deployed to '+meta(confirmed.zone).name+'.');return;}
+    }catch(_){}
+    notify(e?.message||'Deployment failed. Please try again.');
+  }}
   finally{clearTimeout(timer);if(deploymentPending===pending)deploymentPending=null;rerender();}
 };
 const cardName=id=>{const c=cards().find(x=>String(x.id)===String(id));return c?c.name:String(id);},deck=()=>Array.isArray(window.FATE_WAR_DECK_IDS)?window.FATE_WAR_DECK_IDS.map(String):typeof G!=='undefined'&&Array.isArray(G.p1Deck)?G.p1Deck.map(String):[];

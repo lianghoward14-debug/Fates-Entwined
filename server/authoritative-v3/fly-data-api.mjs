@@ -1,11 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import {createWarfrontReplayStore} from './warfront-replay-store.mjs';
 import {resolveWarfrontPhoto} from '../../shared/profile-photo.mjs';
 import {warfrontReportStats} from './warfront-report.mjs';
 import {WARFRONT_PHASE_MS, startWarfrontBattle, warfrontDueMatch, warfrontPlayed, prepareWarfrontRoster, relocateWarfrontAI, releaseWarfrontPlayers} from './warfront-lifecycle.mjs';
 import {assignWarfrontCommanderProfiles} from './warfront-commanders.mjs';
 import {simulateWarfrontMatch} from './warfront-simulation.mjs';
+import {warfrontWinProbability} from './warfront-ai-profile.mjs';
 
 const FIREBASE_PROJECT_ID = String(process.env.FATE_FIREBASE_PROJECT_ID || 'fates-entwined-41491');
 const DATA_DIR = path.resolve(process.env.FATE_FLY_DATA_API_DIR || path.join(process.cwd(), '.tmp', 'fate-authority'));
@@ -18,6 +20,7 @@ function objectFromSet(set){ return Object.fromEntries([...set].map(uid=>[uid, {
 
 export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>null, authenticateMatch = ()=>null, recoverDisconnectedMatch = ()=>{}}){
   fs.mkdirSync(DATA_DIR, {recursive:true});
+  const replayStore=createWarfrontReplayStore(path.join(DATA_DIR,'warfront-replays'));
   let snapshot = {};
   try{ snapshot = JSON.parse(fs.readFileSync(SNAPSHOT_PATH, 'utf8')) || {}; }catch(error){
     if(error?.code !== 'ENOENT') console.warn('Fly data snapshot could not be read:', error.message);
@@ -97,12 +100,12 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
     const sanitizeReplayMatch=match=>{
       if(!match||typeof match!=='object')return match;
       const replay=match.replay;
+      if(replay?.storageKey){match.replay=replayStore.save(replay);return match;}
       if(!replay||typeof replay!=='object'||!Array.isArray(replay.actions)){delete match.replay;return match;}
       replay.version=Math.max(1,Math.floor(Number(replay.version)||1));
       replay.hands=replay.hands&&typeof replay.hands==='object'?replay.hands:{a:[],b:[]};
       replay.actions=replay.actions.map(action=>action&&typeof action==='object'?action:{});
-      const bytes=Buffer.byteLength(JSON.stringify(replay),'utf8');
-      if(bytes>8000000)delete match.replay;
+      match.replay=replayStore.save(replay);
       return match;
     };
     const stripReward=report=>{if(report&&typeof report==='object'){delete report.localReward;(report.zones||[]).forEach(zone=>(zone.matches||[]).forEach(sanitizeReplayMatch));}return report;};
@@ -270,6 +273,7 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
   // Project live server profiles on every response without changing archives.
   function warfrontStateForClient(){
     refreshWarfrontForfeits();
+    warfrontEvent=sanitizeWarfrontState(warfrontEvent);
     if(warfrontEvent){const before=JSON.stringify(warfrontEvent);prepareWarfrontRoster(warfrontEvent);if(before!==JSON.stringify(warfrontEvent)){warfrontEvent._syncRevision=Number(warfrontEvent._syncRevision||0)+1;persist();}}
     if(assignWarfrontCommanderProfiles(warfrontEvent)){
       warfrontEvent._syncRevision=Number(warfrontEvent._syncRevision || 0)+1;
@@ -352,7 +356,7 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
           if((aiWinner||!zone.activeMatch)&&(zone.a?.isAI||zone.b?.isAI)&&!event.humanOnly){
             while(warfrontPlayed(zone)<5){
               zone.matches.push({id:`WF_AI_${event.sequence}_${event.zones.indexOf(zone)}_${warfrontPlayed(zone)}`,
-                winnerTeam:aiWinner||(Math.random()<.5?'a':'b'),completedAt:now,simulated:true,starValue:1,
+                winnerTeam:aiWinner||(Math.random()<warfrontWinProbability(zone.a,zone.b)?'a':'b'),completedAt:now,simulated:true,starValue:1,
                 resolutionReason:aiWinner?'human-unfinished-at-deadline':'deadline',
                 simulationKind:'deadline',commendationExcluded:true,stats:{},playerStats:{},
                 participants:clone({a:zone.a,b:zone.b})});
@@ -367,6 +371,7 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
     if(lifecycleBusy)return;
     lifecycleBusy=true;
     try{
+
       const now=Date.now();
       if(warfrontEvent.status==='results' && now>=warfrontEvent.postWarUntil){newWarfrontDeployment();return;}
       if(warfrontEvent.status==='enrollment' && now>=Number(warfrontEvent.createdAt)+WARFRONT_PHASE_MS){
@@ -382,7 +387,7 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
         let match;
         try{
           match=due.deadline
-            ? {id,winnerTeam:Math.random()<.5?'a':'b',completedAt:now,simulated:true,simulationKind:'deadline',commendationExcluded:true,stats:{},playerStats:{}}
+            ? {id,winnerTeam:Math.random()<warfrontWinProbability(participants.a,participants.b)?'a':'b',completedAt:now,simulated:true,simulationKind:'deadline',commendationExcluded:true,stats:{},playerStats:{}}
             : await simulateWarfrontMatch({id,landscapeId:zone.landscape?.id,participants,deadline:event.endsAt});
         }catch(error){if(warfrontEvent!==event||event.status!=='active')return;zone.aiRetryAt=Date.now()+60000;persist();throw error;}
         if(warfrontEvent!==event || event.status!=='active' || zone.activeMatch || zone.a?.uid!==participants.a?.uid || zone.b?.uid!==participants.b?.uid)return;
@@ -623,6 +628,14 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
     if(!url.pathname.startsWith('/api/')) return false;
     const p = routeParts(url);
     try{
+      if(req.method==='GET' && p[1]==='warfront' && p[2]==='replays'){
+        await verifiedUid(req);
+        const key=p[3];
+        const reports=[warfrontEvent,warfrontEvent?.lastResult,...(warfrontEvent?.archives||[])];
+        const exists=reports.some(report=>(report?.zones||[]).some(zone=>(zone.matches||[]).some(match=>match.replay?.storageKey===key)));
+        if(!exists){writeJson(res,404,{ok:false,error:'Replay not found in the campaign archive'});return true;}
+        writeJson(res,200,{ok:true,replay:replayStore.read(key)});return true;
+      }
       const profileMatch = url.pathname.match(/^\/api\/profiles\/([^/]+)$/);
       if(profileMatch && req.method === 'GET'){
         await verifiedUid(req); writeJson(res,200,{ok:true,profile:profile(decodeURIComponent(profileMatch[1]))}); return true;
@@ -723,9 +736,11 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
         const body=await readBody(req);await requireSelf(req,body.uid);writeJson(res,200,{ok:true,state:applyWarfrontCommand(cleanId(body.action,30))});return true;
       }
       if(req.method==='POST'&&p[1]==='warfront'&&p[2]==='deploy'){
+        refreshWarfrontForfeits();
         const body=await readBody(req),uid=await requireSelf(req,body.uid),team=body.team==='a'||body.team==='b'?body.team:null,zone=warfrontEvent?.zones.find(row=>row.id===cleanId(body.zoneId,40));
         if(!team||!zone||!['enrollment','active'].includes(warfrontEvent.status)||(warfrontEvent.status==='active'&&Date.now()>=warfrontEvent.endsAt))throw new Error('Warfront is not accepting deployments');
         const previous=warfrontEvent.zones.find(row=>row.a?.uid===uid||row.b?.uid===uid);
+        if(zone[team]?.uid===uid){writeJson(res,200,{ok:true,state:warfrontStateForClient()});return true;}
         if(previous?.activeMatch)throw new Error('Finish your current match before changing zones');
         prepareWarfrontRoster(warfrontEvent);
         const service=warfrontEvent.service[uid];

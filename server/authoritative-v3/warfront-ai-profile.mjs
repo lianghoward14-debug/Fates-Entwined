@@ -15,6 +15,11 @@ export function namedWarfrontDeck(player){
   return getDeckCatalog().byId.get(warfrontAiProfile(player).deckRef);
 }
 
+export function warfrontWinProbability(a={},b={}){
+  const strength=p=>Math.max(100,Number(p.trueElo ?? p.elo ?? p.rankElo ?? warfrontAiProfile(p).elo)||600);
+  return 1/(1+Math.pow(10,(strength(b)-strength(a))/400));
+}
+
 // The same explicit activation intent attached by the single-player adapter.
 export function warfrontAiCommand(command){
   if(command?.type!=='ACTIVATE_EFFECT'||command.manualOnly!==true)return command;

@@ -1,4 +1,8 @@
 import assert from 'node:assert/strict';
+import path from 'node:path';
+import {createWarfrontReplayStore} from './warfront-replay-store.mjs';
+const recordings=createWarfrontReplayStore(path.join(process.env.FATE_FLY_DATA_API_DIR || path.join(process.cwd(),'.tmp','fate-authority'),'warfront-replays'));
+const readReplay=ref=>recordings.read(ref.storageKey);
 import {createFlyDataApi} from './fly-data-api.mjs';
 
 const api=createFlyDataApi({readBody:async()=>({}),writeJson:()=>{}});
@@ -23,19 +27,19 @@ right.zones[0].matches=[{id:'match-b',winnerTeam:'b',completedAt:20,replay:{acti
 right.zones[0].bans={a:[],b:[]};right.zones[0].bansLocked={a:false,b:false};
 merged=api.testMergeWarfrontState(left,right);
 assert.deepEqual(merged.zones[0].matches.map(match=>match.id),['match-a','match-b'],'different concurrent match reports must both survive');
-assert.equal(merged.zones[0].matches.every(match=>Array.isArray(match.replay?.actions)),true,'completed Warfront replays must survive shared campaign storage');
-assert.equal(merged.zones[0].matches.some(match=>Object.hasOwn(match.replay.actions[0],'view')),false,'private full-view payloads must be removed from shared replays');
+assert.equal(merged.zones[0].matches.every(match=>!!match.replay?.storageKey),true,'completed Warfront replays must survive shared campaign storage');
+assert.equal(merged.zones[0].matches.some(match=>Object.hasOwn(match.replay,'actions')),false,'private full-view payloads must be removed from shared replays');
 assert.deepEqual(merged.zones[0].bans,{a:[],b:[]},'a newly merged match must reset the next-match bans');
 
 const completed=fresh();
 completed.archives=[{mapCode:'WF-0-OLD',localReward:{packs:5},zones:[{matches:[{id:'archived',replay:{actions:[1]}}]}]}];
 const sanitized=api.testSanitizeWarfrontState(completed);
 assert.equal(Object.hasOwn(sanitized.archives[0],'localReward'),false,'personal rewards must never be synchronized to another account');
-assert.equal(Array.isArray(sanitized.archives[0].zones[0].matches[0].replay.actions),true,'archive replays must remain replayable');
+assert.equal(Array.isArray(readReplay(sanitized.archives[0].zones[0].matches[0].replay).actions),true,'archive replays must remain replayable');
 
 const longReplay=fresh();
 longReplay.zones[0].matches=[{id:'long-replay',replay:{version:6,teamASeat:1,recordedPerspective:'b',actions:Array.from({length:650},(_,i)=>({atMs:i*1500,view:{playerIndex:0,state:{revision:i},presentationBatch:{id:String(i),events:[{type:'CARD_DRAWN'}]}}}))}}];
-const preserved=api.testSanitizeWarfrontState(longReplay).zones[0].matches[0].replay;
+const preserved=readReplay(api.testSanitizeWarfrontState(longReplay).zones[0].matches[0].replay);
 assert.equal(preserved.actions.length,650,'shared storage must not truncate full matches after 500 actions');
 assert.equal(preserved.actions.at(-1).atMs,649*1500,'preserve original replay timing');
 assert.equal(preserved.actions.at(-1).view.presentationBatch.events[0].type,'CARD_DRAWN','retain the normal presentation payload');

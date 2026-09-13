@@ -553,7 +553,8 @@ body.war-replay-active #war-full-replay-controls.war-full-replay-controls{
 }
 .war-full-replay-controls::before{content:"";position:absolute;z-index:-2;inset:2px;clip-path:polygon(12px 0,calc(100% - 12px) 0,100% 12px,100% calc(100% - 12px),calc(100% - 12px) 100%,12px 100%,0 calc(100% - 12px),0 12px);background:linear-gradient(112deg,#071a23 0%,#07121b 42%,#100d18 72%,#1b0a16 100%);pointer-events:none}
 .war-full-replay-controls::after{content:"";position:absolute;z-index:-1;inset:4px;clip-path:polygon(10px 0,calc(100% - 10px) 0,100% 10px,100% calc(100% - 10px),calc(100% - 10px) 100%,10px 100%,0 calc(100% - 10px),0 10px);background:linear-gradient(90deg,#2cdce2 0 4px,transparent 4px calc(100% - 4px),#ff416d calc(100% - 4px));pointer-events:none}
-.war-full-replay-controls .wfr-title{grid-column:1!important;grid-row:1!important;min-width:0!important;padding:2px 7px 5px!important;border-bottom:1px solid #d6ad4d55}
+.war-full-replay-controls .wfr-title{grid-column:1!important;grid-row:1!important;min-width:0!important;padding:2px 7px 5px!important;border-bottom:0;position:relative}
+.war-full-replay-controls .wfr-title::after{content:"";position:absolute;left:7px;right:7px;bottom:-4px;border-bottom:1px solid #d6ad4d55;pointer-events:none}
 .war-full-replay-controls .wfr-title span{font-size:.52rem!important}.war-full-replay-controls .wfr-title b{font-size:.7rem!important;line-height:1.08!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important}
 .war-full-replay-controls .wfr-progress{grid-column:2!important;grid-row:1!important;display:grid;gap:5px;align-content:center;color:#9e947c;font:800 .52rem/1 Cinzel,serif;letter-spacing:.1em}
 .war-full-replay-controls .wfr-progress>div{height:4px;background:#ffffff14}.war-full-replay-controls .wfr-progress>div i{display:block;height:100%;background:#d7ad4c;box-shadow:0 0 9px #d7ad4c88}
@@ -563,8 +564,8 @@ body.war-replay-active #war-full-replay-controls.war-full-replay-controls{
 .war-full-replay-controls .wfr-transport button{width:100%}.war-full-replay-controls .wfr-play{min-width:0!important}
 .war-full-replay-controls .wfr-transport>button:not(.wfr-play){display:grid!important;place-items:center!important;padding:0!important;font-size:0!important;line-height:0!important}
 .war-full-replay-controls .wfr-transport>button:not(.wfr-play)::before{content:"";display:block;width:10px;height:10px;box-sizing:border-box;border-top:3px solid currentColor;border-right:3px solid currentColor}
-.war-full-replay-controls .wfr-transport>button:first-child::before{transform:translateX(2px) rotate(-135deg)}
-.war-full-replay-controls .wfr-transport>button:last-child::before{transform:translateX(-2px) rotate(45deg)}
+.war-full-replay-controls .wfr-transport>button:first-child::before{transform:rotate(-135deg)}
+.war-full-replay-controls .wfr-transport>button:last-child::before{transform:rotate(45deg)}
 .war-full-replay-controls .wfr-speeds,.war-full-replay-controls .wfr-perspective{display:grid!important;padding:0!important;border:0!important;gap:4px!important}
 .war-full-replay-controls .wfr-speeds{grid-column:2!important;grid-row:2!important;grid-template-columns:repeat(3,1fr)!important}.war-full-replay-controls .wfr-speeds>i{display:none!important}
 .war-full-replay-controls .wfr-perspective{grid-column:1!important;grid-row:3!important;grid-template-columns:1fr 1fr!important}.war-full-replay-controls .wfr-perspective>i{display:none!important}

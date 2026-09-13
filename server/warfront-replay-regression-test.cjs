@@ -14,6 +14,22 @@ function legacyPresentation(){
   assert.equal(rp.actions[0].view.presentationBatch,undefined,'normalizing playback does not rewrite the recording');
 }
 
+function historicalHands(){
+  const ctx={clone,replayView:{step:1},cards:()=>[{id:'1',img:'one.png'}]};vm.createContext(ctx);
+  vm.runInContext(source.slice(source.indexOf('function revealReplayPerspectiveHand('),source.indexOf('const replayWait=')),ctx);
+  const rp={teamASeat:0,actions:[{},{}],hands:{a:[{id:'final'}]}};
+  const view={state:{players:[{hand:Array.from({length:6},(_,i)=>({id:'1',iid:String(i),currentFate:0}))},{hand:[{id:'1',iid:'enemy'}]}]},presentationBatch:{events:[{type:'CARD_DRAWN',cardIid:'enemy',playerIndex:1}]}};
+  ctx.revealReplayPerspectiveHand(view,rp,'a');
+  assert.equal(view.state.players[0].hand.length,6,'retain historical hand rather than final hand');
+  assert.equal(view.state.players[0].handCount,6);
+  assert.equal(view.state.players[0].hand[0].currentFate,0);
+  assert.equal(view.presentationBatch.events[0].card.img,'one.png','draw identity survives hiding the other hand');
+  assert.equal(view.state.players[1].hand,undefined);
+  const empty={state:{players:[{hand:[]},{}]}};
+  ctx.revealReplayPerspectiveHand(empty,rp,'a');
+  assert.equal(empty.state.players[0].hand.length,0,'empty historical hand remains empty');
+}
+
 async function playback(){
   let now=0, pending=null, resolvePresentation, renders=0;
   const match={replay:{actions:[{atMs:0},{atMs:10000},{atMs:20000}]}};
@@ -67,4 +83,4 @@ function capture(){
   assert.equal(cap.actions.at(-1).view.state.outcome.winner,0,'recordings are immutable snapshots');
 }
 
-(async()=>{legacyPresentation();capture();await playback();console.log('Warfront replay capture, timing, speed, pause and isolation regressions passed');})().catch(error=>{console.error(error);process.exitCode=1;});
+(async()=>{legacyPresentation();historicalHands();capture();await playback();console.log('Warfront replay capture, hands, draw identities, timing, speed, pause and isolation regressions passed');})().catch(error=>{console.error(error);process.exitCode=1;});
