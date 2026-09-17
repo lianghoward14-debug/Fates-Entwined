@@ -15,7 +15,7 @@ export function warfrontReportStats(zones){
   }
   const duration=ms=>{const seconds=Math.floor(ms/1000);return Math.floor(seconds/60)+':'+String(seconds%60).padStart(2,'0');};
   const achievements=[
-    ['fate','∆','Decisive Force','Highest cumulative Fate differential','fateDifferential','sum'],
+    ['fate','∆','Decisive Force','Highest total fate differential in victories','fateDifferential','sum'],
     ['speed','⌁','Lightning Victory','Fastest match victory','durationMs','min'],
     ['consolidation','◇','Master of Position','Most total consolidations','consolidations','sum']
   ].map(([id,icon,name,copy,metric,mode])=>{

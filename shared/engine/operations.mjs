@@ -338,7 +338,6 @@ function setCard(ctx, operation){
       source.z === z
       && String(source.card.id || '') === '14'
       && controllerOf(source.card) !== playerIndex
-      && source.card.faceDown !== true
       && !isEffectSourceSuppressed(ctx.state, source)
       && Math.abs(source.r - r) + Math.abs(source.c - c) === 1
     );
@@ -351,6 +350,7 @@ function setCard(ctx, operation){
   card.faceDown = operation.faceDown === true;
   if(!card.counters || typeof card.counters !== 'object') card.counters = {};
   card.counters.fieldEnteredTurn = Number(ctx.state.turn) || 0;
+  delete card.counters.whenSetResolved;
   ctx.state.board[z][r][c] = card;
   if(String(card.type || '') === 'Supporter'){
     ctx.state.supportersSetTotal[playerIndex] += 1;
@@ -384,8 +384,21 @@ function setCard(ctx, operation){
     cardIid:card.iid,
     destination:{z, r, c},
     playedFromHand:operation.playedFromHand === true,
-    consolidated:operation.consolidated === true
+    consolidated:operation.consolidated === true,
+    faceDown:operation.faceDown === true
   });
+  const bombTrap=ctx.state.geometry.squareStatuses.find(status=>
+    status?.type==='HIDDEN_BOMB_TRAP'
+    && Number(status.z)===z&&Number(status.r)===r&&Number(status.c)===c
+    && Number(status.targetPlayer)===playerIndex
+    && Number(status.triggerTurn)===Number(ctx.state.turn)
+  );
+  if(bombTrap){
+    ctx.state.geometry.squareStatuses=ctx.state.geometry.squareStatuses.filter(status=>status!==bombTrap);
+    discardCard(ctx,{type:OPERATION_TYPES.DISCARD_CARD,targetIid:card.iid,sourceIid:bombTrap.sourceIid,sourceController:bombTrap.sourceController,bypassReaction:true,reason:'THE_BLACK_ROSE_BOMB'});
+    ctx.events.push({type:'HIDDEN_BOMB_EXPLODED',playerIndex,cardIid:card.iid,destination:{z,r,c},sourceIid:bombTrap.sourceIid,semanticSourceCardId:'102',sound:'black-rose-explosion'});
+    return {cardIid:card.iid,destination:{z,r,c},destroyedByBomb:true};
+  }
   if(defenseInDepthStatus){
     const fateBonus = Math.max(0, Number(defenseInDepthStatus.fateBonus) || 4);
     ctx.state.statuses = ctx.state.statuses.filter(status=>status !== defenseInDepthStatus);
@@ -501,7 +514,7 @@ function consolidateCard(ctx, operation){
     playedFromHand:true
   });
   const placedCard = findBoardCard(ctx.state, placement.cardIid)?.card;
-  if(greatOakBonus > 0 && !isEffectImmutable(placedCard)){
+  if(greatOakBonus > 0 && placedCard && !isEffectImmutable(placedCard)){
     changeFate(ctx, {
       type:OPERATION_TYPES.MODIFY_FATE,
       targetIid:placement.cardIid,
@@ -769,7 +782,6 @@ function changeFate(ctx, operation, absolute){
       && String(operation.reason || '').toUpperCase() !== 'CHINESE_MACARTHUR_BONUS'
       ? boardEntries(ctx.state).filter(sourceEntry=>
           controllerOf(sourceEntry.card) === targetController
-          && sourceEntry.card.faceDown !== true
           && runtimeRuleId(sourceEntry.card) === 'bh15'
           && !isEffectSourceSuppressed(ctx.state, sourceEntry)
         )
@@ -1434,7 +1446,7 @@ function createSquareStatus(ctx, operation){
     throw operationError('INVALID_DESTINATION', 'square status requires a playable board square');
   }
   const type = String(operation.statusType || '');
-  if(!['PERMANENTLY_BLOCKED', 'CONSOLIDATION_BLOCKED', 'FIELD_LEAVE_LOCKED', 'COORDINATOR_SUPPRESSED', 'FLOWER_KING_BLESSED', 'MORALE_RECOVERY_SQUARE'].includes(type)){
+  if(!['PERMANENTLY_BLOCKED', 'CONSOLIDATION_BLOCKED', 'FIELD_LEAVE_LOCKED', 'COORDINATOR_SUPPRESSED', 'FLOWER_KING_BLESSED', 'MORALE_RECOVERY_SQUARE', 'HIDDEN_BOMB_TRAP'].includes(type)){
     throw operationError('INVALID_STATUS', 'unsupported square status');
   }
   if(type === 'PERMANENTLY_BLOCKED' && boardCardAt(ctx.state, destination)){
@@ -1450,7 +1462,10 @@ function createSquareStatus(ctx, operation){
     playerIndex:Number.isInteger(Number(operation.playerIndex)) ? Number(operation.playerIndex) : Number(operation.sourceController),
     blockedPlayer:Number.isInteger(Number(operation.blockedPlayer))
       ? Number(operation.blockedPlayer)
-      : null
+      : null,
+    targetPlayer:Number.isInteger(Number(operation.targetPlayer)) ? Number(operation.targetPlayer) : null,
+    triggerTurn:Number(ctx.state.turn || 0)+Math.max(0,Number(operation.triggerTurnOffset)||0),
+    privateToOwner:operation.privateToOwner===true
   };
   if(type === 'FLOWER_KING_BLESSED'){
     ctx.state.geometry.squareStatuses = ctx.state.geometry.squareStatuses.filter(existing=>
@@ -1463,7 +1478,7 @@ function createSquareStatus(ctx, operation){
     && String(existing.sourceIid || '') === String(status.sourceIid || '')
   );
   if(!duplicate) ctx.state.geometry.squareStatuses.push(status);
-  ctx.events.push({type:'SQUARE_STATUS_CREATED', ...status});
+  ctx.events.push({type:'SQUARE_STATUS_CREATED', ...status, privateTo:status.privateToOwner?[status.playerIndex]:undefined});
   return status;
 }
 
@@ -1984,7 +1999,6 @@ function splitFateLossByType(ctx, operation){
   const targets = boardEntries(ctx.state).filter(entry=>
     entry.z === source.z
     && controllerOf(entry.card) !== sourceController
-    && entry.card.faceDown !== true
     && String(entry.card.type || '') === declaredType
     && inspectOperation(ctx.state, {
       type:OPERATION_TYPES.MODIFY_FATE,
@@ -2117,7 +2131,6 @@ function applyChineseMacArthurToDerivedAuraGains(ctx, beforeSnapshot){
     const controller = controllerOf(card);
     const sources = boardEntries(ctx.state).filter(sourceEntry=>
       controllerOf(sourceEntry.card) === controller
-      && sourceEntry.card.faceDown !== true
       && runtimeRuleId(sourceEntry.card) === 'bh15'
       && !isEffectSourceSuppressed(ctx.state, sourceEntry)
     );

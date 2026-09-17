@@ -36,7 +36,6 @@ function opponentAlondraBlocksSupporterSet(state, playerIndex, destination){
     entry.z === Number(destination.z)
     && String(entry.card.id || '') === '14'
     && controllerOf(entry.card) !== Number(playerIndex)
-    && entry.card.faceDown !== true
     && !entry.card.statuses?.includes('EFFECTS_SUPPRESSED')
     && Math.abs(entry.r - Number(destination.r))
       + Math.abs(entry.c - Number(destination.c)) === 1
@@ -332,6 +331,7 @@ export function legalCommandTemplates(state, playerIndex){
       const preview = placementPreview(state, player, card, destination);
       if(!openingChoiceAvailable(preview.state, preview.card, player, 'WHEN_SET')) continue;
       commands.push({type:'SET_CARD', payload:{cardIid:card.iid, destination}});
+      if(String(card.id||'')==='102') commands.push({type:'SET_CARD',payload:{cardIid:card.iid,destination,faceDown:true}});
     }
   }
   const moraleAllowsConsolidation = moraleConsolidationsUsed(state, player) < moraleConsolidationLimit(state, player);
@@ -412,7 +412,6 @@ export function legalCommandTemplates(state, playerIndex){
           )) continue;
         }else if(remainingCharacters.some(entry=>
           String(entry.card.id || '') === '45'
-          && entry.card.faceDown !== true
           && !entry.card.statuses?.includes('EFFECTS_SUPPRESSED')
         )) continue;
         const preview = placementPreview(
@@ -440,7 +439,7 @@ export function legalCommandTemplates(state, playerIndex){
           && Number(status.zone) === destination.z
           && Number(status.remaining || 0) > 0
         );
-        if(permission){
+        if(permission||String(card.id||'')==='102'){
           commands.push({
             type:'CONSOLIDATE_CARD',
             payload:{
@@ -468,10 +467,10 @@ export function legalCommandTemplates(state, playerIndex){
     }
     if(entry.card.faceDown === true){
       commands.push({type:'FLIP_CARD', payload:{cardIid:entry.card.iid}});
-      continue;
     }
     const rule = ruleForCard(entry.card, state);
-    if(rule?.timings?.includes('ACTIVATE')
+    const hiddenWhenSet = entry.card.faceDown === true && !entry.card.counters?.whenSetResolved && rule?.timings?.includes('WHEN_SET');
+    if((rule?.timings?.includes('ACTIVATE') || hiddenWhenSet)
       && rule.program
       && !isEffectSourceSuppressed(state, entry)
       && !zoneActionBlock(state, player, entry.z)){
@@ -479,7 +478,7 @@ export function legalCommandTemplates(state, playerIndex){
         if(rule.oncePerTurn && Number(entry.card.counters?.lastEffectTurn) === state.turn) continue;
         if(rule.blockedWhileStatus && entry.card.statuses?.includes(rule.blockedWhileStatus)) continue;
         if(!supporterActivationAvailable(state, entry.card, player)) continue;
-        if(!openingChoiceAvailable(state, entry.card, player, 'ACTIVATE')) continue;
+        if(!openingChoiceAvailable(state, entry.card, player, hiddenWhenSet ? 'WHEN_SET' : 'ACTIVATE')) continue;
         commands.push({
           type:'ACTIVATE_EFFECT',
           cardId:runtimeRuleId(entry.card),
@@ -517,7 +516,6 @@ export function legalCommandTemplates(state, playerIndex){
       }
       if(state.landscapeId === 'igb7'
         && String(entry.card.affiliation || '') === 'eventide'
-        && entry.card.faceDown !== true
         && Number(entry.card.counters?.landscapeMoveTurn) !== state.turn
         && Number(entry.card.counters?.lastMoveTurn) !== state.turn){
         for(const destination of openBoardDestinations(state)){
@@ -529,7 +527,7 @@ export function legalCommandTemplates(state, playerIndex){
   if(state.landscapeId === 'igb16'){
     const handIids = state.players[player].hand.filter(card=>!isEffectImmutable(card)).map(card=>card.iid);
     const targets = boardEntries(state).filter(entry=>
-      controllerOf(entry.card) === player && entry.card.faceDown !== true && !isEffectImmutable(entry.card)
+      controllerOf(entry.card) === player && !isEffectImmutable(entry.card)
     );
     for(const discardIid of handIids){
       for(const target of targets){
@@ -546,7 +544,6 @@ export function legalCommandTemplates(state, playerIndex){
     const sources = boardEntries(state).filter(entry=>
       controllerOf(entry.card) === player
       && effectiveCardType(state, entry.card) === 'Coordinator'
-      && entry.card.faceDown !== true
       && entry.card.counters?.whisperLandscapeToken !== true
       && copyableIds.has(runtimeRuleId(entry.card))
     );

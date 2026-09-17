@@ -260,6 +260,8 @@ function resolveValue(value, frame){
   }
   if(Array.isArray(value)) return value.map(item=>resolveValue(item, frame));
   if(value && typeof value === 'object'){
+    if(Array.isArray(value.multiply)) return value.multiply.reduce((result,item)=>result*Number(resolveValue(item,frame)),1);
+    if(Array.isArray(value.divide)) return Number(resolveValue(value.divide[0],frame))/Number(resolveValue(value.divide[1],frame));
     return Object.fromEntries(
       Object.entries(value).map(([key, item])=>[key, resolveValue(item, frame)])
     );
@@ -306,14 +308,13 @@ function effectUses(card){
 function reconcileSovietGrenadierTargets(state, ctx){
   const entries = boardEntries(state);
   for(const source of entries){
-    if(String(source.card?.id || '') !== '44' || source.card.faceDown === true) continue;
+    if(String(source.card?.id || '') !== '44') continue;
     const declaredType = String(source.card.counters?.sovietDeclaredType || '');
     if(!declaredType) continue;
     if(!source.card.counters || typeof source.card.counters !== 'object') source.card.counters = {};
     const candidates = entries.filter(target=>
       String(target.card?.iid || '') !== String(source.card.iid || '')
       && target.z === source.z
-      && target.card.faceDown !== true
       && effectiveCardType(state, target.card) === declaredType
       && Math.abs(target.r - source.r) + Math.abs(target.c - source.c) === 1
     );
@@ -339,7 +340,7 @@ function reconcileSovietGrenadierTargets(state, ctx){
 }
 
 function startFieldEntryDeclaration(state, ctx, card, controller, commandId){
-  if(String(card?.id || '') !== '44' || card.faceDown === true || card.counters?.sovietDeclaredType) return false;
+  if(String(card?.id || '') !== '44' || card.counters?.sovietDeclaredType) return false;
   startEffect(state, ctx, card, controller, 'PASSIVE', commandId);
   return true;
 }
@@ -419,7 +420,6 @@ function supporterEffectBlock(state, card, playerIndex){
     && String(entry.card.id || '') === '92'
     && String(entry.card.iid) !== String(card.iid)
     && controllerOf(entry.card) === Number(playerIndex)
-    && entry.card.faceDown !== true
     && !entry.card.statuses?.includes('EFFECTS_SUPPRESSED')
   );
   return lumberjack ? {
@@ -645,7 +645,7 @@ function activationReactionOptions(state, frame){
   const options = [];
   const opponent = frame.controller === 0 ? 1 : 0;
   for(const entry of boardEntries(state)){
-    if(controllerOf(entry.card) !== opponent || entry.card.faceDown === true || isEffectSourceSuppressed(state, entry)) continue;
+    if(controllerOf(entry.card) !== opponent || isEffectSourceSuppressed(state, entry)) continue;
     const rule = cardRule(entry.card.id, state);
     if(rule?.reactionKind === 'LYDIA' && reactionUses(entry.card) < Number(rule.maxUses || 0)){
       options.push({reactionIid:entry.card.iid, kind:'LYDIA', modes:['NEGATE']});
@@ -794,7 +794,7 @@ function openInstructionPrompt(state, frame, instruction, ctx){
   }
   if(instruction.kind === 'CHOOSE_OPTION'){
 
-    const options = (instruction.options || []).map(option=>
+    let options = (instruction.options || []).map(option=>
       typeof option === 'object'
         ? {
             value:String(option.value),
@@ -806,6 +806,10 @@ function openInstructionPrompt(state, frame, instruction, ctx){
       instruction.landscapeChoices !== true
       || !landscapeChangeBlockReason(state, option.value)
     );
+    if(instruction.maxByControllerMorale===true){
+      const morale=Math.max(0,Number(state.moralePressure?.morale?.[frame.controller])||0);
+      options=options.filter(option=>Number(option.value)<=morale);
+    }
     if(!options.length){
       if(fizzleUnavailableWhenSet()) return false;
       throw Object.assign(new Error('modal choice has no options'), {code:'NO_LEGAL_CHOICES'});
@@ -1293,7 +1297,6 @@ function runEffectStack(state, ctx){
         String(entry.card.iid || '') !== String(frame.sourceIid || '')
         && controllerOf(entry.card) === controllerOf(engineerEntry.card)
         && eligibleIds.has(runtimeRuleId(entry.card))
-        && entry.card.faceDown !== true
         && !isEffectSourceSuppressed(state, entry)
       );
       for(const entry of sources){
@@ -1315,7 +1318,6 @@ function runEffectStack(state, ctx){
         const zoneTargets = boardEntries(state).filter(target=>
           target.z === entry.z
           && controllerOf(target.card) === owner
-          && target.card.faceDown !== true
           && !isEffectImmutable(target.card)
         );
         if(['15','bh02','bh08'].includes(id)){
@@ -1398,6 +1400,27 @@ function runEffectStack(state, ctx){
   }
 }
 
+function resolveElViajeDelHombrePinaTurn(state, ctx){
+  const sources=boardEntries(state).filter(entry=>
+    runtimeRuleId(entry.card)==='101'
+    && !isEffectSourceSuppressed(state,entry)
+  );
+  for(const source of sources){
+    for(const target of boardEntries(state)){
+      if(target.card.iid===source.card.iid
+        || target.z!==source.z
+        || controllerOf(target.card)!==controllerOf(source.card)
+        || Math.abs(target.r-source.r)>1
+        || Math.abs(target.c-source.c)>1)continue;
+      applyOperation(ctx,{
+        type:'MODIFY_FATE',targetIid:target.card.iid,amount:1,
+        sourceIid:source.card.iid,sourceController:controllerOf(source.card),
+        semanticSourceCardId:'101',reason:'EL_VIAJE_DEL_HOMBRE_PINA',bypassReaction:true
+      });
+    }
+  }
+}
+
 function completeEndTurn(state, ctx, actorIndex){
   for(const targetIid of expireCaliforniqueHandCards(state, actorIndex)){
     applyOperation(ctx, {
@@ -1409,8 +1432,16 @@ function completeEndTurn(state, ctx, actorIndex){
     });
   }
   resolveMoraleSupporterExpiry(state, ctx, actorIndex);
+  resolveElViajeDelHombrePinaTurn(state, ctx);
   resolveMoralePressureCycle(ctx);
   resolveMoraleLowHandDiscard(state, ctx, actorIndex);
+  state.geometry.squareStatuses=state.geometry.squareStatuses.filter(status=>{
+    const expired=status?.type==='HIDDEN_BOMB_TRAP'
+      && Number(status.targetPlayer)===Number(actorIndex)
+      && Number(status.triggerTurn)<=Number(state.turn);
+    if(expired)ctx.events.push({type:'HIDDEN_BOMB_EXPIRED',sourceIid:status.sourceIid,privateTo:[Number(status.playerIndex)]});
+    return !expired;
+  });
   const moraleEnabled = moralePressureEnabled(state);
   const moraleDepleted = moraleEnabled
     && state.moralePressure?.morale?.some(value=>Number(value || 0) <= 0);
@@ -1482,7 +1513,6 @@ function openBh18EndTurnFrame(state, ctx, actorIndex, commandId){
   const controller = actorIndex === 0 ? 1 : 0;
   const sources = boardEntries(state).filter(entry=>
     controllerOf(entry.card) === controller
-    && entry.card.faceDown !== true
     && runtimeRuleId(entry.card) === 'bh18'
     && !isEffectSourceSuppressed(state, entry)
   );
@@ -1813,6 +1843,7 @@ function startEffect(state, ctx, source, controller, timing, commandId, ruleId =
     });
     return;
   }
+  if(timing === 'WHEN_SET'){ source.counters ||= {}; source.counters.whenSetResolved = true; }
   const frame = openEffectFrame(state, source, controller, timing, commandId, ruleId);
   if(frame && timing !== 'ACTIVATE'){
     ctx.events.push({
@@ -1864,6 +1895,9 @@ function startAutomaticActivation(state, ctx, source, controller, commandId){
     type:RULE_EVENT_TYPES.EFFECT_ACTIVATED,
     sourceIid:source.iid,
     playerIndex:controller,
+    sourceController:controller,
+    semanticSourceCardId:String(source.id||''),
+    hiddenSource:String(source.id||'')==='102',
     timing:'ACTIVATE'
   });
   recordMoralePressureRuleEvent(ctx, ctx.events[ctx.events.length - 1]);
@@ -2249,7 +2283,6 @@ function performCommand(state, ctx, command, actorIndex, options){
       if(!source
         || controllerOf(source.card) !== actorIndex
         || String(source.card.counters?.bh14OriginalType || source.card.type || '') !== 'Coordinator'
-        || source.card.faceDown === true
         || isEffectImmutable(source.card)
         || source.card.counters?.whisperLandscapeToken === true
         || !copyableIds.has(runtimeRuleId(source.card))){
@@ -2314,7 +2347,7 @@ function performCommand(state, ctx, command, actorIndex, options){
       throw Object.assign(new Error('the Santa Anna discard must be in the actor hand'), {code:'CARD_NOT_IN_HAND'});
     }
     const target = findBoardCard(state, payload.targetIid);
-    if(!target || controllerOf(target.card) !== actorIndex || target.card.faceDown === true){
+    if(!target || controllerOf(target.card) !== actorIndex){
       throw Object.assign(new Error('Santa Anna must target a face-up card on the actor side'), {code:'INVALID_TARGET'});
     }
     applyOperation(ctx, {
@@ -2389,7 +2422,6 @@ function performCommand(state, ctx, command, actorIndex, options){
       source.z === Number(payload.destination?.z)
       && String(source.card.id || '') === '14'
       && controllerOf(source.card) !== actorIndex
-      && source.card.faceDown !== true
       && !source.card.statuses?.includes('EFFECTS_SUPPRESSED')
       && Math.abs(source.r - Number(payload.destination?.r))
         + Math.abs(source.c - Number(payload.destination?.c)) === 1
@@ -2402,6 +2434,7 @@ function performCommand(state, ctx, command, actorIndex, options){
       playerIndex:actorIndex,
       cardIid:payload.cardIid,
       destination:payload.destination,
+      faceDown:payload.faceDown===true&&String(entry.card.id||'')==='102',
       sourceController:actorIndex,
       playedFromHand:true,
       countTowardSupporterLimit:!isPierogi && !isWhisperToken,
@@ -2571,7 +2604,7 @@ function performCommand(state, ctx, command, actorIndex, options){
       && Number(status.zone) === Number(payload.destination?.z)
       && Number(status.remaining || 0) > 0
     );
-    if(payload.faceDown === true && !faceDownPermission){
+    if(payload.faceDown === true && !faceDownPermission && String(entry.card.id||'')!=='102'){
       throw Object.assign(new Error('there is no face-down consolidation permission in this zone'), {code:'FACE_DOWN_NOT_ALLOWED'});
     }
     const result = applyOperation(ctx, {
@@ -2589,6 +2622,7 @@ function performCommand(state, ctx, command, actorIndex, options){
       state.statuses = state.statuses.filter(status=>status.statusId !== faceDownPermission.statusId);
       ctx.events.push({type:'STATUS_REMOVED', statusId:faceDownPermission.statusId, reason:'FACE_DOWN_CONSOLIDATION_USED'});
     }
+    if(card?.faceDown) startFieldEntryDeclaration(state, ctx, card, actorIndex, command.commandId);
     if(card && !card.faceDown){
       const effectId = card.id;
       if(startPassiveTargetReaction(state, ctx, card, actorIndex, command.commandId)){}
@@ -2611,7 +2645,7 @@ function performCommand(state, ctx, command, actorIndex, options){
     const effectId = entry.card.id;
     if(startPassiveTargetReaction(state, ctx, entry.card, actorIndex, command.commandId)){}
     else if(startFieldEntryDeclaration(state, ctx, entry.card, actorIndex, command.commandId)){}
-    else if(hasTiming(effectId, 'WHEN_SET', state)) startEffect(state, ctx, entry.card, actorIndex, 'WHEN_SET', command.commandId);
+    else if(!entry.card.counters?.whenSetResolved && hasTiming(effectId, 'WHEN_SET', state)) startEffect(state, ctx, entry.card, actorIndex, 'WHEN_SET', command.commandId);
     else if(hasTiming(effectId, 'ACTIVATE', state)) startAutomaticActivation(state, ctx, entry.card, actorIndex, command.commandId);
     return;
   }
@@ -2624,8 +2658,7 @@ function performCommand(state, ctx, command, actorIndex, options){
     const customMove = cardRule(entry.card.id, state)?.customCommand;
     const landscapeMove = !movementGrant
       && state.landscapeId === 'igb7'
-      && String(entry.card.affiliation || '') === 'eventide'
-      && entry.card.faceDown !== true;
+      && String(entry.card.affiliation || '') === 'eventide';
     if(!['MOVE_AND_DRAW', 'EXPEDITIONARY_MOVE'].includes(customMove) && !movementGrant && !landscapeMove){
       throw Object.assign(new Error('this card has no player-facing v3 movement effect'), {code:'MOVE_NOT_AVAILABLE'});
     }
@@ -2724,7 +2757,8 @@ function performCommand(state, ctx, command, actorIndex, options){
     }
     const activationRuleId=['37','bh05'].includes(String(entry.card.id)) && runtimeRuleId(entry.card)==='93'?'93':entry.card.id;
     const rule = cardRule(activationRuleId, state);
-    if(!rule?.timings?.includes('ACTIVATE') || !rule.program){
+    const hiddenWhenSet = entry.card.faceDown === true && !entry.card.counters?.whenSetResolved && rule?.timings?.includes('WHEN_SET');
+    if((!rule?.timings?.includes('ACTIVATE') && !hiddenWhenSet) || !rule.program){
       throw Object.assign(new Error('this card has no v3 activated effect'), {code:'EFFECT_NOT_IMPLEMENTED'});
     }
     if(rule.manualOnly === true && payload.userActivated !== true){
@@ -2771,13 +2805,11 @@ function performCommand(state, ctx, command, actorIndex, options){
     }
     consumeEffectUse(entry.card);
     if(rule.oncePerTurn) entry.card.counters.lastEffectTurn = state.turn;
-    ctx.events.push({
-      type:RULE_EVENT_TYPES.EFFECT_ACTIVATED,
-      sourceIid:entry.card.iid,
-      playerIndex:actorIndex
-    });
-    recordMoralePressureRuleEvent(ctx, ctx.events[ctx.events.length - 1]);
-    startEffect(state, ctx, entry.card, actorIndex, 'ACTIVATE', command.commandId, activationRuleId);
+    if(!hiddenWhenSet){
+      ctx.events.push({type:RULE_EVENT_TYPES.EFFECT_ACTIVATED,sourceIid:entry.card.iid,playerIndex:actorIndex});
+      recordMoralePressureRuleEvent(ctx, ctx.events[ctx.events.length - 1]);
+    }
+    startEffect(state, ctx, entry.card, actorIndex, hiddenWhenSet ? 'WHEN_SET' : 'ACTIVATE', command.commandId, activationRuleId);
     return;
   }
   if(command.type === 'END_TURN'){
@@ -2842,6 +2874,18 @@ export function reduceCommand(currentState, rawCommand, options = {}){
     }
     state.revision += 1;
     assertInvariants(state);
+    const hiddenSources = new Map();
+    for(const snapshot of [currentState, state]) for(const card of snapshot.board.flat(2)){
+      if(card && (card.faceDown || String(card.id)==='102')) hiddenSources.set(String(card.iid), controllerOf(card));
+      else if(card) hiddenSources.delete(String(card.iid));
+    }
+    for(const status of state.statuses){
+      if(hiddenSources.has(String(status.sourceIid))){ status.hiddenSource = true; status.sourceController = hiddenSources.get(String(status.sourceIid)); }
+    }
+    for(const event of ctx.events){
+      const iid = String(event.reactionIid || event.effectSourceIid || event.sourceIid || event.status?.sourceIid || '');
+      if(hiddenSources.has(iid)){ event.hiddenSource = true; event.sourceController = hiddenSources.get(iid); }
+    }
     const stateHash = canonicalHash(state);
     return {
       ok:true,

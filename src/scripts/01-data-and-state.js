@@ -44,7 +44,7 @@
 // player-timed. Automatic set/draw resolution may expose their legal command,
 // but must never submit it. These effects only run from their explicit board
 // action button.
-window.FATE_PLAYER_TIMED_MANUAL_EFFECT_CARD_IDS = Object.freeze(['20', '26', '38', '40', '93', 'bh16']);
+window.FATE_PLAYER_TIMED_MANUAL_EFFECT_CARD_IDS = Object.freeze(['20', '38', '40', '93', 'bh01', 'bh16']);
 window.fateEffectRequiresManualActivationId = function(cardOrId){
   if(cardOrId && typeof cardOrId === 'object'){
     const ids = [
@@ -162,7 +162,7 @@ const CARDS = [
     flavor:'"It is time for Africa to take to the world stage - No more will it be the plaything of foreign powers"',img:'25.png'},
   {id:'26',name:'UCPD',ability:'A Safer Community',type:'Supporter',aff:'reality',
     fate:1,cost:0,rarity:'circle',
-    effect:'Activate Effect: Reveal your opponent\'s hand.',
+    effect:'When set, reveal your opponent\'s hand.',
     flavor:'"Keeping the Students of the University Safe, one tweaker at a time"',img:'26.png'},
   {id:'27',name:'Kazumi',ability:'Fables of the Old Age',type:'Initiator',aff:'eventide',
     fate:1,cost:1,rarity:'square',
@@ -380,10 +380,10 @@ const CARDS = [
     fate:3,cost:2,rarity:'triangle',
     effect:'All Character cards you control in this zone gain 2 Fate permanently.',
     flavor:'"Sebastyen\'s vision was to see an autonomous Eastern Europe, one that didn\'t have to bow to foreign powers like the European Union"',img:'83.png'},
-  {id:'84',name:'Kv\u011btka Svoboda',ability:'Flower Picking',type:'Initiator',aff:'expanded_worlds',
+  {id:'84',name:'Kv\u011btka Svoboda (Youth)',ability:'Flower Picking',type:'Initiator',aff:'expanded_worlds',
     fate:3,cost:1,rarity:'square',
     effect:'This card always appears in your opening hand. When set, if your original deck list contains no cards with a Draw effect, search your deck for any card and add it to your hand.',
-    flavor:'"Felicytaaa! Look outside, its snowing, its snowing! Hurry up and wake up we have to go play with everyone!"',img:'84.png?v=20260908-flower'},
+    flavor:'"Felicytaaa! Look outside, its snowing, its snowing! Hurry up and wake up we have to go play with everyone!"',img:'84.png?v=20260916-youth'},
   {id:'85',name:'Felicyta Janowicz (Specters)',ability:'A Specter\'s Lament',type:'Dauntless',aff:'expanded_worlds',
     fate:1,cost:4,rarity:'square',
     effect:'This card gains 1 Fate for the total amount of times your opponent set a Supporter this game.',
@@ -448,6 +448,18 @@ const CARDS = [
     fate:12,cost:2,rarity:'square',
     effect:'This card gains 2 Fate for each of your turns that the "Snow on the Carpathians" landscape is active. If you control any Felicyta or Květka card, this card gains 5 Fate. This card uses Characters for its consolidation.',
     flavor:'',img:'100.png?v=20260909-youth-art'},
+  {id:'101',name:'Jorge Alvarez (El Hombre Piña)',ability:'El Viaje Del Hombre Piña',type:'Coordinator',aff:'eventide',
+    fate:10,cost:2,rarity:'star',effectClass:'ADJACENT_DIAGONAL_TURN_FATE_AND_IMMUNITY',
+    effect:'All cards you control adjacent and diagonal to this card gain 1 Fate every turn, and are immune to your opponent\'s effects.',
+    flavor:'"For the impoverished and sick of Caribbea, the Pineapple Man brings hope"',img:'101.png'},
+  {id:'102',name:'Anne Stone (Anarchist)',ability:'The Black Rose',type:'Improvisor',aff:'eventide',
+    fate:4,cost:1,rarity:'square',effectClass:'HIDDEN_NEXT_TURN_SQUARE_TRAP',canEnterFaceDown:true,
+    effect:'At any time during your turn, mark any square on the field. Your opponent cannot see this mark, and they cannot see the activation of this effect. On your opponent\'s next turn, if a card is set or consolidated on that marked square, that card is discarded and its effect does not activate. When this card is put on the field in any way, you can put it face down.',
+    flavor:'"A commitment to Social Justice, backed by the blunt Cordiality of hand grenades"',img:'102.png'},
+  {id:'103',name:'Santiago Alvarez (General)',ability:'Sangre Por Victoria',type:'Initiator',aff:'third_great_war',
+    fate:4,cost:1,rarity:'triangle',effectClass:'MORALE_PAYMENT_DRAW',
+    effect:'Pay Morale in increments of 15. For every 15 Morale you pay, draw 1 card.',
+    flavor:'"An upstart general, dedicated to the Loyalist cause-and willing to shed blood"',img:'103.png'},
   {id:'65',name:'1st West Caribbea Marines',ability:'Sea-Men',type:'Supporter',aff:'eventide',
     fate:1,cost:0,rarity:'circle',contestedOnly:true,
     effect:'This card can only be set in contested rows. When set, this card increases its own Fate to 4.',
@@ -590,9 +602,9 @@ const WHISPER_OF_THE_HEART_TOKEN = Object.freeze({
   flavor:'',img:'whisper.png',whisperLandscapeToken:true
 });
 
-// Cards 80-100 are released into every normal card pool. Keep this shared set
-// available for any future temporary holds without marking released cards retired.
-const TEMP_DISABLED_CARD_IDS = new Set();
+// Temporarily retired cards remain fully defined so their effects can be restored
+// later, but every shared game, deckbuilder, collection, and booster pool omits them.
+const TEMP_DISABLED_CARD_IDS = new Set(['101', '102', '103']);
 
 function hasAnyChallengerDeck() {
   return Object.values(USER_PROFILE.challengerPresets || {}).some(p=>Array.isArray(p.ids) && p.ids.length===40);

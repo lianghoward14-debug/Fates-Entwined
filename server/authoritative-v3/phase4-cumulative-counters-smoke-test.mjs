@@ -74,29 +74,28 @@ assert.equal(effectiveFate(state, state.board[0][2][0]), 3, 'counter-derived Fat
 
 state = newState('P4COUNTERACTIVATE', ['89', '26'], ['32']);
 const activationZsofia = putOnBoard(state, 0, '89', {z:0, r:2, c:0});
-const ucpd = putOnBoard(state, 0, '26', {z:0, r:2, c:1});
-for(let use = 1; use <= 10; use += 1){
-  const result = reduceCommand(
-    state,
-    command(state, 'p0', use, 'ACTIVATE_EFFECT', {sourceIid:ucpd.iid}),
-    {playerId:'p0'}
-  );
-  assert.equal(result.ok, true);
-  assert.equal(result.prompt, null);
-  assert.equal(result.state.supporterEffectsActivated[0], use);
-  state = result.state;
-}
-assert.equal(effectiveFate(state, activationZsofia), 8, 'the tenth activation must remove Zsofia Youth bonus');
+const ucpd = state.players[0].hand.find(card=>card.id === '26');
+let result = reduceCommand(
+  state,
+  command(state, 'p0', 1, 'SET_CARD', {cardIid:ucpd.iid, destination:{z:0, r:2, c:1}}),
+  {playerId:'p0'}
+);
+assert.equal(result.ok, true);
+assert.equal(result.prompt, null);
+assert.equal(result.state.supporterEffectsActivated[0], 1, 'UCPD must activate automatically when set');
+assert(result.events.some(event=>event.type === 'HAND_REVEALED' && event.targetPlayerIndex === 1));
+state = result.state;
+assert.equal(effectiveFate(state, activationZsofia), 16);
 assert.equal(activationZsofia.currentFate, 8);
 assertInvariants(state);
 
 state = newState('P4COUNTERNEGATE', ['89', '26'], ['56']);
 const protectedZsofia = putOnBoard(state, 0, '89', {z:0, r:2, c:0});
-const reactedUcpd = putOnBoard(state, 0, '26', {z:0, r:2, c:1});
 const lydia = putOnBoard(state, 1, '56', {z:1, r:0, c:0});
-let result = reduceCommand(
+const reactedUcpd = state.players[0].hand.find(card=>card.id === '26');
+result = reduceCommand(
   state,
-  command(state, 'p0', 1, 'ACTIVATE_EFFECT', {sourceIid:reactedUcpd.iid}),
+  command(state, 'p0', 1, 'SET_CARD', {cardIid:reactedUcpd.iid, destination:{z:0, r:2, c:1}}),
   {playerId:'p0'}
 );
 assert.equal(result.ok, true);
@@ -123,17 +122,17 @@ result = reduceCommand(
   command(state, 'p0', 3, 'ACTIVATE_EFFECT', {sourceIid:reactedUcpd.iid}),
   {playerId:'p0'}
 );
-assert.equal(result.ok, false, 'Lydia-suppressed sources must not reactivate');
-assert.equal(result.rejection.code, 'EFFECT_SUPPRESSED');
+assert.equal(result.ok, false, 'automatic when-set effects must not be manually reactivated');
+assert.equal(result.rejection.code, 'EFFECT_NOT_IMPLEMENTED');
 assert.equal(state.supporterEffectsActivated[0], 0, 'suppressed Supporter effects must not count');
 
 state = newState('P4COUNTERDECLINE', ['89', '26'], ['56']);
-const declinedUcpd = putOnBoard(state, 0, '26', {z:0, r:2, c:0});
 putOnBoard(state, 0, '89', {z:0, r:2, c:1});
 putOnBoard(state, 1, '56', {z:1, r:0, c:0});
+const declinedUcpd = state.players[0].hand.find(card=>card.id === '26');
 result = reduceCommand(
   state,
-  command(state, 'p0', 1, 'ACTIVATE_EFFECT', {sourceIid:declinedUcpd.iid}),
+  command(state, 'p0', 1, 'SET_CARD', {cardIid:declinedUcpd.iid, destination:{z:0, r:2, c:0}}),
   {playerId:'p0'}
 );
 assert.equal(result.ok, true);

@@ -15,7 +15,6 @@ function collectRiveraArrivalBonuses(state, event, operations){
   const placed = boardEntries(state).find(entry=>String(entry.card.iid) === String(event.cardIid));
   if(!placed
     || String(placed.card.id || '') === '51'
-    || placed.card.faceDown === true
     || effectiveCardType(state, placed.card) === 'Supporter'
     || effectiveCardType(state, placed.card) === 'Counter'
     || isEffectImmutable(placed.card)){
@@ -61,7 +60,6 @@ export function collectTriggeredOperations(state, event){
         && runtimeRuleId(entry.card) === '02'
         && controllerOf(entry.card) === Number(event.playerIndex)
         && String(entry.card.iid) !== String(placed.card.iid)
-        && entry.card.faceDown !== true
         && !isEffectSourceSuppressed(state, entry)
       )){
         operations.push({
@@ -132,7 +130,6 @@ export function collectTriggeredOperations(state, event){
     for(const boleslaw of boardEntries(state).filter(entry=>
       String(entry.card.id || '') === '86'
       && controllerOf(entry.card) !== Number(event.playerIndex)
-      && entry.card.faceDown !== true
       && !isEffectSourceSuppressed(state, entry)
     )){
       const playerIndex = controllerOf(boleslaw.card);
@@ -204,14 +201,12 @@ export function collectTriggeredOperations(state, event){
       }
     }
     if(placed
-      && placed.card.faceDown !== true
       && effectiveCardType(state, placed.card) === 'Coordinator'){
       const playerIndex = controllerOf(placed.card);
       for(const source of boardEntries(state).filter(entry=>
         (entry.z === placed.z || entry.card.counters?.whisperLandscapeToken === true)
         && runtimeRuleId(entry.card) === '15'
         && controllerOf(entry.card) === playerIndex
-        && entry.card.faceDown !== true
         && !isEffectSourceSuppressed(state, entry)
       )){
         const amount = 1 + coordinatorAuraPotencyBoost(state, source);
@@ -246,7 +241,6 @@ export function collectTriggeredOperations(state, event){
     for(const source of boardEntries(state).filter(entry=>
       runtimeRuleId(entry.card) === 'bh08'
       && controllerOf(entry.card) === reactingPlayer
-      && entry.card.faceDown !== true
       && !isEffectSourceSuppressed(state, entry)
     )){
       const amount = 2 + coordinatorAuraPotencyBoost(state, source);
@@ -289,8 +283,7 @@ export function collectTriggeredOperations(state, event){
   }
   if(event.type === 'DRAW_EFFECT_ACTIVATED'){
     for(const joie of boardEntries(state).filter(entry=>
-      runtimeRuleId(entry.card) === 'bh02' && controllerOf(entry.card) === Number(event.playerIndex)
-      && entry.card.faceDown !== true && !isEffectSourceSuppressed(state, entry)
+      runtimeRuleId(entry.card) === 'bh02' && controllerOf(entry.card) === Number(event.playerIndex) && !isEffectSourceSuppressed(state, entry)
     )){
       const amount = 1 + coordinatorAuraPotencyBoost(state, joie);
       operations.push({
@@ -344,7 +337,6 @@ export function collectTriggeredOperations(state, event){
         for(const sourceEntry of boardEntries(state).filter(entry=>
           controllerOf(entry.card) === playerIndex
           && String(entry.card.iid) !== String(event.cardIid)
-          && entry.card.faceDown !== true
           && runtimeRuleId(entry.card) === 'bh17'
           && !isEffectSourceSuppressed(state, entry)
         )){
@@ -409,7 +401,7 @@ export function collectTriggeredOperations(state, event){
     }
     for(const entry of boardEntries(state)){
       if(entry.z !== Number(event.destination?.z)) continue;
-      if(runtimeRuleId(entry.card) !== '36' || entry.card.faceDown === true) continue;
+      if(runtimeRuleId(entry.card) !== '36') continue;
       if(controllerOf(entry.card) === Number(event.playerIndex)) continue;
       if(isEffectSourceSuppressed(state, entry)) continue;
       operations.push({
@@ -429,7 +421,7 @@ export function collectTriggeredOperations(state, event){
   }
   if(event.type === 'TURN_STARTED'){
     if(state.gameSettings?.pressureCardReworks === true){
-      for(const entry of boardEntries(state).filter(item=>String(item.card.id||'')==='65'&&controllerOf(item.card)===Number(event.playerIndex)&&item.card.faceDown!==true&&!isEffectSourceSuppressed(state,item))){
+      for(const entry of boardEntries(state).filter(item=>String(item.card.id||'')==='65'&&controllerOf(item.card)===Number(event.playerIndex)&&!isEffectSourceSuppressed(state,item))){
         operations.push({type:'MODIFY_MORALE',playerIndex:1-Number(event.playerIndex),amount:-2,sourceIid:entry.card.iid});
       }
     }
@@ -439,7 +431,6 @@ export function collectTriggeredOperations(state, event){
         && String(item.card.affiliation || '') === 'expanded_worlds'
         && effectiveCardType(state, item.card) !== 'Supporter'
         && effectiveCardType(state, item.card) !== 'Counter'
-        && item.card.faceDown !== true
         && !isEffectImmutable(item.card)
       )){
         operations.push({
@@ -457,7 +448,6 @@ export function collectTriggeredOperations(state, event){
       for(const entry of boardEntries(state).filter(item=>
         runtimeRuleId(item.card) === '100'
         && controllerOf(item.card) === Number(event.playerIndex)
-        && item.card.faceDown !== true
         && !isEffectSourceSuppressed(state, item)
         && !isEffectImmutable(item.card)
       )){
@@ -486,15 +476,13 @@ export function collectTriggeredOperations(state, event){
     // for local single-player sessions and authoritative multiplayer rooms.
     const drawTurn = Number(event.turn ?? state.turn);
     if(drawTurn>=14)for(const entry of boardEntries(state).filter(item=>
-      runtimeRuleId(item.card)==='95' && controllerOf(item.card)===Number(event.playerIndex)
-      && !item.card.faceDown && !isEffectSourceSuppressed(state,item)
+      runtimeRuleId(item.card)==='95' && controllerOf(item.card)===Number(event.playerIndex) && !isEffectSourceSuppressed(state,item)
     ))operations.push({type:'MODIFY_FATE',targetIid:entry.card.iid,amount:1,
       sourceIid:entry.card.iid,sourceController:Number(event.playerIndex),
       reason:'THOUSAND_YEAR_SORROW',bypassReaction:true});
     for(const entry of boardEntries(state).filter(item=>
       runtimeRuleId(item.card) === '46'
       && controllerOf(item.card) === Number(event.playerIndex)
-      && item.card.faceDown !== true
       && !isEffectSourceSuppressed(state, item)
       && (!Number.isFinite(Number(item.card.counters?.fieldEnteredTurn))
         || Number(item.card.counters.fieldEnteredTurn) < drawTurn)

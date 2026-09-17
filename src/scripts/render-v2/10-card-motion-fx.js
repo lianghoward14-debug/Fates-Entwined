@@ -234,9 +234,9 @@
     const iid = card && card.iid;
     const adapter = scene();
     if(adapter && typeof adapter.hideBoardCardForVfx === 'function') {
-      adapter.hideBoardCardForVfx(iid, 820);
+      adapter.hideBoardCardForVfx(iid, 980);
     }
-    return play('CARD_FLIP', {card, iid, rect, duration:620, revealAt:.68});
+    return play('CARD_FLIP', {card, iid, rect, duration:950, revealAt:.5});
   }
 
   function boardNotice(card, z, r, c, text, opts){

@@ -517,6 +517,7 @@
       const c = Number(hit.c);
       const boardCard = G.board && G.board[z] && G.board[z][r] ? G.board[z][r][c] : null;
       const isCellActionMode = this.isLiveBoardSelectionActive();
+      if(!boardCard) window.FateSquareFeedbackFx?.playClick(hit);
       try {
         if(G._phase7CurrentMultiplayer === true && typeof window.fatePhase7HandleBoardClick === 'function'){
           window.fatePhase7HandleBoardClick(z, r, c);

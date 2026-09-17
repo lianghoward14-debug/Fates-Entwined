@@ -87,7 +87,10 @@ export function relocateWarfrontAI(event){
     // Prefer an unfinished front, but an empty settled front is still an
     // available post. Occupying it never reopens its completed matches.
     const available=z=>!z[team]&&!z.activeMatch;
-    const zone=event.zones.find(z=>available(z)&&warfrontPlayed(z)<5)||event.zones.find(available);
+    const completedHuman=z=>!z.activeMatch&&warfrontPlayed(z)<5&&z[team]&&!z[team].isAI
+      &&(event.service?.[z[team].uid]?.matchIds?.length||0)>=5;
+    const zone=event.zones.find(z=>available(z)&&warfrontPlayed(z)<5)
+      ||event.zones.find(completedHuman)||event.zones.find(available);
     if(!zone){i++;continue;}
     zone[team]=player;event.waitingAI.splice(i,1);
     if(zone.a?.isAI&&zone.b?.isAI&&!zone.aiSchedule?.length)scheduleWarfrontAI(event,Date.now());
@@ -100,7 +103,7 @@ export function releaseWarfrontPlayers(event,zone,binding,matchId){
     if(!player||player.isAI)continue;
     const entry=event.service[player.uid] ||= {...structuredClone(player),team,zoneId:zone.id,matchIds:[]};
     if(!entry.matchIds.includes(matchId))entry.matchIds.push(matchId);
-    if(zone[team]?.uid===player.uid)zone[team]=null;
+    if(zone[team]?.uid===player.uid&&entry.matchIds.length<5)zone[team]=null;
   }
   binding.settled=true;
   relocateWarfrontAI(event);

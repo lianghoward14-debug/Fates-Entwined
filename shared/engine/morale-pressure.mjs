@@ -111,6 +111,39 @@ function pushEvent(ctx, event){
   });
 }
 
+// Kept as a reusable implementation for a future card assignment. Keeping the
+// assignment set empty deliberately detaches this mechanic from card 101.
+const MORALE_HEAL_FATE_CONVERSION_CARD_IDS = new Set();
+
+function applyMoraleHealFateConversion(ctx, playerIndex, healedAmount){
+  const state = ctx?.state;
+  const player = Number(playerIndex);
+  const gain = Math.floor(Math.max(0, Number(healedAmount) || 0) * 25 / 100);
+  if(!state || !gain || (player !== 0 && player !== 1)) return [];
+  const changes = [];
+  for(const entry of boardEntries(state)){
+    if(controllerOf(entry.card) !== player
+      || !MORALE_HEAL_FATE_CONVERSION_CARD_IDS.has(runtimeRuleId(entry.card))
+      || isEffectSourceSuppressed(state, entry)) continue;
+    const before = Math.max(0, Number(entry.card.currentFate ?? entry.card.fate) || 0);
+    entry.card.currentFate = before + gain;
+    if(!entry.card.counters || typeof entry.card.counters !== 'object') entry.card.counters = {};
+    const oldCeiling = Number(entry.card.counters.permanentFateCeiling);
+    if(Number.isFinite(oldCeiling)) entry.card.counters.permanentFateCeiling = Math.max(0, oldCeiling) + gain;
+    const after = entry.card.currentFate;
+    const change = {cardIid:String(entry.card.iid || ''),before,after,amount:gain};
+    changes.push(change);
+    pushEvent(ctx, {
+      type:'FATE_CHANGED',
+      ...change,
+      sourceIid:String(entry.card.iid || ''),
+      semanticSourceCardId:runtimeRuleId(entry.card),
+      reason:'MORALE_HEAL_FATE_CONVERSION'
+    });
+  }
+  return changes;
+}
+
 function cardAffiliation(card){
   return String(card?.affiliation || card?.aff || '').trim().toLowerCase();
 }
@@ -188,7 +221,7 @@ export function recordMoralePressureRuleEvent(ctx, event){
   }
   if(type === 'EFFECT_ACTIVATED'){
     const entry = findBoardCard(state, event.sourceIid);
-    if(!entry || entry.card.faceDown === true || isEffectSourceSuppressed(state, entry)) return;
+    if(!entry || isEffectSourceSuppressed(state, entry)) return;
     const cardType = effectiveCardType(state, entry.card);
     if(cardType === 'Initiator'){
       addGenerated(ctx, controllerOf(entry.card), 3, 'INITIATOR_ACTIVATED', entry.card.iid);
@@ -205,7 +238,7 @@ export function recordMoralePressureRuleEvent(ctx, event){
     const sourceEntry = findBoardCard(state, event.sourceIid);
     const targetEntry = findBoardCard(state, event.cardIid);
     if(!sourceEntry || !targetEntry || sourceEntry.card.iid === targetEntry.card.iid) return;
-    if(sourceEntry.card.faceDown === true || isEffectSourceSuppressed(state, sourceEntry)) return;
+    if(isEffectSourceSuppressed(state, sourceEntry)) return;
     if(effectiveCardType(state, sourceEntry.card) !== 'Coordinator' || !adjacent(sourceEntry, targetEntry)) return;
     addGenerated(ctx, controllerOf(sourceEntry.card), 1, 'COORDINATOR_IMPACT', sourceEntry.card.iid, {
       affectedIids:[targetEntry.card.iid]
@@ -262,7 +295,6 @@ export function modifyMorale(ctx, operation = {}){
       const matching = boardEntries(state).filter(entry=>
         entry.z === source.z
         && controllerOf(entry.card) === player
-        && entry.card.faceDown !== true
         && cardAffiliation(entry.card) === affiliation
       ).length;
       requestedAmount += matching * perMatchingCard;
@@ -284,6 +316,7 @@ export function modifyMorale(ctx, operation = {}){
     }
   }
   if(amount) pushEvent(ctx, {type:amount > 0 ? 'MORALE_HEALED' : 'MORALE_DAMAGED',playerIndex:player,amount:Math.abs(amount),before,after,sourceIid:operation.sourceIid || null,overlayTargetIid:operation.overlayTargetIid || null,semanticSourceCardId:operation.semanticSourceCardId || undefined,reason:operation.reason || undefined,sound:amount > 0 ? 'morale-heal' : 'morale-damage'});
+  if(amount > 0) applyMoraleHealFateConversion(ctx, player, amount);
   return {playerIndex:player,before,after,amount};
 }
 
@@ -293,7 +326,7 @@ function adjacent(left, right){
 
 function coordinatorAffectedCards(state, sourceEntry){
   const candidates = boardEntries(state).filter(entry=>
-    entry.card.faceDown !== true && entry.card.iid !== sourceEntry.card.iid && adjacent(sourceEntry, entry)
+    entry.card.iid !== sourceEntry.card.iid && adjacent(sourceEntry, entry)
   );
   if(!candidates.length) return [];
   const suppressedState = cloneSerializable(state);
@@ -314,7 +347,7 @@ function persistentEntries(state, playerIndex){
   const entries = [];
   for(const entry of boardEntries(state)){
     const card = entry.card;
-    if(controllerOf(card) !== player || card.faceDown === true) continue;
+    if(controllerOf(card) !== player) continue;
     const type = effectiveCardType(state, card);
     if(type === 'Dauntless' && !isEffectSourceSuppressed(state, entry)){
       entries.push({
@@ -581,7 +614,7 @@ function resolveZoneFateMoraleDamage(ctx){
   const outgoingSources = [[], []];
   const pressureReworks = state.gameSettings?.pressureCardReworks === true;
   const entries = boardEntries(state).filter(entry=>
-    entry.card.faceDown !== true && !isEffectSourceSuppressed(state, entry)
+    !isEffectSourceSuppressed(state, entry)
   );
   for(const entry of entries){
       const source = entry.card;
@@ -739,6 +772,7 @@ function resolveZoneFateMoraleDamage(ctx){
       sourceIid:status.sourceIid || null,overlayTargetIid:String(occupant.card.iid || ''),
       semanticSourceCardId:'bh22',reason:'A_MOONLIT_SHORE',sound:'morale-heal'
     });
+    applyMoraleHealFateConversion(ctx, player, amount);
   }
   return resolution;
 }
@@ -749,7 +783,6 @@ function healEventide(ctx){
   for(let player = 0; player < 2; player += 1){
     const sources = boardEntries(state).filter(entry=>
       controllerOf(entry.card) === player
-      && entry.card.faceDown !== true
       && cardAffiliation(entry.card) === 'eventide'
     );
     const amount = Math.min(sources.length, system.maxMorale - Number(system.morale[player] || 0));
@@ -765,6 +798,7 @@ function healEventide(ctx){
       sourceIids:sources.slice(0, amount).map(entry=>String(entry.card.iid)),
       sound:'morale-heal'
     });
+    applyMoraleHealFateConversion(ctx, player, amount);
   }
 }
 
@@ -829,7 +863,10 @@ export function resolveMoralePressureCycle(ctx){
       const after = Math.min(Number(state.moralePressure.maxMorale || STARTING_MORALE), before + requested);
       const amount = after - before;
       state.moralePressure.morale[player] = after;
-      if(amount) pushEvent(ctx, {type:'MORALE_HEALED',playerIndex:player,amount,before,after,sourceIid:'landscape:igb23',semanticSourceCardId:'igb23',reason:'SHORES_OF_LA_HELENA'});
+      if(amount){
+        pushEvent(ctx, {type:'MORALE_HEALED',playerIndex:player,amount,before,after,sourceIid:'landscape:igb23',semanticSourceCardId:'igb23',reason:'SHORES_OF_LA_HELENA'});
+        applyMoraleHealFateConversion(ctx, player, amount);
+      }
     }
   }
   state.moralePressure.cycle += 1;

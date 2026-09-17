@@ -99,6 +99,8 @@
           else if(typeof playSfx === 'function') playSfx('modalConfirm');
         } catch(e) {}
         if(active === session){ active = null; root.remove(); session.focus?.focus?.(); }
+        if(!options.readOnly){
+        }
         resolve(ordered.slice());
       }catch(error){
         submitting = false;

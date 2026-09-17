@@ -1218,3 +1218,91 @@ html body #modal .modal.board-target-picker-modal.picker-zone-count-3 .board-tar
   height:100%!important;
   object-fit:contain!important;
 }
+
+/* Face-down activation choice */
+#modal .hidden-effect-choice{padding:8px 4px 4px;color:#e8edf5;font-family:inherit}
+#modal .hidden-effect-eyebrow{font-size:10px;letter-spacing:.18em;font-weight:700;color:#8fadc9}
+#modal .hidden-effect-choice h3{font-size:24px;line-height:1.2;margin:10px 0 8px;color:#fff}
+#modal .hidden-effect-choice p{font-size:13px;color:#a7b6c9;margin:0 0 22px}
+#modal .hidden-effect-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+#modal .hidden-effect-option{display:flex;flex-direction:column;align-items:flex-start;gap:12px;text-align:left;padding:22px;border-radius:16px;border:1px solid #455568;background:linear-gradient(145deg,#253244,#172130);color:#edf3fa;font:inherit;cursor:pointer;transition:transform .16s,border-color .16s,box-shadow .16s;min-width:0}
+#modal .hidden-effect-option-secret{border-color:#6687a2;background:linear-gradient(145deg,#253c4c,#172735)}
+#modal .hidden-effect-option:hover{transform:translateY(-3px);border-color:#b4d6ed;box-shadow:0 10px 28px #0005}
+#modal .hidden-effect-option:focus-visible{outline:3px solid #a9dafe;outline-offset:3px}
+#modal .hidden-effect-symbol{display:grid;place-items:center;width:38px;height:38px;border-radius:11px;background:#d1e7ff12;color:#b9dfff;font-size:25px}
+#modal .hidden-effect-option strong{font-size:17px;line-height:1.3}
+#modal .hidden-effect-option>span:not(.hidden-effect-symbol){font-size:12px;line-height:1.65;color:#bcc9d8}
+#modal .hidden-effect-option small{margin-top:auto;padding-top:6px;font-size:9px;letter-spacing:.09em;color:#92b5cf}
+#modal .hidden-effect-note{margin-top:18px;padding:12px 14px;border-radius:10px;background:#c8dfff08;color:#a5b7ca;font-size:11px;line-height:1.6}
+@media(max-width:560px){#modal .hidden-effect-options{grid-template-columns:1fr}#modal .hidden-effect-option{padding:16px;gap:9px}}
+
+html body #modal .modal:has(.hidden-effect-choice){box-sizing:border-box!important;width:min(720px,calc(100vw - 28px))!important;max-width:720px!important;max-height:90vh!important;overflow:auto!important;padding:26px!important;border:1px solid #344251!important;border-radius:20px!important;background:#131c28!important;box-shadow:0 30px 90px #0009!important;clip-path:none!important;color:#e8edf5!important}
+html body #modal .modal:has(.hidden-effect-choice)::before,html body #modal .modal:has(.hidden-effect-choice)::after{display:none!important}
+html body #modal .modal:has(.hidden-effect-choice) #modal-title{font-size:15px!important;color:#a7b6c9!important;letter-spacing:0!important;text-transform:none!important}
+html body #modal .modal:has(.hidden-effect-choice) #modal-title::after{display:none!important}
+
+/* Illustrated tactical decisions: shared placement, reveal and Morale payment. */
+html body #modal .modal:has(.tactical-choice),html body #modal .modal:has(.tactical-payment){width:min(900px,94vw)!important;max-width:900px!important;padding:0!important;border:1px solid #b89960!important;border-radius:12px!important;background:#10141c!important;overflow:auto!important;box-shadow:0 35px 120px #000e!important;clip-path:none!important}
+#modal .modal:has(.tactical-choice) #modal-title,#modal .modal:has(.tactical-payment) #modal-title{padding:18px 26px!important;margin:0!important;font-size:11px!important;letter-spacing:.16em!important;text-transform:uppercase!important;color:#c3ae88!important;border-bottom:1px solid #bc9b5c30}
+#modal .modal:has(.tactical-choice) #modal-body,#modal .modal:has(.tactical-payment) #modal-body{padding:0!important;margin:0!important}
+#modal .modal:has(.tactical-choice) #modal-acts,#modal .modal:has(.tactical-payment) #modal-acts{padding:14px 24px!important;margin:0!important;border-top:1px solid #bc9b5c30}
+#modal .tactical-choice{display:grid;grid-template-columns:34% 1fr;padding:0;min-height:410px;color:#f6efdf}
+#modal .tactical-art{position:relative;overflow:hidden;min-height:410px;background:#18212a}
+#modal .tactical-art>img{width:100%;height:100%;position:absolute;object-fit:cover;object-position:50% 25%;filter:saturate(.78)}
+#modal .tactical-art-shade{position:absolute;inset:0;background:linear-gradient(0deg,#080e17 0%,transparent 70%),linear-gradient(90deg,transparent 65%,#10141c)}
+#modal .tactical-edition{position:absolute;top:24px;left:20px;font-size:9px;letter-spacing:.18em;color:#fff3d7;background:#0c1119b8;padding:9px;border-left:2px solid #d4b478}
+#modal .tactical-identity{position:absolute;bottom:28px;left:23px;right:18px}
+#modal .tactical-identity small{color:#d6b477;letter-spacing:.1em;font-size:10px}
+#modal .tactical-identity h3{font-family:Georgia,serif;font-size:27px;margin:9px 0;color:#fff1d2}
+#modal .tactical-content{padding:30px 28px}
+#modal .tactical-content>h3{font-family:Georgia,serif;font-size:29px;margin:12px 0 8px;color:#fff1d2}
+#modal .modal:has(.tactical-choice.placement-choice) #modal-title{position:relative;top:5px;font-size:40px!important}
+#modal .tactical-content>p{color:#919aa8;font-size:12px;margin:0 0 24px}
+#modal .tactical-content .hidden-effect-eyebrow{color:#bda477;font-size:9px;letter-spacing:.18em}
+#modal .tactical-content .hidden-effect-options{display:flex;flex-direction:column;gap:12px}
+#modal .tactical-content .hidden-effect-option{display:flex;flex-direction:row;align-items:center;gap:14px;padding:19px 16px;background:linear-gradient(105deg,#232a34,#171d27);border:1px solid #6a718044;border-radius:7px;box-shadow:none;transition:background .18s,transform .18s,border-color .18s}
+#modal .tactical-content .hidden-effect-option-secret{background:linear-gradient(105deg,#233736,#15272a);border-color:#6ba99b65}
+#modal .tactical-content .hidden-effect-option:hover{transform:translateX(4px);border-color:#e0c487;background:#303743}
+#modal .tactical-number{font-family:Georgia,serif;font-size:25px;color:#ae936b}
+#modal .hidden-effect-option>div{display:flex;flex-direction:column;gap:6px;flex:1}
+#modal .tactical-content .hidden-effect-option small{padding:0;margin:0;font-size:8px;letter-spacing:.13em;color:#b5a17c}
+#modal .tactical-content .hidden-effect-option strong{font-size:17px;color:#f8eedb}
+#modal .tactical-content .hidden-effect-option div>span{font-size:11px;line-height:1.55;color:#aab3c0}
+#modal .tactical-content .hidden-effect-option>b{font-size:25px;color:#d4bb89;font-weight:400}
+#modal .tactical-content .hidden-effect-note{display:flex;gap:10px;padding:15px 0 0;background:none;border-top:1px solid #a48d5b2b;border-radius:0;color:#929fae;font-size:10px;line-height:1.6}
+#modal .tactical-payment{display:grid;grid-template-columns:32% 1fr;padding:0;background:#121720;color:#efe8d9}
+#modal .payment-portrait{position:relative;min-height:360px;overflow:hidden}
+#modal .payment-portrait img{width:100%;height:100%;position:absolute;object-fit:cover;object-position:50% 20%;mask-image:linear-gradient(90deg,#000 55%,transparent)}
+#modal .payment-portrait span{position:absolute;bottom:24px;left:18px;font-size:10px;letter-spacing:.13em;color:#fff0ce}
+#modal .payment-controls{padding:28px 32px}
+#modal .payment-controls h3{font:28px Georgia,serif;color:#f4e4c3;margin:0 0 9px}
+#modal .payment-controls p{font-size:12px;color:#9ca6b4;margin:0 0 26px}
+#modal .sangre-kicker{color:#b8a079;font-size:9px;letter-spacing:.18em}
+#modal .sangre-amount{display:flex;align-items:baseline;gap:13px;margin:14px 0;color:#b1bac4}
+#modal .sangre-amount strong{font:54px Georgia,serif;color:#f1cf92}
+#modal #sangre-pay-slider{width:100%;accent-color:#c3a069;margin:10px 0 20px}
+#modal .sangre-stepper{display:flex;align-items:center;justify-content:space-between;gap:16px}
+#modal .sangre-stepper button{background:#242b36;border:1px solid #9c875950;border-radius:6px;color:#e6d3ae;padding:10px 16px;cursor:pointer}
+#modal .sangre-stepper output{font-size:16px;color:#edd8af}
+#modal .sangre-balance{display:flex;justify-content:space-between;gap:12px;border-top:1px solid #bb9e6630;margin-top:24px;padding-top:17px;font-size:11px;color:#9ca7b5}
+@media(max-width:620px){#modal .tactical-choice,#modal .tactical-payment{grid-template-columns:1fr}#modal .tactical-art{min-height:155px}#modal .tactical-art>img{object-position:50% 28%}#modal .tactical-identity{bottom:14px}#modal .tactical-edition{top:12px}#modal .tactical-content,#modal .payment-controls{padding:22px}#modal .payment-portrait{display:none}}
+
+#modal .tactical-art>img,#modal .payment-portrait img{height:175%;width:140%;max-width:none;left:-20%;top:-14%;object-fit:cover;object-position:50% 0}
+#modal .payment-portrait::after{content:'';position:absolute;inset:0;background:linear-gradient(0deg,#10141c 0%,transparent 60%),linear-gradient(90deg,transparent 60%,#10141c)}
+#modal .payment-portrait span{z-index:1}
+#modal .tactical-content .hidden-effect-option>.tactical-number{font:24px Georgia,serif;color:#b9a175}
+
+/* Keep the entrance portrait within its panel and match the match UI type. */
+#modal .tactical-choice{margin:0!important;width:100%;min-width:0;overflow:hidden}
+#modal .tactical-choice .tactical-art{min-width:0;overflow:hidden;isolation:isolate}
+#modal .tactical-choice .tactical-art>img{inset:0;width:100%;height:100%;max-width:100%;object-fit:cover;object-position:center;filter:none}
+#modal .tactical-choice .tactical-identity small{display:block;position:relative;top:5px;font-family:'Cinzel',serif;font-size:13px;line-height:1.45;letter-spacing:.035em}
+#modal .tactical-choice .tactical-identity h3,#modal .tactical-choice .tactical-content>h3,#modal .tactical-choice .hidden-effect-option strong{font-family:'Cinzel',serif}
+#modal .tactical-choice .tactical-content{min-width:0;font-family:var(--font-body,'Crimson Pro',serif)}
+
+/* Leave a visible inset inside the modal's decorative frame. */
+html body #modal .modal:has(.tactical-choice) #modal-body{padding:12px!important;box-sizing:border-box!important;overflow:hidden!important}
+#modal .tactical-choice .tactical-art{border-radius:6px}
+#modal .tactical-choice .tactical-content .hidden-effect-eyebrow{font-family:'Cinzel',serif;font-size:18px;line-height:1.35;letter-spacing:.12em}
+#modal .tactical-choice .tactical-content .hidden-effect-option>b{display:flex;align-items:center;justify-content:center;flex:0 0 52px;width:52px;font-size:48px;line-height:1;font-family:Arial,sans-serif}
+@media(max-width:620px){#modal .tactical-choice .tactical-content .hidden-effect-option>b{flex-basis:42px;width:42px;font-size:40px}}

@@ -97,11 +97,11 @@ assert.equal(
 );
 
 state.board[1][2][0].faceDown = true;
-assert.equal(effectiveFate(state, state.board[1][2][0]), 0);
+assert.equal(effectiveFate(state, state.board[1][2][0]), 3, 'face-down Cathy keeps her self aura but contributes no internal Fate');
 assert.equal(
   effectiveFate(state, state.board[1][1][0]),
-  4,
-  'a face-down continuous source must stop contributing immediately'
+  7,
+  'a face-down continuous source keeps contributing its aura'
 );
 
 // Jimmy's passive establishes a dynamic base; it is not effect immunity.

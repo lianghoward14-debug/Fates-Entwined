@@ -2027,14 +2027,15 @@ function addCardToHand(player, card, options = {}) {
       secondCopy._bh05GeneratedCopy = true;
       secondCopy._bh05GeneratedFromIid = card.iid;
       G.players[targetPlayer].hand.push(secondCopy);
-      if(typeof window.playFateSfxOnce === 'function') {
+      const presentTaylorArrival = typeof isPerspectivePlayer !== 'function' || isPerspectivePlayer(targetPlayer);
+      if(presentTaylorArrival && typeof window.playFateSfxOnce === 'function') {
         window.playFateSfxOnce('taylorSelfCopy', 'taylor-self-copy:' + String(card.iid || secondCopy.iid || ''), 700);
-      } else if(typeof playSfx === 'function') {
+      } else if(presentTaylorArrival && typeof playSfx === 'function') {
         playSfx('taylorSelfCopy');
       }
       if(!G._forceHandEnterIids) G._forceHandEnterIids = new Set();
       G._forceHandEnterIids.add(secondCopy.iid);
-      toast('The Art of Mimicry created a second Taylor in ' + G.players[targetPlayer].name + '\'s hand.');
+      if(presentTaylorArrival) toast('The Art of Mimicry created a second Taylor in your hand.');
     }
   }
   if(!options.skipArrivalEffects && card.id === '91' && !G._onlineRoomCode) queueVillagerSearch(targetPlayer,card);

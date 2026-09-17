@@ -414,7 +414,7 @@ window.FATES_ARCHIVE_DATA = {
       "set": "core",
       "token": false,
       "retired": false,
-      "effect": "Activate Effect: Reveal your opponent's hand.",
+      "effect": "When set, reveal your opponent's hand.",
       "flavor": "\"Keeping the Students of the University Safe, one tweaker at a time\"",
       "img": "../26.png"
     },
@@ -1284,19 +1284,19 @@ window.FATES_ARCHIVE_DATA = {
     },
     {
       "id": "84",
-      "name": "Květka Svoboda",
+      "name": "Květka Svoboda (Youth)",
       "ability": "Flower Picking",
-      "type": "Dauntless",
+      "type": "Initiator",
       "aff": "expanded_worlds",
-      "fate": 8,
-      "cost": 3,
+      "fate": 3,
+      "cost": 1,
       "rarity": "square",
       "set": "core",
       "token": false,
       "retired": false,
-      "effect": "When set, add any Expanded Worlds Character card from the deck to the hand and set it at no cost, excluding copies of this card.",
+      "effect": "This card always appears in your opening hand. When set, if your original deck list contains no cards with a Draw effect, search your deck for any card and add it to your hand.",
       "flavor": "\"Felicytaaa! Look outside, its snowing, its snowing! Hurry up and wake up we have to go play with everyone!\"",
-      "img": "../84.png"
+      "img": "../84.png?v=20260916-youth"
     },
     {
       "id": "85",

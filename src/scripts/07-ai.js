@@ -1052,7 +1052,7 @@ function aiMoraleMoveBonus(move){
       let matching = 0;
       const aff = String(move.card?.aff || move.card?.affiliation || '');
       G.board?.[move.z]?.forEach(row=>row?.forEach(card=>{
-        if(card && card.owner === cp && !isFaceDownCard(card) && String(card.aff || card.affiliation || '') === aff) matching++;
+        if(card && card.owner === cp && String(card.aff || card.affiliation || '') === aff) matching++;
       }));
       bonus += matching * 2.2 * style.aggression;
     }else if(id === '35'){
@@ -1060,7 +1060,7 @@ function aiMoraleMoveBonus(move){
     }else if(id === '44'){
       let dauntless = String(move.card.type || '') === 'Dauntless' ? 1 : 0;
       G.board?.[move.z]?.forEach(row=>row?.forEach(card=>{
-        if(card && card.owner === cp && !isFaceDownCard(card) && card.type === 'Dauntless') dauntless++;
+        if(card && card.owner === cp && card.type === 'Dauntless') dauntless++;
       }));
       bonus += dauntless * 2.1 * style.aggression;
     }else if(id === '64'){
@@ -1725,7 +1725,7 @@ function aiDeckStrategyBonus(move, deckId) {
     const tgwHere = aiCountOwnCardsInZone(move.z,c=>String(c.aff || c.affiliation || '') === 'third_great_war');
     const coreHere = aiCountOwnCardsInZone(move.z,c=>coreIds.includes(String(c.id || '')));
     const supporterFateHere = (G.board[move.z] || []).reduce((sum,row)=>sum + (row || []).reduce((rowSum,c)=>{
-      if(!c || c.owner !== cp || c.type !== 'Supporter' || isFaceDownCard(c)) return rowSum;
+      if(!c || c.owner !== cp || c.type !== 'Supporter') return rowSum;
       return rowSum + Math.max(0, Number(c.currentFate ?? c.fate) || 0);
     },0),0);
     const adjacent = typeof getAdjacentCards === 'function' ? getAdjacentCards(move.z,move.r,move.c) : [];
@@ -3640,7 +3640,8 @@ async function aiDoPlace(choice) {
     if(typeof markCardSetTurn === 'function') markCardSetTurn(inst, cp);
     if(typeof applyRiveraBuffToPlacedCard === 'function') applyRiveraBuffToPlacedCard(inst, inst.owner);
     const characterSetCinematic = card.type !== 'Supporter' && typeof requestCharacterSetCinematic === 'function';
-    if(characterSetCinematic) requestCharacterSetCinematic(inst, {z:choice.z, r:choice.r, c:choice.c, delayMs:90, source:'ai-set'});
+    const hammerSet = !cardIsSupporterForRules && isEffectFree && window.FateSquareFeedbackFx?.playSet({z:choice.z,r:choice.r,c:choice.c},inst,'hammer-lock');
+    if(characterSetCinematic) requestCharacterSetCinematic(inst, {z:choice.z, r:choice.r, c:choice.c, delayMs:hammerSet ? window.FateSquareFeedbackFx.hammerDuration : 90, source:'ai-set'});
     sourceList.splice(idx,1);
     if(!placementCountsAsConsolidated && typeof recordSupporterHardCapSet === 'function') recordSupporterHardCapSet(inst, cp);
     if(cardIsSupporterForRules && !placementCountsAsConsolidated) {
@@ -3677,7 +3678,7 @@ async function aiDoPlace(choice) {
     }
     // Anicka Konvicka (02) Starlit Path: any card placed in her zone by her controller gains 4 Fate.
     G.board[choice.z].forEach(row=>row.forEach(cell=>{
-      if(cell && (typeof cardActsAsPassive === 'function' ? cardActsAsPassive(cell, '02') : cell.id==='02') && cell.owner===cp && cell.iid!==inst.iid && !isFaceDownCard(cell)){
+      if(cell && (typeof cardActsAsPassive === 'function' ? cardActsAsPassive(cell, '02') : cell.id==='02') && cell.owner===cp && cell.iid!==inst.iid){
         modifyFate(inst,4,'permanent');
       }
     }));
@@ -3794,7 +3795,7 @@ async function aiDoConsolidate(choice) {
     let cinematicRequested = false;
     const requestConsolidationCinematic = function(){
       if(cinematicRequested || typeof showConsolidationCinematic !== 'function') return;
-      const shown = showConsolidationCinematic(inst, {playVoice:true, playSfx:true, allowRenderV2Cinematic:true});
+      const shown = showConsolidationCinematic(inst, {playVoice:true, playSfx:true, allowRenderV2Cinematic:true, tributes:choice.tributes});
       if(shown !== false) cinematicRequested = true;
     };
     if(!useFaceDown && typeof showConsolidationCinematic === 'function') {
@@ -3870,7 +3871,10 @@ async function aiRunBoardPlacementPresentation(opts) {
 
 // â”€â”€ AI-friendly trigger for 'when set' (auto-picks targets) â”€â”€
 async function aiTriggerWhenSet(inst, z, r, c) {
-  if(!inst || isFaceDownCard(inst) || inst.whenSetActivated === true) return;
+  const finishHiddenPresentation = typeof beginHiddenEffectPresentation === 'function' ? beginHiddenEffectPresentation(inst) : function(){};
+  try {
+  if(!inst || inst.whenSetActivated === true) return;
+  if(inst.faceDown && hasAuthoritativeWhenSetEffect(inst)) inst._whenSetActivatedHidden = true;
   const cp = G.currentPlayer;
   const opp = 1-cp;
   const id = inst.id;
@@ -3887,7 +3891,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
   if(inst.type === 'Supporter' && inst.id !== '92' && !isEffectImmuneSource(inst)) {
     let lumberjack = null;
     if(G.board && G.board[z]) G.board[z].forEach(function(row){ row.forEach(function(cell){
-      if(!lumberjack && cell && cell.owner === cp && cell.iid !== inst.iid && typeof cardActsAsPassive === 'function' && cardActsAsPassive(cell, '92') && !isFaceDownCard(cell) && !isSupporterEffectSuppressed(cell)) lumberjack = cell;
+      if(!lumberjack && cell && cell.owner === cp && cell.iid !== inst.iid && typeof cardActsAsPassive === 'function' && cardActsAsPassive(cell, '92') && !isSupporterEffectSuppressed(cell)) lumberjack = cell;
     }); });
     if(lumberjack) {
       if(typeof applyWodnyPotokLumberjackSuppression === 'function') {
@@ -3974,6 +3978,14 @@ async function aiTriggerWhenSet(inst, z, r, c) {
   }
 
   switch(id) {
+    case '103': {
+      const morale=G?._moralePressure?.morale;
+      const before=Math.max(0,Number(morale?.[cp])||0);
+      const amount=Math.min(30,Math.floor(Math.max(0,before-30)/15)*15);
+      if(amount>=15){morale[cp]=before-amount;await drawCard(cp,amount/15,{activatedDrawEffect:true,effectSource:inst});}
+      markInitialEffectResolved(inst);
+      break;
+    }
     case 'bh24': {
       const morale = G && G._moralePressure && Array.isArray(G._moralePressure.morale) ? G._moralePressure.morale : null;
       if(morale){
@@ -4391,7 +4403,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       declaredTypes.forEach(function(type){
         const targets = [];
         (G.board[z] || []).forEach(function(row){ (row || []).forEach(function(target){
-          if(!target || target.owner !== opp || String(target.type || '') !== type || isFaceDownCard(target)) return;
+          if(!target || target.owner !== opp || String(target.type || '') !== type) return;
           if(typeof isTargetImmuneToEffectOwner === 'function' && isTargetImmuneToEffectOwner(target, cp)) return;
           targets.push(target);
         }); });
@@ -4468,7 +4480,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
     case '83': { // Sebastyen: all friendly Characters in the zone gain 2 Fate permanently
       let boosted = 0;
       G.board[z].forEach(function(row){ row.forEach(function(cell){
-        if(cell && cell.owner === cp && !isFaceDownCard(cell) && (typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(cell, cp) : cell.type !== 'Supporter')) {
+        if(cell && cell.owner === cp && (typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(cell, cp) : cell.type !== 'Supporter')) {
           if(typeof applyPairedOverlayFateGain === 'function'){
             applyPairedOverlayFateGain(cell, 2, cp, {
               kind:'sebastyen_visegrad',
@@ -4745,7 +4757,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       if(typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
       break;
     case '34': { // Rozsi Szocs: declare the affiliation for Morale damage.
-        const counts={};(G.board[z]||[]).forEach(row=>row.forEach(card=>{if(card&&card.owner===cp&&!isFaceDownCard(card)){const aff=String(card.aff||card.affiliation||'');counts[aff]=(counts[aff]||0)+1;}}));
+        const counts={};(G.board[z]||[]).forEach(row=>row.forEach(card=>{if(card&&card.owner===cp){const aff=String(card.aff||card.affiliation||'');counts[aff]=(counts[aff]||0)+1;}}));
         const strat = G._selectedAI?._deckStrategy || '';
         inst._moraleAffiliation=(strat === 'starter_freeworld' || strat === 'ai_hungarian_war_dance')
           ? 'third_great_war'
@@ -5107,6 +5119,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       if(typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
       break;
   }
+  } finally { finishHiddenPresentation(); }
 }
 
 // â”€â”€ Activate useful character effects â”€â”€
@@ -5124,15 +5137,16 @@ async function aiActivateEffects() {
     if(card.owner===cp && isFaceDownCard(card)) faceDownCards.push({card,z,r,c});
   });
   for(const hidden of faceDownCards){
-    const delay = flipFaceDownBoardCard(hidden.card, hidden.z, hidden.r, hidden.c);
-    if(hidden.card._flipResolutionPromise) await hidden.card._flipResolutionPromise;
-    await aiSleep((delay || 0) + 60);
+    if(!hidden.card.whenSetActivated && hasAuthoritativeWhenSetEffect(hidden.card)){
+      hidden.card._whenSetActivatedHidden = true;
+      await aiTriggerWhenSet(hidden.card, hidden.z, hidden.r, hidden.c);
+    }
   }
   // Collect only genuine ACTIVATE characters. WHEN_SET and passive cards have
   // already resolved from placement and must not receive a second AI action.
   const toActivate = [];
   forEachBoardCard((card,z,r,c)=>{
-    if(card.owner===cp && card.type!=='Supporter' && !activated.has(card.iid) && !isFaceDownCard(card)
+    if(card.owner===cp && card.type!=='Supporter' && !activated.has(card.iid)
       && typeof canUseManualCharacterEffect === 'function'
       && canUseManualCharacterEffect(card)){
       toActivate.push({card,z,r,c});
@@ -5173,7 +5187,7 @@ async function aiActivateEffects() {
   forEachBoardCard((card,z,r,c)=>{
     const copiedSnowball = typeof cardActsAsPassive === 'function' && cardActsAsPassive(card, '93');
     const supporterForRules = typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, cp) : card.type==='Supporter';
-    if(card.owner===cp && (supporterForRules || copiedSnowball) && !isFaceDownCard(card) && (['20','26','93'].includes(card.id) || copiedSnowball)){
+    if(card.owner===cp && (supporterForRules || copiedSnowball) && (['20','26','93'].includes(card.id) || copiedSnowball)){
       supporterActions.push({card,z,r,c});
     }
   });
@@ -5213,7 +5227,7 @@ async function aiRunSupporterBoardAbility(card, z, r, c) {
     if(!allowed) return;
     const targets = [];
     (G.board || []).forEach(function(zone, targetZone){ (zone || []).forEach(function(row){ (row || []).forEach(function(target){
-      if(!target || target.owner !== opp || isFaceDownCard(target)) return;
+      if(!target || target.owner !== opp) return;
       if(typeof isTargetImmuneToEffectOwner === 'function' && isTargetImmuneToEffectOwner(target, cp)) return;
       targets.push({card:target,z:targetZone});
     }); }); });
@@ -5222,7 +5236,7 @@ async function aiRunSupporterBoardAbility(card, z, r, c) {
     if(strat === 'ai_snowball_fight_club') {
       remainingSnowballs = 0;
       forEachBoardCard(function(source){
-        if(source && source.owner === cp && !source.effectUsedThisTurn && !isFaceDownCard(source)
+        if(source && source.owner === cp && !source.effectUsedThisTurn
           && typeof cardActsAsPassive === 'function' && cardActsAsPassive(source, '93')) remainingSnowballs++;
       });
       remainingSnowballs = Math.max(1, remainingSnowballs);
@@ -5254,7 +5268,7 @@ async function aiRunSupporterBoardAbility(card, z, r, c) {
 
 async function aiRunEffect(card, z, r, c) {
   if(G.currentPlayer !== G.aiPlayer || !canUseManualCharacterEffect(card)
-    || G.board?.[z]?.[r]?.[c] !== card || isFaceDownCard(card)
+    || G.board?.[z]?.[r]?.[c] !== card
     || (typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(card))) return;
   const cp = G.aiPlayer;
   const opp = 1-cp;

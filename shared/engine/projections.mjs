@@ -1,8 +1,49 @@
 import {cloneSerializable} from './serialization.mjs';
+import {effectiveFate} from './modifiers.mjs';
+import {zoneScore} from './scoring.mjs';
 
-function promptProjection(prompt, viewerIndex){
+function hiddenSource(state, iid, viewer){
+  const source = state.board.flat(2).find(card=>card && String(card.iid) === String(iid));
+  return source?.faceDown === true && (viewer == null || Number(source.controller ?? source.owner) !== Number(viewer));
+}
+function boardProjection(state, viewer){
+  return state.board.map((zone,z)=>zone.map((row,r)=>row.map((card,c)=>{
+    if(!card) return null;
+    const fate = effectiveFate(state, {card, zone:'board', z, r, c});
+    if(hiddenSource(state, card.iid, viewer)) return {
+      iid:card.iid, owner:card.owner, controller:card.controller, faceDown:true, hidden:true,
+      name:'Face-down card', img:'back.png', statuses:[], counters:{}, _authoritativeFate:fate
+    };
+    return {...cloneSerializable(card), _authoritativeFate:fate};
+  })));
+}
+function statusesProjection(state, viewer){
+  return cloneSerializable(state.statuses.filter(status=>(!status.hiddenSource || (viewer != null && Number(status.sourceController) === Number(viewer))) && !hiddenSource(state, status.sourceIid, viewer)));
+}
+
+function geometryProjection(state,viewer){
+  const result=cloneSerializable(state.geometry);
+  result.squareStatuses=(result.squareStatuses||[]).filter(status=>
+    status?.privateToOwner!==true||Number(status.playerIndex)===Number(viewer)
+  );
+  return result;
+}
+
+
+function promptProjection(prompt, viewerIndex, state){
   if(!prompt) return null;
-  if(Number(prompt.playerIndex) === Number(viewerIndex)) return cloneSerializable(prompt);
+  if(Number(prompt.playerIndex) === Number(viewerIndex)){
+    const result = cloneSerializable(prompt);
+    if(hiddenSource(state, prompt.sourceIid, viewerIndex) || state.board.flat(2).some(card=>card && String(card.iid)===String(prompt.sourceIid) && String(card.id)==='102' && Number(card.controller??card.owner)!==Number(viewerIndex))){
+      delete result.sourceIid;
+      result.hiddenSource = true;
+      result.title = 'Hidden effect activated';
+      result.prompt = 'Your opponent activated a face-down card. Its identity and effect details are hidden. You may still negate the effect.';
+    }
+    return result;
+  }
+  const promptSource=state.board.flat(2).find(card=>card&&String(card.iid)===String(prompt.sourceIid));
+  if(String(promptSource?.id||'')==='102') return null;
   return {
     promptId:prompt.promptId,
     type:prompt.type,
@@ -82,10 +123,11 @@ export function projectStateForPlayer(state, playerIndex){
         ? privatePlayer(player)
         : publicPlayer(player)
     ),
-    board:cloneSerializable(state.board),
-    geometry:cloneSerializable(state.geometry),
-    statuses:cloneSerializable(state.statuses),
-    pendingPrompt:promptProjection(state.pendingPrompt, viewer),
+    board:boardProjection(state, viewer),
+    zoneScores:state.board.map((_, z)=>[zoneScore(state,z,0), zoneScore(state,z,1)]),
+    geometry:geometryProjection(state,viewer),
+    statuses:statusesProjection(state, viewer),
+    pendingPrompt:promptProjection(state.pendingPrompt, viewer, state),
     pendingHandLimit:handLimitProjection(state.pendingHandLimit, viewer),
     outcome:cloneSerializable(state.outcome ?? null),
     // Once the match is over there is no remaining competitive hand secrecy.
@@ -99,6 +141,7 @@ export function projectStateForPlayer(state, playerIndex){
 }
 
 export function projectStateForSpectator(state, teammateIndex = null){
+  const viewer = teammateIndex;
   return {
     schemaVersion:state.schemaVersion,
     engineVersion:state.engineVersion,
@@ -129,9 +172,10 @@ export function projectStateForSpectator(state, teammateIndex = null){
     landscapeState:cloneSerializable(state.landscapeState ?? null),
     moralePressure:cloneSerializable(state.moralePressure ?? null),
     players:state.players.map((player,index)=>index === teammateIndex ? privatePlayer(player) : publicPlayer(player)),
-    board:cloneSerializable(state.board),
-    geometry:cloneSerializable(state.geometry),
-    statuses:cloneSerializable(state.statuses),
+    board:boardProjection(state, viewer),
+    zoneScores:state.board.map((_,z)=>[zoneScore(state,z,0),zoneScore(state,z,1)]),
+    geometry:geometryProjection(state,viewer),
+    statuses:statusesProjection(state, viewer),
     pendingPrompt:state.pendingPrompt ? {
       promptId:state.pendingPrompt.promptId,
       type:state.pendingPrompt.type,
@@ -148,7 +192,11 @@ export function projectStateForSpectator(state, teammateIndex = null){
 
 export function projectEvents(events, playerIndex){
   return (events || [])
-    .filter(event=>!Array.isArray(event.privateTo) || event.privateTo.includes(Number(playerIndex)))
+    .filter(event=>(!Array.isArray(event.privateTo) || event.privateTo.includes(Number(playerIndex)))
+      && (!event.hiddenSource || Number(event.sourceController) === Number(playerIndex))
+      && !(String(event.semanticSourceCardId||'')==='102'
+        && String(event.type||'')!=='HIDDEN_BOMB_EXPLODED'
+        && Number(event.sourceController) !== Number(playerIndex)))
     .map(event=>{
       const clone = cloneSerializable(event);
       delete clone.privateTo;
@@ -157,5 +205,5 @@ export function projectEvents(events, playerIndex){
 }
 
 export function projectEventsForSpectator(events){
-  return (events || []).filter(event=>!Array.isArray(event.privateTo)).map(cloneSerializable);
+  return (events || []).filter(event=>!Array.isArray(event.privateTo) && !event.hiddenSource).map(cloneSerializable);
 }

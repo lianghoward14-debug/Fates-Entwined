@@ -559,6 +559,11 @@
     if(visualPrimitives.length){
       activeRecipes.push({id, type:recipeType, startedAt:now, payload:payload || {}, primitiveCount:visualPrimitives.length});
       activePrimitives = activePrimitives.concat(visualPrimitives);
+      visualPrimitives.forEach(function(p){
+        if(p.fracture && p.iid != null) {
+          window.FateMatchRendererAdapter?.prepareDiscardSource?.(p.iid, p.duration);
+        }
+      });
     }
     recentRecipes.unshift({
       id,
@@ -631,7 +636,7 @@
         spawnParticleBurst(p);
       }
       if(!p.done || t < p.start) active.push(p);
-      else if((p.kind === 'cardMove' || p.kind === 'cardDissolve' || p.kind === 'cardLift') && !p._finalDrawn) {
+      else if((p.kind === 'cardMove' || p.kind === 'cardDissolve' || p.kind === 'cardLift' || p.kind === 'cardFlip') && !p._finalDrawn) {
         p._finalDrawn = true;
         p.progress = 1;
         p.eased = ease(p.easing, 1);
@@ -1170,6 +1175,17 @@
       ctx.restore();
       return;
     }
+    if(p.kind === 'cardMove' && (p.fracture || p.consolidationStyle)){
+      const r=rect(p.fracture?p.fromRect:p.toRect);if(!r)return;
+      // Capture once: all fragments and movement frames reuse this texture.
+      if(!p._approvedTexture){
+        const texture=document.createElement('canvas'),dpr=Math.min(1.5,window.devicePixelRatio||1);
+        texture.width=Math.ceil(r.w*dpr);texture.height=Math.ceil(r.h*dpr);const capture=texture.getContext('2d');
+        if(!capture)return;capture.scale(dpr,dpr);drawCard(capture,p.card,{x:0,y:0,w:r.w,h:r.h},{faceDown:p.faceDown,textureSize:p.textureSize||stableMotionTextureSize(p,r)});p._approvedTexture=texture;
+      }
+      window.FateApprovedCardMotion.draw(ctx,p,p._approvedTexture);
+      return;
+    }
     if(p.kind === 'cardMove' || p.kind === 'cardDissolve' || p.kind === 'cardLift'){
       const raw = clamp(Number(p.progress) || 0, 0, 1);
       const holdPortion = p.kind === 'cardMove' ? clamp((Number(p.holdMs) || 0) / Math.max(1, Number(p.duration) || 1), 0, .38) : 0;
@@ -1251,22 +1267,38 @@
       const r = rect(p.rect || p.toRect || p.fromRect);
       if(!r) return;
       const raw = clamp(Number(p.progress) || 0, 0, 1);
-      const turn = p.kind === 'cardFlip' ? ease(p.easing || 'in-out-cubic', raw) : raw;
+      const orbit = p.kind === 'cardFlip' && p.orbitReveal;
+      const frames = [[0,0,0,0,1],[.25,-20,-12,25,1.08],[.55,90,8,30,1.18],[.8,195,5,8,1],[1,180,0,0,1]];
+      const frameIndex = Math.min(3, Math.max(0, frames.findIndex((f,i)=>i<4 && raw>=f[0] && raw<=frames[i+1][0])));
+      const a = frames[frameIndex], b = frames[frameIndex+1];
+      const t = ease('in-out-cubic', clamp((raw-a[0])/(b[0]-a[0]),0,1));
+      const sample = col => a[col]+(b[col]-a[col])*t;
+      const turn = orbit ? sample(1)/180 : p.kind === 'cardFlip' ? ease(p.easing || 'in-out-cubic', raw) : raw;
       const pulse = Math.sin(Math.PI * raw);
       const sx = p.kind === 'cardFlip' ? Math.max(.035, Math.abs(Math.cos(Math.PI * turn))) : (.82 + pulse * .24);
       const scalePulse = p.kind === 'cardFlip' ? (Number(p.scalePulse) || .028) : 0;
-      const lift = p.kind === 'cardFlip' ? pulse * (Number(p.lift) || .032) * Math.max(16, r.h * .34) : 0;
-      const rotation = p.kind === 'cardFlip' ? Math.sin(Math.PI * 2 * raw) * (Number(p.rotate) || 0) * Math.PI / 180 : 0;
+      const lift = orbit ? sample(3)*r.h/180 : p.kind === 'cardFlip' ? pulse * (Number(p.lift) || .032) * Math.max(16, r.h * .34) : 0;
+      const rotation = (orbit ? sample(2) : p.kind === 'cardFlip' ? Math.sin(Math.PI * 2 * raw) * (Number(p.rotate) || 0) : 0)*Math.PI/180;
       const flipEndsFaceDown = !!(p.faceDownEnd || p.endFaceDown);
       const revealAt = Math.max(.5, Math.min(.86, Number(p.revealAt) || .68));
+      if(orbit){
+        ctx.save();
+        ctx.globalAlpha = Math.sin(Math.PI*raw)*.7;
+        ctx.strokeStyle = '#ddbb73';
+        ctx.lineWidth = 2;
+        ctx.shadowColor = '#ecc971'; ctx.shadowBlur = 18;
+        ctx.beginPath();
+        ctx.arc(r.x+r.w/2,r.y+r.h/2, r.w*(.3+raw*.8),0,Math.PI*2);
+        ctx.stroke(); ctx.restore();
+      }
       ctx.save();
       ctx.globalAlpha = p.kind === 'cardSummon' ? Math.sin(Math.PI * Math.min(1, raw + .18)) : 1;
       if(p.kind === 'cardFlip') drawCardMotionShadow(ctx, {x:r.x, y:r.y - lift, w:r.w, h:r.h}, raw, pulse * .42);
       ctx.translate(r.x + r.w / 2, r.y + r.h / 2 - lift);
       ctx.rotate(rotation);
-      ctx.scale(sx * (1 + scalePulse * pulse), (.985 + pulse * .025) * (1 + scalePulse * .36 * pulse));
+      ctx.scale(sx * (orbit ? sample(4) : 1 + scalePulse * pulse), orbit ? sample(4) : (.985 + pulse * .025) * (1 + scalePulse * .36 * pulse));
       drawCard(ctx, p.card, {x:-r.w / 2, y:-r.h / 2, w:r.w, h:r.h}, {
-        faceDown:p.kind === 'cardFlip' && (flipEndsFaceDown ? turn >= (1 - revealAt) : turn < revealAt),
+        faceDown:p.kind === 'cardFlip' && (flipEndsFaceDown ? turn >= (1 - revealAt) : p.startFaceDown !== false && turn < (orbit ? .5 : revealAt)),
         textureSize:p.textureSize || stableMotionTextureSize(p, r)
       });
       ctx.restore();

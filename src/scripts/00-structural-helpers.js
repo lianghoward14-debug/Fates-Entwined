@@ -541,7 +541,7 @@ function isAchillesAdaptiveToken(card) {
 function shouldSuppressConsolidationCinematic(card) {
   // Adaptive Tactics may declare how rules classify its placement, but it is
   // always a token presentation and must never enter a character cinematic.
-  return isAchillesAdaptiveToken(card);
+  return isAchillesAdaptiveToken(card) || String(card && card.rarity || '').toLowerCase() === 'circle';
 }
 
 function isInnatelyFullyEffectImmuneCard(card) {
@@ -568,7 +568,29 @@ function canApparitionDiscard(source, card, z, r, c, player) {
 }
 
 function isOpponentEffectOnlyImmuneCard(card) {
-  return !!(card && (card._igb24OpponentEffectImmune === true || card._immuneByMakenna === true || card.opponentEffectImmune === true));
+  if(!card) return false;
+  if(card._igb24OpponentEffectImmune === true || card._immuneByMakenna === true || card.opponentEffectImmune === true) return true;
+  if(typeof G === 'undefined' || !G || !Array.isArray(G.board)) return false;
+  let targetPosition = null;
+  for(let z=0;z<G.board.length&&!targetPosition;z+=1){
+    for(let r=0;r<(G.board[z]||[]).length&&!targetPosition;r+=1){
+      for(let c=0;c<(G.board[z][r]||[]).length;c+=1){
+        if(G.board[z][r][c] === card){ targetPosition={z:z,r:r,c:c}; break; }
+      }
+    }
+  }
+  if(!targetPosition) return false;
+  const owner = card.controller === 0 || card.controller === 1 ? card.controller : card.owner;
+  for(let r=Math.max(0,targetPosition.r-1);r<=Math.min((G.board[targetPosition.z]||[]).length-1,targetPosition.r+1);r+=1){
+    for(let c=Math.max(0,targetPosition.c-1);c<=Math.min((G.board[targetPosition.z][r]||[]).length-1,targetPosition.c+1);c+=1){
+      if(r===targetPosition.r&&c===targetPosition.c) continue;
+      const source=G.board[targetPosition.z][r][c];
+      if(!source || Number(source.owner)!==Number(owner)) continue;
+      const actsAs101=typeof cardActsAsPassive==='function'?cardActsAsPassive(source,'101'):String(source.id||'')==='101';
+      if(actsAs101 && !(typeof isCardEffectSuppressed==='function' && isCardEffectSuppressed(source,targetPosition.z,r,c))) return true;
+    }
+  }
+  return false;
 }
 
 function isTargetImmuneToEffectOwner(card, effectOwner) {
@@ -689,7 +711,7 @@ function controlsNamedCard(owner, names, opts = {}) {
   if (typeof owner !== 'number' || typeof forEachBoardCard !== 'function') return false;
   let found = false;
   forEachBoardCard(function(card) {
-    if(found || !card || card.owner !== owner || isFaceDownCard(card)) return;
+    if(found || !card || card.owner !== owner) return;
     if(opts.excludeIid != null && card.iid === opts.excludeIid) return;
     if(cardNameMatchesAny(card, names)) found = true;
   });
@@ -1612,3 +1634,26 @@ function closeGameModal() {
   const modal = document.getElementById('modal');
   if (modal) modal.classList.remove('on');
 }
+
+function isHiddenEffectForViewer(card) {
+  if(String(card?.id || '')==='102' && Number(card.controller ?? card.owner)!==Number(typeof getPerspectivePlayerIndex==='function'?getPerspectivePlayerIndex():0)) return true;
+  if(!card?.faceDown) return false;
+  const viewer = typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : 0;
+  return Number(card.controller ?? card.owner) !== Number(viewer);
+}
+window.isHiddenEffectForViewer = isHiddenEffectForViewer;
+
+// Keep target flashes from identifying a hidden source during asynchronous resolution.
+function beginHiddenEffectPresentation(card) {
+  if(!card?.faceDown || typeof G === 'undefined' || !G) return function(){};
+  const match=G;
+  const token={card};
+  match._hiddenEffectPresentationSources ||= [];
+  match._hiddenEffectPresentationSources.push(token);
+  return function(){
+    const entries=match._hiddenEffectPresentationSources || [];
+    const index=entries.indexOf(token);
+    if(index>=0) entries.splice(index,1);
+  };
+}
+window.beginHiddenEffectPresentation=beginHiddenEffectPresentation;

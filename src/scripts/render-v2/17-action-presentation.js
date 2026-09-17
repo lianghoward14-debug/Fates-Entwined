@@ -599,16 +599,7 @@
   function estimateDuration(recipeType, payload){
     const type = String(recipeType || '').toUpperCase();
     const p = payload || {};
-    if(type === 'CONSOLIDATE') {
-      const n = Array.isArray(p.tributes) ? p.tributes.length : 0;
-      const firstStart = 90;
-      const moveMs = n <= 1 ? 880 : 760;
-      const gap = n <= 1 ? 0 : 390;
-      const revealAt = n <= 1
-        ? firstStart + 120
-        : firstStart + Math.max(0, n - 1) * gap + moveMs - 24;
-      return revealAt + (n > 1 ? 760 : 590);
-    }
+    if(type === 'CONSOLIDATE') return Array.isArray(p.tributes) && p.tributes.length > 1 ? 2700 : 1800;
     if(type === 'PLAY_CARD' || type === 'DECK_TO_BOARD') {
       const visibleMs = Math.max(360, Math.min(520, Number(p.duration) || 380));
       return visibleMs + 92;
@@ -622,10 +613,10 @@
     if(type === 'SEARCH_TO_HAND') return 1100 + Math.max(0, Number(p.startOffset) || 0);
     if(type === 'MOVE_CARD' || type === 'SWAP_CARDS') return 240;
     if(type === 'RETURN_TO_HAND') return 520;
-    if(type === 'DISCARD_CARD' || type === 'HAND_DISCARD') return 460;
+    if(type === 'DISCARD_CARD' || type === 'HAND_DISCARD') return 1500;
     if(type === 'DESTROY_CARD') return 520;
     if(type === 'FATE_GAIN' || type === 'FATE_LOSS') return 260;
-    if(type === 'CARD_FLIP') return 700;
+    if(type === 'CARD_FLIP') return Math.max(950, Number(p.duration) || 950) + 34;
     if(type === 'CARD_REVEAL') return 660;
     if(type === 'SUPPORTER_ACTIVATE') return 560;
     if(type === 'LANDSCAPE_TRIGGER' || type === 'ZONE_SHIFT' || type === 'ZONE_SCORE' || type === 'ZONE_WIN_FLIP') return 220;
@@ -914,6 +905,7 @@
     const opts = options || {};
     if(typeof opts.commit !== 'function') return false;
     opts.commit(null);
+    window.FateSquareFeedbackFx?.playSet(opts.target, opts.inst, opts.freeCharacterSet ? 'hammer-lock' : undefined);
     return true;
   }
 
@@ -921,6 +913,7 @@
     const opts = options || {};
     if(typeof opts.commit !== 'function') return false;
     opts.commit(null);
+    if(opts.inst && opts.inst.type !== 'Supporter') window.FateSquareFeedbackFx?.playSet(opts.target, opts.inst, 'hammer-lock');
     return true;
   }
 
@@ -1008,6 +1001,10 @@
       const commitDelay = delay > 160 ? delay - 34 : delay;
       scheduleCommit(tx, function(innerTx){
         if(!tx.stateCommittedImmediately) opts.commit(innerTx, delay);
+        // Reveal the settled board card while the final motion frame still covers it.
+        if(payload && payload.resultCardIid) {
+          window.FateMatchRendererAdapter?.revealBoardCardAfterVfx?.(payload.resultCardIid);
+        }
       }, commitDelay, delay + 34);
     }).catch(function(err){
       tx.error = String(err && err.message || err);

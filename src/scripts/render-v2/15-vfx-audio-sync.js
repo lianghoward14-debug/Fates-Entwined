@@ -36,6 +36,11 @@
       skipped++;
       return false;
     }
+    if(cue === 'discard_fracture' && window.FateConsolidationSfx){
+      const sound=window.FateConsolidationSfx.play('fracture',470);
+      if(sound){played++;lastCue=cue;return true;}
+      skipped++;return false;
+    }
     const resolvedCue = ({
       card_play_land:'cardSet',
       draw_card:'draw',

@@ -1,0 +1,10 @@
+.fate-activation-film-cut{position:fixed;left:-10px;top:clamp(68px,12vh,120px);z-index:999999;width:min(540px,72vw);height:90px;display:flex;align-items:center;gap:18px;pointer-events:none;overflow:hidden;transform:skewX(-8deg);background:linear-gradient(100deg,#181523f5,#3b2c42eb 65%,transparent);border-bottom:2px solid #e8c47b;animation:fate-activation-film-cut 2s both;contain:layout style;}
+.fate-activation-film-cut img{flex:none;width:132px;height:100%;object-fit:cover;object-position:50% 36%;transform:skewX(8deg) scale(1.12);mask-image:linear-gradient(90deg,#000 72%,transparent);}
+.fate-activation-film-copy{min-width:0;padding:8px 28px 8px 0;transform:skewX(8deg);}
+.fate-activation-film-ability{font:500 11px/1.4 Arial,sans-serif;letter-spacing:1.5px;text-transform:uppercase;color:#e8c47b;overflow-wrap:anywhere;}
+.fate-activation-film-name{font:400 clamp(17px,2vw,24px)/1.15 Georgia,serif;letter-spacing:.6px;color:#eee8df;margin-top:5px;overflow-wrap:anywhere;}
+@keyframes fate-activation-film-cut{0%{opacity:0;clip-path:inset(0 100% 0 0)}16%,77%{opacity:1;clip-path:inset(0)}100%{opacity:0;clip-path:inset(0 0 0 100%)}}
+@keyframes fate-activation-film-fade{0%,100%{opacity:0}16%,77%{opacity:1}}
+.fate-activation-film-cut.reduced-motion{animation-name:fate-activation-film-fade;}
+@media(prefers-reduced-motion:reduce){.fate-activation-film-cut{animation-name:fate-activation-film-fade}}
+@media(max-width:600px){.fate-activation-film-cut{width:94vw;height:86px;gap:12px}.fate-activation-film-cut img{width:90px}.fate-activation-film-ability{letter-spacing:.5px;font-size:10px}.fate-activation-film-name{font-size:17px}}

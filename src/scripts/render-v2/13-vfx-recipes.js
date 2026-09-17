@@ -443,11 +443,9 @@
     const p = payload || {};
     const from = payloadRect(p, ['fromRect', 'sourceRect']);
     const to = payloadRect(p, ['toRect', 'discardRect']);
-    const lift = from ? offsetRect(liftRect(from, .12), Math.max(4, (from.w || 70) * .05), 0) : from;
     return [
-      cardMove({iid:p.iid, card:p.card, fromRect:from, toRect:lift || from, startOffset:0, duration:122, easing:'out-quint', path:'direct', rotate:-4.5, bank:-2, scale:1.035, launchSquash:.016, priority:'high'}),
-      cardMove({iid:p.iid, card:p.card, fromRect:lift || from, toRect:to, startOffset:94, duration:318, easing:'in-quart', path:'drop', arc:.18, lift:.08, sideArc:-.18, rotate:-16, bank:-5, scale:1, fadeOutLate:true, priority:'high'}),
-      P().soundCue({cue:'discard_card', startOffset:278, priority:'high'})
+      cardMove({iid:p.iid, card:p.card, faceDown:p.faceDown === true || p.card?.faceDown === true, fromRect:from, toRect:from, startOffset:0, duration:1500, fracture:true, noShadow:true, priority:'high'}),
+      P().soundCue({cue:'discard_fracture', startOffset:720, priority:'high'})
     ];
   }
 
@@ -502,88 +500,15 @@
   }
 
   function consolidate(payload){
-    const p = payload || {};
-    const targetRect = payloadRect(p, ['targetRect', 'toRect']);
-    const tributes = Array.isArray(p.tributes) ? p.tributes : [];
-    const resultCard = p.resultCard || p.targetCard || null;
-    const resultIid = p.resultMotionIid || p.targetIid || p.resultCardIid;
-    const resultIsWhisper = String(resultCard && resultCard.id || '') === 'whisper17';
-    const resultIsWojciech = String(resultCard && resultCard.id || '') === '81';
-    const list = [P().soundCue({cue:'consolidate_charge', startOffset:42, priority:'high'})];
-    const gap = tributes.length <= 1 ? 0 : 390;
-    const firstStart = 90;
-    const moveMs = tributes.length <= 1 ? 880 : 760;
-    const stackTarget = targetRect ? scaleRect(targetRect, .98) : targetRect;
-    if(tributes.length) tributes.forEach(function(t, index){
-      const originalFrom = t && (t.rect || t.fromRect || t.cardRect);
-      if(!originalFrom) return;
-      const from = consolidationStartRect(originalFrom, targetRect, index, tributes.length) || originalFrom;
-      const start = firstStart + index * gap;
-      const lane = index % 2 ? -1 : 1;
-      const stackOffset = {
-        x:(stackTarget && stackTarget.x || 0) + lane * Math.min(8, (stackTarget && stackTarget.w || 80) * .035),
-        y:(stackTarget && stackTarget.y || 0) - index * Math.min(7, (stackTarget && stackTarget.h || 110) * .035),
-        w:stackTarget && stackTarget.w,
-        h:stackTarget && stackTarget.h
-      };
-      list.push(cardMove({
-        iid:t.iid,
-        card:t.card,
-        fromRect:from,
-        toRect:stackOffset,
-        startOffset:start,
-        duration:moveMs,
-        easing:'out-expo-soft',
-        path:'direct',
-        arc:0,
-        lift:0,
-        sideArc:0,
-        rotate:lane * 2.0,
-        bank:0,
-        startScale:1,
-        scale:1.020,
-        endScale:1,
-        textureScale:1.14,
-        fadeOutLate:true,
-        holdMs:230,
-        overshoot:.004,
-        wobble:.08,
-        settleMs:64,
-        priority:'high'
-      }));
-      list.push(P().cardImpact({iid:t.iid, card:null, rect:stackOffset, startOffset:start + moveMs - 118, duration:82, amplitude:.006, priority:'high'}));
+    const p=payload||{},targetRect=payloadRect(p,['targetRect','toRect']);
+    const tributes=Array.isArray(p.tributes)?p.tributes:[],resultCard=p.resultCard||p.targetCard||null;
+    const multi=tributes.length>1,duration=multi?2700:1800,consolidationStyle=multi?'crown':'prism';
+    const list=[P().soundCue({cue:'consolidate_charge',startOffset:42,priority:'high'})];
+    tributes.forEach(function(t,index){const from=t&&(t.rect||t.fromRect||t.cardRect);if(!from)return;
+      list.push(cardMove({iid:t.iid,card:t.card,faceDown:t.faceDown===true||t.card?.faceDown===true,fromRect:from,toRect:targetRect,startOffset:0,duration,consolidationStyle,tribute:true,tributeIndex:index,tributeCount:tributes.length,rarity:resultCard?.rarity,priority:'high'}));
     });
-    const revealAt = tributes.length === 1
-      ? firstStart + 120
-      : firstStart + Math.max(0, tributes.length - 1) * gap + moveMs - 24;
-    const resultFrom = tributes.length > 1 && targetRect
-      ? clampRectToViewport(offsetRect(scaleRect(targetRect, 1.34), 0, -Math.max(64, (targetRect.h || 110) * .82)), 10)
-      : (targetRect ? clampRectToViewport(offsetRect(scaleRect(targetRect, 1.58), 0, -Math.max(86, (targetRect.h || 110) * .98)), 10) : targetRect);
-    list.push(cardMove({
-      iid:resultIid,
-      card:resultCard,
-      faceDown:p.faceDown,
-      fromRect:resultFrom || targetRect,
-      toRect:targetRect,
-      startOffset:revealAt,
-      duration:tributes.length > 1 ? 620 : 430,
-      easing:tributes.length > 1 ? 'snap-settle' : 'snap-settle',
-      path:'direct',
-      rotate:tributes.length > 1 ? -6.4 : -9.5,
-      bank:0,
-      startScale:resultIsWojciech ? 1.02 : (tributes.length > 1 ? 1.18 : 1.34),
-      scale:resultIsWojciech ? 1.06 : (tributes.length > 1 ? 1.20 : 1.26),
-      endScale:1,
-      textureScale:resultIsWojciech ? 1.08 : (tributes.length > 1 ? 1.32 : 1.42),
-      fitMode:'contain',
-      holdMs:tributes.length > 1 ? 210 : 44,
-      landSquash:tributes.length > 1 ? .068 : .118,
-      wobble:tributes.length > 1 ? 2.55 : 4.10,
-      settleMs:tributes.length > 1 ? 128 : 108,
-      priority:'high'
-    }));
-    list.push(P().cardImpact({iid:resultIid, card:resultCard, faceDown:p.faceDown, rect:targetRect, startOffset:revealAt + (tributes.length > 1 ? 430 : 292), duration:tributes.length > 1 ? 178 : 190, amplitude:tributes.length > 1 ? .020 : .034, priority:'high'}));
-    list.push(P().soundCue({cue:resultIsWhisper ? 'whisper_consolidate' : 'consolidate_impact', startOffset:revealAt + (tributes.length > 1 ? 394 : 270), priority:'high'}));
+    list.push(cardMove({iid:p.resultMotionIid||p.targetIid||p.resultCardIid,card:resultCard,faceDown:p.faceDown,fromRect:targetRect,toRect:targetRect,startOffset:0,duration,consolidationStyle,rarity:resultCard?.rarity,priority:'high'}));
+    list.push(P().soundCue({cue:String(resultCard?.id||'')==='whisper17'?'whisper_consolidate':'consolidate_impact',startOffset:Math.round(duration*(multi?.70:.53)),priority:'high'}));
     return list;
   }
 
@@ -662,13 +587,17 @@
     CARD_FLIP:function(payload){
       const p = payload || {};
       const r = payloadRect(p, ['rect', 'targetRect', 'cardRect']);
+      let viewer = null;
+      try { viewer = typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : G.currentPlayer; } catch(e) {}
       return [
         P().cardFlip({
           iid:p.iid,
           card:p.card,
           rect:r,
           startOffset:0,
-          duration:Number(p.duration) || 620,
+          duration:Number(p.duration) || 950,
+          orbitReveal:true,
+          startFaceDown:p.startFaceDown != null ? !!p.startFaceDown : !(viewer != null && p.card?.owner != null && Number(p.card.owner) === Number(viewer)),
           easing:'in-out-cubic',
           revealAt:Number(p.revealAt) || .68,
           lift:.036,
@@ -678,7 +607,8 @@
           noGlow:true,
           priority:'high'
         }),
-        P().soundCue({cue:'card_flip', startOffset:250})
+        P().soundCue({cue:'card_flip', startOffset:360}),
+        P().soundCue({cue:'card_reveal', startOffset:520})
       ];
     },
     PLAY_CARD:playCard,

@@ -79,14 +79,12 @@ export function isEffectSourceSuppressed(state, value){
     return !!source
       && runtimeRuleId(source.card) === '21'
       && controllerOf(source.card) !== controllerOf(card)
-      && source.card.faceDown !== true
       && !source.card.statuses?.includes('EFFECTS_SUPPRESSED');
   });
 }
 
 function activeAuraSource(state, entry){
   if(!entry?.card
-    || entry.card.faceDown === true
     || isEffectSourceSuppressed(state, entry)) return false;
   return true;
 }
@@ -107,7 +105,6 @@ function duelistTarget(state, sourceEntry){
     .filter(entry=>
       entry.z === sourceEntry.z
       && controllerOf(entry.card) !== controllerOf(sourceEntry.card)
-      && entry.card.faceDown !== true
       && !isEffectImmutable(entry.card)
       && Math.abs(entry.r - sourceEntry.r) + Math.abs(entry.c - sourceEntry.c) === 1
     )
@@ -125,7 +122,6 @@ function sovietGrenadierTarget(state, sourceEntry){
   return boardEntries(state).find(target=>
     String(target.card.iid || '') === targetIid
     && target.z === sourceEntry.z
-    && target.card.faceDown !== true
     && effectiveCardType(state, target.card) === declaredType
     && Math.abs(target.r - sourceEntry.r) + Math.abs(target.c - sourceEntry.c) === 1
   ) || null;
@@ -159,8 +155,8 @@ export function effectiveFate(state, entryOrCard){
     ? entryOrCard
     : findCard(state, entryOrCard?.iid);
   const card = entry?.card || entryOrCard;
-  if(!card || entry?.zone !== 'board' || card.faceDown === true) return 0;
-  const stored = Math.max(0, Number(card.currentFate) || 0);
+  if(!card || entry?.zone !== 'board') return 0;
+  const stored = card.faceDown ? 0 : Math.max(0, Number(card.currentFate) || 0);
   const targetController = controllerOf(card);
   const moraleCardPenalty = 0;
   if(isEffectImmutable(card)) return Math.max(0, stored - moraleCardPenalty);
@@ -171,13 +167,13 @@ export function effectiveFate(state, entryOrCard){
   // Jimmy's own passive establishes his dynamic base Fate. It does not make
   // him immune to other cards: ordinary auras and penalties (including an
   // adjacent Soviet Grenadier) are applied to that base below.
-  const derived = activeAuraSource(state, entry) && selfId === '41'
+  const derived = !card.faceDown && activeAuraSource(state, entry) && selfId === '41'
     ? Math.max(0, Number(state.fateReductionEffectUses[targetController] || 0) * 3 + permanentAdjustment)
     : stored;
   let modifier = 0;
   if(state?.gameSettings?.pressureCardReworks === true){
     const honorGuardActive=boardEntries(state).some(source=>controllerOf(source.card)===targetController&&runtimeRuleId(source.card)==='25'&&activeAuraSource(state,source));
-    const sameAffAdjacent=boardEntries(state).some(peer=>peer.z===entry.z&&controllerOf(peer.card)===targetController&&String(peer.card.iid)!==String(card.iid)&&peer.card.faceDown!==true&&String(peer.card.affiliation||'')===String(card.affiliation||'')&&Math.abs(peer.r-entry.r)+Math.abs(peer.c-entry.c)===1);
+    const sameAffAdjacent=boardEntries(state).some(peer=>peer.z===entry.z&&controllerOf(peer.card)===targetController&&String(peer.card.iid)!==String(card.iid)&&String(peer.card.affiliation||'')===String(card.affiliation||'')&&Math.abs(peer.r-entry.r)+Math.abs(peer.c-entry.c)===1);
     if(honorGuardActive&&sameAffAdjacent)modifier+=1;
   }
   for(const source of boardEntries(state)){
@@ -208,7 +204,6 @@ export function effectiveFate(state, entryOrCard){
     }else if(sourceId === 'bh07'){
       const adjacentDauntless = boardEntries(state).filter(peer=>
         peer.z === source.z
-        && peer.card.faceDown !== true
         && effectiveCardType(state, peer.card) === 'Dauntless'
         && Math.abs(peer.r - source.r) + Math.abs(peer.c - source.c) === 1
       ).length;
@@ -229,7 +224,6 @@ export function effectiveFate(state, entryOrCard){
       source.z === entry.z
       && String(source.card.iid) !== String(card.iid)
       && controllerOf(source.card) === targetController
-      && source.card.faceDown !== true
       // Single-player treats ALPINE and other effect-immutable cards as
       // invisible to every other card effect. They cannot satisfy Bobby's
       // three-card affiliation prerequisite merely by sharing an affiliation.
@@ -255,7 +249,6 @@ export function effectiveFate(state, entryOrCard){
   if(activeAuraSource(state, entry) && selfId === '88'){
     const characters = boardEntries(state).filter(source=>
       controllerOf(source.card) === targetController
-      && source.card.faceDown !== true
       // ALPINE Infantry and any other effect-immutable card are invisible to
       // other cards' conditions. Temporary Supporter reclassification must
       // not make them count toward Rozsi (Youth)'s Character total.
@@ -296,7 +289,7 @@ export function effectiveFate(state, entryOrCard){
       && relatedIds.has(String(source.card.id || ''))
     )) modifier += 5;
   }
-  const overflowDebuff = Math.max(0, Number(card.counters?.permanentFateOverflowDebuff) || 0);
+  const overflowDebuff = card.faceDown ? 0 : Math.max(0, Number(card.counters?.permanentFateOverflowDebuff) || 0);
   // A permanent loss consumes stored Fate first. Any remainder continues into
   // continuous bonuses, so an 8-Fate card always becomes 5 after a -3 effect,
   // without deleting the underlying Louis aura.
@@ -362,7 +355,6 @@ export function canUseAsConsolidationTribute(state, entry, playerIndex, consolid
       source.z === entry.z
       && runtimeRuleId(source.card) === '49'
       && controllerOf(source.card) === Number(playerIndex)
-      && source.card.faceDown !== true
       && !source.card.statuses?.includes('EFFECTS_SUPPRESSED')
     );
     if(!irvinePermission || isEffectImmutable(card)){
@@ -434,7 +426,19 @@ export function effectiveConsolidationCost(state, card, playerIndex, destination
 export function isImmuneToOpponentEffects(card, state = null){
   if(!card) return false;
   if(['bh01', '76'].includes(String(card.id || ''))) return true;
-  return (card.statuses || []).includes('IMMUNE_TO_OPPONENT_EFFECTS');
+  if((card.statuses || []).includes('IMMUNE_TO_OPPONENT_EFFECTS')) return true;
+  if(!state) return false;
+  const target = findBoardCard(state, card.iid);
+  if(!target) return false;
+  return boardEntries(state).some(source=>
+    source.z === target.z
+    && source.card.iid !== card.iid
+    && controllerOf(source.card) === controllerOf(card)
+    && runtimeRuleId(source.card) === '101'
+    && Math.abs(source.r-target.r) <= 1
+    && Math.abs(source.c-target.c) <= 1
+    && !isEffectSourceSuppressed(state, source)
+  );
 }
 
 export function isEffectImmutable(card){

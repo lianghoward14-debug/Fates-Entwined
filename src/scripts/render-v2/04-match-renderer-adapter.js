@@ -337,6 +337,7 @@
   function dirtyMaskForSource(source){
     const s = String(source || '').toLowerCase();
     if(!s) return DIRTY_ALL;
+    if(s === 'square-feedback') return DIRTY_BOARD_CARDS;
     if(s.indexOf('vfx') >= 0) return DIRTY_EFFECTS | DIRTY_PARTICLES;
     if(s.indexOf('final-zone-flash') >= 0) return DIRTY_EFFECTS;
     if(s.indexOf('consolidat') >= 0 || s.indexOf('tribute') >= 0) return DIRTY_BOARD_CARDS | DIRTY_HOVER | DIRTY_HAND | DIRTY_EFFECTS;
@@ -1729,8 +1730,26 @@
     const previousSupporterAuraState = lastSupporterAuraPresentationByIid.get(iid);
     if(supporterAuraState) lastSupporterAuraPresentationByIid.set(iid, supporterAuraState);
     const synchronizedFlowerReveal = flowerBlessed && flowerWasBlessed === false && !flowerPickerOpen;
-    const playSynchronizedFlowerFateGain = delta=>{
-      if(!synchronizedFlowerReveal || !(Number(delta) > 0)) return;
+    const playObservedFateChange = delta=>{
+      if(!Number.isFinite(Number(delta)) || Number(delta) <= 0) return;
+      if(!synchronizedFlowerReveal){
+        // Continuous bonuses (including Rozsi Youth's character count) change
+        // effective Fate without passing through modifyFate. Announce those
+        // observed gains in both local and authoritative snapshots. Losses are
+        // already represented visually and must not be mistaken for gain cues.
+        // Render snapshots omit transient sound/overlay markers; consult the live card.
+        const live = (typeof window.findBoardCardByIid === 'function' && window.findBoardCardByIid(iid)) || card;
+        const marker = live && live._effectFateVisualDelta;
+        const pending = live && live._pendingFateOverlaySync;
+        if(pending && Number(pending.after) - Number(pending.before) === Number(delta)) return;
+        if(marker && Number(marker.before) === Number(prev)
+          && Number(marker.after) === Number(fateValue)
+          && Date.now() - Number(marker.at || 0) <= 3500) return;
+        if(typeof window.playResolvedFateChangeSfx === 'function') {
+          window.playResolvedFateChangeSfx(card, prev, fateValue, card.owner);
+        } else if(typeof window.playSfx === 'function') window.playSfx('fateGain');
+        return;
+      }
       try{
         const soundKey = 'louis-finalized-fate-gain:' + iid + ':' + String(fateValue);
         if(typeof window.playFateSfxOnce === 'function') window.playFateSfxOnce('fateGain', soundKey, 700);
@@ -1790,7 +1809,7 @@
             delta,
             numbersOnly:true
           });
-          playSynchronizedFlowerFateGain(delta);
+          playObservedFateChange(delta);
           lastCardFateByIid.set(iid, fateValue);
           return;
         }
@@ -1821,7 +1840,7 @@
           // so both become visible in the same first paint frame.
           _fatePresentationReady:synchronizedFlowerReveal
         });
-        playSynchronizedFlowerFateGain(delta);
+        playObservedFateChange(delta);
       }
     }
     lastCardFateByIid.set(iid, fateValue);
@@ -2157,7 +2176,7 @@
       }
       return isOpenSquareTarget(z, r, c);
     }
-    if(G._bh01Moving) return isOpenSquareTarget(z, r, c);
+    if(G._bh01Moving) return squareMatchesOption(G._bh01Moving.options, z, r, c) && isOpenSquareTarget(z, r, c);
     if(G._busserMovingCard){
       const mv = G._busserMovingCard;
       const cp = mv && mv.card && typeof mv.card._busserOwner === 'number' ? mv.card._busserOwner : G.currentPlayer;
@@ -2259,14 +2278,18 @@
       return;
     }
     if(String(kind || '') === 'brave-horizons-move') {
+      const t = animationsOff() ? .5 : ((Math.sin(nowMs() / 210) + 1) / 2);
       ctx.save();
       roundedPath(ctx, r.x + 2, r.y + 2, Math.max(0, r.w - 4), Math.max(0, r.h - 4), 5);
-      ctx.fillStyle = 'rgba(93,190,224,.025)';
+      ctx.fillStyle = 'rgba(93,190,224,' + (.14 + t * .08).toFixed(3) + ')';
       ctx.fill();
-      ctx.lineWidth = 1;
-      ctx.strokeStyle = 'rgba(116,207,237,.62)';
+      ctx.lineWidth = 2.2 + t;
+      ctx.strokeStyle = 'rgba(116,207,237,.95)';
+      ctx.shadowColor = 'rgba(93,190,224,.65)';
+      ctx.shadowBlur = 12 + t * 8;
       ctx.stroke();
       ctx.restore();
+      requestSelectionTargetPulseFrame();
       return;
     }
     if(String(kind || '') === 'wolf-creek-move') {
@@ -2406,11 +2429,14 @@
     const key = String(iid == null ? '' : iid);
     if(!key) return;
     const ms = Math.max(120, Number(duration) || 460);
-    vfxHiddenBoardCardUntilByIid.set(key, nowMs() + ms);
+    const until = Math.max(Number(vfxHiddenBoardCardUntilByIid.get(key)) || 0, nowMs() + ms);
+    vfxHiddenBoardCardUntilByIid.set(key, until);
     setTimeout(function(){
+      // A previous motion's timeout must not release a newer flip's hold.
+      if(vfxHiddenBoardCardUntilByIid.get(key) !== until || nowMs() < until) return;
       vfxHiddenBoardCardUntilByIid.delete(key);
       scheduleRender('board-commit');
-    }, ms + 24);
+    }, Math.max(0, until - nowMs()) + 24);
   }
 
   function boardCellVfxKey(z, r, c){
@@ -3204,6 +3230,27 @@
     const iconYOffset = kind === 'anicka_voyager_boat' ? -15 : 0;
     drawEffectFlashIcon(ctx, r.x + r.w / 2, r.y + r.h / 2 + iconYOffset, Math.max(60, Math.min(104, r.w * .88)), kind);
     ctx.restore();
+  }
+
+  function prepareDiscardSource(iid, duration){
+    if(iid == null) return;
+    hideBoardCardForVfx(iid, duration + 100);
+    // Remove the intact source from cached layers once, before fragment frames.
+    const previous = window.__fateAllowActionCommitRenderUntil;
+    window.__fateAllowActionCommitRenderUntil = nowMs() + 100;
+    try {
+      renderFromGameState({source:'discard-source-hide', dirtyMask:DIRTY_BOARD_CARDS | DIRTY_HAND | DIRTY_OPP_HAND | DIRTY_EFFECTS});
+    } finally {
+      window.__fateAllowActionCommitRenderUntil = previous;
+    }
+  }
+
+  function revealBoardCardAfterVfx(iid){
+    vfxHiddenBoardCardUntilByIid.delete(String(iid == null ? '' : iid));
+    const previous = window.__fateAllowActionCommitRenderUntil;
+    window.__fateAllowActionCommitRenderUntil = nowMs() + 100;
+    try { renderFromGameState({source:'board-commit', dirtyMask:DIRTY_BOARD_CARDS}); }
+    finally { window.__fateAllowActionCommitRenderUntil = previous; }
   }
 
   function drawMarkedForDeathCardOverlay(ctx, r){
@@ -5013,6 +5060,7 @@
     });
     function drawHandItem(item){
       if(!item || !item.card || !item.rect) return;
+      if(isBoardCardHiddenForVfx(item.iid || getCardIid(item.card))) return;
       if(item.card.hidden || item.card._spectatorHidden){
         drawCardBack(ctx, item.rect, '', 'back.png');
         hitMap.handCards.push({kind:'hand-card', index:item.index, iid:item.iid, rect:item.hitRect || item.rect, motionRect:item.rect, card:null, disabled:true});
@@ -5048,6 +5096,7 @@
     const oppCards = layout.opponentHand && Array.isArray(layout.opponentHand.cards) ? layout.opponentHand.cards : [];
     oppCards.forEach(function(item){
       if(!item || !item.rect) return;
+      if(isBoardCardHiddenForVfx(item.iid || getCardIid(item.card))) return;
       if(item.faceDown || !item.card || item.card.hidden) drawCardBack(ctx, item.rect, '', 'back.png');
       else drawCardContent(ctx, {card:item.card}, item.card.visual || item.card, item.rect, function(){ scheduleTextureRender('opponent-hand-texture-ready'); }, {pulse:false, hideFateBadge:true});
       hitMap.opponentHandCards.push({kind:'opponent-hand-card', index:item.index, iid:item.iid, playerIndex:item.playerIndex, rect:item.rect, card:item.card || null});
@@ -5266,15 +5315,33 @@
       }
       observeCardForAnimations(entry.card, visual, r);
       const tributeState = getTributeState(entry);
+      if(window.FateSquareFeedbackFx?.captureSet(entry, r, function(captureCtx){
+        drawCardVisual(captureCtx, entry, visual, r, onChange, {tributeState, boardH:boardRect.h, opponent:entry.card && entry.card.owner !== snapshot.viewer});
+      })){
+        cards++;
+        return;
+      }
       const move = observeCardForMove(entry, r, snapshotChangedForMove, boardIidCountsForMotion);
       if(move && move.kind === 'card-move' && !move.done){
         movingCards.push({entry, visual, rect:r, move, tributeState});
       } else {
-        if(rowClip){ ctx.save(); roundedPath(ctx, rowClip.x, rowClip.y, rowClip.w, rowClip.h, 5); ctx.clip(); }
+        const setPose = window.FateSquareFeedbackFx?.pose(entry, r);
+        // A set descends from above its destination, independent of the hand or drag path.
+        if(rowClip && !setPose){ ctx.save(); roundedPath(ctx, rowClip.x, rowClip.y, rowClip.w, rowClip.h, 5); ctx.clip(); }
+        if(setPose){
+          window.FateSquareFeedbackFx.drawSet(ctx, entry, r);
+          ctx.save();
+          const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+          ctx.translate(cx, cy + setPose.y);
+          ctx.rotate(setPose.angle);
+          ctx.scale(setPose.scale, setPose.scale);
+          ctx.translate(-cx, -cy);
+        }
         drawCardVisual(ctx, entry, visual, r, onChange, {tributeState, boardH:boardRect.h, opponent:entry.card && entry.card.owner !== snapshot.viewer});
+        if(setPose) ctx.restore();
         const cardSelectionKind = getSelectionTargetKind(entry);
         if(cardSelectionKind) drawSquareSelectionCue(ctx, r, cardSelectionKind);
-        if(rowClip) ctx.restore();
+        if(rowClip && !setPose) ctx.restore();
       }
       cards++;
     });
@@ -5750,7 +5817,7 @@
     }
 
     const sourceText = sourceLower;
-    const cardLayerOnly = (sourceText.indexOf('zone-scroll') >= 0 || sourceText.indexOf('texture-ready') >= 0)
+    const cardLayerOnly = (sourceText.indexOf('zone-scroll') >= 0 || sourceText.indexOf('texture-ready') >= 0 || sourceText.indexOf('square-feedback') >= 0)
       && !!(lastReport && lastReport.available && lastLayout && lastSnapshot && lastCanvasMetrics)
       && !!(dirtyMask & DIRTY_BOARD_CARDS)
       && !(dirtyMask & (DIRTY_LAYOUT | DIRTY_BACKGROUND | DIRTY_HAND | DIRTY_OPP_HAND | DIRTY_PILES | DIRTY_MOTION));
@@ -6441,6 +6508,8 @@
     queuePlacementMotion,
     suppressInitialPlacementMotion,
     hideBoardCardForVfx,
+    prepareDiscardSource,
+    revealBoardCardAfterVfx,
     hideBoardCellForVfx,
     teardownScene,
     resetPerformanceSamples,

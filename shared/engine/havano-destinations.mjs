@@ -2,7 +2,7 @@ import {openBoardDestinations,rowOwner,boardEntries,squareStatuses,controllerOf}
 import {isEffectSourceSuppressed,zoneActionBlock} from './modifiers.mjs';
 export function havanoDestinations(state,player){
   if(Number(state.supportersSetForCapThisTurn?.[player] || 0)>=5)return [];
-  const enemies=boardEntries(state).filter(e=>e.card.id==='14' && controllerOf(e.card)!==player && !e.card.faceDown && !isEffectSourceSuppressed(state,e));
+  const enemies=boardEntries(state).filter(e=>e.card.id==='14' && controllerOf(e.card)!==player && !isEffectSourceSuppressed(state,e));
   return openBoardDestinations(state).filter(d=>{
     const owner=rowOwner(state,d.z,d.r);
     return (owner===player || owner===-1) && !zoneActionBlock(state,player,d.z)

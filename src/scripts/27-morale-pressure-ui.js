@@ -476,7 +476,7 @@
     const board = legacyBoardEntries(state);
     board.forEach(function(entry){
       const card = entry.card;
-      if(Number(card.owner) !== Number(player) || legacyFaceDown(card)) return;
+      if(Number(card.owner) !== Number(player)) return;
       const type = legacyEffectType(card).replace(/^Improviser$/i,'Improvisor');
       const suppressed = legacySuppressed(entry);
       if(type === 'Dauntless' && !suppressed){
@@ -487,7 +487,7 @@
       if(Number(card._pressureTurn)===Number(state.turn)&&Number(card._pressureTurnBonus||0)) entries.push({key:'card-pressure-turn:'+card.iid+':t'+state.turn,playerIndex:player,amount:Number(card._pressureTurnBonus||0),reason:'CARD_TURN_PRESSURE',sourceIid:String(card.iid||''),cardIid:String(card.iid||''),sourceName:String(card.name||'Card'),affectedIids:[String(card.iid||'')]});
       if(type === 'Coordinator' && !suppressed){
         const affected = board.filter(function(target){
-          return target.card !== card && !legacyFaceDown(target.card) && target.z === entry.z
+          return target.card !== card && target.z === entry.z
             && Math.abs(target.r-entry.r) + Math.abs(target.c-entry.c) === 1;
         });
         if(affected.length){
@@ -520,6 +520,25 @@
     const state = legacyGameState();
     if(!state?._moralePressure) return;
     const list = Array.isArray(events) ? events.filter(Boolean) : [];
+    list.forEach(function(event){
+      if(String(event?.type || '').toUpperCase() !== 'MORALE_HEALED' || event._moraleHealFateConverted === true) return;
+      event._moraleHealFateConverted = true;
+      const player = Number(event.playerIndex);
+      const gain = Math.floor(Math.max(0, Number(event.amount) || 0) * 25 / 100);
+      if(!gain || (player !== 0 && player !== 1)) return;
+      legacyBoardEntries(state).forEach(function(entry){
+        const card = entry.card;
+        // Retained for the next card that receives this effect. No current card
+        // is assigned, so the old card-101 behavior remains dormant.
+        const moraleConversionCardIds = [];
+        const assignedId = moraleConversionCardIds.find(function(id){
+          return typeof cardActsAsPassive === 'function' ? cardActsAsPassive(card,id) : String(card?.id || '') === id;
+        });
+        if(Number(card?.owner) !== player || !assignedId || legacySuppressed(entry)) return;
+        if(typeof modifyFate === 'function') modifyFate(card, gain, 'permanent', player, {sourceIid:String(card.iid || ''),reason:'MORALE_HEAL_FATE_CONVERSION'});
+        else card.currentFate = Math.max(0, Number(card.currentFate ?? card.fate) || 0) + gain;
+      });
+    });
     renderMoralePressureHud(state._moralePressure);
     if(!list.length) return;
     const view = {state:{moralePressure:state._moralePressure}};
@@ -618,7 +637,7 @@
 
   function recordLegacyMoralePressureCardSet(card, options){
     const state = legacyGameState();
-    if(!legacyRulesEnabled() || !state?._moralePressure || !card || legacyFaceDown(card)) return false;
+    if(!legacyRulesEnabled() || !state?._moralePressure || !card) return false;
     const player = Number(card.owner);
     const system = state._moralePressure;
     const events = [];
@@ -655,7 +674,7 @@
 
   function recordLegacyMoralePressureActivation(card){
     const state = legacyGameState();
-    if(!legacyRulesEnabled() || !state?._moralePressure || !card || legacyFaceDown(card)) return false;
+    if(!legacyRulesEnabled() || !state?._moralePressure || !card) return false;
     const cardType = legacyEffectType(card).replace(/^Improviser$/i,'Improvisor');
     if(cardType !== 'Improvisor' && cardType !== 'Initiator'){
       refreshLegacyMoralePressure({announce:true});
@@ -788,7 +807,7 @@
     const outgoing=[0,0];
     const outgoingSources=[[],[]];
     zoneResults.forEach(function(result){if(!pacificaPreventsMoraleDamage&&(result.damagedPlayer===0||result.damagedPlayer===1))damage[result.damagedPlayer]+=Math.floor(result.difference*33/100);});
-    const entries=legacyBoardEntries(state).filter(function(entry){return entry.card&&!legacyFaceDown(entry.card)&&!legacySuppressed(entry);});
+    const entries=legacyBoardEntries(state).filter(function(entry){return entry.card&&!legacySuppressed(entry);});
     if(entries.length || system.pendingBladeDance?.some(count=>count>0)){
       entries.forEach(function(entry){
         const source=entry.card;
@@ -1402,7 +1421,7 @@
     let shown=false;
     (Array.isArray(cycleEvent&&cycleEvent.bh18ZoneFateReductions)?cycleEvent.bh18ZoneFateReductions:[]).forEach(function(reduction){
       const source=findMoraleOverlaySource(reduction&&reduction.sourceIid);
-      if(!source||source.faceDown===true)return;
+      if(!source)return;
       if(typeof isCardVisuallySuppressed==='function'&&isCardVisuallySuppressed(source))return;
       shown=window.flashCardEffect(source,'bh18_genesis_inceldom',{
         label:'The Genesis of all Inceldom',
@@ -1412,7 +1431,7 @@
     recordedSources.filter(function(source){return String(source.sourceCardId||'')==='34';}).forEach(function(source){
       (Array.isArray(source.affectedIids)?source.affectedIids:[]).forEach(function(iid){
         const target=findMoraleOverlaySource(iid);
-        if(!target||target.faceDown===true)return;
+        if(!target)return;
         if(typeof isCardVisuallySuppressed==='function'&&isCardVisuallySuppressed(target))return;
         shown=window.flashCardEffect(target,'rozsi_hungarian_crest',{
           label:'Hungarian Dance',
@@ -1422,7 +1441,7 @@
     });
     forEachBoardCard(function(card){
       const descriptor=descriptors[String(card&&card.id||'')];
-      if(!descriptor||card.faceDown===true)return;
+      if(!descriptor)return;
       if(hasSourceLedger&&!contributingIids.has(String(card.iid||'')))return;
       if(typeof isCardVisuallySuppressed==='function'&&isCardVisuallySuppressed(card))return;
       shown=window.flashCardEffect(card,descriptor.kind,{label:descriptor.label,soundKey:['morale-calculation',descriptor.kind,String(card.iid||card.id||''),String(G&&G.turn||0)].join(':')})||shown;

@@ -78,7 +78,7 @@ const CARD_RULES = [
   card('23','Cathy','PASSIVE','CONTROLLER','CHARACTERS_CONTROLLER_CONTROLS_IN_SOURCE_ZONE','Each qualifying Character gains exactly +2 effective Fate.',{forbidden:['SUPPORTER_GAINS','OPPONENT_CHARACTER_GAINS','CHARACTER_OUTSIDE_ZONE_GAINS']}),
   card('24','Ralph’s Courtesy Clerk','PASSIVE','CONTROLLER','ADJACENT_SUPPORTERS','Each adjacent Supporter contributes exactly +1 additional Reinforcement while source remains active.',{forbidden:['NON_SUPPORTER_GAINS','NON_ADJACENT_SUPPORTER_GAINS','BONUS_PERSISTS_AFTER_SOURCE_LEAVES']}),
   card('25','Zimbabwean Honor Guard','PASSIVE','CONTROLLER','CONTROLLED_CARDS_ADJACENT_TO_SAME_AFFILIATION','While active, each controlled card adjacent to another controlled card of the same affiliation gains exactly +1 effective Fate.',{forbidden:['OPPONENT_CARD_GAINS','NON_ADJACENT_CARD_GAINS','DIFFERENT_AFFILIATION_QUALIFIES','BONUS_EXCEEDS_PLUS_1']}),
-  card('26','UCPD','ACTIVATE','CONTROLLER','OPPONENT_HAND','Reveal the opponent’s hand to controller without revealing controller’s private hand to opponent.',{useLimit:'NO_PRINTED_LIMIT',forbidden:['WRONG_HAND_REVEALED','REVEAL_CHANGES_CARD_OWNERSHIP']}),
+  card('26','UCPD','WHEN_SET','CONTROLLER','OPPONENT_HAND','When set, reveal the opponent’s hand to controller without revealing controller’s private hand to opponent.',{useLimit:'ONCE_ON_SET',forbidden:['WRONG_HAND_REVEALED','REVEAL_CHANGES_CARD_OWNERSHIP']}),
   card('27','Kazumi','ACTIVATE','CONTROLLER','TOP_THREE_AVAILABLE_CARDS_CONTROLLER_DECK','Draw exactly three cards, or all remaining cards if fewer than three.',{useLimit:'ONCE_PER_CARD',forbidden:['OPPONENT_DRAWS','MORE_THAN_THREE','EMPTY_DECK_CREATES_CARDS']}),
   card('28','2nd Polish-Lithuanian Army',['DECK_SET','PASSIVE'],'CONTROLLER','SOURCE_CARD_IN_CONTROLLER_DECK','Once per controller turn, may be set from deck without consuming or requiring a Supporter set.',{useLimit:'ONCE_PER_TURN',forbidden:['SECOND_DECK_SET_SAME_TURN','SET_FROM_OPPONENT_DECK','DECK_SET_CONSUMES_SUPPORTER_LIMIT']}),
   card('29','Dylan Kirby','ACTIVATE','CONTROLLER','UP_TO_TWO_THIRD_GREAT_WAR_CARDS_IN_CONTROLLER_DECK_OR_DISCARD','Move selected cards to controller hand.',{cardinality:'ZERO_TO_TWO',useLimit:'ONCE_PER_CARD',forbidden:['WRONG_AFFILIATION_SELECTED','OPPONENT_PILE_SEARCHED','MORE_THAN_TWO']}),
@@ -136,7 +136,7 @@ const CARD_RULES = [
   card('81','Wojciech','WHEN_SET','CONTROLLER','CONTROLLER_HAND','Create one Pierogi Counter per card opponent set or consolidated last turn. Counters last six controller hand turns, are protected in hand, can be placed only in contested/opponent-owned squares, and remain three opponent turns.',{forbidden:['COUNTS_CONTROLLERS_LAST_TURN_PLACEMENTS','COUNTER_SET_IN_CONTROLLER_SAFE_ROW','COUNTER_DISCARDED_BY_OPPONENT_EFFECT','WRONG_EXPIRY_CLOCK']}),
   card('82','Felicyta Janowicz (Youth)','WHEN_SET','CONTROLLER','ONE_OF_TWENTY_LANDSCAPES','Change current landscape to chosen valid landscape, unless a landscape-change lock prohibits controller.',{cardinality:'EXACTLY_ONE',forbidden:['INVALID_LANDSCAPE','CHANGE_IGNORES_LOCK','CANCEL_CHANGES_TO_DEFAULT','OLD_LANDSCAPE_STATUS_PERSISTS']}),
   card('83','Sebastyen Janowicz','ACTIVATE','CONTROLLER','ALL_EFFECT_MUTABLE_FACE_UP_CHARACTERS_CONTROLLER_CONTROLS_IN_SOURCE_ZONE','Each qualifying Character gains exactly +2 permanent Fate once.',{useLimit:'ONCE_PER_CARD',forbidden:['SUPPORTER_GAINS','FACE_DOWN_CARD_GAINS','OPPONENT_CHARACTER_GAINS','CARD_OUTSIDE_ZONE_GAINS']}),
-  card('84','Květka Svoboda','WHEN_SET','CONTROLLER','ONE_CARD_IN_CONTROLLER_DECK','Always starts in the opening hand. When set, search any card to hand only if the original deck list contains no draw-producing card effects.',{forbidden:['FREE_SET_SEARCHED_CARD','ELIGIBLE_AFTER_DRAW_CARD_LEAVES_DECK']}),
+  card('84','Květka Svoboda (Youth)','WHEN_SET','CONTROLLER','ONE_CARD_IN_CONTROLLER_DECK','Always starts in the opening hand. When set, search any card to hand only if the original deck list contains no draw-producing card effects.',{forbidden:['FREE_SET_SEARCHED_CARD','ELIGIBLE_AFTER_DRAW_CARD_LEAVES_DECK']}),
   card('85','Felicyta Janowicz (Specters)','PASSIVE','CONTROLLER','SOURCE_CARD','Gain exactly +1 effective Fate per Supporter opponent has set this game.',{forbidden:['CONTROLLERS_SUPPORTERS_COUNT','CONSOLIDATED_SUPPORTER_COUNTS_AS_SET_TWICE','VALUE_CHANGES_WITHOUT_COUNTER_EVENT']}),
   card('86','Boleslaw Kopewicz','PASSIVE','CONTROLLER','SOURCE_AND_CONTROLLER_DECK','Whenever opponent completes a card search, controller draws exactly one and source gains exactly +2 permanent Fate once.',{forbidden:['CONTROLLERS_SEARCH_TRIGGERS','NONSEARCH_DRAW_TRIGGERS','SAME_SEARCH_TRIGGERS_TWICE','OPPONENT_DRAWS_BONUS_CARD']}),
   card('87','Květka Svoboda (Ukulele)','WHEN_SET','CONTROLLER','NEXT_CONTROLLER_CONSOLIDATIONS_UNTIL_CONTROLLER_SETS_SUPPORTER','Starting now, each qualifying consolidation card gains exactly +3 permanent Fate; status ends immediately when controller sets a Supporter.',{duration:'UNTIL_CONTROLLER_SETS_SUPPORTER',forbidden:['SOURCE_SELF_QUALIFIES_AS_PRIOR_SUPPORTER_EVENT','OPPONENT_CONSOLIDATION_GAINS','BONUS_PERSISTS_AFTER_SUPPORTER_SET','SAME_CONSOLIDATION_GAINS_TWICE']}),
@@ -328,7 +328,7 @@ function oracleStructuralType(value){
 }
 
 function oracleSourceActive(state, entry){
-  if(!entry?.card || entry.card.faceDown === true || entry.card.statuses?.includes('EFFECTS_SUPPRESSED')) return false;
+  if(!entry?.card || entry.card.statuses?.includes('EFFECTS_SUPPRESSED')) return false;
   if(String(entry.card.type || '') !== 'Coordinator') return true;
   if(oracleEffectImmutable(entry.card) || (entry.card.statuses || []).includes('IMMUNE_TO_OPPONENT_EFFECTS')) return true;
   return !(state?.geometry?.squareStatuses || []).some(status=>{
@@ -341,7 +341,6 @@ function oracleSourceActive(state, entry){
     return !!source
       && oracleRuntimeId(source.card) === '21'
       && controllerOfProjected(source.card) !== controllerOfProjected(entry.card)
-      && source.card.faceDown !== true
       && !source.card.statuses?.includes('EFFECTS_SUPPRESSED');
   });
 }
@@ -365,7 +364,6 @@ function oracleDuelistTarget(state, source, entries){
   return entries.filter(target=>
     target.z === source.z
     && controllerOfProjected(target.card) !== controllerOfProjected(source.card)
-    && target.card.faceDown !== true
     && !oracleEffectImmutable(target.card)
     && oracleAdjacent(source, target)
   ).sort((a,b)=>
@@ -406,7 +404,7 @@ function oracleContinuousConditionPositive(state, source, entries){
   const id = oracleRuntimeId(source.card);
   if(state?.gameSettings?.pressureCardReworks === true && id === '64') return false;
   const controller = controllerOfProjected(source.card);
-  const controlled = entry=>controllerOfProjected(entry.card) === controller && entry.card.faceDown !== true;
+  const controlled = entry=>controllerOfProjected(entry.card) === controller;
   const inZone = entry=>entry.z === source.z;
   if(!oracleSourceActive(state, source)) return false;
   if(id === '01') return entries.some(entry=>String(entry.card.iid) !== String(source.card.iid) && controlled(entry) && oracleAdjacent(source, entry));
@@ -461,13 +459,13 @@ function oracleContinuousConditionPositive(state, source, entries){
 export function expectedEffectiveFateFromOracle(state, cardIid){
   const entries = oracleBoardEntries(state);
   const entry = entries.find(value=>String(value.card.iid || '') === String(cardIid || ''));
-  if(!entry?.card || entry.card.faceDown === true) return 0;
+  if(!entry?.card) return 0;
   const memo = new Map();
   const evaluating = new Set();
   function calculate(target){
     const iid = String(target.card.iid || '');
     if(memo.has(iid)) return memo.get(iid);
-    const stored = Math.max(0, Number(target.card.currentFate) || 0);
+    const stored = target.card.faceDown ? 0 : Math.max(0, Number(target.card.currentFate) || 0);
     if(oracleEffectImmutable(target.card)) return stored;
     if(evaluating.has(iid)) return stored;
     evaluating.add(iid);
@@ -476,7 +474,7 @@ export function expectedEffectiveFateFromOracle(state, cardIid){
     const selfId = oracleRuntimeId(target.card);
     const adjacencyMultiplier = oracleAdjacencyBonusMultiplier(state, target.z, controller, entries);
     const permanentAdjustment = (Number(target.card.currentFate) || 0) - (Number(target.card.baseFate) || 0);
-    let derived = oracleSourceActive(state, target) && selfId === '41'
+    let derived = !target.card.faceDown && oracleSourceActive(state, target) && selfId === '41'
       ? Math.max(0, Number(state?.fateReductionEffectUses?.[controller] || 0) * 3 + permanentAdjustment)
       : stored;
     let modifier = 0;
@@ -496,8 +494,7 @@ export function expectedEffectiveFateFromOracle(state, cardIid){
       else if(sourceId === '59' && type === 'Supporter') modifier += 1;
       else if(sourceId === 'bh07'){
         const adjacent = entries.filter(peer=>
-          peer.card.faceDown !== true
-          && oracleEffectiveType(state, peer.card) === 'Dauntless'
+           oracleEffectiveType(state, peer.card) === 'Dauntless'
           && oracleAdjacent(source, peer)
         ).length;
         modifier += adjacent * (2 + boost) * adjacencyMultiplier;
@@ -505,7 +502,6 @@ export function expectedEffectiveFateFromOracle(state, cardIid){
     }
     const validSovietTarget = source=>entries.some(peer=>
       String(peer.card.iid || '') === String(source.card.counters?.sovietTargetIid || '')
-      && peer.card.faceDown !== true
       && oracleEffectiveType(state, peer.card) === String(source.card.counters?.sovietDeclaredType || '')
       && oracleAdjacent(source, peer)
     );
@@ -520,7 +516,6 @@ export function expectedEffectiveFateFromOracle(state, cardIid){
       const peers = entries.filter(peer=>peer.z === target.z
         && String(peer.card.iid) !== iid
         && controllerOfProjected(peer.card) === controller
-        && peer.card.faceDown !== true
         && !oracleEffectImmutable(peer.card));
       const affiliation = String(peers[0]?.card?.affiliation || '');
       if(peers.length >= 3 && affiliation && peers.every(peer=>String(peer.card.affiliation || '') === affiliation)) modifier += 5;
@@ -534,7 +529,6 @@ export function expectedEffectiveFateFromOracle(state, cardIid){
     ).length * 2;
     if(oracleSourceActive(state, target) && selfId === '88') modifier += entries.filter(peer=>
       controllerOfProjected(peer.card) === controller
-      && peer.card.faceDown !== true
       && !oracleEffectImmutable(peer.card)
       && oracleEffectiveType(state, peer.card) !== 'Supporter'
     ).length * 2;
@@ -558,7 +552,7 @@ export function expectedEffectiveFateFromOracle(state, cardIid){
       const related = new Set(['01','19','82','84','85','87','100','bh11']);
       if(entries.some(peer=>controllerOfProjected(peer.card) === controller && String(peer.card.iid) !== iid && related.has(String(peer.card.id || '')))) modifier += 5;
     }
-    const overflowDebuff = Math.max(0, Number(target.card.counters?.permanentFateOverflowDebuff) || 0);
+    const overflowDebuff = target.card.faceDown ? 0 : Math.max(0, Number(target.card.counters?.permanentFateOverflowDebuff) || 0);
     const result = Math.max(0, derived + modifier - overflowDebuff);
     evaluating.delete(iid);
     memo.set(iid, result);

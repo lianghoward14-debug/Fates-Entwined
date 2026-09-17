@@ -3,7 +3,7 @@
 const KEY='fate_challenger_war_event_v2',OLD='fate_challenger_war_event_v1',RECEIPTS='fate_war_reward_receipts_v1',MATCH_RECEIPTS='fate_war_match_reward_receipts_v1',SIMBACKUP='fate_war_simulation_backup_v1',DURATION=86400000,POST_WAR_DURATION=86400000,LIMIT=5;
 const storageKey=base=>typeof _fateStorageKey==='function'?_fateStorageKey(base):base;
 const ZONES=[['north-gate','01','Verdun Heights',21,28],['silver-crossing','02','Marne Crossing',75,27],['heartland','03','Champagne Heartland',49,49],['sunken-road','04','Somme Sunken Road',27,73],['crown-reach','05','Argonne Reach',78,73]].map(x=>({id:x[0],no:x[1],name:x[2],x:x[3],y:x[4]}));
-const TEAMS={a:{name:'The Neo Comintern'},b:{name:'The Free World'}},AWARDS=[['fate','∆','Decisive Force','Highest cumulative Fate differential in victories','fateDifferential','sum'],['speed','⌁','Lightning Victory','Fastest match victory','durationMs','min'],['consolidation','◇','Master of Position','Most total consolidations in victories','consolidations','sum']].map(x=>({id:x[0],icon:x[1],name:x[2],copy:x[3],metric:x[4],mode:x[5]}));
+const TEAMS={a:{name:'The Neo Comintern'},b:{name:'The Free World'}},AWARDS=[['fate','∆','Decisive Force','Highest total fate differential in victories','fateDifferential','sum'],['speed','⌁','Lightning Victory','Fastest match victory','durationMs','min'],['consolidation','◇','Master of Position','Most total consolidations in victories','consolidations','sum']].map(x=>({id:x[0],icon:x[1],name:x[2],copy:x[3],metric:x[4],mode:x[5]}));
 const HIDDEN_MEDALS={firstWar:1,fiveWars:6,fiveWins:13,tenWins:4,twentyFiveWins:45,fiftyWins:50,fateLeader:22,differentialLeader:39};
 const esc=v=>String(v==null?'':v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])),clone=v=>JSON.parse(JSON.stringify(v)),opposite=t=>t==='a'?'b':'a';
 const landscapes=()=>window.LANDSCAPES?Object.values(window.LANDSCAPES):[],cards=()=>typeof CARDS!=='undefined'&&Array.isArray(CARDS)?CARDS:(window.CARDS||[]);
@@ -700,8 +700,10 @@ window.fateCompleteWarfrontMatch=(view,outcome)=>{
         state.service ||= {};const service=state.service[uid] ||= {...clone(z[team]),team,zoneId:z.id,matchIds:[]};
         const id=String(view.state.matchId)+(view.state.warfrontForfeit?'-forfeit':'');
         if(!service.matchIds.includes(id))service.matchIds.push(id);
-        releasedWarfrontSeat={mapCode:req.mapCode,zoneId:z.id,team,uid,matchId:id};
-        z[team]=null;
+        if(service.matchIds.length<5){
+          releasedWarfrontSeat={mapCode:req.mapCode,zoneId:z.id,team,uid,matchId:id};
+          z[team]=null;
+        }else releasedWarfrontSeat=null;
         if(z.activeMatch?.matchId===view.state.matchId)z.activeMatch=null;
         save({remote:false});rerender();
       }

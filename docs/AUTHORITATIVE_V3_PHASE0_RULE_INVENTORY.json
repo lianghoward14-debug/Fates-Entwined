@@ -2499,28 +2499,24 @@
     },
     {
       "cardId": "84",
-      "name": "Květka Svoboda",
-      "type": "Dauntless",
+      "name": "Květka Svoboda (Youth)",
+      "type": "Initiator",
       "affiliation": "expanded_worlds",
-      "abilityText": "When set, add any Expanded Worlds Character card from the deck to the hand and set it at no cost, excluding copies of this card.",
+      "abilityText": "This card always appears in your opening hand. When set, if your original deck list contains no cards with a Draw effect, search your deck for any card and add it to your hand.",
       "abilityTiming": [
         "WHEN_SET"
       ],
       "effectFamilies": [
-        "DRAW_AND_SEARCH",
-        "PLACEMENT_EFFECTS"
+        "DRAW_AND_SEARCH"
       ],
       "operations": [
-        "SEARCH_DECK",
-        "SET_CARD"
+        "SEARCH_DECK"
       ],
       "promptTypes": [],
       "triggerSubscriptions": [
         "CARD_SET"
       ],
-      "modifiers": [
-        "CONSOLIDATION_COST_OR_VALUE"
-      ],
+      "modifiers": [],
       "customHandler": "legacy-card:84",
       "coverageDeclaration": "phase-0-classified",
       "implementationStatus": "isolated-v3-prototype",

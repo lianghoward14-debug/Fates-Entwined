@@ -769,7 +769,7 @@ const REGISTRY = Object.freeze({
     prompts:[]
   },
   '26':{
-    timings:['ACTIVATE'],
+    timings:['WHEN_SET'],
     operations:['REVEAL_HAND'],
     prompts:[],
     program:[{kind:'OPERATION', operation:{type:'REVEAL_HAND', viewerPlayerIndex:'$controller', targetPlayerIndex:'$opponent'}}]
@@ -1821,6 +1821,31 @@ const REGISTRY = Object.freeze({
     prompts:[],
     program:[{kind:'PROC_ZONE_CONDITIONAL_FATE_TRIGGERS',minimumTurn:18}]
   },
+  '101':{
+    timings:['PASSIVE','TURN_BOUNDARY'],
+    effectLabels:['ADJACENT_DIAGONAL_TURN_FATE','ADJACENT_DIAGONAL_OPPONENT_EFFECT_IMMUNITY'],
+    operations:['MODIFY_FATE'],
+    triggerSubscriptions:['TURN_STARTED'],
+    prompts:[],
+    program:[]
+  },
+  '102':{
+    timings:['ACTIVATE'],effectLabels:['HIDDEN_NEXT_OPPONENT_TURN_SQUARE_TRAP','OPTIONAL_FACE_DOWN_ENTRY'],
+    operations:['CREATE_SQUARE_STATUS','DISCARD_CARD'],prompts:['BOARD_DESTINATION'],manualOnly:true,maxUses:1,
+    program:[
+      {kind:'SELECT_DESTINATION',local:'destination',filter:{includeOccupied:true}},
+      {kind:'OPERATION',operation:{type:'CREATE_SQUARE_STATUS',destination:'$destination',statusType:'HIDDEN_BOMB_TRAP',playerIndex:'$controller',targetPlayer:'$opponent',triggerTurnOffset:1,privateToOwner:true}}
+    ]
+  },
+  '103':{
+    timings:['WHEN_SET'],effectLabels:['MORALE_PAYMENT','DRAW_EFFECT'],
+    operations:['MODIFY_MORALE','DRAW_CARD'],prompts:['MODAL_CHOICE'],
+    program:[
+      {kind:'CHOOSE_OPTION',local:'moralePayment',maxByControllerMorale:true,options:[15,30,45,60,75,90,105,120,135,150,165,180,195]},
+      {kind:'OPERATION',operation:{type:'MODIFY_MORALE',playerIndex:'$controller',amount:{multiply:['$moralePayment',-1]},reason:'SANGRE_POR_VICTORIA_COST'}},
+      {kind:'OPERATION',operation:{type:'DRAW_CARD',playerIndex:'$controller',count:{divide:['$moralePayment',15]},activatedEffect:true,reason:'SANGRE_POR_VICTORIA_DRAW'}}
+    ]
+  },
   'test-p3-chain':{
     testOnly:true,
     timings:['ACTIVATE'],
@@ -1950,8 +1975,14 @@ export function hasTiming(cardId, timing, state = null){
   return !!cardRule(cardId, state)?.timings?.includes(String(timing || ''));
 }
 
+// Keep retired implementations registered for reactivation and regression tests,
+// while preventing them from entering authoritative multiplayer decks.
+const TEMPORARILY_RETIRED_CARD_IDS = new Set(['101', '102', '103']);
+
 export function multiplayerEligibleCardIds(){
-  return Object.keys(REGISTRY).filter(id=>REGISTRY[id]?.testOnly !== true).sort();
+  return Object.keys(REGISTRY)
+    .filter(id=>REGISTRY[id]?.testOnly !== true && !TEMPORARILY_RETIRED_CARD_IDS.has(id))
+    .sort();
 }
 
 export function cardCoverageInventory(cardDefinitions = []){
