@@ -86,7 +86,6 @@ const FATE_SAMPLE_SFX = {
   cardHover: {src:'soundeffects/codex-redesign/card_select_fate_thread.wav', gain:0.34},
   boardCardClick: {src:'soundeffects/codex-redesign/board_card_coin_cascade.wav', gain:0.68},
   supporterSet: {src:'soundeffects/codex-redesign/supporter_gold_inlay.wav', gain:0.92},
-  consolidate: {src:'soundeffects/codex-redesign/consolidation_fate_seal.wav', gain:0.96},
   consolidationModeOn: {src:'soundeffects/codex-redesign/consolidation_ritual_mark.wav', gain:0.82},
   consolidationModeOff: {src:'soundeffects/codex-redesign/menu_close_soft_lock.wav', gain:0.66},
   discard: {src:'soundeffects/codex-redesign/discard_deck_coffin.wav', gain:0.9},

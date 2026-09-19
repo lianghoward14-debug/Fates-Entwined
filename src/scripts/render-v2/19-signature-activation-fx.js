@@ -1,5 +1,10 @@
 (function(){'use strict';if(window.FateSignatureActivationFx)return;
 const studies={
+"bh03":["bh03","Ali, The Indomitable","He, Who is Unyielding","Unbreakable — three arrow strikes","ali_unbreakable","#b7cdd5",2000],
+"77":["77","Duncan Heyward","A Hundred Lives of Men","Canyon river","approved","#cbb6a3",2000],
+"100":["100","Felicyta and Květka (Youth)","Wintertide","Snowfall in the mountain pines","approved","#add7e6",2000],
+"bh18":["bh18","Jimmy (Post-Cynthia Hug)","The Genesis of all Inceldom","Rage","approved","#f0a083",2000],
+'bh17':['bh17','Jakob Eltzholtz','Crushing Momentum','The battering ram strikes','approved','#bfaddf',2000],
 "15":["15","Zsofia Szocs","Blue Danube Waltz","The embroidered rosette blooms","approved","#daa6ba",2000],
 "34":["34","Rozsi Szocs","Hungarian Dance","The Hungarian dancing silhouettes","approved","#d88b94",2000],
 "55":["55","Bobby Jones","Cosmic Convergence","The four-arm spiral galaxy","approved","#a5bde9",2000],
@@ -44,13 +49,13 @@ const studies={
  "bh10":["bh10","Francisek","Chauffeur","A passenger from the catalog","approved","#b4dddf",2000],
  "bh14":["bh14","Chloe Kirk","Charter of the United Nations","One declaration, many cards","approved","#a3c8f4",2000],
  "07":["07","Maja Kaminska","Oblique Order","Tank advance","approved","#b6d9de",2000],
- "82":["82","Felicyta Janowicz (Youth)","A Quaint Polish Village","The snowflake mechanism","approved","#a6dfff",2000],
+ "82":["82","Felicyta Janowicz (Youth)","A Quaint Polish Village","Winter in glass","approved","#a6dfff",2000],
  "bh06":["bh06","Achille Laurent","Adaptive Tactics","Three adaptive tokens","approved","#a9c9ef",2000],
- "bh16":["bh16","Li-Hua (Battle-Ready)","Storm of Ten Thousand Blades","Storm of blades","approved","#82cfff",2000],
+ "bh16":["bh16","Li-Hua (Battle-Ready)","Storm of Ten Thousand Blades","Blade-driven tearing sweeps","approved","#82cfff",2000],
  "21":["21","Henry Dong","The Last Revolution","Break the chain","approved","#ee847c",2000],
  "29":["29","Dylan Kirby","Leader of the Free World","Wings of the free world","approved","#89bfff",2000],
  "30":["30","Santiago","El Matador del Mares","The piercing tide","approved","#fa8e83",2000],
- "84":["84","Květka Svoboda (Youth)","Flower Picking","The snowflake mechanism","approved","#c6e9a0",2000],
+ "84":["84","Květka Svoboda (Youth)","Flower Picking","Winter butterfly garden","approved","#c6e9a0",2000],
  "99":["99","Rozsi and Zsofia (Youth)","The Blame Game","The accusation scales","approved","#d4acfa",2000],
  '08':['08','Lina','Autistic Femcel Rizz','Reality Aperture','glitch','#c5a1ff',2000],
  '43':['43','Mark Kemper','Elephant Movie 2',"An impossible elephant",'approved','#f1c68d',2000],
@@ -89,7 +94,17 @@ function draw(){const d=study,k=d[4],col=cardPalettes[id]?.[0]||d[5],gold=cardPa
 if(false){ring(x,y,s*.7,s*.7,col,.65);txt('ACTIVATE EFFECT',x,y+5,18,gold);return;}
 if(window.FateApprovedActivationArt?.handles(id)){window.FateApprovedActivationArt.draw(ctx,id,t,W,H);return;}
 glow(x,y,s*1.9,col,a*.13);
-if(k==='pierogi'){
+if(k==='ali_unbreakable'){
+ctx.save();ctx.translate(x,y);ctx.scale(1.3,1.3);
+const steel='#b7cdd5';
+function line(p,col=gold,alpha=a,w=1.5,close=false){ctx.beginPath();p.forEach((v,i)=>i?ctx.lineTo(...v):ctx.moveTo(...v));if(close)ctx.closePath();ctx.strokeStyle=col;ctx.globalAlpha=clamp(alpha*.34);ctx.lineWidth=w+4;ctx.shadowColor=col;ctx.shadowBlur=7;ctx.stroke();ctx.globalAlpha=clamp(alpha*1.2);ctx.lineWidth=w;ctx.shadowBlur=0;ctx.stroke();}
+function ring(x,y,r,col=gold,alpha=a,start=0,end=Math.PI*2){const p=[];for(let i=0;i<=70;i++){const q=start+(end-start)*i/70;p.push([x+Math.cos(q)*r,y+Math.sin(q)*r])}line(p,col,alpha)}
+function burst(x,y,q){if(q<=0||q>=1)return;for(let j=0;j<22;j++){const z=j*2.39996,r=(14+j%7*7)*ease(q),l=5*(1-q);line([[x+Math.cos(z)*r,y+Math.sin(z)*r],[x+Math.cos(z)*(r-l),y+Math.sin(z)*(r-l)]],gold,(1-q)*a,1)}}
+const shield=[[-43,-47],[0,-62],[43,-47],[39,5],[26,36],[0,59],[-26,36],[-39,5],[-43,-47]];
+{const u=ease(seg(t,0,.3));line(shield.map(p=>p.map(v=>v*u)),steel,a,2);line([[-27,-34],[0,-44],[27,-34],[23,4],[0,36],[-23,4],[-27,-34]],gold,a*seg(t,.15,.3));for(let j=0;j<3;j++){const q=seg(t,.26+j*.13,.43+j*.13),side=j%2?1:-1,yy=-24+j*23;if(q>0&&q<1){const hit=yy<5?43-(yy+47)*4/52:39-(yy-5)*13/31;const xx=side*(106-(106-hit)*ease(Math.min(1,q*2))),alpha=a*(1-seg(q,.5,1));line([[xx+side*28,yy],[xx,yy]],gold,alpha,1.8);line([[xx+side*8,yy-5],[xx,yy],[xx+side*8,yy+5]],gold,alpha,1.8);line([[xx+side*28,yy-5],[xx+side*22,yy],[xx+side*28,yy+5]],gold,alpha,1.4);burst(side*hit,yy,seg(q,.5,1))}}ring(0,0,65+18*ease(seg(t,.66,.9)),steel,a*(1-seg(t,.65,.9))*.35);}
+
+ctx.restore();
+}else if(k==='pierogi'){
  for(let j=0;j<7;j++){const v=seg(t,.04+j*.045,.62+j*.035),xx=x-s*1.2+v*s*2.4,yy=y+(j%3-1)*s*.38-Math.sin(v*PI)*s*.65;ctx.save();ctx.translate(xx,yy);ctx.rotate(v*2+j*.4);ring(0,0,17,11,col,a,0,0,PI);line([[-17,0],[17,0]],gold,a,2);for(let n=0;n<5;n++){const z=(n+.5)*PI/5;line([[Math.cos(z)*14,Math.sin(z)*8],[Math.cos(z)*18,Math.sin(z)*12]],gold,a);}ctx.restore();}spark(x+s*.8,y,s,seg(t,.6,1),col,24);
 }else if(k==='accord'){
  for(let j=0;j<4;j++){const z=j*TAU/4-PI/4,xx=x+Math.cos(z)*s*.85*u,yy=y+Math.sin(z)*s*.85*u;polygon(xx,yy,19*u,4,PI/4,col,a);line([[xx,yy],[x,y]],gold,a*seg(t,.25,.6),2);ring(xx,yy,25*u,25*u,gold,a*.45);}polygon(x,y,23*u,8,t*.35,gold,a);ring(x,y,s*1.1*u,s*1.1*u,col,a*.5);spark(x,y,s*1.4,seg(t,.58,1),gold);
@@ -176,8 +191,12 @@ function playSignatureSound(cardId){if(window.FateApprovedActivationSfx?.handles
 function dispose(){if(disposed)return;disposed=true;signatureSound?.stop();cancelAnimationFrame(raf);removeEventListener('resize',resize)}
  function tick(now){if(disposed)return;if(!overlay.isConnected){dispose();return}try{t=clamp((now-start)/Math.max(1,Number(options?.duration)||study[6]));draw();if(t<1)raf=requestAnimationFrame(tick)}catch(e){dispose();overlay.replaceChildren(...previous)}}
 resize();addEventListener('resize',resize);return{start(){if(started||disposed)return;started=true;start=performance.now();if(options?.sfx!==false)playSignatureSound(id);raf=requestAnimationFrame(tick)},dispose}}
+function playPlacement(card,options={}){
+ if(String(card?.id||'')!=='89')return false;
+ return playCoordinator(card,{...options,placement:true});
+}
 function playCoordinator(card,options={}){
- if(!['01','bh07','bh11','10','19','bh12','11','bh02','bh08','57','12','23','15','34'].includes(String(card?.id||'')))return false;
+ if(!(options.placement===true && String(card?.id||'')==='89') && !['01','bh07','bh11','10','19','bh12','11','bh02','bh08','57','12','23','15','34','77'].includes(String(card?.id||'')))return false;
  if(card.faceDown || (typeof window.isHiddenEffectForViewer==='function' && window.isHiddenEffectForViewer(card)))return false;
  if(document.documentElement.classList.contains('fate-animations-off') || document.documentElement.classList.contains('fate-super-performance-mode') || document.hidden)return false;
  const overlay=document.createElement('div');overlay.style.cssText='position:fixed;inset:0;pointer-events:none;z-index:12990';overlay.setAttribute('aria-hidden','true');
@@ -189,7 +208,7 @@ function playCoordinator(card,options={}){
  let ended=false;function finish(){if(ended)return;ended=true;fx.dispose();overlay.remove();document.removeEventListener('visibilitychange',hidden);if(state && state._coordinatorSignatureUntil===until)state._coordinatorSignatureUntil=0;}
  function hidden(){if(document.hidden)finish();}document.addEventListener('visibilitychange',hidden);setTimeout(finish,2000);return true;
 }
-window.FateSignatureActivationFx={mount,playCoordinator,approved:Object.keys(studies),durationFor:card=>studies[String(card?.id||'')]?.[6]||0};})();
+window.FateSignatureActivationFx={mount,playCoordinator,playPlacement,approved:Object.keys(studies),durationFor:card=>studies[String(card?.id||'')]?.[6]||0};})();
 
 
 

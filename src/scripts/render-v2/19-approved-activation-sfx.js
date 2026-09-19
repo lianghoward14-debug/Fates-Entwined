@@ -3,6 +3,10 @@
   // Cue times follow the reviewed two-second visual beats. Each character gets
   // a distinct attack, material texture and finishing accent.
   const cues={
+ '77':[['wind',.04,.85,540],['water',.4,.85,440],['water',1.05,.84,610]],
+ '100':[['wind',.04,.88,1150],['wind',.55,.84,1450],['ping',.74,.6,790],['wind',1.17,.72,950]],
+ 'bh18':[['rumble',.04,.85,72],['rise',.22,.7,130],['hit',.76,.33,65],['crack',1.02,.35,640],['rumble',1.3,.59,86]],
+ 'bh17':[['rumble',.05,.94,78],['metal',.24,.3,185],['metal',.58,.32,220],['hit',1.12,.46, 60],['crack',1.19,.46,760],['rumble',1.43,.48,90]],
  '15':[['ping',.12,.5,392],['ping',.32,.5,494],['ping',.52,.5,587],['ping',.78,.5,659],['chord',1.14,.7,392]],
  '34':[['metal',.08,.38,294],['metal',.35,.38,370],['metal',.62,.38,440],['metal',.9,.38,587],['chord',1.23,.61,440]],
  '55':[['rise',.04,.9,160],['ping',.3,.54,330],['ping',.57,.58,494],['ping',.83,.6,660],['chord',1.2,.67,220]],
@@ -70,11 +74,13 @@
     'bh06':[['metal',.14,.38,330],['rise',.4,.42,250],['metal',.69,.38,440],['rise',.88,.4,330],['chord',1.25,.55,523]],
     'bh10':[['rumble',.03,.72,100],['rise',.14,.65,100],['hit',.74,.23,130],['paper',.91,.3,1800],['chord',1.21,.59,330]],
     'bh14':[['paper',.08,.36,1700],['hit',.56,.34,85],['metal',.57,.37,390],['ping',.9,.42,523],['ping',1.05,.42,659],['chord',1.23,.55,392]],
-    'bh16':[['wind',.02,.45,1800],['metal',.24,.29,470],['wind',.42,.48,2300],['metal',.67,.32,630],['wind',.83,.52,1500],['hit',1.13,.34,90],['metal',1.18,.6,790]]
+    'bh16':[['wind',.14,.58,1250],['metal',.37,.32,480],['wind',.52,.61,1650],['metal',.76,.32,620],['wind',.9,.65,2050],['metal',1.16,.4,790],['crack',1.41,.35,1150]]
   };
   // Motion beds are individually scored against normalized visual time, not a
   // generic opening sting. [material, pitch, peak time, pulse count, pan travel].
   const motion={
+ '77':['surf',410,.58,3,.4], '100':['sand',990,.57,4,.3], 'bh18':['engine',85,.56,5,0],
+ 'bh17':['engine',85,.58,7,.65],
  '15':['glass',392,.57,6,.5], '34':['paper',460,.58,6,.6],
  '55':['glass',190,.59,4,.7], '85':['sand',560,.62,3,.6], '36':['steel',190,.49,3,0], 'bh02':['electric',520,.46,3,.3],
  'bh08':['silk',300,.6,5,.15], '57':['steel',310,.5,12,.3], '12':['wing',630,.47,3,.4], '23':['glass',440,.57,5,.5],
@@ -103,7 +109,7 @@
     'bh01':['surf',440,.5,3,.5], 'bh05':['paper',1150,.47,2,.6],
     'bh06':['electric',280,.52,3,.6], 'bh09':['steel',500,.51,2,.85],
     'bh10':['engine',105,.48,7,.7], 'bh13':['paper',1100,.48,3,0],
-    'bh14':['paper',970,.36,4,.5], 'bh16':['steel',680,.56,8,-.8],
+    'bh14':['paper',970,.36,4,.5], 'bh16':['steel',680,.52,3,-.8],
     'bh19':['electric',175,.6,5,0], 'bh20':['wing',590,.57,6,.65],
     'bh21':['sand',620,.54,4,.55], 'bh22':['glass',440,.56,3,0]
   };
@@ -130,6 +136,8 @@
     // Physical textures follow each score's existing motion beats. These replace
     // shared synth chords; Jorge retains his established sea score unchanged.
     const themes={
+ '77':'river','100':'ice','bh18':'stone',
+ 'bh17':'stone',
       '15':'harp','34':'dance',
       '55':'space','85':'specter','36':'chain','bh02':'mechanism','bh08':'chuckle','57':'mechanism','12':'wing','23':'harp',
       '41':'glass','89':'ice',
@@ -145,7 +153,7 @@
     const preserveOriginal=['06','27','84','86','45','29'].includes(String(id));
     const theme=preserveOriginal?null:themes[String(id)];
     const materialGain={dance:2.5,specter:2.5,chuckle:3,garden:3,writing:4,eraser:4,cloth:3.8,circuit:5,charge:5,origami:2.2,parchment:2.5,wind:2.2,flutter:3.3,rope:2.3,net:2.3,dough:2.1,sailing:2.5,maelstrom:2.2,wing:1.7,engine:1.5,chain:1.8,blade:1.4,sizzle:2,sand:1.8,glitch:2,rifle:1.3,wood:1.4};
-    if(theme)out.gain.setValueAtTime(Math.min(1,volume)*.72*(materialGain[theme]||1),now);
+    if(theme)out.gain.setValueAtTime(Math.min(1,volume)*.72*(materialGain[theme]||1)*(String(id)==='77'?1.8:1),now);
     function materialVoice(material,at,dur,f,level,role){
       dur=Math.min(dur,1.94-at);if(dur<=0)return;
       const source=ac.createBufferSource(),buffer=ac.createBuffer(1,Math.ceil(ac.sampleRate*dur),ac.sampleRate),data=buffer.getChannelData(0);
@@ -261,7 +269,7 @@
       '83':[.35,.51,.67,.83,1.3], '87':[1.00,1.063,1.125,1.188,1.251,1.314,1.377,1.47,1.54,1.61],
       '90':[.34,.46,.58,.7,.82,.94,1.24], 'bh06':[.39,.83,1.25],
       'bh13':[.57,.79,1.01,1.48], 'bh14':[.7,1.03,1.18,1.33],
-      'bh16':[.29,.44,.59,.74,.89,1.04,1.19,1.34], 'bh19':[.46,.6,.74,.88,1.02],
+      'bh16':[.42,.82,1.22], 'bh19':[.46,.6,.74,.88,1.02],
       'bh20':[.31,.64,.97,1.3,1.63], 'bh22':[.58,.86,1.18,1.47]
     }[String(id)]||(preserveOriginal?[.47,.89,1.37]:[]);
     cueLevel=.28;
@@ -288,3 +296,4 @@
   }
   window.FateApprovedActivationSfx={play,schedule,handles:id=>Object.hasOwn(cues,String(id)),ids:Object.keys(cues)};
 })();
+

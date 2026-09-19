@@ -3,7 +3,7 @@ import {namedWarfrontDeck,warfrontAiProfile} from './warfront-ai-profile.mjs';
 const require=createRequire(import.meta.url);
 const {getDeckCatalog}=require('../fate-deck-catalog.js');
 const {getCardCatalog}=require('../fate-card-catalog.js');
-const STATS_VERSION=3;
+const STATS_VERSION=4;
 const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
 function deckProfile(player={}){
   const decks=getDeckCatalog().decks;
@@ -47,7 +47,7 @@ export function addWarfrontSimulatedStats(match){
   for(const team of ['a','b']){
     const {deck,skill,execution}=sides[team];
     playerStats[team]={totalFateGenerated:losingFate+(team===match.winnerTeam?margin:0),fateDifferential:team===match.winnerTeam?margin:0,
-      consolidations:clamp(Math.round(6+10*clamp(deck.consolidation*.35+execution*.45+skill*.1+(random()-.5)*.6,0,1)),6,16),durationMs};
+      consolidations:clamp(Math.round(6+14*clamp(deck.consolidation*.35+execution*.45+skill*.1+(random()-.5)*.6,0,1)),6,20),durationMs};
     statModel[team]={deckId:deck.id,execution};
   }
   return Object.assign(match,{statsSource:'simulated',statsVersion:STATS_VERSION,statModel,playerStats,stats:{...playerStats[match.winnerTeam]}});

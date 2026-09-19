@@ -1,3 +1,4 @@
+import warfrontMaps from '../../shared/warfront-maps.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -120,6 +121,7 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
       clean.bansLocked=clean.bansLocked&&typeof clean.bansLocked==='object'?clean.bansLocked:{a:false,b:false};
       return clean;
     });
+    warfrontMaps.apply(next,warfrontMaps.get(next.mapId));
     return next;
   }
   function mergeWarfrontState(current,incoming){
@@ -304,6 +306,7 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
     if(!current) throw new Error('Warfront event is not initialized');
     const sequence=Math.max(1,Number(current.sequence)||1)+1;
     warfrontEvent={...clone(current),sequence,mapCode:`WF-${String(sequence).padStart(2,'0')}-${crypto.randomBytes(2).toString('hex').slice(0,3).toUpperCase()}`,status:'enrollment',humanOnly,service:{},waitingAI:[],createdAt:Date.now(),startedAt:0,endsAt:0,nextTeam:null,lastResult:null,postWarUntil:0,zones:current.zones.map(zone=>({id:zone.id,a:null,b:null,matches:[],landscape:clone(zone.landscape||null),bans:{a:[],b:[]},bansLocked:{a:false,b:false}})),archives:(current.archives||[]).slice(0,30),_syncRevision:Number(current._syncRevision||0)+1,_updatedAt:Date.now()};
+    warfrontMaps.apply(warfrontEvent,warfrontMaps.pick(current.mapId));
     warfrontBindings.clear();persist();return warfrontStateForClient();
   }
   function finishWarfrontEvent(){
@@ -316,7 +319,7 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
     const players=[];for(const zone of completed.zones)for(const team of ['a','b'])if(zone[team])players.push({...clone(zone[team]),team,zoneId:zone.id,matches:zoneScore(zone).played,wins:zoneScore(zone)[team],losses:zoneScore(zone)[team==='a'?'b':'a']});
     for(const entry of Object.values(completed.service||{})){const index=players.findIndex(p=>p.uid===entry.uid);const wins=completed.zones.reduce((n,z)=>n+z.matches.filter(m=>m.participants?.[entry.team]?.uid===entry.uid&&m.winnerTeam===entry.team&&!m.voidedByForfeit).length,0);const {matchIds,...person}=entry;const row={...person,matches:matchIds.length,wins,losses:matchIds.length-wins};if(index>=0)players[index]=row;else players.push(row);}
     for(const player of players)Object.assign(player,playerStats(player.uid));
-    const report={mapCode:completed.mapCode,sequence:completed.sequence,startedAt:completed.startedAt,completedAt:Date.now(),reason:'command',teams:clone(completed.teams),score,winner:score.a===score.b?'draw':score.a>score.b?'a':'b',players,zones:clone(completed.zones),achievements,matches:completed.zones.reduce((sum,zone)=>sum+zoneScore(zone).played,0)};
+    const report={mapId:completed.mapId,mapName:completed.mapName,mapCode:completed.mapCode,sequence:completed.sequence,startedAt:completed.startedAt,completedAt:Date.now(),reason:'command',teams:clone(completed.teams),score,winner:score.a===score.b?'draw':score.a>score.b?'a':'b',players,zones:clone(completed.zones),achievements,matches:completed.zones.reduce((sum,zone)=>sum+zoneScore(zone).played,0)};
     const sequence=Math.max(1,Number(completed.sequence)||1)+1;
     warfrontEvent={...completed,status:'results',lastResult:report,postWarUntil:report.completedAt+WARFRONT_PHASE_MS,archives:[report,...(completed.archives||[])].slice(0,30),_syncRevision:Number(completed._syncRevision||0)+1,_updatedAt:Date.now()};
     for(const player of players){

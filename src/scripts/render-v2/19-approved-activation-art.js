@@ -1,6 +1,6 @@
 (function(){'use strict';
 // Approved two-second designs, copied exactly from the reviewed samples.
-const names=[["01","Felicyta Janowicz","The eagle claims the crown","#fff0ef"],["bh07","Agent-K","The core goes live","#b5c8f2"],["bh11","Felicyta Janowicz (University)","The sealed accord","#f3e7e4"],["45","Chingachlook","Sunset over the mountains","#c6baaa"],["22","Isaac Perez","Excited nucleus","#77b8ff"],["02","Anicka Konvicka","The starlit orbit","#a9d8f4"],["86","Boleslaw Kopewicz","Cascading fireworks","#eab2ec"],["bh04","Anicka Konvicka (Selva Island)","Eye of the maelstrom","#8fd9ed"],["bh20","Makenna (Bird Cult)","Three birds in flight","#acd9ed"],["bh19","Abed","Double charge","#b9dfa1"],["bh01","Anicka Konvicka (Voyager)","A voyage at sunrise","#a4dede"],["14","Alondra Hopkins","Clear the perimeter","#eea697"],["bh09","Alondra Hopkins (Mercenary)","Spear orbit","#eea697"],["66","Mark Menz","The seal of allegiance","#beb5ef"],["87","Květka Svoboda (Ukulele)","The written melody","#c7dfa1"],["67","Mr. Secules","You just said nothing","#efa899"],["bh21","Oktai","The high desert sun","#e9b77a"],["38","Jake","The perfect stack","#edbd82"],["bh22","Jaime","The healing crescent","#a1d7ee"],["56","Lydia","Sever the spell","#ef6571"],["bh05","Taylor","The unfolding double","#b6a9ec"],["bh13","Hugh Roberts","The gilded portfolio","#b7dfa7"],["61","Maria Song","Precise Shot","#ff929b"],["13","Johnathan Kirby","Signed Christmas Charter","#ecd09a"],["43","Mark Kemper","An impossible elephant","#f1c68d"],["51","Rivera","The binding promise","#7ed6c0"],["81","Wojciech","Fold, crimp, scatter","#f3cc8b"],["83","Sebastyen Janowicz","Pillars of Visegrad","#efa7ae"],["90","Wojciech (Fisherman)","The constellation net","#80d9d4"],["21","Henry Dong","Break the chain","#ee847c"],["29","Dylan Kirby","Wings of the free world","#89bfff"],["30","Santiago","The piercing tide","#fa8e83"],["84","Květka Svoboda (Youth)","The snowflake mechanism","#c6e9a0"],["99","Rozsi and Zsofia (Youth)","The accusation scales","#d4acfa"],["07","Maja Kaminska","Tank advance","#b6d9de"],["82","Felicyta Janowicz (Youth)","The snowflake mechanism","#a6dfff"],["bh06","Achille Laurent","Three adaptive tokens","#a9c9ef"],["bh16","Li-Hua (Battle-Ready)","Storm of blades","#82cfff"],["bh10","Francisek","A passenger from the catalog","#b4dddf"],["bh14","Chloe Kirk","One declaration, many cards","#a3c8f4"],["10","Post-Modernist Dylan","Six fragments collapse","#c99ae9"],["19","Květka Svoboda","The bridge over the Vltava","#a0d5bc"],["bh12","Louis LeJeune","The seven-petal coronation","#b5d790"],["35","Alexander the Magnificient","The shield and growing laurels","#e2af79"],["88","Rozsi Szocs (Youth)","A Carpathian winter tale","#a9c8e9"],["11","Anne Stone","Three treaties fall into place","#99d5d0"],["46","Phil","The crowned empire rises","#c0a5e4"],["41","Jimmy","The fractured reflection","#d393a7"],["89","Zsofia Szocs (Youth)","The frost-set tiara","#d1b0e4"],["55","Bobby Jones","The four-arm spiral galaxy","#a5bde9"],["85","Felicyta Janowicz (Specters)","Three ghosts rise","#b0d6dc"],["36","Marie L’amboure","Three shields lock together","#afc7be"],["bh02","Joie","Instagram comes into focus","#dc9bbb"],["bh08","Maja Kaminska (University)","The smirk breaks into laughter","#e2b68d"],["57","Jeremiah Jones","The alpine clockwork","#b5c0e3"],["12","Makenna","The winged military insignia","#b3c59d"],["23","Cathy","The geometric fan unfolds","#d9aac9"],["15","Zsofia Szocs","The embroidered rosette blooms","#daa6ba"],["34","Rozsi Szocs","The Hungarian dancing silhouettes","#d88b94"]];
+const names=[["01","Felicyta Janowicz","The eagle claims the crown","#fff0ef"],["bh07","Agent-K","The core goes live","#b5c8f2"],["bh11","Felicyta Janowicz (University)","The sealed accord","#f3e7e4"],["45","Chingachlook","Sunset over the mountains","#c6baaa"],["22","Isaac Perez","Excited nucleus","#77b8ff"],["02","Anicka Konvicka","The starlit orbit","#a9d8f4"],["86","Boleslaw Kopewicz","Cascading fireworks","#eab2ec"],["bh04","Anicka Konvicka (Selva Island)","Eye of the maelstrom","#8fd9ed"],["bh20","Makenna (Bird Cult)","Three birds in flight","#acd9ed"],["bh19","Abed","Double charge","#b9dfa1"],["bh01","Anicka Konvicka (Voyager)","A voyage at sunrise","#a4dede"],["14","Alondra Hopkins","Clear the perimeter","#eea697"],["bh09","Alondra Hopkins (Mercenary)","Spear orbit","#eea697"],["66","Mark Menz","The seal of allegiance","#beb5ef"],["87","Květka Svoboda (Ukulele)","The written melody","#c7dfa1"],["67","Mr. Secules","You just said nothing","#efa899"],["bh21","Oktai","The high desert sun","#e9b77a"],["38","Jake","The perfect stack","#edbd82"],["bh22","Jaime","The healing crescent","#a1d7ee"],["56","Lydia","Sever the spell","#ef6571"],["bh05","Taylor","The unfolding double","#b6a9ec"],["bh13","Hugh Roberts","The gilded portfolio","#b7dfa7"],["61","Maria Song","Precise Shot","#ff929b"],["13","Johnathan Kirby","Signed Christmas Charter","#ecd09a"],["43","Mark Kemper","An impossible elephant","#f1c68d"],["51","Rivera","The binding promise","#7ed6c0"],["81","Wojciech","Fold, crimp, scatter","#f3cc8b"],["83","Sebastyen Janowicz","Pillars of Visegrad","#efa7ae"],["90","Wojciech (Fisherman)","The constellation net","#80d9d4"],["21","Henry Dong","Break the chain","#ee847c"],["29","Dylan Kirby","Wings of the free world","#89bfff"],["30","Santiago","The piercing tide","#fa8e83"],["84","Květka Svoboda (Youth)","Winter butterfly garden","#c6e9a0"],["99","Rozsi and Zsofia (Youth)","The accusation scales","#d4acfa"],["07","Maja Kaminska","Tank advance","#b6d9de"],["82","Felicyta Janowicz (Youth)","Winter in glass","#a6dfff"],["bh06","Achille Laurent","Three adaptive tokens","#a9c9ef"],["bh16","Li-Hua (Battle-Ready)","Blade-driven tearing sweeps","#82cfff"],["bh10","Francisek","A passenger from the catalog","#b4dddf"],["bh14","Chloe Kirk","One declaration, many cards","#a3c8f4"],["10","Post-Modernist Dylan","Six fragments collapse","#c99ae9"],["19","Květka Svoboda","The bridge over the Vltava","#a0d5bc"],["bh12","Louis LeJeune","The seven-petal coronation","#b5d790"],["35","Alexander the Magnificient","The shield and growing laurels","#e2af79"],["88","Rozsi Szocs (Youth)","A Carpathian winter tale","#a9c8e9"],["11","Anne Stone","Three treaties fall into place","#99d5d0"],["46","Phil","The crowned empire rises","#c0a5e4"],["41","Jimmy","The fractured reflection","#d393a7"],["89","Zsofia Szocs (Youth)","The frost-set tiara","#d1b0e4"],["55","Bobby Jones","The four-arm spiral galaxy","#a5bde9"],["85","Felicyta Janowicz (Specters)","Three ghosts rise","#b0d6dc"],["36","Marie L’amboure","Three shields lock together","#afc7be"],["bh02","Joie","Instagram comes into focus","#dc9bbb"],["bh08","Maja Kaminska (University)","The smirk breaks into laughter","#e2b68d"],["57","Jeremiah Jones","The alpine clockwork","#b5c0e3"],["12","Makenna","The winged military insignia","#b3c59d"],["23","Cathy","The geometric fan unfolds","#d9aac9"],["15","Zsofia Szocs","The embroidered rosette blooms","#daa6ba"],["34","Rozsi Szocs","The Hungarian dancing silhouettes","#d88b94"],["bh17","Jakob Eltzholtz","The battering ram strikes","#bfaddf"],["77","Duncan Heyward","Canyon river","#cbb6a3"],["100","Felicyta and Květka (Youth)","Snowfall in the mountain pines","#add7e6"],["bh18","Jimmy (Post-Cynthia Hug)","Rage","#f0a083"]];
 const cardPalettes={"13":["#edb052","#ffdf9b"],"14":["#d68c9d","#ead1c0"],"17":["#b9d675","#f3e8b8"],"21":["#db6871","#ead4bb"],"22":["#e4c659","#a7d9f1"],"29":["#8cacd2","#ecbfc3"],"30":["#cedee4","#e5a48f"],"38":["#ed9e60","#eccc8e"],"39":["#dbc477","#92cbbd"],"40":["#bfc575","#e6a367"],"43":["#81b5df","#d2e6f5"],"45":["#d7b196","#edbe7d"],"48":["#ae99dc","#a2d2e6"],"51":["#88d19d","#d8edac"],"56":["#719ce8","#eed075"],"66":["#cbd170","#eece9c"],"67":["#b89de2","#d7e4fc"],"81":["#b5cd8a","#efd4a1"],"82":["#8bb8df","#e1efff"],"83":["#a8c878","#dfddb0"],"87":["#cf9dcd","#e8c58e"],"90":["#78acd1","#bae0db"],"99":["#e1a581","#f0d29e"],"01":["#fff1ee","#e25b65"],"bh11":["#f2ede8","#c74858"],"bh07":["#b4c4f0","#80d2db"],"02":["#77d6e3","#d9f1f2"],"03":["#e1ac56","#e7d1b3"],"04":["#b594ed","#e5c9ff"],"07":["#799feb","#d3e3f6"],"08":["#edce61","#a9d3f0"],"bh04":["#8faec9","#dcb184"],"bh05":["#d296ad","#e0bea5"],"bh06":["#8faeee","#dca6a2"],"bh09":["#b8d48e","#e6d9a6"],"bh10":["#8abea1","#ccd4b1"],"bh13":["#d2ad7a","#eed6a3"],"bh14":["#8caaeb","#bddff1"],"bh16":["#82cfff","#b2bff5"],"bh20":["#c2dbea","#e8ce9e"],"bh22":["#b8a1ec","#92cde9"]};
 const clamp=x=>Math.max(0,Math.min(1,x)),seg=(t,a,b)=>clamp((t-a)/(b-a)),ease=x=>1-(1-clamp(x))**3,PI=Math.PI,TAU=PI*2;
 function draw(ctx,id,t,w=700,h=430){
@@ -33,7 +33,74 @@ function approvedSparks(x,y,r,p){for(let j=0;j<12;j++){const z=j*2.4;star(x+Math
 function snowfall(strength=1){for(let j=0;j<28;j++){const x=-130+(j*47%260)+Math.sin(t*6+j)*9,y=-113+((j*31+t*(68+j%3*15))%218);if(j%5===0){for(let k=0;k<3;k++){const z=k*PI/3;line([[x-Math.cos(z)*3,y-Math.sin(z)*3],[x+Math.cos(z)*3,y+Math.sin(z)*3]],'#d9f2ff',a*.65*strength);}}else oval(x,y,1,1,'#d9f2ff',a*.55*strength);}}
 function laurel(side,p){curve(v=>[side*(52+24*Math.sin(v*PI)),68-132*v],p,gold,a);for(let j=0;j<6;j++){const v=(j+.3)/6;if(v>p)continue;at(side*(52+24*Math.sin(v*PI)),68-132*v,side*(-.8+v*.6),()=>{oval(side*6,-4,5,12,color,a);});}}
 function winterFlakes(level=.7){for(let j=0;j<25;j++){const x=-126+(j*47%252)+Math.sin(t*5+j)*7,y=-115+(j*31+t*89)%223;if(j%4===0)star(x,y,2.3,'#d9f3ff',a*level);else oval(x,y,1,1,'#d9f3ff',a*level*.7);}}
-if(['15','34'].includes(id)){
+if(id==='77'){const previewId='77b';
+ const variant=previewId==='77'?0:previewId==='77b'?1:2,reveal=ease(seg(t,.04,.65)),sunY=-69+19*reveal,sunX=variant===1?-8:5;
+ oval(sunX,sunY,variant===2?32:25,variant===2?32:25,'#f2c77f',a*.95);
+ for(let j=0;j<7;j++){const z=.22+j*PI/8,rr=33+4*Math.sin(t*8+j);line([[sunX+Math.cos(z)*rr,sunY+Math.sin(z)*rr],[sunX+Math.cos(z)*(rr+25+12*reveal),sunY+Math.sin(z)*(rr+25+12*reveal)]],'#e8c78e',a*.24);}
+ for(const side of [-1,1])at(side*14*(1-reveal),0,0,()=>{
+ const pts=variant===0?[[137,105],[119,49],[105,8],[108,-71],[76,-88],[61,-68],[62,-14],[43,10],[37,62],[23,103]]:variant===1?[[140,105],[131,47],[106,35],[99,-43],[81,-60],[63,-48],[60,-13],[47,18],[42,56],[22,101]]:[[143,106],[123,47],[118,-30],[101,-77],[78,-92],[58,-73],[51,-30],[44,1],[33,56],[19,102]];
+ line(pts.map(([x,y])=>[x*side,y]),side<0?color:'#dfb697',a,2.2);
+ for(let j=0;j<4;j++)line([[side*(107+j*4),-39+j*33],[side*(85+j*2),-44+j*33],[side*(61-j*7),-31+j*34]],j%2?'#d9bb9c':color,a*.55);
+ 
+ });
+ if(variant===0)for(let j=0;j<2;j++)curve(v=>[-18+36*v,104-9*Math.sin(v*PI)+j*5],1,'#dbba8c',a*.6);
+ if(variant===1)for(let j=0;j<3;j++)curve(v=>[Math.sin(v*PI*1.8+t*.6)*14+(j-1)*(2+7*v),27+81*v],1,'#8dd5db',a*.8);
+ if(variant===2){for(let j=0;j<10;j++){const p=(t*.7+j/10)%1;star(-16+32*p,24+80*((j*.31+t*.32)%1),1.2,j%2?'#efcc91':'#cdb7e7',a*.65);}line([[-17,102],[0,93],[18,103]],'#e1bf8c',a*.6);}
+ }
+else if(id==='100'){const previewId='100';function snow(){for(let j=0;j<25;j++){const x=-127+(j*47%254)+5*Math.sin(t*5+j),y=-113+(j*31+t*78)%221;star(x,y,j%4?1:2.6,'#e0f4ff',a*.7);}}
+
+ const reveal=ease(seg(t,.04,.65));
+ at(0,10*(1-reveal),0,()=>{
+ line([[-138,49],[-77,-69],[-31,-10]],'#b9c9ec',a,2);
+ line([[-66,48],[18,-91],[93,26]],'#b9c9ec',a,2);
+ line([[93,26],[133,-29],[153,42]],'#b9c9ec',a,2);
+ line([[-101,-22],[-77,-69],[-49,-33],[-63,-40],[-76,-28],[-87,-38],[-101,-22]],'#edf5ff',a,1.8);
+ line([[-8,-48],[18,-91],[47,-45],[27,-53],[15,-41],[5,-51],[-8,-48]],'#e9f6ff',a,1.8);
+ line([[119,-10],[133,-29],[143,-9],[136,-13],[130,-5],[126,-13],[119,-10]],'#eaf5ff',a,1.8);
+ });
+ for(let j=0;j<5;j++){const x=[-111,-70,83,119,48][j],y=[78,90,84,96,101][j],s=[.73,.47,.7,.48,.35][j];at(x,y,Math.sin(t*5+j)*.025,()=>{ctx.scale(s,s);line([[0,9],[0,-91]],'#d7bd9c',a,2);for(let k=0;k<4;k++){const yy=-83+k*23,w=14+k*11;line([[-w,yy+25],[0,yy],[w,yy+25]],'#9bd5c6',a,2);line([[-w+3,yy+20],[0,yy+1],[w-3,yy+20]],'#e6f4fc',a*.9,1.6);}});}
+ for(let j=0;j<2;j++)curve(u=>[-146+292*u,101+j*8+Math.sin(u*PI*3+j)*5],1,'#d0e7f3',a*.55);
+ snow();
+}
+else if(id==='bh18'){const previewId='bh18b';
+ const v=previewId==='bh18'?0:previewId==='bh18b'?1:2,p=ease(seg(t,.07,.64)),heat=['#ed827f','#f5bb76','#d39abc'];
+ if(v===0){at(Math.sin(t*88)*2*p,8-17*p,0,()=>{line([[-48,34],[-55,0],[-53,-40],[-35,-49],[-22,-42],[-5,-49],[11,-42],[28,-46],[44,-34],[48,8],[32,43],[22,62],[-30,62],[-48,34]],color,a,2.4);for(let j=0;j<3;j++)line([[-29+j*23,-39],[-27+j*23,-12]],'#efbb8b',a,2);line([[-52,0],[-25,-5],[-4,14],[-19,33],[-41,24]],'#f1c591',a,2);});}
+ if(v===1){at(Math.sin(t*75)*2,0,0,()=>{oval(0,9,68,68,color,a,2.2);line([[-56,-20],[-22,-7],[-9,-12]],color,a,3);line([[56,-20],[22,-7],[9,-12]],color,a,3);line([[-46,-4],[-21,4],[-14,-3]],'#f6c685',a,2);line([[46,-4],[21,4],[14,-3]],'#f6c685',a,2);line([[-32,43],[-17,30],[17,30],[32,43],[-32,43]],'#e9aa99',a,2);for(let j=0;j<4;j++)line([[-19+j*13,31],[-19+j*13,41]],color,a);});}
+ if(v===2){for(let j=0;j<5;j++){const q=ease(seg(t,.1+j*.06,.58+j*.05)),x=(j-2)*29;curve(u=>[x+14*Math.sin(u*6+t*7+j),69-146*u*q],1,heat[j%3],a,2.5);}line([[-56,75],[-25,86],[4,76],[37,89],[62,73]],'#f5bd7c',a,2);}
+ for(let j=0;j<11;j++){const z=j*TAU/11,q=seg(t,.28+j%3*.1,.83+j%3*.05),r=72+36*q;line([[Math.cos(z)*r,Math.sin(z)*r*.8],[Math.cos(z)*(r+14+12*p),Math.sin(z)*(r+14+12*p)*.8]],heat[j%3],a*Math.sin(q*PI),2);}
+}
+else if(id==='bh16'){const previewId='bh16b';
+ const ice='#bdeeff',blue='#75bfdc',violet='#b6a6ed';
+ function blade(x,y,z,s,alpha,c){at(x,y,z,()=>{ctx.scale(s,s);line([[0,-74],[-8,-48],[-5,29],[0,38],[5,29],[8,-48],[0,-74]],c,alpha,2);line([[0,-62],[0,29]],ice,alpha*.55);line([[-20,31],[-12,26],[12,26],[20,31]],violet,alpha,2.5);line([[0,34],[0,58]],c,alpha,4);oval(0,61,4,4,ice,alpha);});}
+ function slash(z,p,c,width=4){at(0,0,z,()=>{const vis=Math.sin(p*PI);curve(v=>[-145+290*v,-23+46*v-34*Math.sin(v*PI)],ease(seg(p,0,.55)),c,a*vis,width);curve(v=>[-145+290*v,-17+46*v-34*Math.sin(v*PI)],ease(seg(p,.04,.6)),ice,a*vis*.4,1);});}
+
+ if(previewId==='bh16'){
+ // Three descending swords make a staggered fan of cuts, then a broad finishing sweep.
+ for(let j=0;j<3;j++){const q=seg(t,.03+j*.16,.47+j*.16),x=(j-1)*62;blade(x,-98+173*ease(q),(j-1)*-.23,.82,a*Math.sin(q*PI),[ice,violet,blue][j]);curve(v=>[x+(j-1)*18*v,-112+204*v],ease(seg(q,.12,.7)),[blue,violet,ice][j],a*Math.sin(q*PI),3.2);}
+ const q=seg(t,.57,.97);at(0,40,0,()=>{curve(v=>[-140+280*v,-15+41*Math.sin(v*PI)],ease(seg(q,0,.6)),ice,a*Math.sin(q*PI),4);});
+ }else if(previewId==='bh16b'){
+ const colors=[blue,violet,ice];
+ // Each ribbon is the swept area between two points on the moving blade.
+ function pose(j,q){const side=j===1?-1:1;return {x:side*(-83+166*q),y:(j-1)*22+30*Math.sin(q*PI),z:side*(-1.35+3.5*q)+(j===2?1.1:0)};}
+ function point(p,d){return [p.x-Math.sin(p.z)*d,p.y+Math.cos(p.z)*d];}
+ for(let j=0;j<3;j++){
+ const q=seg(t,.07+j*.19,.48+j*.2),opacity=Math.sin(q*PI);if(opacity<=0)continue;
+ const now=pose(j,q),tail=Math.max(0,q-.28),outer=[],inner=[];
+ for(let k=0;k<=20;k++){const u=tail+(q-tail)*k/20,poseAt=pose(j,u);outer.push(point(poseAt,-69));inner.push(point(poseAt,-25-(k%3)*3));}
+ ctx.save();ctx.beginPath();outer.forEach(([x,y],k)=>k?ctx.lineTo(x,y):ctx.moveTo(x,y));inner.reverse().forEach(([x,y])=>ctx.lineTo(x,y));ctx.closePath();ctx.fillStyle=colors[j];ctx.globalAlpha=a*opacity*.4;ctx.shadowColor=colors[j];ctx.shadowBlur=15;ctx.fill();ctx.restore();
+ line(outer,ice,a*opacity*.7,1.5);
+ blade(now.x,now.y,now.z,1,a*opacity,colors[j]);
+ // Sparks leave the cutting edge and retain the direction of the strike.
+ for(let k=0;k<8;k++){const lag=(k+1)*.018,u=Math.max(0,q-lag),past=pose(j,u),edge=point(past,-63),age=q-u,dir=past.z+(j===1?-1:1)*PI/2;const x=edge[0]+Math.cos(dir)*age*240,y=edge[1]+Math.sin(dir)*age*240;line([[x,y],[x+Math.cos(dir)*5,y+Math.sin(dir)*5]],k%2?ice:colors[j],a*opacity*.65,1.2);}
+ }
+ }else{
+ // Three blades rise in a crown, pivot together, and sweep down like a breaking wave.
+ const rise=ease(seg(t,.03,.29)),sweep=ease(seg(t,.3,.78));
+ for(let j=0;j<3;j++){const z=(j-1)*.46+sweep*2.2,x=(j-1)*57+Math.sin(sweep*PI)*34,y=67-85*rise+sweep*39;blade(x,y,z,.83,a*(1-ease(seg(t,.8,.99))),[violet,ice,blue][j]);const q=seg(t,.3+j*.06,.9+j*.02);curve(v=>{const zz=-2.5+3.5*q*v;return[(j-1)*35+Math.cos(zz)*88,Math.sin(zz)*79+12]},1,[violet,ice,blue][j],a*Math.sin(q*PI),3);}
+ }
+}else if(id==='bh17'){function burst(x,y,r,p){for(let j=0;j<14;j++){const z=j*2.4;star(x+Math.cos(z)*r*p,y+Math.sin(z)*r*p,2,j%2?gold:color,a*Math.sin(p*PI));}}
+ const ram=ease(seg(t,.08,.67));at(-88+120*ram,1,0,()=>{line([[-62,-16],[32,-16],[54,0],[32,16],[-62,16],[-62,-16]],color,a,2);for(let j=0;j<4;j++)line([[-47+j*20,-16],[-47+j*20,16]],gold,a*.55);line([[-45,18],[-45,51],[28,51],[28,18]],gold,a,2);oval(-39,58,10,10,color,a);oval(24,58,10,10,color,a);});const hit=ease(seg(t,.54,.78));for(let j=0;j<4;j++)at(102+hit*j*5,(j-1.5)*38,hit*(j%2?.2:-.2),()=>box(-11,-16,22,32,color,a));burst(95,0,56,seg(t,.56,.96));
+}else if(['15','34'].includes(id)){
 function glints(r,p){for(let j=0;j<12;j++){const z=j*2.4;star(Math.cos(z)*r*p,Math.sin(z)*r*p,2,j%2?gold:color,a*Math.sin(p*PI));}}
 function note(x,y,alpha=a){oval(x-5,y+8,6,4,color,alpha,-.3);line([[x+1,y+8],[x+1,y-19],[x+13,y-12]],gold,alpha,1.7);}
 if(id==='15'){
@@ -211,11 +278,15 @@ if(isIsaac&&mode===1){
  for(const side of [-1,1])at(side*split*45,-side*split*15,side*split*.3,()=>line([[0,-49],[side*30,-49],[side*30,49],[0,49],[side*8,26],[-side*5,7],[side*8,-12],[0,-49]],color,a,1.7,true));
  at(-100+175*thrust,52-92*thrust,-.5,()=>{line([[-100,0],[17,0]],gold,a,3);line([[17,0],[-3,-13],[3,0],[-3,13],[17,0]],gold,a,2,true);for(let j=0;j<3;j++)line([[-85-j*7,-5],[-85-j*7,5]],color,a);});
  for(let j=0;j<4;j++)curve(v=>[-115+v*225,55+j*9-Math.sin(v*PI)*split*28],thrust,color,a*.4);
-}else if(id==='84'){
- // Approved round-24 snowflake mechanism.
+}else if(id==='84'){const color='#9bcfe9',gold='#bdc4f2';
 
- const open=ease(seg(t,.08,.58));for(let j=0;j<6;j++)at(0,0,j*PI/3+t*.25,()=>{line([[0,-21],[0,-93*open]],color,a,2);for(let k=0;k<2;k++)line([[-16,-52-k*21],[0,-39-k*21],[16,-52-k*21]],gold,a*open);});oval(0,0,29,29,gold,a);for(let j=0;j<6;j++)at(0,0,j*PI/3,()=>line([[0,-17],[-11,-27],[-6,-42],[13,-37]],color,a*open,1.7));moteBurst(0,0,120,seg(t,.58,.95));
-}else if(id==='99'){
+ // A butterfly emerges from folded petals and visits three blossoms.
+ const fly=ease(seg(t,.16,.8)),xx=-90+180*fly,yy=-30-Math.sin(fly*PI)*35;
+ for(let j=0;j<3;j++){let px=(j-1)*75,flower=ease(seg(t,.14+j*.18,.38+j*.18));line([[px,65],[px,30]],gold,a);for(let k=0;k<5;k++){let z=k*TAU/5;oval(px+Math.cos(z)*8*flower,26+Math.sin(z)*8*flower,7*flower,4*flower,color,a,z);}star(px,26,2,gold);}
+ at(xx,yy,.15*Math.sin(t*10),()=>{let wing=.25+.75*Math.abs(Math.sin(t*18));for(const side of [-1,1]){curve(v=>[side*Math.sin(v*PI)*30*wing,-Math.sin(v*TAU)*20],1,color,a,2);curve(v=>[side*Math.sin(v*PI)*19*wing,10-Math.sin(v*TAU)*12],1,gold,a);}line([[0,-10],[0,18]],gold,a,2);line([[-7,-19],[0,-10],[7,-19]],color,a);});
+
+for(let j=0;j<25;j++){const x=-118+(j*47%236)+4*Math.sin(t*5+j),y=-94+(j*29+t*77)%185;star(x,y,j%4?1:2,'#e3f5ff',a*.65);}
+for(let j=0;j<3;j++)curve(v=>[(j-1)*75-12+24*v,21-3*Math.sin(v*PI)],1,'#e7f6ff',a*.7,1.4);}else if(id==='99'){
  // Toy scales pass a heavy accusation back and forth, then tip together.
  const swing=Math.sin(seg(t,.12,.87)*TAU)*.36;line([[0,-54],[0,65],[-23,76],[23,76],[0,65]],gold,a,2);at(0,-28,swing,()=>{line([[-87,0],[87,0]],gold,a,2);for(const side of [-1,1]){const xx=side*73;line([[xx,0],[xx-24,48],[xx+24,48],[xx,0]],color,a,1.4);curve(v=>[xx-24+48*v,48+Math.sin(v*PI)*13],1,gold,a,2);}});
  const p=ease(seg(t,.28,.7)),xx=-70+140*p,yy=5-Math.sin(p*PI)*75;at(xx,yy,t*3,()=>{box(-11,-11,22,22,color,a);line([[-6,0],[6,0]],gold,a);});oval(0,-28,7,7,color,a);}else if(id==='07'){
@@ -226,12 +297,26 @@ if(isIsaac&&mode===1){
  });}
  for(let j=0;j<3;j++)line([[(j-1)*76-21,-57-(j-1)*27],[(j-1)*76,-78-(j-1)*27],[(j-1)*76+21,-57-(j-1)*27]],gold,a*q,2.2);
 }else if(id==='82'){
- // Approved round-24 snowflake mechanism.
-
- const open=ease(seg(t,.08,.58));for(let j=0;j<6;j++)at(0,0,j*PI/3+t*.25,()=>{line([[0,-21],[0,-93*open]],color,a,2);for(let k=0;k<2;k++)line([[-16,-52-k*21],[0,-39-k*21],[16,-52-k*21]],gold,a*open);});oval(0,0,29,29,gold,a);for(let j=0;j<6;j++)at(0,0,j*PI/3,()=>line([[0,-17],[-11,-27],[-6,-42],[13,-37]],color,a*open,1.7));moteBurst(0,0,120,seg(t,.58,.95));
+ // A glass snow globe, with parallax flakes, a warm cottage and cut-glass base.
+ const grow=ease(seg(t,.02,.25)),swirl=1-ease(seg(t,.37,.86));at(0,-12,Math.sin(t*10)*.025*swirl,()=>{
+ ctx.save();ctx.beginPath();ctx.arc(0,0,76*grow,0,TAU);ctx.clip();
+ for(let j=0;j<3;j++)curve(v=>[-84+v*168,44+j*7+Math.sin(v*6+j)*5],1,color,a*(.2+j*.14));
+ line([[-33,34],[-33,0],[-3,-25],[26,0],[26,34]],gold,a,1.6);line([[-41,3],[-3,-32],[34,3]],color,a,2);box(-20,7,11,13,gold,a);box(4,7,11,13,gold,a);box(-5,20,10,14,gold,a);line([[10,-22],[10,-36],[20,-36],[20,-13]],gold,a*.7);
+ for(const side of [-1,1]){const xx=side*51;line([[xx,40],[xx,-12],[xx-13,12],[xx-7,12],[xx-18,30],[xx+18,30],[xx+7,12],[xx+13,12],[xx,-12]],color,a*.7,1.2);}
+ for(let j=0;j<62;j++){const phase=j*2.39996+t*(1+swirl*5),radius=18+(j%9)*7,xx=Math.cos(phase)*radius,yy=((j*23+t*50)%144)-72;const drift=xx*(.4+.6*swirl)+Math.sin(j*6)*35*(1-swirl);if(drift*drift+yy*yy<5200){if(j%8===0)star(drift,yy,2,'#e8f6ff',a*.85);else oval(drift,yy,1.1,1.1,'#d6efff',a*.7);}}
+ ctx.restore();oval(0,0,76*grow,76*grow,color,a);
+ });oval(0,59,46,8,gold,a);line([[-46,59],[-53,76],[53,76],[46,59]],gold,a,2);oval(0,77,53,8,gold,a);for(let j=-3;j<=3;j++)line([[j*12-4,64],[j*12,72],[j*12+4,64]],color,a*.5);
 }else if(id==='bh06'){
  // Three adaptive tokens each morph through circle, triangle, square and star.
  const deal=ease(seg(t,.09,.52));for(let j=0;j<3;j++){const xx=(j-1)*77*deal,yy=-Math.sin(deal*PI)*j*9;at(xx,yy,(j-1)*(1-deal)*.4,()=>{box(-26,-40,52,80,gold,a);for(let k=0;k<4;k++)line([[-17+k*11,29],[-12+k*11,29]],color,a*.5);const phase=seg(t,.24+j*.05,.78+j*.035)*3,index=Math.min(2,Math.floor(phase)),blend=phase-index;const point=(kind,v)=>{if(kind===0)return[Math.cos(v*TAU)*16,Math.sin(v*TAU)*16];const count=kind===1?3:kind===2?4:10,part=v*count,corner=Math.floor(part)%count,f=part-Math.floor(part);const p=k=>{let rr=kind===3&&k%2?8:18;return[Math.cos(k*TAU/count-PI/2)*rr,Math.sin(k*TAU/count-PI/2)*rr];};let aa=p(corner),bb=p((corner+1)%count);return[aa[0]+(bb[0]-aa[0])*f,aa[1]+(bb[1]-aa[1])*f];};curve(v=>{const aa=point(index,v),bb=point(index+1,v);return[aa[0]+(bb[0]-aa[0])*blend,aa[1]+(bb[1]-aa[1])*blend];},1,color,a,2);});}
+
+ // Each adaptive card carries two rank chevrons through its entrance.
+ for(let cardIndex=0;cardIndex<3;cardIndex++){
+   const xx=(cardIndex-1)*77*deal,yy=-Math.sin(deal*PI)*cardIndex*9;
+   at(xx,yy,(cardIndex-1)*(1-deal)*.4,()=>{
+     for(let j=0;j<2;j++){const settle=ease(seg(t,.15+j*.12,.48+j*.12)),y=-91+j*17-15*(1-settle);line([[-23,y],[0,y+13],[23,y]],j?'#abcbd2':'#dfc596',a*settle,2.4);}
+   });
+ }
 }else if(id==='bh16'){
  // A spiral of blades tightens into a coordinated downward storm.
  const gather=ease(seg(t,.06,.45)),strike=ease(seg(t,.48,.86));for(let j=0;j<12;j++){const z=j*TAU/12+t*1.3*(1-strike),r=(94-28*gather)*(1-strike*.6),xx=Math.cos(z)*r,yy=Math.sin(z)*r*.65+strike*38;at(xx,yy,z+PI/2+(PI-z-PI/2)*strike,()=>{line([[0,-25],[5,-12],[3,19],[0,26],[-3,19],[-5,-12]],['#82cfff','#aaa5f3','#77ddd8','#cee9ff'][j%4],a,1.3,true);line([[-9,-12],[9,-12]],'#d3d7ff',a);line([[0,-12],[0,-31]],'#d3d7ff',a,2);});}

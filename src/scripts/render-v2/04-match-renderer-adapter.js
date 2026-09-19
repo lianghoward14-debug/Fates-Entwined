@@ -337,6 +337,7 @@
   function dirtyMaskForSource(source){
     const s = String(source || '').toLowerCase();
     if(!s) return DIRTY_ALL;
+    if(s === 'low-morale-supporter-pulse' || s === 'high-t-beat') return DIRTY_BOARD_CARDS;
     if(s === 'square-feedback') return DIRTY_BOARD_CARDS;
     if(s.indexOf('vfx') >= 0) return DIRTY_EFFECTS | DIRTY_PARTICLES;
     if(s.indexOf('final-zone-flash') >= 0) return DIRTY_EFFECTS;
@@ -519,6 +520,10 @@
   }
 
   function teardownScene(reason){
+    if(lowMoralePulseTimer) clearTimeout(lowMoralePulseTimer);
+    if(highTBeatTimer) clearTimeout(highTBeatTimer);
+    lowMoralePulseTimer = 0;
+    highTBeatTimer = 0;
     if(redrawRaf) {
       cancelAnimationFrame(redrawRaf);
       redrawRaf = 0;
@@ -2194,6 +2199,7 @@
     const c = Number(cell.c);
     if(['jaime','zoe','carolyn'].includes(G._phase7EffectSquareKind)) return G._phase7EffectSquareKind;
     if(G.blockingCell && G._blockingEffectType === 'jaime') return 'jaime';
+    if(G.blockingCell) return Number(G._blockingEffectZone ?? window._blockZone) === -1 ? 'carolyn' : 'zoe';
     if(squareMatchesOption(G._phase7DestinationOptions, z, r, c)
       || squareMatchesOption(G._singlePlayerPlacementOptions, z, r, c)) return 'move';
     const optionStates = [G._wolfCreekMoving, G._berkeleyMoving, G._landscapeMoving, G._busserMoving];
@@ -2262,15 +2268,19 @@
       requestSelectionTargetPulseFrame();
       return;
     }
-    if(String(kind || '') === 'zoe') {
+    if(['zoe','carolyn'].includes(String(kind || ''))) {
+      const carolyn = kind === 'carolyn';
+      const fill = carolyn ? '50,160,95' : '128,80,190';
+      const stroke = carolyn ? '104,239,154' : '193,145,244';
+      const glow = carolyn ? '65,205,120' : '151,89,217';
       const t = animationsOff() ? .5 : ((Math.sin(nowMs() / 240) + 1) / 2);
       ctx.save();
       roundedPath(ctx, r.x + 3, r.y + 3, Math.max(0, r.w - 6), Math.max(0, r.h - 6), 6);
-      ctx.fillStyle = 'rgba(128,80,190,' + (.10 + t * .05).toFixed(3) + ')';
+      ctx.fillStyle = 'rgba(' + fill + ',' + (.10 + t * .05).toFixed(3) + ')';
       ctx.fill();
       ctx.lineWidth = 1.6 + t * .7;
-      ctx.strokeStyle = 'rgba(193,145,244,' + (.70 + t * .20).toFixed(3) + ')';
-      ctx.shadowColor = 'rgba(151,89,217,' + (.28 + t * .18).toFixed(3) + ')';
+      ctx.strokeStyle = 'rgba(' + stroke + ',' + (.70 + t * .20).toFixed(3) + ')';
+      ctx.shadowColor = 'rgba(' + glow + ',' + (.28 + t * .18).toFixed(3) + ')';
       ctx.shadowBlur = 9 + t * 7;
       ctx.stroke();
       ctx.restore();
@@ -2972,6 +2982,13 @@
 
   let lowMoralePulseTimer = 0;
   let highTBeatTimer = 0;
+  // Only animation-only batches may reuse the last snapshot. A pulse coalesced
+  // with a gameplay commit must still rebuild state, even with the same mask.
+  function isCardOverlayPulseSource(source){
+    return String(source || '').toLowerCase().split('+').every(function(part){
+      return part === 'low-morale-supporter-pulse' || part === 'high-t-beat';
+    });
+  }
   function scheduleLowMoraleSupporterPulse(){
     if(lowMoralePulseTimer || typeof setTimeout !== 'function') return;
     lowMoralePulseTimer = setTimeout(function(){
@@ -3076,7 +3093,10 @@
     else if(primaryStatus === 'marked') drawMarkedForDeathCardOverlay(ctx, r);
     else if(primaryStatus === 'blocked') drawBlockedActionCardOverlay(ctx, r);
     else if(primaryStatus === 'immune') drawImmuneCardOverlay(ctx, r);
-    else if(primaryStatus === 'flower') drawFlowerKingCardOverlay(ctx, r);
+    else if(primaryStatus === 'flower'){
+      drawFlowerKingCardOverlay(ctx, r);
+      scheduleLowMoraleSupporterPulse();
+    }
     if(!opts.hideFateBadge) drawFateBadge(ctx, visual, r, entry && entry.card);
     ctx.restore();
   }
@@ -3331,46 +3351,48 @@
 
   function drawFlowerKingCardOverlay(ctx, r){
     if(!ctx || !r) return;
+    const phase = (Math.sin((Date.now() % 2800) / 2800 * Math.PI * 2) + 1) / 2;
     const radius = Math.max(3, Math.min(8, r.w * .08));
-    const size = Math.max(60, Math.min(104, r.w * .88));
+    const baseSize = Math.max(60, Math.min(104, r.w * .88));
+    const size = baseSize * (.94 + phase * .09);
     const cx = r.x + r.w / 2;
     const cy = r.y + r.h / 2;
     ctx.save();
     roundedPath(ctx, r.x, r.y, r.w, r.h, radius);
     ctx.clip();
-    ctx.fillStyle = 'rgba(164,126,25,.12)';
+    ctx.globalAlpha = .44 + phase * .44;
+    ctx.fillStyle = 'rgba(164,126,25,.10)';
     ctx.fillRect(r.x, r.y, r.w, r.h);
     ctx.strokeStyle = 'rgba(255,224,106,.99)';
-    ctx.lineWidth = Math.max(3.2, size * .045);
+    ctx.lineWidth = Math.max(2.4, size * .044);
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.shadowColor = 'rgba(255,224,106,.66)';
-    ctx.shadowBlur = Math.max(7, size * .12);
+    ctx.shadowBlur = 7 + phase * 7;
     ctx.translate(cx - size / 2, cy - size / 2);
     ctx.scale(size / 64, size / 64);
-    ctx.lineWidth = 4.2;
+    // LJ-01: one balanced five-petal heraldic flower. Repeating one petal
+    // keeps the mark symmetrical and readable at the board-card size.
+    ctx.lineWidth = 2.8;
+    for(let petal = 0; petal < 5; petal += 1){
+      ctx.save();
+      ctx.translate(32, 32);
+      ctx.rotate(petal * Math.PI * 2 / 5);
+      ctx.translate(-32, -32);
+      ctx.beginPath();
+      ctx.moveTo(32, 27);
+      ctx.bezierCurveTo(25, 22, 24, 13, 32, 7);
+      ctx.bezierCurveTo(40, 13, 39, 22, 32, 27);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.restore();
+    }
     ctx.beginPath();
-    ctx.moveTo(32, 26);
-    ctx.bezierCurveTo(25, 22, 23, 15, 27, 9);
-    ctx.bezierCurveTo(35, 9, 39, 16, 32, 26);
-    ctx.moveTo(38, 28);
-    ctx.bezierCurveTo(39, 20, 45, 15, 52, 17);
-    ctx.bezierCurveTo(55, 24, 50, 30, 38, 28);
-    ctx.moveTo(39, 35);
-    ctx.bezierCurveTo(47, 35, 52, 41, 50, 48);
-    ctx.bezierCurveTo(43, 51, 37, 46, 39, 35);
-    ctx.moveTo(34, 38);
-    ctx.bezierCurveTo(39, 45, 36, 52, 29, 55);
-    ctx.bezierCurveTo(23, 50, 24, 43, 34, 38);
-    ctx.moveTo(26, 37);
-    ctx.bezierCurveTo(23, 45, 15, 46, 10, 41);
-    ctx.bezierCurveTo(11, 33, 18, 30, 26, 37);
-    ctx.moveTo(25, 29);
-    ctx.bezierCurveTo(17, 31, 11, 26, 11, 19);
-    ctx.bezierCurveTo(17, 14, 24, 17, 25, 29);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(32, 32, 6, 0, Math.PI * 2);
+    ctx.moveTo(32, 25);
+    ctx.lineTo(39, 32);
+    ctx.lineTo(32, 39);
+    ctx.lineTo(25, 32);
+    ctx.closePath();
     ctx.stroke();
     ctx.restore();
   }
@@ -3616,14 +3638,12 @@
       line([[45,19],[39,14],[32,19],[39,24],[45,19]],true);
       ctx.lineWidth = 4.4;
     } else if(kind === 'bh17_crushing_momentum') {
+      // JE-06: a heavy downward arrow compressing into a broad weight.
+      // Every secondary edge reinforces the direction of motion.
       ctx.lineWidth = 4;
-      line([[25,24],[39,24],[39,47],[25,47],[25,24]],true);
-      line([[22,47],[42,47]],false);
-      ctx.lineWidth = 3;
-      line([[22,52],[13,47],[19,57]],false); line([[42,52],[51,47],[45,57]],false);
-      line([[18,47],[9,45]],false); line([[46,47],[55,45]],false);
+      line([[27,5],[37,5],[37,30],[46,30],[32,45],[18,30],[27,30],[27,5]],true);
       ctx.lineWidth = 3.5;
-      line([[23,17],[23,9]],false); line([[32,17],[32,5]],false); line([[41,17],[41,9]],false);
+      line([[15,49],[49,49],[44,58],[20,58],[15,49]],true);
       ctx.lineWidth = 4.4;
     } else if(kind === 'bh18_genesis_inceldom') {
       ctx.lineWidth = 4;
@@ -3663,8 +3683,9 @@
       line([[13,27],[20,23]],false); line([[43,27],[50,23]],false);
       ctx.lineWidth = 4.4;
     } else if(kind === 'bh16_storm_blades') {
-      // LH-J01: three balanced Chinese jian. The blades cross directly with
-      // no ring, disc, or other center mark.
+      // LH-02: exactly two crossed Chinese jian with one open center diamond.
+      // The reduced blade count preserves the storm-of-blades identity while
+      // removing the dense three-way intersection of the previous mark.
       const drawJian = function(angle){
         ctx.save();
         ctx.translate(32,32);
@@ -3682,9 +3703,12 @@
         line([[0,17],[0,27]],false); line([[-3,20],[3,20]],false); line([[-3,27],[3,27]],false);
         ctx.restore();
       };
-      drawJian(0);
-      drawJian((Math.PI * 2) / 3);
-      drawJian((Math.PI * 4) / 3);
+      drawJian(-Math.PI / 4);
+      drawJian(Math.PI / 4);
+      ctx.lineWidth = 2.8;
+      ctx.beginPath();
+      ctx.moveTo(32,27); ctx.lineTo(37,32); ctx.lineTo(32,37); ctx.lineTo(27,32); ctx.closePath();
+      ctx.stroke();
       ctx.lineWidth = 4.4;
     } else if(kind === 'movement_boot' || kind === 'rozsi_dance') {
       ctx.lineWidth = 4.2;
@@ -5305,6 +5329,7 @@
         r:entry.r,
         c:entry.c,
         rect:visibleHitRect || r,
+        motionRect:r,
         card:entry.card || null
       });
       const visual = entry.card.visual || null;
@@ -5594,10 +5619,12 @@
         topEffectsCtx.clearRect(0, 0, topEffects.width / dpr, topEffects.height / dpr);
       }
     }
+    const effectBounds = layers.cards?.getBoundingClientRect?.();
     const result = director && typeof director.draw === 'function' ? director.draw({
       effectsCtx,
       particleCtx,
       topEffectsCtx,
+      boardViewport:effectBounds ? {x:effectBounds.left,y:effectBounds.top,sx:effectBounds.width/cssW,sy:effectBounds.height/cssH} : null,
       cssW,
       cssH,
       dpr
@@ -5817,7 +5844,8 @@
     }
 
     const sourceText = sourceLower;
-    const cardLayerOnly = (sourceText.indexOf('zone-scroll') >= 0 || sourceText.indexOf('texture-ready') >= 0 || sourceText.indexOf('square-feedback') >= 0)
+    const overlayPulseOnly = isCardOverlayPulseSource(sourceText);
+    const cardLayerOnly = (overlayPulseOnly || sourceText.indexOf('zone-scroll') >= 0 || sourceText.indexOf('texture-ready') >= 0 || sourceText.indexOf('square-feedback') >= 0)
       && !!(lastReport && lastReport.available && lastLayout && lastSnapshot && lastCanvasMetrics)
       && !!(dirtyMask & DIRTY_BOARD_CARDS)
       && !(dirtyMask & (DIRTY_LAYOUT | DIRTY_BACKGROUND | DIRTY_HAND | DIRTY_OPP_HAND | DIRTY_PILES | DIRTY_MOTION));
@@ -5839,7 +5867,10 @@
         piles:lastHitMap.piles || [],
         uiCommands:lastHitMap.uiCommands || []
       };
-      drawVfxLayers(layers, cssW, cssH, dpr, {clearEffects:true, clearParticles:false});
+      // Persistent card pulses do not invalidate the independent VFX canvases.
+      if(!overlayPulseOnly || (dirtyMask & DIRTY_VFX_ONLY)) {
+        drawVfxLayers(layers, cssW, cssH, dpr, {clearEffects:true, clearParticles:false});
+      }
       refreshHoverHitFromHitMap(draw.hitMap);
       drawHoverOverlay({dirty:false});
       drawCount++;

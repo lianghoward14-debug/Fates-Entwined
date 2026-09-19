@@ -88,7 +88,13 @@
     if(reduced) banner.classList.add('reduced-motion');
     const image = document.createElement('img');
     image.alt = '';
-    image.src = Number(id) === 56 ? 'pfp/pfp56-portrait.png' : pfp ? (typeof PFP_PATH === 'function' ? PFP_PATH(pfp, 'square') : 'pfp/pfp'+pfp+'.png') : card.img;
+    image.src = id === 'whisper17'
+      ? 'pfp/pfp-shizuku.png'
+      : Number(id) === 56
+        ? 'pfp/pfp56-portrait.png'
+        : pfp
+          ? (typeof PFP_PATH === 'function' ? PFP_PATH(pfp, 'square') : 'pfp/pfp'+pfp+'.png')
+          : card.img;
     image.onerror = function(){ image.remove(); };
     const skin = document.createElement('div');
     skin.className = 'fate-relay-skin';

@@ -808,7 +808,7 @@
     const outgoingSources=[[],[]];
     zoneResults.forEach(function(result){if(!pacificaPreventsMoraleDamage&&(result.damagedPlayer===0||result.damagedPlayer===1))damage[result.damagedPlayer]+=Math.floor(result.difference*33/100);});
     const entries=legacyBoardEntries(state).filter(function(entry){return entry.card&&!legacySuppressed(entry);});
-    if(entries.length || system.pendingBladeDance?.some(count=>count>0)){
+    if(entries.length || state._southWindMoraleBlock || system.pendingBladeDance?.some(count=>count>0)){
       entries.forEach(function(entry){
         const source=entry.card;
         const owner=Number(source.owner);

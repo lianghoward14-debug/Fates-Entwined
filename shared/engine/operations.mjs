@@ -348,6 +348,10 @@ function setCard(ctx, operation){
   const card = player.hand.splice(handIndex, 1)[0];
   card.controller = playerIndex;
   card.faceDown = operation.faceDown === true;
+  for(const key of ['contributesFate','contributesAuras']){
+    if(typeof operation[key] === 'boolean') card[key] = operation[key];
+    else delete card[key];
+  }
   if(!card.counters || typeof card.counters !== 'object') card.counters = {};
   card.counters.fieldEnteredTurn = Number(ctx.state.turn) || 0;
   delete card.counters.whenSetResolved;
@@ -510,6 +514,8 @@ function consolidateCard(ctx, operation){
       c:destinationEntry.c
     },
     faceDown:operation.faceDown === true,
+    contributesFate:operation.contributesFate,
+    contributesAuras:operation.contributesAuras,
     consolidated:true,
     playedFromHand:true
   });
@@ -661,6 +667,10 @@ function discardCard(ctx, operation){
     card = ctx.state.players[entry.playerIndex][entry.zone].splice(entry.index, 1)[0];
   }
   const owner = Number(card.owner);
+  const revealedOnDiscard = operation.revealDiscard === true && entry.zone === 'board';
+  // Reveal only after removal succeeds, never during targeting/reaction windows
+  // or a replacement that sends the card somewhere other than the discard pile.
+  if(revealedOnDiscard) card.faceDown = false;
   card.controller = owner;
   ctx.state.players[owner].discard.push(card);
   emit(ctx, {
@@ -668,6 +678,7 @@ function discardCard(ctx, operation){
     cardIid:card.iid,
     owner,
     previousZone:entry.zone,
+    ...(revealedOnDiscard ? {revealedOnDiscard:true} : {}),
     ...(operation.revealDiscard === true ? {cardId:String(card.id || ''), cardName:String(card.name || 'Card')} : {}),
     sourceIid:operation.sourceIid || null,
     semanticSourceCardId:operation.semanticSourceCardId || undefined,

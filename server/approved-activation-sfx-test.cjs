@@ -27,11 +27,11 @@ async function main(){
       api.play('07');window._masterVol=1;window._sfxVol=0;api.play('07');if(opens)throw Error('mute ignored');
       return results;
     });
-    const expected=['15','34',"55","85","36","bh02","bh08","57","12","23",'41','89','35','88','11','46','10','19','bh12','01','bh07','bh11','45','02','86','bh04','03','04','06','17','22','27','40','48','bh20','bh19','bh01','14','bh09','66','87','67','bh21','38','bh22','56','bh05','bh13','07','08','13','21','29','30','39','43','51','61','81','82','83','84','90','99','bh06','bh10','bh14','bh16'];
+    const expected=['77','100','bh18','bh17','15','34',"55","85","36","bh02","bh08","57","12","23",'41','89','35','88','11','46','10','19','bh12','01','bh07','bh11','45','02','86','bh04','03','04','06','17','22','27','40','48','bh20','bh19','bh01','14','bh09','66','87','67','bh21','38','bh22','56','bh05','bh13','07','08','13','21','29','30','39','43','51','61','81','82','83','84','90','99','bh06','bh10','bh14','bh16'];
     assert.deepEqual(results.map(x=>x.id).sort(),expected.sort(),'Only implemented new animations get cues');
     for(const r of results){assert.ok(r.finite,r.id+' finite samples');assert.ok(r.rms>.018,r.id+' clearly audible energy');assert.ok(r.peak<1,r.id+' unclipped raw mix: '+r.peak);assert.equal(r.tail,0,r.id+' score ends by 2 seconds');}
     console.table(results.map(r=>({id:r.id,peak:r.peak.toFixed(3),rms:r.rms.toFixed(3)})));
-    console.log('PASS: 68 layered scores render audible, unclipped audio, end within two seconds, respect mute and cancel cleanly.');
+    console.log('PASS: 72 layered scores render audible, unclipped audio, end within two seconds, respect mute and cancel cleanly.');
   }finally{await browser.close();}
 }
 main().catch(e=>{console.error(e);process.exitCode=1;});

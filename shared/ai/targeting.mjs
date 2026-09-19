@@ -1,3 +1,4 @@
+import {cardRule} from '../engine/cards/registry.mjs';
 import {filterLakesMomentum} from './lakes-momentum-heuristics.mjs';
 import {legalCommandTemplates} from '../engine/legal-commands.mjs';
 import {boardEntries,controllerOf} from '../engine/selectors.mjs';
@@ -8,6 +9,15 @@ import {canUseAsConsolidationTribute,effectiveConsolidationCost,isEffectSourceSu
 export function filterAiTargets(commands,state,player){
   if(!state.pendingPrompt && !state.pendingHandLimit){
     const entries=boardEntries(state);
+    // Automatic face-up effects settle before any strategic action. Returning
+    // the first in board order also prevents search from optimizing their order.
+    const automatic=commands.find(command=>{
+      if(command.type!=='ACTIVATE_EFFECT' || command.manualOnly===true)return false;
+      const entry=entries.find(e=>e.card.iid===command.payload?.sourceIid);
+      return entry && controllerOf(entry.card)===player && !entry.card.faceDown
+        && cardRule(runtimeRuleId(entry.card),state)?.manualOnly!==true;
+    });
+    if(automatic)return [automatic];
     commands=commands.filter(command=>{
       if(command.type!=='DISCARD_CARD' || command.payload?.reason!=='MANUAL_DISCARD')return true;
       const e=entries.find(e=>e.card.iid===(command.payload.targetIid || command.payload.sourceIid));

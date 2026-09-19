@@ -83,8 +83,9 @@ export function isEffectSourceSuppressed(state, value){
   });
 }
 
-function activeAuraSource(state, entry){
+export function activeAuraSource(state, entry){
   if(!entry?.card
+    || entry.card.contributesAuras === false
     || isEffectSourceSuppressed(state, entry)) return false;
   return true;
 }
@@ -155,8 +156,9 @@ export function effectiveFate(state, entryOrCard){
     ? entryOrCard
     : findCard(state, entryOrCard?.iid);
   const card = entry?.card || entryOrCard;
-  if(!card || entry?.zone !== 'board') return 0;
-  const stored = card.faceDown ? 0 : Math.max(0, Number(card.currentFate) || 0);
+  if(!card || entry?.zone !== 'board' || card.contributesFate === false) return 0;
+  const hiddenFate = card.faceDown && card.contributesFate !== true;
+  const stored = hiddenFate ? 0 : Math.max(0, Number(card.currentFate) || 0);
   const targetController = controllerOf(card);
   const moraleCardPenalty = 0;
   if(isEffectImmutable(card)) return Math.max(0, stored - moraleCardPenalty);
@@ -167,7 +169,7 @@ export function effectiveFate(state, entryOrCard){
   // Jimmy's own passive establishes his dynamic base Fate. It does not make
   // him immune to other cards: ordinary auras and penalties (including an
   // adjacent Soviet Grenadier) are applied to that base below.
-  const derived = !card.faceDown && activeAuraSource(state, entry) && selfId === '41'
+  const derived = !hiddenFate && activeAuraSource(state, entry) && selfId === '41'
     ? Math.max(0, Number(state.fateReductionEffectUses[targetController] || 0) * 3 + permanentAdjustment)
     : stored;
   let modifier = 0;
@@ -289,7 +291,7 @@ export function effectiveFate(state, entryOrCard){
       && relatedIds.has(String(source.card.id || ''))
     )) modifier += 5;
   }
-  const overflowDebuff = card.faceDown ? 0 : Math.max(0, Number(card.counters?.permanentFateOverflowDebuff) || 0);
+  const overflowDebuff = hiddenFate ? 0 : Math.max(0, Number(card.counters?.permanentFateOverflowDebuff) || 0);
   // A permanent loss consumes stored Fate first. Any remainder continues into
   // continuous bonuses, so an 8-Fate card always becomes 5 after a -3 effect,
   // without deleting the underlying Louis aura.

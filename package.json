@@ -104,7 +104,8 @@
     "dist:all": "electron-builder --win nsis portable",
     "pack": "electron-builder --dir",
     "smoke:ai-replacement": "node server/authoritative-v3/new-ai-foundation-test.mjs && node server/authoritative-v3/new-ai-policy-test.mjs && node server/authoritative-v3/morale-ai-policy-smoke-test.mjs && node server/authoritative-v3/ai-tactical-benchmark.mjs && node server/authoritative-v3/phase5-local-session-smoke-test.mjs && node server/authoritative-v3/phase5-screen-routing-smoke-test.mjs && node server/authoritative-v3/phase5-screen-coverage-smoke-test.mjs",
-    "benchmark:ai-full": "node server/authoritative-v3/new-ai-full-game-test.mjs 2"
+    "benchmark:ai-full": "node server/authoritative-v3/new-ai-full-game-test.mjs 2",
+    "smoke:warfront-maps": "node server/authoritative-v3/warfront-map-rotation-regression-test.cjs && node server/authoritative-v3/warfront-map-reset-regression-test.mjs"
   },
   "build": {
     "appId": "com.fatesentwined.desktop",
@@ -120,6 +121,7 @@
       "voicelines.txt",
       "src/**/*",
       "assets/**/*",
+      "warfront/concepts/subdued-screenprint/*.png",
       "optimized/**/*",
       "titlscreenbackgrounds/**/*",
       "ingamebackgrouds/**/*",

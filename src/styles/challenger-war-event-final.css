@@ -12,7 +12,8 @@
   width:70px!important;height:9px!important;border:1px solid currentColor!important;opacity:.88!important;
 }
 #s-challenger .war2-objective:before{left:25px!important;color:#f15f69!important;background:linear-gradient(90deg,rgba(241,95,105,.18),#f15f69)!important;box-shadow:0 0 14px rgba(241,95,105,.5)!important}
-#s-challenger .war2-objective:after{right:25px!important;color:#62b0f4!important;background:linear-gradient(90deg,#62b0f4,rgba(98,176,244,.18))!important;box-shadow:0 0 14px rgba(98,176,244,.5)!important}
+/* Remove the blue connector protruding beside each zone portrait. */
+#s-challenger .war2-objective:after{content:none!important;display:none!important}
 #s-challenger .war2-objective-ring{
   position:absolute!important;z-index:2!important;left:50%!important;top:43%!important;width:104px!important;height:104px!important;
   transform:translate(-50%,-50%)!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;
@@ -213,7 +214,7 @@ html body #s-challenger .war2-zone-command-v3{border:2px solid #c19a43!important
 }
 
 /* WARFRONT V41 — final-screen geometry and cascade repair. */
-#s-challenger .war8-conclusion{background:#071117 url("../../assets/ui/challenger-war-map-v3.png") center/cover no-repeat!important}
+#s-challenger .war8-conclusion{background:#071117 var(--warfront-map-image) center/cover no-repeat!important}
 #s-challenger .war8-conclusion-shell{height:min(800px,calc(100vh - 190px))!important;min-height:670px!important;grid-template-rows:48px minmax(0,1fr) 132px 68px!important;background:rgba(5,15,20,.84)!important}
 #s-challenger .war8-conclusion-forces>section{padding:16px 18px 24px!important}
 #s-challenger .war8-conclusion-forces>section>div{height:calc(100% - 66px)!important;margin-top:8px!important;grid-template-rows:repeat(5,minmax(62px,1fr))!important;gap:7px!important}
@@ -252,7 +253,7 @@ html body #s-challenger .war2-zone-command-v3{border:2px solid #c19a43!important
 
 /* WARFRONT V33 — conclusion proportions and complete report visibility. */
 #s-challenger .war8-conclusion{
-  background:linear-gradient(90deg,rgba(55,19,25,.54),rgba(5,15,20,.57) 50%,rgba(7,41,61,.54)),url('../../warfront/map.png') center/cover!important;
+  background:linear-gradient(90deg,rgba(55,19,25,.54),rgba(5,15,20,.57) 50%,rgba(7,41,61,.54)),var(--warfront-map-image) center/cover!important;
 }
 #s-challenger .war8-conclusion-shell{grid-template-rows:48px minmax(390px,1fr) 178px!important}
 #s-challenger .war8-conclusion-shell>main{grid-template-columns:minmax(0,.88fr) minmax(560px,1.12fr)!important}
@@ -337,7 +338,7 @@ html body #s-challenger .war2-zone-command-v3{border:2px solid #c19a43!important
 
 /* WARFRONT V37 — unobscured map backdrop and five fully visible roster rows. */
 #s-challenger .war8-conclusion{
-  background-image:url('../../warfront/map.png')!important;background-position:center!important;background-size:cover!important;
+  background-image:var(--warfront-map-image)!important;background-position:center!important;background-size:cover!important;
   background-color:#071117!important;
 }
 #s-challenger .war8-conclusion-shell{
@@ -602,7 +603,7 @@ html body #s-challenger .war2-drawer>section.war2-zone-command-v3{position:relat
 #s-challenger .war2-zone-history-score>article .war2-avatar:has(i) i{position:absolute!important;top:7px!important;right:9px!important;font-size:23px!important;line-height:1!important}
 
 /* End-state splash and modern after-action report. */
-#s-challenger .war3-war-ended{position:relative;isolation:isolate;min-height:calc(100vh - 128px);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:54px;background:radial-gradient(circle at 50% 42%,#c19a4319,transparent 28%),linear-gradient(115deg,#29151ac9,#071218 48%,#102a3bcc),url('../../warfront/map.png') center/cover;color:#f5ecd2;text-align:center;overflow:hidden}
+#s-challenger .war3-war-ended{position:relative;isolation:isolate;min-height:calc(100vh - 128px);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:54px;background:radial-gradient(circle at 50% 42%,#c19a4319,transparent 28%),linear-gradient(115deg,#29151ac9,#071218 48%,#102a3bcc),var(--warfront-map-image) center/cover;color:#f5ecd2;text-align:center;overflow:hidden}
 #s-challenger .war3-war-ended:before{content:"";position:absolute;inset:20px;border:1px solid #c9a74766;box-shadow:inset 0 0 80px #000b;pointer-events:none}
 #s-challenger .war3-ended-seal{width:112px;height:112px;display:grid;place-items:center;border:2px solid #d4ad4f;border-radius:50%;background:#071117;box-shadow:0 0 0 8px #071117,0 0 0 9px #d4ad4f55,0 20px 45px #000c;color:#e8c15b;font:900 50px/1 Cinzel,serif}
 #s-challenger .war3-war-ended>span{margin-top:27px;color:#d8b657;font:900 12px/1 Cinzel,serif;letter-spacing:.22em}.war3-war-ended>h1{margin:12px 0 5px;font:900 clamp(34px,4vw,62px)/1 Cinzel,serif}.war3-war-ended>p{max-width:650px;color:#b9c4c0;font:700 15px/1.5 Crimson Pro,serif}
@@ -1143,7 +1144,7 @@ html body #s-challenger .war2-drawer:has(>.war3-record){width:min(1280px,calc(10
 /* WARFRONT V32 — campaign conclusion and after-action report rebuild. */
 #s-challenger .war8-conclusion{
   position:relative;isolation:isolate;min-height:calc(100vh - 128px);display:grid;place-items:center;padding:34px;
-  box-sizing:border-box;color:#f3ead2;background:linear-gradient(100deg,rgba(56,20,26,.82),rgba(5,15,20,.93) 48%,rgba(8,42,61,.82)),url('../../warfront/map.png') center/cover;
+  box-sizing:border-box;color:#f3ead2;background:linear-gradient(100deg,rgba(56,20,26,.82),rgba(5,15,20,.93) 48%,rgba(8,42,61,.82)),var(--warfront-map-image) center/cover;
 }
 #s-challenger .war8-conclusion:before{content:"";position:absolute;inset:20px;border:1px solid rgba(207,169,73,.56);pointer-events:none}
 #s-challenger .war8-conclusion-shell{
@@ -1296,7 +1297,7 @@ html body #s-challenger .war2-drawer:has(>.war8-report){width:min(1280px,calc(10
 #s-challenger .page-map .war8-finalbar-score b{font-size:43px!important;line-height:1!important}
 
 /* WARFRONT V44 — deterministic post-war layout. */
-#s-challenger .war8-conclusion-shell>main:before{background-image:url("../../assets/ui/challenger-war-map-v3.png")!important;background-position:center!important;background-size:cover!important;background-repeat:no-repeat!important}
+#s-challenger .war8-conclusion-shell>main:before{background-image:var(--warfront-map-image)!important;background-position:center!important;background-size:cover!important;background-repeat:no-repeat!important}
 #s-challenger .war8-conclusion-shell>main:after{background:rgba(4,12,17,.48)!important}
 #s-challenger .war8-conclusion-forces>section{padding:22px 18px 42px!important;transform:translateY(8px)!important}
 #s-challenger .war8-conclusion-forces>section>div{height:calc(100% - 78px)!important;margin:8px 0 0!important;display:grid!important;grid-template-rows:repeat(5,54px)!important;align-content:start!important;gap:0!important;overflow:visible!important}
@@ -1315,7 +1316,7 @@ html body #s-challenger .war2-drawer:has(>.war8-report){width:min(1280px,calc(10
 #s-challenger .page-map .war8-finalbar-score.team-b{justify-content:flex-start!important;padding-left:34px!important;padding-right:12px!important}
 
 /* WARFRONT V45 — outer map, inner title art, full-height rosters, complete medals. */
-#s-challenger .war8-conclusion{background:#071117 url("../../assets/ui/challenger-war-map-v3.png") center/cover no-repeat!important}
+#s-challenger .war8-conclusion{background:#071117 var(--warfront-map-image) center/cover no-repeat!important}
 #s-challenger .war8-conclusion-shell>main:before{background-image:url("../../optimized/backgrounds/titlscreenbackgrounds_bg1.jpg")!important;background-position:center!important;background-size:cover!important}
 #s-challenger .war8-conclusion-shell>main:after{background:rgba(4,12,17,.5)!important}
 #s-challenger .war8-conclusion-forces>section{padding:28px 18px 30px!important;transform:translateY(10px)!important}
@@ -1335,7 +1336,7 @@ html body #s-challenger .war2-drawer:has(>.war8-report){width:min(1280px,calc(10
 
 /* WARFRONT V46 — use the live tactical header, taller rosters, and clean medal assets. */
 #s-challenger .war8-conclusion{
-  background-image:linear-gradient(rgba(3,9,13,.66),rgba(3,9,13,.72)),url("../../assets/ui/challenger-war-map-v3.png")!important;
+  background-image:linear-gradient(rgba(3,9,13,.66),rgba(3,9,13,.72)),var(--warfront-map-image)!important;
   background-position:center!important;
   background-size:cover!important;
 }
@@ -1448,7 +1449,7 @@ html body #s-challenger .war2-drawer:has(>.war8-report){width:min(1280px,calc(10
 
 /* WARFRONT V49 — map outside, image-free campaign result inside. */
 #s-challenger .war8-conclusion{
-  background:#071117 url("../../assets/ui/challenger-war-map-v3.png") center/cover no-repeat!important;
+  background:#071117 var(--warfront-map-image) center/cover no-repeat!important;
 }
 #s-challenger .war8-conclusion-shell>main{
   background:linear-gradient(100deg,rgba(48,20,25,.94),rgba(5,15,20,.98) 48%,rgba(7,36,53,.94))!important;
@@ -1464,7 +1465,7 @@ html body #s-challenger .war2-drawer:has(>.war8-report){width:min(1280px,calc(10
 
 /* WARFRONT V50 — subdue only the outer tactical-map backdrop. */
 #s-challenger .war8-conclusion{
-  background-image:linear-gradient(rgba(2,8,12,.62),rgba(2,8,12,.68)),url("../../assets/ui/challenger-war-map-v3.png")!important;
+  background-image:linear-gradient(rgba(2,8,12,.62),rgba(2,8,12,.68)),var(--warfront-map-image)!important;
   background-position:center!important;
   background-size:cover!important;
 }
@@ -1514,3 +1515,4 @@ body.war-replay-active #war-full-replay-controls{z-index:2147483647!important;}
   overflow:hidden!important;
   text-overflow:ellipsis!important;
 }
+

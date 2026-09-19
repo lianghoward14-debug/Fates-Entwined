@@ -16,7 +16,7 @@ for(const filename of ['09-challenger-mode.js','09-challenger-v2.js']){
   assert.equal(toasts.at(-1),'Random queue failed','real unsupported queue failures remain visible');
 }
 const source=read('47-challenger-war-event.js');
-const roster=source.slice(source.indexOf('function players('),source.indexOf('function seat('))+source.slice(source.indexOf('function briefingRosterRows('),source.indexOf('function briefing('));
+const roster=source.slice(source.indexOf('function warfrontLineupName('),source.indexOf('function objective('))+source.slice(source.indexOf('function players('),source.indexOf('function seat('))+source.slice(source.indexOf('function briefingRosterRows('),source.indexOf('function briefing('));
 function render(uid,elo){
   const context={state:{zones:[{a:{uid:'alpha',name:'A',elo:970}},{a:{uid:'bravo',name:'B',elo:687}},{a:{uid:'zero',elo:0}},{a:{uid:'unknown',elo:null}}]},me:()=>({uid,elo}),meta:()=>({name:'Zone'}),avatar:()=>'',esc:x=>x};
   vm.createContext(context);vm.runInContext(roster,context);return context.briefingRoster('a');

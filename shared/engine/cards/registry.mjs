@@ -813,7 +813,7 @@ const REGISTRY = Object.freeze({
     maxUses:1,
     program:[
       {kind:'SELECT_BOARD', local:'targetIid', filter:{sameZone:true, opponent:true, row:1}},
-      {kind:'OPERATION', targeted:true, operation:{type:'DISCARD_CARD', targetIid:'$targetIid'}}
+      {kind:'OPERATION', targeted:true, operation:{type:'DISCARD_CARD', targetIid:'$targetIid', revealDiscard:true, reason:'SANTIAGO_DISCARD'}}
     ]
   },
   '31':{

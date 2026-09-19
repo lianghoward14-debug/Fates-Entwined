@@ -26,7 +26,15 @@
     const off = reduced() || document.hidden;
     let restore = false;
     sets.forEach((item, id) => {
-      if(off || now-item.start>=item.duration){item.canvas?.remove();sets.delete(id);restore=true;}
+      if(off || now-item.start>=item.duration){
+        // Paint the settled board card before removing its overlay. A scheduled
+        // redraw can be deferred by an active presentation, leaving a blank card.
+        sets.delete(id);
+        const adapter=window.FateMatchRendererAdapter;
+        if(typeof adapter?.revealBoardCardAfterVfx==='function') adapter.revealBoardCardAfterVfx(item.iid);
+        else restore=true;
+        item.canvas?.remove();
+      }
       else if(item.texture) paintOverlay(item, true);
     });
     clicks.forEach((item, id) => {
@@ -76,7 +84,7 @@
     const hits=isSet?map?.cards:map?.cells;
     const hit=hits?.find(h=>key(h)===key(item.target));
     if(!hit || (isSet && String(hit.card?.iid)!==item.iid)){item.canvas?.remove();item.canvas=null;return;}
-    const rect=isSet?hit.rect:(hit.visualRect||hit.rect),ctx=surface(item,rect,isSet);
+    const rect=isSet?(hit.motionRect||hit.rect):(hit.visualRect||hit.rect),ctx=surface(item,rect,isSet);
     if(!ctx)return;
     if(!isSet){drawClick(ctx,item.target,rect);return;}
     const entry={...item.target,card:hit.card},p=pose(entry,rect);if(!p)return;

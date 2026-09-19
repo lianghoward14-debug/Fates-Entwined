@@ -108,6 +108,7 @@
     }
 
     isModalBlockingSceneInput(){
+      if(typeof isBoardInputBlockedByModal === 'function') return isBoardInputBlockedByModal();
       try {
         const modal = document.getElementById('modal');
         if(modal && modal.classList && modal.classList.contains('on')) {
@@ -511,6 +512,7 @@
     }
 
     dispatchHit(hit){
+      if(this.isModalBlockingSceneInput()) return;
       if(!hit || typeof G === 'undefined' || !G) return;
       const z = Number(hit.z);
       const r = Number(hit.r);

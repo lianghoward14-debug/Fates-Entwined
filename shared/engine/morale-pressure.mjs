@@ -300,9 +300,9 @@ export function modifyMorale(ctx, operation = {}){
       requestedAmount += matching * perMatchingCard;
     }
   }
-  const sourceEntry = operation.sourceIid ? findCard(state, operation.sourceIid) : null;
-  const sourcePlayer = Number(operation.sourceController ?? sourceEntry?.card?.controller ?? sourceEntry?.card?.owner);
-  const damagePrevented = requestedAmount < 0 && moraleDamageInflictionBlocked(state, sourcePlayer);
+  const isCost = /(?:^|_)COST$/i.test(String(operation.reason || ''));
+  const damagePrevented = requestedAmount < 0 && !isCost
+    && moraleDamageInflictionBlocked(state, 1 - player);
   const after = damagePrevented
     ? before
     : Math.max(0, Math.min(Number(system.maxMorale || STARTING_MORALE), before + requestedAmount));
@@ -514,7 +514,7 @@ function resolveMoraleDamage(ctx){
     sound:'pressure-cycle-reset'
   });
   if(String(ctx.state.landscapeId || '') === 'igb1') return;
-  if(winner === null) return;
+  if(winner === null || moraleDamageInflictionBlocked(ctx.state, winner)) return;
   const prevention = boardEntries(ctx.state).find(entry=>controllerOf(entry.card) === loser && entry.card.counters?.preventNextMoraleDamage === true && !isEffectSourceSuppressed(ctx.state, entry));
   if(prevention){
     prevention.card.counters.preventNextMoraleDamage = false;

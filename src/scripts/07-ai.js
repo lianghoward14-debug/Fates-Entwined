@@ -275,13 +275,15 @@ async function runAITurn() {
       if(G.currentPlayer !== G.aiPlayer || G.turn !== aiTurnNumber || G._aiTurnToken !== aiTurnToken) { G._aiRunning = false; return; }
       actionsThisTurn++;
       G._aiLastProgressAt = Date.now();
-      await aiSleep(Math.max(thinkTime, AI_VISUAL_PAUSE_THINK));
       if(G._aiAborted || G._aiAbort) { G._aiRunning = false; return; }
       if(G.currentPlayer !== G.aiPlayer || G.turn !== aiTurnNumber || G._aiTurnToken !== aiTurnToken) { G._aiRunning = false; return; }
       const hand = G.players[G.aiPlayer].hand;
       const canSetPolishFromDeck = G.players[G.aiPlayer].deck.some(c=>c.id==='28') && !G._polishUsedThisTurn;
       const canSetMajaFromDeck = G.players[G.aiPlayer].deck.some(c=>c.id==='07');
       if(hand.length===0 && !canSetPolishFromDeck && !canSetMajaFromDeck) break;
+
+      await aiResolveAutomaticBoardEffects();
+      if(G.currentPlayer !== G.aiPlayer || G.turn !== aiTurnNumber) { G._aiRunning = false; return; }
 
       // Generate all legal moves
       const moves = aiGenerateAllMoves();
@@ -313,6 +315,10 @@ async function runAITurn() {
       if(bestScore < -200 && actionsThisTurn > 1) break;
 
       aiInvalidateZoneScoreCache();
+
+      // Only pace a chosen action, not an empty end-of-turn scan.
+      await aiSleep(Math.max(thinkTime, AI_VISUAL_PAUSE_THINK));
+      if(G._aiAborted || G._aiAbort) { G._aiRunning = false; return; }
 
       // Phase 0 legacy recorder: observe only when ?fateV3Recorder=1 loaded
       // the separate bridge. It never changes gameplay authority or routing.
@@ -3870,6 +3876,29 @@ async function aiRunBoardPlacementPresentation(opts) {
 }
 
 // â”€â”€ AI-friendly trigger for 'when set' (auto-picks targets) â”€â”€
+function aiChooseFelicytaYouthLandscape(inst, cp) {
+  if(typeof isLandscapeChangeBlockedFor === 'function' && isLandscapeChangeBlockedFor(cp)) return false;
+  const currentId = String(G.landscapeId || '');
+  const leavingBlock = typeof getFelicitaLandscapeChangeBlockReason === 'function' ? getFelicitaLandscapeChangeBlockReason('') : '';
+  if(!leavingBlock) {
+    const strat = G._selectedAI?._deckStrategy || '';
+    const preferredByStrategy = {
+      ai_wintertide_family_reunion:['igb15','igb18','igb2','igb8','igb1'],
+      ai_snowbound_wintertide:['igb15','igb18','igb2','igb8','igb1'],
+      ai_pierogi_siege:['igb15','igb14','igb8','igb2','igb1']
+    };
+    const preferredIds = preferredByStrategy[strat] || ['igb15','igb8','igb2','igb10','igb1'];
+    const targetId = preferredIds.find(function(candidate){
+      if(candidate === currentId || !(typeof LANDSCAPES !== 'undefined' && LANDSCAPES[candidate])) return false;
+      return !(typeof getFelicitaLandscapeChangeBlockReason === 'function' && getFelicitaLandscapeChangeBlockReason(candidate));
+    });
+    if(targetId && typeof transitionGameLandscape === 'function') {
+      transitionGameLandscape('board' + targetId.replace('igb',''), {player:cp, sourceCard:inst});
+      log('p2','AI: Felicyta changed the landscape to ' + (LANDSCAPES[targetId].name || targetId));
+    }
+  }
+}
+
 async function aiTriggerWhenSet(inst, z, r, c) {
   const finishHiddenPresentation = typeof beginHiddenEffectPresentation === 'function' ? beginHiddenEffectPresentation(inst) : function(){};
   try {
@@ -4063,7 +4092,8 @@ async function aiTriggerWhenSet(inst, z, r, c) {
         G.blockedCells.push({z,r:best.r,c:best.c,type:'zoe',owner:cp,blockedPlayer:opp,sourceIid:inst.iid});
         
         if(typeof showBlockVisual === 'function') showBlockVisual(z,best.r,best.c,'zoe');
-        if(typeof playSfx === 'function') playSfx('zoeBlock');
+        const cagePlayed = window.FateCharacterBoardEffects?.play('cage', {iid:inst.iid}, {z,r:best.r,c:best.c});
+        if(!cagePlayed && typeof playSfx === 'function') playSfx('zoeBlock');
         if(typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
         log('p2',`AI: Zoe locked Zone ${z+1} row ${best.r+1} col ${best.c+1}`);
       }
@@ -4102,9 +4132,12 @@ async function aiTriggerWhenSet(inst, z, r, c) {
         else G.blockedCells.push({z:best.z,r:best.r,c:best.c,type:'carolyn',owner:cp,blockedPlayer:null});
         
         if(typeof showBlockVisual === 'function') showBlockVisual(best.z,best.r,best.c,'carolyn');
-        if(typeof window.playCarolynLockSfx === 'function') window.playCarolynLockSfx('ai:'+best.z+':'+best.r+':'+best.c);
-        else if(typeof window.playFateSfxOnce === 'function') window.playFateSfxOnce('carolynBlock', 'ai-carolyn-square:'+best.z+':'+best.r+':'+best.c+':'+String(G.turn || 0), 700);
-        else if(typeof playSfx === 'function') playSfx('carolynBlock');
+        const possibilityPlayed = window.FateCharacterBoardEffects?.play('possibility', {iid:inst.iid}, {z:best.z,r:best.r,c:best.c});
+        if(!possibilityPlayed){
+          if(typeof window.playCarolynLockSfx === 'function') window.playCarolynLockSfx('ai:'+best.z+':'+best.r+':'+best.c);
+          else if(typeof window.playFateSfxOnce === 'function') window.playFateSfxOnce('carolynBlock', 'ai-carolyn-square:'+best.z+':'+best.r+':'+best.c+':'+String(G.turn || 0), 700);
+          else if(typeof playSfx === 'function') playSfx('carolynBlock');
+        }
         log('p2',`AI: Carolyn permanently locked Zone ${best.z+1} row ${best.r+1} col ${best.c+1}`);
       }
       break;
@@ -4454,25 +4487,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       break;
     }
     case '82': { // Felicyta Janowicz (Youth): choose a legal replacement landscape
-      const currentId = String(G.landscapeId || '');
-      const leavingBlock = typeof getFelicitaLandscapeChangeBlockReason === 'function' ? getFelicitaLandscapeChangeBlockReason('') : '';
-      if(!leavingBlock) {
-        const strat = G._selectedAI?._deckStrategy || '';
-        const preferredByStrategy = {
-          ai_wintertide_family_reunion:['igb15','igb18','igb2','igb8','igb1'],
-          ai_snowbound_wintertide:['igb15','igb18','igb2','igb8','igb1'],
-          ai_pierogi_siege:['igb15','igb14','igb8','igb2','igb1']
-        };
-        const preferredIds = preferredByStrategy[strat] || ['igb15','igb8','igb2','igb10','igb1'];
-        const targetId = preferredIds.find(function(candidate){
-          if(candidate === currentId || !(typeof LANDSCAPES !== 'undefined' && LANDSCAPES[candidate])) return false;
-          return !(typeof getFelicitaLandscapeChangeBlockReason === 'function' && getFelicitaLandscapeChangeBlockReason(candidate));
-        });
-        if(targetId && typeof transitionGameLandscape === 'function') {
-          transitionGameLandscape('board' + targetId.replace('igb',''), {player:cp, sourceCard:inst});
-          log('p2','AI: Felicyta changed the landscape to ' + (LANDSCAPES[targetId].name || targetId));
-        }
-      }
+      aiChooseFelicytaYouthLandscape(inst, cp);
       inst.effectUsedInitial = true;
       inst._effectTurnLocked = true;
       break;
@@ -5123,9 +5138,37 @@ async function aiTriggerWhenSet(inst, z, r, c) {
 }
 
 // â”€â”€ Activate useful character effects â”€â”€
+// Resolve ordinary effects before the next AI action, in board order just as
+// the human automatic scheduler does. Player-timed and hidden effects remain
+// decisions for aiActivateEffects; difficulty never skips automatic effects.
+async function aiResolveAutomaticBoardEffects() {
+  if(typeof automaticBoardEffectsEnabled !== 'function' || !automaticBoardEffectsEnabled()) return;
+  const player = G.aiPlayer, turn = G.turn;
+  const attempted = new Set();
+  while(G.currentPlayer === player && G.turn === turn){
+    let candidate = null;
+    forEachBoardCard((card,z,r,c)=>{
+      if(candidate || card.owner !== player || isFaceDownCard(card) || attempted.has(card)
+        || card._aiEffectResolutionInFlight || !canUseManualCharacterEffect(card)) return;
+      const id = typeof getCardRuntimeEffectId === 'function' ? getCardRuntimeEffectId(card) : card.id;
+      if(window.fateEffectRequiresManualActivationId?.(card)
+        || window.fateEffectRequiresManualActivationId?.(id)) return;
+      candidate = {card,z,r,c};
+    });
+    if(!candidate) return;
+    const {card,z,r,c} = candidate;
+    attempted.add(card);
+    if(typeof playEffectActivationCinematic === 'function') {
+      await playEffectActivationCinematic(card,z,r,c,{source:'ai-automatic-character'});
+    }
+    await aiRunEffect(card,z,r,c);
+  }
+}
+
 async function aiActivateEffects() {
   if(G.currentPlayer !== G.aiPlayer) return;
   const cp = G.aiPlayer;
+  await aiResolveAutomaticBoardEffects();
   const activated = new Set();
   const settings = getAIDifficultySettings();
   // Style personality modifiers
@@ -5148,7 +5191,10 @@ async function aiActivateEffects() {
   forEachBoardCard((card,z,r,c)=>{
     if(card.owner===cp && card.type!=='Supporter' && !activated.has(card.iid)
       && typeof canUseManualCharacterEffect === 'function'
-      && canUseManualCharacterEffect(card)){
+      && canUseManualCharacterEffect(card)
+      && (!automaticBoardEffectsEnabled() || isFaceDownCard(card)
+        || window.fateEffectRequiresManualActivationId?.(card)
+        || window.fateEffectRequiresManualActivationId?.(getCardRuntimeEffectId(card)))){
       toActivate.push({card,z,r,c});
     }
   });
@@ -5180,6 +5226,7 @@ async function aiActivateEffects() {
       await playEffectActivationCinematic(card, z, r, c, {source:'ai-manual-character'});
     }
     await aiRunEffect(card, z, r, c);
+    await aiResolveAutomaticBoardEffects();
     await aiSleep(AI_VISUAL_PAUSE_EFFECTS);
   }
 
@@ -5200,8 +5247,8 @@ async function aiActivateEffects() {
     return priority(b) - priority(a);
   });
   for(const action of supporterActions){
-    await aiRunSupporterBoardAbility(action.card, action.z, action.r, action.c);
-    await aiSleep(AI_VISUAL_PAUSE_EFFECTS);
+    const activated = await aiRunSupporterBoardAbility(action.card, action.z, action.r, action.c);
+    if(activated) await aiSleep(AI_VISUAL_PAUSE_EFFECTS);
   }
 }
 
@@ -5213,13 +5260,17 @@ async function aiRunSupporterBoardAbility(card, z, r, c) {
     if(!aiShouldActivateSouthWind(cp)) return;
     const remaining = Number(card.usesLeft == null ? 2 : card.usesLeft);
     if(remaining <= 0) return;
-    if(typeof triggerCharacterEffect === 'function') await triggerCharacterEffect(card, z, r, c, {aiActivation:true});
-    return;
+    if(typeof triggerCharacterEffect !== 'function') return false;
+    const before = [card.usesLeft, card.effectUsedInitial, card.effectUsedThisTurn].join(':');
+    await triggerCharacterEffect(card, z, r, c, {aiActivation:true});
+    return before !== [card.usesLeft, card.effectUsedInitial, card.effectUsedThisTurn].join(':');
   }
   if(String(card.id || '') === '26') {
     if(card.effectUsedInitial) return;
-    if(typeof triggerCharacterEffect === 'function') await triggerCharacterEffect(card, z, r, c, {aiActivation:true});
-    return;
+    if(typeof triggerCharacterEffect !== 'function') return false;
+    const before = [card.usesLeft, card.effectUsedInitial, card.effectUsedThisTurn].join(':');
+    await triggerCharacterEffect(card, z, r, c, {aiActivation:true});
+    return before !== [card.usesLeft, card.effectUsedInitial, card.effectUsedThisTurn].join(':');
   }
   if(typeof cardActsAsPassive === 'function' ? cardActsAsPassive(card, '93') : card.id === '93') {
     if(card.effectUsedThisTurn) return;
@@ -5261,7 +5312,7 @@ async function aiRunSupporterBoardAbility(card, z, r, c) {
     if(typeof playSfx === 'function') playSfx('snowballFight');
     log('p2','AI: Snowball Fight reduced ' + target.name + ' by 1 Fate');
     renderGame({board:true, scores:true, topbar:true});
-    return;
+    return true;
   }
 
 }
@@ -5384,7 +5435,7 @@ async function aiRunEffect(card, z, r, c) {
       if(opps.length){
         opps.sort((a,b)=>aiOpponentCardDecisionFate(b.card,z)-aiOpponentCardDecisionFate(a.card,z));
         const target = opps[0];
-        discardBoardCard(target.card, z, 1, target.c);
+        discardBoardCard(target.card, z, 1, target.c, {revealDiscard:true});
         log('p2',`AI: El Matador discarded ${target.card.name}`);
       }
       break;

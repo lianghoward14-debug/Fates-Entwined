@@ -1,12 +1,12 @@
 import {boardEntries, controllerOf} from './selectors.mjs';
-import {effectiveFate, isEffectSourceSuppressed} from './modifiers.mjs';
+import {effectiveFate, activeAuraSource} from './modifiers.mjs';
 
 function activeSourceBoundStatus(state, status){
   const sourceBound = status?.requiresActiveSource === true
     || String(status?.reason || '') === 'MARIE_DETERRANCE';
   if(!sourceBound || status.sourceIid == null) return true;
   const source = boardEntries(state).find(entry=>String(entry.card.iid || '') === String(status.sourceIid));
-  return !!source && !isEffectSourceSuppressed(state, source);
+  return !!source && activeAuraSource(state, source);
 }
 
 export function moraleZoneFatePenalty(state, playerIndex){

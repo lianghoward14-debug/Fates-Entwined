@@ -610,7 +610,7 @@
       const count = Math.max(1, Number(p.drawCount || p.count || 1) || 1);
       return 700 + Math.min(5, count - 1) * 720;
     }
-    if(type === 'SEARCH_TO_HAND') return 1100 + Math.max(0, Number(p.startOffset) || 0);
+    if(type === 'SEARCH_TO_HAND') return 1750 + Math.max(0, Number(p.startOffset) || 0);
     if(type === 'MOVE_CARD' || type === 'SWAP_CARDS') return 240;
     if(type === 'RETURN_TO_HAND') return 520;
     if(type === 'DISCARD_CARD' || type === 'HAND_DISCARD') return 1500;

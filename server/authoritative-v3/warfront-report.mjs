@@ -15,15 +15,15 @@ export function warfrontReportStats(zones){
   }
   const duration=ms=>{const seconds=Math.floor(ms/1000);return Math.floor(seconds/60)+':'+String(seconds%60).padStart(2,'0');};
   const achievements=[
-    ['fate','∆','Decisive Force','Highest total fate differential in victories','fateDifferential','sum'],
+    ['fate','∆','Decisive Force','Highest fate differential in a victory','fateDifferential','max'],
     ['speed','⌁','Lightning Victory','Fastest match victory','durationMs','min'],
-    ['consolidation','◇','Master of Position','Most total consolidations','consolidations','sum']
+    ['consolidation','◇','Master of Position','Most consolidations in a victory','consolidations','max']
   ].map(([id,icon,name,copy,metric,mode])=>{
     const values=new Map();
     for(const row of rows){
       if(mode==='min'&&!row[metric])continue;
       const entry=values.get(row.uid)||{uid:row.uid,name:row.name,photo:row.photo,team:row.team,value:mode==='min'?Infinity:0};
-      entry.value=mode==='min'?Math.min(entry.value,row[metric]):entry.value+row[metric];values.set(row.uid,entry);
+      entry.value=mode==='min'?Math.min(entry.value,row[metric]):mode==='max'?Math.max(entry.value,row[metric]):entry.value+row[metric];values.set(row.uid,entry);
     }
     const ranked=[...values.values()].filter(x=>Number.isFinite(x.value)).sort((a,b)=>mode==='min'?a.value-b.value:b.value-a.value);
     const top=ranked[0],tied=!!top&&ranked.filter(x=>x.value===top.value).length>1;

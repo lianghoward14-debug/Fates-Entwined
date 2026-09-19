@@ -607,6 +607,8 @@ function presentJimmyDynamicFateGain(card, value) {
 }
 function getCachedEffectiveFate(card, z) {
   if(!card) return 0;
+  // Projected Fate can change while a hidden card's local fields stay identical.
+  if(G?._phase7ZoneScores && Number.isFinite(card._authoritativeFate)) return card._authoritativeFate;
   if(!_renderCalcCache || typeof getEffectiveFate !== 'function') return getEffectiveFate(card, z);
   const flowerSquare = card._bh12FlowerSquare
     ? [card._bh12FlowerSquare.z, card._bh12FlowerSquare.r, card._bh12FlowerSquare.c].join(',')
@@ -647,6 +649,9 @@ function getCachedBaseZoneScore(z, player) {
   return score;
 }
 function getCachedZoneScore(z, player) {
+  // Hidden identities and effects are absent from the opponent's projection.
+  // Use the complete authority total before consulting any local render cache.
+  if(Number.isFinite(G?._phase7ZoneScores?.[z]?.[player])) return G._phase7ZoneScores[z][player];
   if(!_renderCalcCache || typeof getZoneScore !== 'function') return getZoneScore(z, player);
   const key = z + ':' + player;
   if(_renderCalcCache.zoneScores.has(key)) return _renderCalcCache.zoneScores.get(key);
@@ -3731,11 +3736,32 @@ function getZoneScoreTooltip(z, s0, s1) {
     'Displayed Fate: P1 ' + s0 + ' / P2 ' + s1;
 }
 
+function isBoardInputBlockedByModal() {
+  if(typeof document === 'undefined') return false;
+  const modal = document.getElementById('modal');
+  if(modal && modal.classList.contains('on')) return true;
+  const overlays = document.querySelectorAll('.overlay.on, .card-info-overlay, [role="dialog"][aria-modal="true"], .modal[aria-modal="true"], .card-detail-modal.on, .card-info-modal.on');
+  return Array.from(overlays).some(function(overlay){
+    const style = window.getComputedStyle(overlay);
+    // Fading backdrops still own input, including those whose children alone
+    // enable pointer events.
+    return style.display !== 'none' && style.visibility !== 'hidden' && overlay.getClientRects().length > 0;
+  });
+}
+
 function installBoardClickDelegation(board) {
   if(!board || board.__fateBoardClickDelegated) return;
   board.__fateBoardClickDelegated = true;
   let pendingPointerCell = null;
   let lastHandledBoardClickAt = 0;
+  ['pointerdown', 'pointerup', 'click', 'dblclick', 'contextmenu'].forEach(function(type){
+    board.addEventListener(type, function(e){
+      if(!isBoardInputBlockedByModal()) return;
+      pendingPointerCell = null;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    }, {capture:true, passive:false});
+  });
   board.addEventListener('pointerdown', function(e){
     const cell = e.target && e.target.closest ? e.target.closest('.cell[data-z][data-r][data-c]') : null;
     if(cell && board.contains(cell)) {
@@ -3761,6 +3787,7 @@ function installBoardClickDelegation(board) {
     pendingPointerCell = null;
     if(Math.abs(e.clientX - pending.x) > 10 || Math.abs(e.clientY - pending.y) > 10) return;
     setTimeout(function(){
+      if(isBoardInputBlockedByModal()) return;
       if(performance.now() - lastHandledBoardClickAt < 80) return;
       if(window._lastBcClickAt && performance.now() - window._lastBcClickAt < 300) return;
       var boardCard = (typeof G!=='undefined'&&G&&G.board&&G.board[pending.z]&&G.board[pending.z][pending.r])?G.board[pending.z][pending.r][pending.c]:null;
@@ -4218,6 +4245,8 @@ if(typeof window !== 'undefined') window.getStatusEffectIcon = getStatusEffectIc
 // authoritative single-player screen. Card rules remain engine-owned; this
 // descriptor only selects the established transient crest and label.
 function getAuthoritativeEffectOverlayDescriptor(event, source, target) {
+  // Conceal the source's identity, not the public Fate delta on its target.
+  if(source?.faceDown) return null;
   const type = String(event?.type || '').toUpperCase();
   const sourceId = String(event?.semanticSourceCardId || source?.id || '');
   const targetId = String(target?.id || '');
@@ -4401,6 +4430,7 @@ function createBoardCardEl(card, z, r, c, reuseMap) {
   }
   el.onclick=(e)=>{
     e.stopPropagation();
+    if(isBoardInputBlockedByModal()) return;
     window._lastBcClickAt = performance.now();
     captureBoardViewportLock();
     // If consolidation is active, route to consolidation handler
@@ -7261,7 +7291,7 @@ function canDiscardBerkeleyHomelessEffect(card, z, r, c, player) {
   return Number(rowOwner) === player;
 }
 
-function discardBerkeleyHomelessWithHandCost(card, z, r, c) {
+function discardBerkeleyHomelessWithHandCost(card, z, r, c, options = {}) {
   if(G && (G._igb20ResolvingDiscard || G._landscapeFateThresholdResolvingDiscard)) return false;
   const actionPlayer = G._onlineRoomCode && typeof window.fateResolveOnlineLocalPlayerIndex === 'function'
     ? Number(window.fateResolveOnlineLocalPlayerIndex('berkeley discard action'))
@@ -7287,6 +7317,11 @@ function discardBerkeleyHomelessWithHandCost(card, z, r, c) {
     const chosenIds = new Set(chosen.map(ch=>ch.iid));
     G.players[actionPlayer].hand = G.players[actionPlayer].hand.filter(h=>!chosenIds.has(h.iid));
     chosen.forEach(ch=>fatePushDiscard(actionPlayer, ch, {sound:false}));
+    if(options.revealDiscard === true) {
+      card.faceDown = false;
+      showSantiagoDiscardBanner(card);
+      window.FateV2CardMotionFx?.flyBoardCard(card, z, r, c, 'discard');
+    }
     G.board[z][r][c] = null;
     fatePushDiscard(card.owner, card);
     toast('2 cards expended to remove Berkeley Homeless');
@@ -8925,18 +8960,21 @@ function pickCardsVisual(cards, opts, onConfirm) {
 }
 
 function queueSearchToHandMotion(player, card, source, handIndex, sequenceIndex, sequenceCount) {
+  if(G && G.aiEnabled && Number(player) === Number(G.aiPlayer)) return false;
   if(!card || !document.getElementById('s-game')?.classList.contains('active')) return false;
   const motion = window.FateV2CardMotionFx;
   if(!motion || typeof motion.searchCardToHand !== 'function') return false;
   const idx = handIndex == null && G && G.players && G.players[player] ? G.players[player].hand.length : handIndex;
   const seq = Math.max(0, Number(sequenceIndex) || 0);
   const count = Math.max(1, Number(sequenceCount) || 1);
-  return !!motion.searchCardToHand(card, player, source || 'deck', {
+  const started = !!motion.searchCardToHand(card, player, source || 'deck', {
     handIndex:idx,
     drawIndex:seq,
     drawCount:count,
     startOffset:seq * 170
   });
+  if(started && typeof queuedSearchHandMotions !== 'undefined') queuedSearchHandMotions.add(card);
+  return started;
 }
 
 function searchDeckForType(player, type, prompt, maxCount=1, searchOptions={}) {
@@ -9491,7 +9529,9 @@ function highlightForBlock(z, sourceCard) {
           : (!anyBlock && (typeof isZoeBlockTargetAllowed === 'function' ? isZoeBlockTargetAllowed(zz, r, c, owner) : true));
         if(allowed){
           const el=document.querySelector(`#board .cell[data-z="${zz}"][data-r="${r}"][data-c="${c}"]`);
-          if(el) el.classList.add('placeable','block-target-choice', anyZone ? 'carolyn-block-choice' : 'zoe-block-choice');
+          if(el){
+            el.classList.add('placeable','block-target-choice', anyZone ? 'carolyn-block-choice' : 'zoe-block-choice');
+          }
         }
       }
     }
@@ -9790,14 +9830,24 @@ function setHint(msg) {
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  DISCARD HELPER (handles French Fusiliers return)
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-function discardBoardCard(card, z, r, c) {
+function showSantiagoDiscardBanner(card) {
+  if(card && card.name) toast('Santiago discarded ' + card.name + '.', 4500);
+}
+
+function discardBoardCard(card, z, r, c, options = {}) {
   if(G._aiAbort) return;
   if(!card) return;
   if(typeof isZoeFieldLeaveLockedAt==='function'&&isZoeFieldLeaveLockedAt(card,z,r,c)){toast(card.name+' cannot leave Zoe\'s locked square');return;}
   if(typeof isWojciechPierogiCounter === 'function' && isWojciechPierogiCounter(card)){toast(card.name+' cannot be discarded');return;}
   // ALPINE Infantry cannot be discarded
   if(card.id==='76'){toast(card.name+' cannot be discarded');return;}
-  if(discardBerkeleyHomelessWithHandCost(card, z, r, c)) return;
+  if(discardBerkeleyHomelessWithHandCost(card, z, r, c, options)) return;
+  const replacedByGuerilla = (typeof cardActsAsPassive === 'function' ? cardActsAsPassive(card, '70') : card.id==='70') && !card.guerilla_transferred;
+  const revealDiscard = options.revealDiscard === true && !replacedByGuerilla;
+  if(revealDiscard) {
+    card.faceDown = false;
+    showSantiagoDiscardBanner(card);
+  }
   // Try to play discard animation on the DOM element before removing
   const suppressDiscardVfx = !!card._suppressDiscardVfx;
   if(!suppressDiscardVfx && window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.flyBoardCard === 'function'){
@@ -9807,6 +9857,10 @@ function discardBoardCard(card, z, r, c) {
   if(!suppressDiscardVfx && !rendererV2OwnsBoard){
     const cellEl = document.querySelector(`#board .cell[data-z="${z}"][data-r="${r}"][data-c="${c}"] .bc`);
     if(cellEl){
+      if(revealDiscard) {
+        const art = cellEl.querySelector('.bc-art img');
+        if(art) art.src = card.img || card.id + '.png';
+      }
       // Fly toward the opponent's discard pile (roughly offscreen for now)
       const isMine = isPerspectivePlayer(card.owner);
       cellEl.style.setProperty('--dx', (isMine?'-200px':'200px'));
@@ -10597,6 +10651,15 @@ function showConsolidationCinematic(card, opts) {
       subEl.style.setProperty('font-size', 'clamp(1.44rem,2.58vw,2.1rem)', 'important');
       subEl.style.setProperty('transform', 'translateX(-50%)', 'important');
       subEl.style.setProperty('z-index', '6', 'important');
+      // Measure at the final font size so longer dialogue grows down from
+      // the two-line position instead of crowding the card art above it.
+      var subtitleStyle = window.getComputedStyle(subEl);
+      var subtitleLineHeight = parseFloat(subtitleStyle.lineHeight) || parseFloat(subtitleStyle.fontSize) * 1.18;
+      var subtitleLines = Math.round(subEl.offsetHeight / subtitleLineHeight);
+      if(subtitleLines > 2) {
+        var subtitleDrop = (subtitleLines - 2) * subtitleLineHeight;
+        subEl.style.setProperty('bottom', 'max(20px, calc(' + consolidationSubtitleBottom + ' + 25px - ' + subtitleDrop + 'px))', 'important');
+      }
     }
   }
 
@@ -10642,7 +10705,9 @@ function showConsolidationCinematic(card, opts) {
     _consolidationCinematicShowing = false;
     _lastConsolidationCinematicEndedAt = Date.now();
     if(card.type === 'Improvisor' || (['Coordinator','Dauntless'].includes(card.type) && typeof hasAuthoritativeWhenSetEffect === 'function' && !hasAuthoritativeWhenSetEffect(card))) {
-      const signaturePlayed = card.type === 'Coordinator' && window.FateSignatureActivationFx?.playCoordinator(card,{sfx:opts.playSfx !== false});
+      const signaturePlayed = card.type === 'Coordinator'
+        ? window.FateSignatureActivationFx?.playCoordinator(card,{sfx:opts.playSfx !== false})
+        : window.FateSignatureActivationFx?.playPlacement(card,{sfx:opts.playSfx !== false});
       if(!signaturePlayed) window.FateActivationBanner?.play(card, {sfx:opts.playSfx !== false});
     }
     if(cinematicDedupKey) {
@@ -11459,20 +11524,41 @@ function pickCardFromAnyZone(prompt, callback, filter) {
 function showFaceDownEffectChoice(card, onFlip, onActivate, options = {}) {
   const e = value=>String(value || '').replace(/[&<>"']/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   const placement=options.placement===true;
-  const title=placement?'Choose your entrance':'Reveal or remain unseen';
+  const title=options.title || (placement?'Choose your entrance':'Reveal or remain unseen');
   const portraitId = card?.pfpId || ({'101':6,'102':11,'103':30})[String(card?.id)]
     || (/^bh0?(\d+)$/i.test(String(card?.id)) ? 100 + Number(String(card.id).match(/\d+/)[0]) : Number(card?.id));
   const art=e(portraitId ? (typeof PFP_PATH === 'function' ? PFP_PATH(portraitId, 'square') : 'pfp/pfp'+portraitId+'.png') : card?.runtimeImg || card?.img || 'back.png');
   showModal(title,
     '<section class="hidden-effect-choice tactical-choice'+(placement?' placement-choice':'')+'"><aside class="tactical-art"><img src="'+art+'" alt=""><div class="tactical-art-shade"></div>'+(placement?'':'<span class="tactical-edition">HIDDEN IN PLAIN SIGHT</span>')+'<div class="tactical-identity"><small>'+e(card?.ability || 'Tactical decision')+'</small><h3>'+e(card?.name || 'Your card')+'</h3></div></aside>'+
-    '<div class="tactical-content"><div class="hidden-effect-eyebrow">YOUR NEXT MOVE</div><h3>'+title+'</h3><p>Control what your opponent sees.</p><div class="hidden-effect-options">'+
-    '<button type="button" class="hidden-effect-option" data-hidden-choice="flip"><span class="tactical-number">01</span><div><small>MAKE YOUR PRESENCE KNOWN</small><strong>'+(placement?'Place Face Up':'Flip Face Up')+'</strong><span>'+(placement?'Enter the field openly.':'Reveal your card with its full cinematic. Unused When Set effects resolve.')+'</span></div><b aria-hidden="true">↗</b></button>'+
-    (onActivate?'<button type="button" class="hidden-effect-option hidden-effect-option-secret" data-hidden-choice="activate"><span class="tactical-number">02</span><div><small>KEEP THE ADVANTAGE</small><strong>'+(placement?'Place Face Down':'Activate Face Down')+'</strong><span>'+(placement?'Conceal your identity. Auras and triggers remain active.':'Resolve the effect in secret. Your opponent sees only a hidden reaction window.')+'</span></div><b aria-hidden="true">◇</b></button>':'')+
-    '</div><div class="hidden-effect-note"><span>◇</span> '+(placement?'Internal Fate stays at zero while hidden. Aura bonuses still count.':'A concealed effect can still be negated. Revealing never repeats a used When Set effect.')+'</div></div></section>',
+    '<div class="tactical-content"><div class="hidden-effect-eyebrow">YOUR NEXT MOVE</div><h3>'+title+'</h3><p>'+e(options.description || 'Control what your opponent sees.')+'</p><div class="hidden-effect-options">'+
+    '<button type="button" class="hidden-effect-option" data-hidden-choice="flip"><span class="tactical-number">01</span><div><small>MAKE YOUR PRESENCE KNOWN</small><strong>'+e(options.firstLabel || (placement?'Place Face Up':'Flip Face Up'))+'</strong><span>'+e(options.firstDescription || (placement?'Enter the field openly.':'Reveal your card with its full cinematic. Unused When Set effects resolve.'))+'</span></div><b aria-hidden="true">↗</b></button>'+
+    (onActivate?'<button type="button" class="hidden-effect-option hidden-effect-option-secret" data-hidden-choice="activate"><span class="tactical-number">02</span><div><small>KEEP THE ADVANTAGE</small><strong>'+e(options.secondLabel || (placement?'Place Face Down':'Activate Face Down'))+'</strong><span>'+e(options.secondDescription || (placement?'Conceal your identity. Choose Fate and auras next.':'Resolve the effect in secret. Your opponent sees only a hidden reaction window.'))+'</span></div><b aria-hidden="true">◇</b></button>':'')+
+    '</div><div class="hidden-effect-note"><span>◇</span> '+e(options.note || (placement?'Next, choose whether this card contributes Fate and zone auras.':'A concealed effect can still be negated. Revealing never repeats a used When Set effect.'))+'</div></div></section>',
     [{label:'Back',action:()=>closeModal()}],{immediate:true,skipDecorate:true,onOpen:function(){
       document.querySelector('#modal [data-hidden-choice="flip"]')?.addEventListener('click',()=>{closeModal();onFlip();});
       document.querySelector('#modal [data-hidden-choice="activate"]')?.addEventListener('click',()=>{closeModal();onActivate();});
     }});
 }
 window.showFaceDownEffectChoice=showFaceDownEffectChoice;
-window.showFaceDownPlacementChoice=function(card,onFaceUp,onFaceDown){return showFaceDownEffectChoice(card,onFaceUp,onFaceDown,{placement:true});};
+window.showFaceDownPlacementChoice=function(card,onFaceUp,onFaceDown){
+  function chooseContributions(onPlace){
+    showFaceDownEffectChoice(card,()=>chooseAuras(true),()=>chooseAuras(false),{
+      placement:true,title:'Contribute Fate?',description:'Choose whether this card adds its Fate to your zone.',
+      firstLabel:'Contribute Fate',secondLabel:'Do Not Contribute Fate',
+      firstDescription:'Count this card\'s full effective Fate, even face down.',
+      secondDescription:'This card contributes zero Fate, including received bonuses.',
+      note:'This choice applies whether the card is face up or face down.'
+    });
+    function chooseAuras(contributesFate){
+      if(card?.type !== 'Coordinator') return onPlace({contributesFate});
+      showFaceDownEffectChoice(card,()=>onPlace({contributesFate,contributesAuras:true}),()=>onPlace({contributesFate,contributesAuras:false}),{
+        placement:true,title:'Contribute Zone Auras?',description:'Choose whether this card provides its continuous zone auras.',
+        firstLabel:'Contribute Zone Auras',secondLabel:'Do Not Contribute Zone Auras',
+        firstDescription:'Apply this card\'s continuous zone bonuses and penalties.',
+        secondDescription:'Keep this card\'s continuous zone auras inactive.',
+        note:'Fate and aura choices remain independent of the card\'s face-up or face-down state.'
+      });
+    }
+  }
+  return showFaceDownEffectChoice(card,()=>chooseContributions(onFaceUp),()=>chooseContributions(onFaceDown),{placement:true});
+};

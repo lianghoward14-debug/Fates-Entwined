@@ -4,8 +4,8 @@
   if(typeof window === 'undefined') return;
   if(window.FateVfxRecipes) return;
 
-  const VERSION = 52;
-  const STYLE_VERSION = 'professional-tcg-motion-v47-large-draw';
+  const VERSION = 53;
+  const STYLE_VERSION = 'professional-tcg-motion-v48-search-flip-catch';
   const MOTION = {
     micro:96,
     snap:154,
@@ -425,17 +425,26 @@
     const h = Number((to || from || {}).h) || 98;
     const start = Math.max(0, Number(p.startOffset) || 0);
     const safeTo = to
-      ? offsetRect(scaleRect(to, .76), 0, -Math.max(30, h * .20))
+      ? offsetRect(scaleRect(to, .76), 0, -6)
       : to;
-    const reveal = leftPanelSearchRevealRect(from, safeTo || to, sourceIsDiscard) || safeTo || to || from;
-    const revealMs = sourceIsDiscard ? 420 : 620;
-    const flyMs = sourceIsDiscard ? 300 : 360;
-    const flyStart = revealMs + 10;
+    const reveal = clampRectToViewport(scaleRect(leftPanelSearchRevealRect(from, safeTo || to, sourceIsDiscard) || safeTo || to || from, 1.4), 18);
+    // Flip & catch: wind up, flick into a readable reveal, then catch with
+    // one small rebound. The complete 1700ms motion fits the 1750ms gate.
+    const recoil = offsetRect(from, 0, Math.min(10, h * .07));
+    const catchRect = offsetRect(safeTo || to, 0, Math.min(8, h * .055));
+    const rebound = offsetRect(safeTo || to, 0, -Math.min(6, h * .04));
+    const common = {iid:p.iid || baseId, card:p.card || null, faceDown:p.faceDown === true,
+      scale:1, startScale:1, endScale:1, textureScale:1.18, overshoot:0,
+      launchSquash:0, landSquash:0, wobble:0, settleMs:0, rotate:0,
+      noShadow:true, keepInFrame:true, safeMargin:12, safeBottomMargin:12, layer, priority:'high'};
+    const move = options => cardMove(Object.assign({}, common, options));
     return [
-      cardMove({iid:p.iid || baseId, card:p.card || null, faceDown:p.faceDown === true, fromRect:from, toRect:reveal, startOffset:start, duration:revealMs, easing:'out-expo-soft', path:'s-curve', arc:sourceIsDiscard ? .14 : .20, lift:sourceIsDiscard ? .14 : .20, sideArc:sourceIsDiscard ? -.08 : .12, rotate:sourceIsDiscard ? -2.6 : 3.8, bank:sourceIsDiscard ? -1.2 : 2.2, scale:sourceIsDiscard ? 1.02 : 1.04, endScale:1.02, textureScale:sourceIsDiscard ? 1.12 : 1.18, holdMs:sourceIsDiscard ? 100 : 170, wobble:.03, settleMs:0, noShadow:true, keepInFrame:true, safeMargin:12, safeBottomMargin:52, layer, priority:'high'}),
-      cardMove({iid:p.iid || baseId, card:p.card || null, faceDown:p.faceDown === true, fromRect:reveal, toRect:safeTo || to, startOffset:start + flyStart, duration:flyMs, easing:'in-quart', path:'s-curve', arc:sourceIsDiscard ? .08 : .11, lift:sourceIsDiscard ? .07 : .09, sideArc:sourceIsDiscard ? -.06 : .09, rotate:sourceIsDiscard ? 1.0 : -2.0, bank:0, scale:1, endScale:1, textureScale:sourceIsDiscard ? 1.04 : 1.08, landSquash:0, wobble:.03, settleMs:0, noShadow:true, keepInFrame:true, safeMargin:12, safeBottomMargin:56, layer, priority:'high'}),
-      P().cardImpact({iid:p.iid || baseId, card:null, rect:safeTo || to, startOffset:start + flyStart + flyMs - 30, duration:64, amplitude:.005, priority:'normal'}),
-      P().soundCue({cue:'search_found', startOffset:start + Math.max(90, flyStart - 70), priority:'high'})
+      move({fromRect:from, toRect:recoil, startOffset:start, duration:140, easing:'in-out-cubic', path:'direct', arc:0, lift:0, endRotate:-8, faceDown:!sourceIsDiscard || common.faceDown}),
+      move({fromRect:recoil, toRect:reveal, startOffset:start + 140, duration:800, holdMs:280, easing:'out-cubic', path:'s-curve', arc:.32, lift:.32, sideArc:-.08, startRotate:-8, rotate:-14, flipStart:sourceIsDiscard ? 0 : 180, flipEnd:360}),
+      move({fromRect:reveal, toRect:catchRect, startOffset:start + 940, duration:500, easing:'in-quart', path:'s-curve', arc:.18, lift:.18, sideArc:.06, rotate:-9, endRotate:6}),
+      move({fromRect:catchRect, toRect:rebound, startOffset:start + 1440, duration:130, easing:'out-cubic', path:'direct', arc:0, lift:0, startRotate:6, endRotate:-3}),
+      move({fromRect:rebound, toRect:safeTo || to, startOffset:start + 1570, duration:130, easing:'in-out-cubic', path:'direct', arc:0, lift:0, startRotate:-3, endRotate:0}),
+      P().soundCue({cue:'search_found', startOffset:start + 640, priority:'high'})
     ].filter(Boolean);
   }
 
@@ -479,7 +488,7 @@
     const to = payloadRect(p, ['toRect', 'targetRect', 'cellRect']);
     const travelMs = Math.max(120, Math.min(240, Number(p.duration) || 170));
     const list = [
-      cardMove({iid:p.iid, card:p.card, faceDown:p.faceDown, fromRect:from, toRect:to, startOffset:0, duration:travelMs, easing:p.easing || 'out-cubic', path:p.path || 'direct', arc:Number.isFinite(Number(p.arc)) ? Number(p.arc) : 0, lift:Number.isFinite(Number(p.lift)) ? Number(p.lift) : 0, sideArc:Number.isFinite(Number(p.sideArc)) ? Number(p.sideArc) : 0, rotate:Number.isFinite(Number(p.rotate)) ? Number(p.rotate) : 0, bank:Number.isFinite(Number(p.bank)) ? Number(p.bank) : 0, scale:Number.isFinite(Number(p.scale)) ? Number(p.scale) : 1, textureScale:Number.isFinite(Number(p.textureScale)) ? Number(p.textureScale) : 1, overshoot:Number(p.overshoot) || 0, holdMs:0, landSquash:0, wobble:0, settleMs:0, noShadow:p.noShadow !== false, fastBoardMove:p.fastBoardMove !== false, priority:p.priority || 'normal'})
+      cardMove({iid:p.iid, card:p.card, faceDown:p.faceDown === true || p.card?.faceDown === true || p.card?.hidden === true, fromRect:from, toRect:to, startOffset:0, duration:travelMs, easing:p.easing || 'out-cubic', path:p.path || 'direct', arc:Number.isFinite(Number(p.arc)) ? Number(p.arc) : 0, lift:Number.isFinite(Number(p.lift)) ? Number(p.lift) : 0, sideArc:Number.isFinite(Number(p.sideArc)) ? Number(p.sideArc) : 0, rotate:Number.isFinite(Number(p.rotate)) ? Number(p.rotate) : 0, bank:Number.isFinite(Number(p.bank)) ? Number(p.bank) : 0, scale:Number.isFinite(Number(p.scale)) ? Number(p.scale) : 1, textureScale:Number.isFinite(Number(p.textureScale)) ? Number(p.textureScale) : 1, overshoot:Number(p.overshoot) || 0, holdMs:0, landSquash:0, wobble:0, settleMs:0, noShadow:p.noShadow !== false, fastBoardMove:p.fastBoardMove !== false, priority:p.priority || 'normal'})
     ];
     if(!p.suppressMotionAudio) list.push(P().soundCue({cue:p.cue || 'card_move', startOffset:Math.max(40, travelMs - 44)}));
     return list;
@@ -493,8 +502,8 @@
     const bTo = b.toRect || a.fromRect;
     const travelMs = Math.max(130, Math.min(260, Number(p.duration) || 190));
     return [
-      cardMove({iid:a.iid, card:a.card, faceDown:a.faceDown, fromRect:a.fromRect, toRect:aTo, startOffset:0, duration:travelMs, easing:p.easing || 'out-cubic', path:'direct', arc:0, lift:0, sideArc:0, rotate:0, bank:0, scale:1, textureScale:1, overshoot:0, holdMs:0, landSquash:0, wobble:0, settleMs:0, noShadow:true, fastBoardMove:true, priority:p.priority || 'normal'}),
-      cardMove({iid:b.iid, card:b.card, faceDown:b.faceDown, fromRect:b.fromRect, toRect:bTo, startOffset:0, duration:travelMs, easing:p.easing || 'out-cubic', path:'direct', arc:0, lift:0, sideArc:0, rotate:0, bank:0, scale:1, textureScale:1, overshoot:0, holdMs:0, landSquash:0, wobble:0, settleMs:0, noShadow:true, fastBoardMove:true, priority:p.priority || 'normal'}),
+      cardMove({iid:a.iid, card:a.card, faceDown:a.faceDown === true || a.card?.faceDown === true || a.card?.hidden === true, fromRect:a.fromRect, toRect:aTo, startOffset:0, duration:travelMs, easing:p.easing || 'out-cubic', path:'direct', arc:0, lift:0, sideArc:0, rotate:0, bank:0, scale:1, textureScale:1, overshoot:0, holdMs:0, landSquash:0, wobble:0, settleMs:0, noShadow:true, fastBoardMove:true, priority:p.priority || 'normal'}),
+      cardMove({iid:b.iid, card:b.card, faceDown:b.faceDown === true || b.card?.faceDown === true || b.card?.hidden === true, fromRect:b.fromRect, toRect:bTo, startOffset:0, duration:travelMs, easing:p.easing || 'out-cubic', path:'direct', arc:0, lift:0, sideArc:0, rotate:0, bank:0, scale:1, textureScale:1, overshoot:0, holdMs:0, landSquash:0, wobble:0, settleMs:0, noShadow:true, fastBoardMove:true, priority:p.priority || 'normal'}),
       P().soundCue({cue:p.cue || 'card_move', startOffset:Math.max(40, travelMs - 44)})
     ];
   }

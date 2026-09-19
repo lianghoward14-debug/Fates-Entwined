@@ -1963,6 +1963,9 @@ function drainVillagerSearches(){
   return G._villagerSearchPromise;
 }
 
+// Track explicitly queued arrivals without storing presentation flags on cards.
+const queuedSearchHandMotions = new WeakSet();
+
 function addCardToHand(player, card, options = {}) {
   if(!card) return false;
   const announce = options.announce !== false;
@@ -2008,6 +2011,14 @@ function addCardToHand(player, card, options = {}) {
     if(typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
   }
 
+  const searchSource = options.searchSource || (G.players[player]?.discard?.some(entry => entry === card || entry?.iid === card.iid) ? 'discard' : 'deck');
+  const searchArrival = arrivalKind === 'search' || arrivalKind === 'discard_recovery'
+    || (!arrivalKind && G.players[player]?.deck?.some(entry => entry === card || entry?.iid === card.iid));
+  if(searchArrival && !options.openingHand && options.animate !== false && !queuedSearchHandMotions.has(card)
+    && typeof queueSearchToHandMotion === 'function'){
+    queueSearchToHandMotion(targetPlayer, card, searchSource, G.players[targetPlayer].hand.length, options.searchSequenceIndex, options.searchSequenceCount);
+  }
+  queuedSearchHandMotions.delete(card);
   G.players[targetPlayer].hand.push(card);
   if(shouldRevealAliBeforeTransfer && options.deferAliTransfer !== true) {
     scheduleAliIndomitableHandTransfer(targetPlayer, card, options);

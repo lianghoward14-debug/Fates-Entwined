@@ -236,7 +236,9 @@
     if(adapter && typeof adapter.hideBoardCardForVfx === 'function') {
       adapter.hideBoardCardForVfx(iid, 980);
     }
-    return play('CARD_FLIP', {card, iid, rect, duration:950, revealAt:.5});
+    // The board card has already been revealed. Keep its art throughout the
+    // flourish instead of briefly replacing it with the opponent's card back.
+    return play('CARD_FLIP', {card, iid, rect, duration:950, revealAt:.5, startFaceDown:false});
   }
 
   function boardNotice(card, z, r, c, text, opts){

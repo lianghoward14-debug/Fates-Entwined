@@ -91,10 +91,10 @@ function containsForbiddenSnapshot(value, seen = new Set()){
 const PAYLOAD_FIELDS = Object.freeze({
   CHOOSE_TURN_ORDER:['goFirst'],
   DRAW_CARD:['playerIndex', 'count', 'activatedEffect', 'sourceIid'],
-  SET_CARD:['cardIid', 'destination', 'faceDown'],
+  SET_CARD:['cardIid', 'destination', 'faceDown', 'contributesFate', 'contributesAuras'],
   SET_CARD_FROM_DECK:['cardIid', 'destination'],
   SET_ADAPTIVE_TOKEN:['cardIid', 'destination', 'declaredType', 'declaredAffiliation', 'declaredRarity', 'placementType'],
-  CONSOLIDATE_CARD:['cardIid', 'tributeIids', 'destination', 'faceDown'],
+  CONSOLIDATE_CARD:['cardIid', 'tributeIids', 'destination', 'faceDown', 'contributesFate', 'contributesAuras'],
   MOVE_CARD:['cardIid', 'destination', 'allowSwap'],
   FLIP_CARD:['cardIid'],
   ACTIVATE_LANDSCAPE:['sourceIid', 'discardIids', 'targetIid', 'cardIds'],
@@ -136,6 +136,11 @@ function validatePayload(type, payload){
     if(!String(payload.cardIid || '')) return 'cardIid is required';
     const destinationError = validateDestination(payload.destination);
     if(destinationError) return destinationError;
+  }
+  if(['SET_CARD','CONSOLIDATE_CARD'].includes(type)){
+    for(const key of ['contributesFate','contributesAuras']){
+      if(payload[key] !== undefined && typeof payload[key] !== 'boolean') return key + ' must be a boolean';
+    }
   }
   if(type === 'CHOOSE_TURN_ORDER' && typeof payload.goFirst !== 'boolean'){
     return 'goFirst must be a boolean';
@@ -2429,12 +2434,17 @@ function performCommand(state, ctx, command, actorIndex, options){
     if(!isPierogi && alondraBlock){
       throw Object.assign(new Error('Alondra blocks an adjacent opponent Supporter set'), {code:'ILLEGAL_PLACEMENT'});
     }
+    if((payload.contributesFate !== undefined || payload.contributesAuras !== undefined) && String(entry.card.id||'') !== '102'){
+      throw Object.assign(new Error('contribution choices require a hidden-placement option'), {code:'CONTRIBUTION_CHOICE_NOT_ALLOWED'});
+    }
     const result = applyOperation(ctx, {
       type:'SET_CARD',
       playerIndex:actorIndex,
       cardIid:payload.cardIid,
       destination:payload.destination,
       faceDown:payload.faceDown===true&&String(entry.card.id||'')==='102',
+      contributesFate:payload.contributesFate,
+      contributesAuras:payload.contributesAuras,
       sourceController:actorIndex,
       playedFromHand:true,
       countTowardSupporterLimit:!isPierogi && !isWhisperToken,
@@ -2604,6 +2614,9 @@ function performCommand(state, ctx, command, actorIndex, options){
       && Number(status.zone) === Number(payload.destination?.z)
       && Number(status.remaining || 0) > 0
     );
+    if((payload.contributesFate !== undefined || payload.contributesAuras !== undefined) && !faceDownPermission && String(entry.card.id||'') !== '102'){
+      throw Object.assign(new Error('contribution choices require a Hoplite placement'), {code:'CONTRIBUTION_CHOICE_NOT_ALLOWED'});
+    }
     if(payload.faceDown === true && !faceDownPermission && String(entry.card.id||'')!=='102'){
       throw Object.assign(new Error('there is no face-down consolidation permission in this zone'), {code:'FACE_DOWN_NOT_ALLOWED'});
     }
@@ -2614,6 +2627,8 @@ function performCommand(state, ctx, command, actorIndex, options){
       tributeIids:payload.tributeIids,
       destination:payload.destination,
       faceDown:payload.faceDown === true,
+      contributesFate:payload.contributesFate,
+      contributesAuras:payload.contributesAuras,
       sourceController:actorIndex
     });
     recordMoraleConsolidation(state, actorIndex);

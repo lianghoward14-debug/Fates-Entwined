@@ -1224,6 +1224,15 @@
       if(p.settleMs) scale += Math.sin(Math.PI * settleT) * .018;
       let scaleX = scale;
       let scaleY = scale;
+      // A travelling flip shares the movement clock, so it finishes before
+      // the reveal hold. Hidden opponent cards stay hidden on both sides.
+      let motionFaceDown = p.faceDown;
+      if(p.kind === 'cardMove' && Number.isFinite(p.flipStart) && Number.isFinite(p.flipEnd)){
+        const turn = lerp(p.flipStart, p.flipEnd, ease('in-out-cubic', moveRaw)) * Math.PI / 180;
+        const facing = Math.cos(turn);
+        scaleX *= Math.max(.035, Math.abs(facing));
+        motionFaceDown = !!p.faceDown || facing < 0;
+      }
       const skewPulse = Math.sin(Math.PI * raw) * (1 - settleT * .65);
       const skewX = Math.tan((Number(p.skewX) || 0) * Math.PI / 180) * skewPulse;
       const skewY = Math.tan((Number(p.skewY) || 0) * Math.PI / 180) * skewPulse;
@@ -1259,7 +1268,7 @@
       ctx.rotate(rotation);
       if(skewX || skewY) ctx.transform(1, skewY, skewX, 1, 0, 0);
       ctx.scale(scaleX, scaleY);
-      drawCard(ctx, p.card, {x:-rr.w / 2, y:-rr.h / 2, w:rr.w, h:rr.h}, {faceDown:p.faceDown, textureSize:p.textureSize || stableMotionTextureSize(p, rr), fitMode:p.fitMode || (p.keepInFrame ? 'contain' : 'cover')});
+      drawCard(ctx, p.card, {x:-rr.w / 2, y:-rr.h / 2, w:rr.w, h:rr.h}, {faceDown:motionFaceDown, textureSize:p.textureSize || stableMotionTextureSize(p, rr), fitMode:p.fitMode || (p.keepInFrame ? 'contain' : 'cover')});
       ctx.restore();
       return;
     }
@@ -1380,12 +1389,13 @@
     const effectsCtx = opts.effectsCtx || null;
     const particleCtx = opts.particleCtx || null;
     const topEffectsCtx = opts.topEffectsCtx || null;
+    const aboveBoard = p => !!(topEffectsCtx && (p.consolidationStyle || ['PLAY_CARD','DECK_TO_BOARD','SET_CONFIRM','SET_DRAG_LAND'].includes(p.recipeType)));
     if(effectsCtx){
       const shake = activeScreenShakeOffset();
       effectsCtx.save();
       effectsCtx.translate(shake.x, shake.y);
       activePrimitives.forEach(function(p){
-        if(p.layer === 'audio' || p.layer === 'control' || p.layer === 'top' || p.kind === 'particleBurst' || p.kind === 'screenShake') return;
+        if(p.layer === 'audio' || p.layer === 'control' || p.layer === 'top' || aboveBoard(p) || p.kind === 'particleBurst' || p.kind === 'screenShake') return;
         drawPrimitive(effectsCtx, p, metrics);
       });
       drawDragPreview(effectsCtx);
@@ -1396,8 +1406,14 @@
       topEffectsCtx.save();
       topEffectsCtx.translate(shake.x, shake.y);
       activePrimitives.forEach(function(p){
-        if(p.layer !== 'top') return;
+        if(p.layer !== 'top' && !aboveBoard(p)) return;
+        topEffectsCtx.save();
+        if(aboveBoard(p) && opts.boardViewport){
+          const v=opts.boardViewport;
+          topEffectsCtx.translate(v.x,v.y);topEffectsCtx.scale(v.sx,v.sy);
+        }
         drawPrimitive(topEffectsCtx, p, metrics);
+        topEffectsCtx.restore();
       });
       topEffectsCtx.restore();
     }
