@@ -1,4 +1,5 @@
 import warfrontMaps from '../../shared/warfront-maps.js';
+import presetSync from '../../shared/preset-sync.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -803,7 +804,20 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
       }
       if(p[1]==='player-save'&&p[2]){
         const target=cleanId(p[2],128);if(req.method==='GET'){await requireSelf(req,target);writeJson(res,200,{ok:true,save:clone(saves.get(target)||null),data:clone(saves.get(target)?.data||null)});return true;}
-        const body=await readBody(req),uid=await requireSelf(req,body.uid||target),existing=saves.get(uid)||{uid,data:{}};existing.data=Object.assign({},existing.data||{},clone(body.data||{}));existing.updatedAt=Date.now();saves.set(uid,existing);persist();writeJson(res,200,{ok:true,save:clone(existing),data:clone(existing.data)});return true;
+        const body=await readBody(req),uid=await requireSelf(req,body.uid||target),existing=saves.get(uid)||{uid,data:{}};
+        const incoming=clone(body.data||{});
+        if(incoming.presets || incoming.presetTombstones){
+          const merged=presetSync.merge(existing.data,incoming);
+          if(JSON.stringify(merged.presets)!==JSON.stringify(existing.data?.presets||{})){
+            existing.presetHistory=(existing.presetHistory||[]).concat({at:Date.now(),presets:clone(existing.data?.presets||{}),presetTombstones:clone(existing.data?.presetTombstones||{})}).slice(-10);
+          }
+          Object.assign(incoming,merged);
+        }
+        existing.data=Object.assign({},existing.data||{},incoming);existing.updatedAt=Date.now();saves.set(uid,existing);
+        // A preset success response means the library and its recovery history
+        // reached disk, rather than waiting for the general debounce timer.
+        if(incoming.presets || incoming.presetTombstones) flush(); else persist();
+        writeJson(res,200,{ok:true,save:clone(existing),data:clone(existing.data)});return true;
       }
       if(p[1]==='public-decks'){
         // Public deck browsing is deliberately readable without an account.

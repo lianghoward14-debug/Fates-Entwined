@@ -27,6 +27,11 @@ for(const source of ['deck','discard']) for(const faceDown of [false,true]){
   assert.equal(moves.length,5);
   assert.equal(moves[0].startOffset,45);
   assert.equal(moves[4].startOffset+moves[4].duration,1745);
+  const flightSize={w:moves[0].fromRect.w,h:moves[0].fromRect.h};
+  for(const move of moves){
+    assert.deepEqual({w:move.fromRect.w,h:move.fromRect.h},flightSize,'search card must not shrink between phases');
+    assert.deepEqual({w:move.toRect.w,h:move.toRect.h},flightSize,'search card must keep one size through arrival');
+  }
   for(let i=1;i<moves.length;i++){
     assert.deepEqual(moves[i].fromRect,moves[i-1].toRect,'phase positions must join');
     assert.equal(moves[i].startOffset,moves[i-1].startOffset+moves[i-1].duration,'no gaps or overlapping cards');

@@ -390,7 +390,9 @@ function addFullExtraSafeRowForPlayer(z, player, source, opts = {}) {
   const row = getNextExtraRowIndex(z);
   const hadExtraRowStructure = row > 3 || (Array.isArray(G.markSafeSquares) && G.markSafeSquares.some(s => s && s.z === z));
   G.extraRows[z] = (Number(G.extraRows[z]) || 0) + 1;
-  if (!G.board[z][row]) G.board[z][row] = Array(3).fill(null);
+  const columns = Math.max(3, Number(opts.columns) || 3);
+  if (!G.board[z][row]) G.board[z][row] = Array(columns).fill(null);
+  while (G.board[z][row].length < columns) G.board[z][row].push(null);
   G.extraRowOwners[z][row - 3] = player;
   if (!Array.isArray(G.extraRowFullOwners)) G.extraRowFullOwners = [null, null, null];
   G.extraRowFullOwners[z] = hadExtraRowStructure ? null : player;

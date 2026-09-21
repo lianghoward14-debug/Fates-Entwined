@@ -1100,7 +1100,7 @@ export function auditRuleOraclePresentationBatch(view, batch){
     const squares = (view?.state?.geometry?.playableExtraSquares || []).filter(square=>
       Number(square?.z) === Number(event.zone) && Number(square?.r) === Number(event.row)
     );
-    if(controller === null || Number(event.playerIndex) !== controller || rowOwner !== controller || squares.length !== 3 || squares.some(square=>Number(square.owner) !== controller)){
+    if(controller === null || Number(event.playerIndex) !== controller || rowOwner !== controller || ![0, 1, 2, 3].every(c=>squares.some(square=>Number(square.c) === c)) || squares.some(square=>Number(square.owner) !== controller)){
       violations.push(issue('ANICKA_SAFE_ROW_WRONG_BENEFICIARY','02',batchId,`controller=${controller} event=${event.playerIndex} row=${rowOwner} squares=${squares.map(square=>square.owner).join(',')}`));
     }
   }

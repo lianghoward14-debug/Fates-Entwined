@@ -148,6 +148,7 @@ export function createInitialState(input = {}){
     baseHandLimit:12,
     baseSupportersPerTurn:2,
     supportersSetThisTurn:[0, 0],
+    supportCompanyUses:[0, 0],
     supportersSetForCapThisTurn:[0, 0],
     supportersSetTotal:[0, 0],
     supporterEffectsActivated:[0, 0],

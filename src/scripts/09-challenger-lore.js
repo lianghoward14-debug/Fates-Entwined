@@ -8,7 +8,7 @@
   const DEFAULT_FACT_KEYS = ['Affiliation', 'Date of birth', 'Place of Birth', 'Story', 'Titles', 'Relationships'];
   const LS_KEY = 'fateChallengerLorePagesV2';
   const ENTRY_TYPE = 'characters';
-  const PFP_ASSET_VERSION = '1783030000';
+  const PFP_ASSET_VERSION = '20260920-pfp56-lydia';
   const BASE_CHARACTER_PAGES = [
     {
       section:'third-great-war', type:ENTRY_TYPE, slug:'felicyta-janowicz', title:'Felicyta Janowicz', pfpId:'1',

@@ -241,6 +241,7 @@ function startGame(vsAI=false) {
   G.players[0].name = USER_PROFILE.username || 'Player 1';
   if(!vsAI) G.players[1].name = 'Player 2';
   G.aiEnabled = vsAI;
+  G._supportCompanyUses = [0, 0];
   G.aiPlayer = 1; // AI is always player 2
   if(vsAI){
     if(G._selectedAI) G._selectedAI = resolveCurrentAIOpponentState(G._selectedAI);
@@ -791,7 +792,7 @@ const AI_OPPONENTS = [
   {name:'Great Oak Teacher Mr. Secules',elo:825,rank:'Captain-Officer',style:'reasonable',img:'pfp/pfp67.png',
     desc:'Answers key effects with University counters, then turns disruption into a controlled board lead.',
     deckPool:'advanced', deckRef:'ai_university_counterbattery', deck:[]},
-  {name:'Poli Sci Major Lydia',elo:925,rank:'Captain-Officer',style:'resourceful',img:'pfp/pfp56-portrait.png',
+  {name:'Poli Sci Major Lydia',elo:925,rank:'Captain-Officer',style:'resourceful',img:'pfp/pfp56.png',
     desc:'Quarantines your hand, denies important effects, and wins by exhausting your best options.',
     deckPool:'advanced', deckRef:'ai_hand_quarantine', deck:[]},
 

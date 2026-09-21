@@ -2257,11 +2257,31 @@ function stopAITurnVisualTimer(opts={}) {
 
 function startAITurnVisualTimer() {
   stopAITurnVisualTimer({clear:false});
+  const timerGame = G;
+  const timerTurn = G.turn;
+  G._aiTimedOutTurn = null;
+  let lastTick = Date.now();
+  let remainingMs = getTurnTimeLimit() * 1000;
   _aiTurnVisualSeconds = getTurnTimeLimit();
   updateAITurnVisualTimerDisplay();
   _aiTurnVisualTimerInterval = setInterval(()=>{
-    _aiTurnVisualSeconds = Math.max(0, _aiTurnVisualSeconds - 1);
+    if(G !== timerGame || G.turn !== timerTurn || !G.aiEnabled || G.currentPlayer !== G.aiPlayer){
+      stopAITurnVisualTimer({clear:false});
+      return;
+    }
+    const now = Date.now();
+    const elapsed = Math.max(0, now - lastTick);
+    lastTick = now;
+    if(isTurnTimerInteractionPaused()) return;
+    remainingMs = Math.max(0, remainingMs - elapsed);
+    _aiTurnVisualSeconds = Math.ceil(remainingMs / 1000);
     updateAITurnVisualTimerDisplay();
+    if(remainingMs === 0){
+      // The controller ends at its next safe action boundary, after any
+      // already-started placement/effect has completely resolved.
+      G._aiTimedOutTurn = timerTurn;
+      stopAITurnVisualTimer({clear:false});
+    }
   }, 1000);
 }
 
@@ -2297,6 +2317,10 @@ function cleanupGame() {
 
 function startTurnTimer() {
   stopTurnTimer();
+  if(G && !G._onlineRoomCode && G.aiEnabled && G.currentPlayer === G.aiPlayer){
+    startAITurnVisualTimer();
+    return;
+  }
   const limit = getTurnTimeLimit();
   repairStaleOnlineTurnStartedAt(limit);
   _turnTimerRemaining = limit;
@@ -2605,7 +2629,7 @@ function getValidPlacementOptionsForCard(card, player) {
       const placementRowOwner = isPierogiCounter ? 1 - cp : cp;
       if(!isPierogiCounter && rowOwner!==-1 && rowOwner!==cp) continue;
       if(!isPierogiCounter && r>=3 && typeof isPlayableSafeSquare === 'function' && !isPlayableSafeSquare(z,r,0,placementRowOwner)) {
-        const anyPlayable = [0,1,2].some(cc => isPlayableSafeSquare(z,r,cc,placementRowOwner));
+        const anyPlayable = [0,1,2,3].some(cc => isPlayableSafeSquare(z,r,cc,placementRowOwner));
         if(!anyPlayable) continue;
       }
       if(card.contestedOnly && r!==1) continue;
@@ -5482,7 +5506,7 @@ function finalizeConsolidate(card, tributes, targetIdx, conContext) {
     if(useFaceDown && chaparralSource?.card) chaparralSource.card._chaparralAmbushUsed = true;
 
     const cinematicWaitsForPresentation = !!(tx && typeof tx.onFinished === 'function');
-    if(!useFaceDown && typeof showConsolidationCinematic === 'function' && !cinematicWaitsForPresentation) {
+    if(tributes.length && !useFaceDown && typeof showConsolidationCinematic === 'function' && !cinematicWaitsForPresentation) {
       G._cinematicUiLockUntil = Math.max(G._cinematicUiLockUntil || 0, Date.now() + cinematicDelay + 2350);
       setTimeout(function(){ showConsolidationCinematic(inst, {playVoice:true, playSfx:true, allowRenderV2Cinematic:true, tributes:tributes}); }, cinematicDelay);
     }
@@ -5510,7 +5534,7 @@ function finalizeConsolidate(card, tributes, targetIdx, conContext) {
     if(typeof applyContinuousEffects === 'function') applyContinuousEffects();
     if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:true, piles:true});
     else renderGame({board:true, hand:true, scores:true, piles:true, blocks:true, topbar:true});
-    if(!_consolidationMotionMs) {
+    if(tributes.length && !_consolidationMotionMs) {
       requestAnimationFrame(() => { requestAnimationFrame(() => showConsolidateVisual(targetZ,targetR,targetC)); });
     }
     const resolveSetEffectAfterCinematic = function(){
@@ -5524,6 +5548,11 @@ function finalizeConsolidate(card, tributes, targetIdx, conContext) {
     }
 
     const actionPresenter = window.FateActionPresentation;
+    if(!tributes.length){
+      commitConsolidationAfterPresentation(null, 0);
+      window.FateSquareFeedbackFx?.playSet({z:targetZ, r:targetR, c:targetC}, inst, 'hammer-lock');
+      return;
+    }
     if(actionPresenter && typeof actionPresenter.beginConsolidation === 'function'){
       const started = actionPresenter.beginConsolidation({
         tributes,

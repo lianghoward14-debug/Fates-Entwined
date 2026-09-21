@@ -644,6 +644,10 @@ export class FateAuthoritativeV3SinglePlayerScreen {
   }
 
   presentEvents(events = [], metadata = {}){
+    for(const event of events){
+      if(event?.type === 'SUPPORT_COMPANY_USED') this.window.presentSupportCompanyUse?.(event,
+        `${this.view?.state?.matchId}:${metadata.revision}:${event.playerIndex}:support`);
+    }
     const batch = Array.isArray(events) ? events : [];
     if(metadata?._afterMoralePresentation !== true && batch.some(event=>String(event?.type || '').toUpperCase() === 'MORALE_CYCLE_RESOLVED')){
       const resume = ()=>this.presentEvents(batch, {...metadata, _afterMoralePresentation:true});

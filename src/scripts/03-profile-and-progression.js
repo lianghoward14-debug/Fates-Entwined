@@ -402,7 +402,8 @@ const TITLE_BG_PATH = n => FATE_BACKGROUND_URL(`optimized/backgrounds/titlscreen
 const INGAME_BG_PATH = n => FATE_BACKGROUND_URL(Number(n) === 1 ? 'ingamebackgrouds/igb1.png?v=bg20260705' : ([15,18,21,22,23,24].includes(Number(n)) ? `ingamebackgrouds/igb${n}.png` : `optimized/backgrounds/ingamebackgrouds_igb${n}.jpg`));
 const PFP_PATH = (n, shape='circle') => {
   const id = Math.max(1, parseInt(n, 10) || 1);
-  return `pfp/pfp${id}.png`;
+  const version = id === 56 ? '?v=pfp56-lydia-20260920' : '';
+  return `pfp/pfp${id}.png${version}`;
 };
 const UI_PICTURE_PATH = name => `uipictures/${name}`;
 const SET_VOICELINE_EXTENSIONS = Object.freeze({
@@ -858,6 +859,17 @@ function loadPresetsFromStorage() {
 }
 
 function savePresetsToStorage() {
+  if(window.FatePresetSync){
+    const presetKey=_fateStorageKey('fate_user_presets');
+    const tombstoneKey=_fateStorageKey('fate_preset_tombstones');
+    const previous=_fateReadJsonStorage(presetKey) || {};
+    const updated=window.FatePresetSync.recordEdit(previous, PRESET_DECKS, _fateReadJsonStorage(tombstoneKey), Date.now());
+    if(JSON.stringify(previous)!==JSON.stringify(updated.presets)){
+      _fateSetJsonStorageIfChanged(_fateStorageKey('fate_presets_backup'), {presets:previous,at:Date.now()});
+    }
+    PRESET_DECKS=updated.presets;
+    _fateSetJsonStorageIfChanged(tombstoneKey, updated.presetTombstones);
+  }
   const didWrite = _fateSetJsonStorageIfChanged(_fateStorageKey('fate_user_presets'), PRESET_DECKS);
   if(didWrite === null) toast('Could not save preset');
   if(didWrite && window.FateCloudSave) window.FateCloudSave.savePresets();

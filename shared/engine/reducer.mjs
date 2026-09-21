@@ -1,4 +1,5 @@
 import {havanoDestinations} from './havano-destinations.mjs';
+import {resolveSupportCompany} from './support-company.mjs';
 import {
   COMMAND_TYPES,
   ENGINE_VERSION,
@@ -98,6 +99,7 @@ const PAYLOAD_FIELDS = Object.freeze({
   MOVE_CARD:['cardIid', 'destination', 'allowSwap'],
   FLIP_CARD:['cardIid'],
   ACTIVATE_LANDSCAPE:['sourceIid', 'discardIids', 'targetIid', 'cardIds'],
+  SUPPORT_COMPANY:['ability', 'cardId'],
   DISCARD_CARD:['targetIid', 'sourceIid', 'reason'],
   MODIFY_FATE:['targetIid', 'amount', 'sourceIid', 'reason'],
   ACTIVATE_EFFECT:['sourceIid', 'userActivated'],
@@ -129,6 +131,9 @@ function validateDestination(destination){
 }
 
 function validatePayload(type, payload){
+  if(type === 'SUPPORT_COMPANY' && (!['call','desperate'].includes(payload.ability) || typeof payload.cardId !== 'string')){
+    return 'Support Company requires an ability and card ID';
+  }
   const allowed = PAYLOAD_FIELDS[type] || [];
   const extra = Object.keys(payload).filter(key=>!allowed.includes(key));
   if(extra.length) return `unknown ${type} payload field ${extra[0]}`;
@@ -2244,6 +2249,15 @@ function performCommand(state, ctx, command, actorIndex, options){
     return;
   }
   assertActivePlayer(state, actorIndex);
+  if(command.type === 'SUPPORT_COMPANY'){
+    resolveSupportCompany(ctx, actorIndex, payload);
+    if(state.moralePressure?.morale?.some(value=>value <= 0)){
+      state.outcome = calculateMoraleOutcome(state);
+      state.phase = 'ended';
+      ctx.events.push({type:'MATCH_ENDED', outcome:cloneSerializable(state.outcome)});
+    }
+    return;
+  }
   if(command.type === 'ACTIVATE_LANDSCAPE'){
     if(!['igb16', 'igb17', 'igb21'].includes(state.landscapeId)){
       throw Object.assign(new Error('the active landscape has no direct v3 activation'), {code:'LANDSCAPE_ACTIVATION_NOT_AVAILABLE'});

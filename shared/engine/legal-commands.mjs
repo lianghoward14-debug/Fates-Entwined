@@ -1,4 +1,5 @@
 import {havanoDestinations} from './havano-destinations.mjs';
+import {supportCompanyCommands} from './support-company.mjs';
 import {cardRule} from './cards/registry.mjs';
 import {MAX_SUPPORTERS_SET_PER_TURN} from './constants.mjs';
 import {
@@ -240,6 +241,7 @@ export function legalCommandTemplates(state, playerIndex){
     return commands;
   }
   if(state.outcome || state.activePlayer !== player) return commands;
+  commands.push(...supportCompanyCommands(state, player));
   const defenseInDepthReady = state.statuses.some(status=>
     status?.type === 'NEXT_SUPPORTER_SET_EXEMPT'
     && Number(status.playerIndex) === player

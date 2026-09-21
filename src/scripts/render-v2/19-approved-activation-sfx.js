@@ -3,6 +3,8 @@
   // Cue times follow the reviewed two-second visual beats. Each character gets
   // a distinct attack, material texture and finishing accent.
   const cues={
+    'support-call':[['wind',.03,.55,950],['chord',.16,.5,294],['chord',.48,.5,392],['chord',.8,.68,494],['metal',1.2,.48,587],['chord',1.38,.55,587]],
+    'support-desperate':[['rumble',.02,.62,72],['crack',.4,.23,1400],['hit',.49,.3,82],['metal',.85,.38,230],['metal',1.12,.4,294],['chord',1.42,.5,196]],
  '77':[['wind',.04,.85,540],['water',.4,.85,440],['water',1.05,.84,610]],
  '100':[['wind',.04,.88,1150],['wind',.55,.84,1450],['ping',.74,.6,790],['wind',1.17,.72,950]],
  'bh18':[['rumble',.04,.85,72],['rise',.22,.7,130],['hit',.76,.33,65],['crack',1.02,.35,640],['rumble',1.3,.59,86]],
@@ -72,7 +74,7 @@
     '90':[['wind',.02,.5,750],['water',.4,.55,1200],['metal',.73,.33,310],['water',.93,.65,850],['chord',1.22,.58,330]],
     '99':[['metal',.13,.47,260],['metal',.5,.42,330],['hit',.84,.28,100],['metal',1,.54,520],['chord',1.22,.55,294]],
     'bh06':[['metal',.14,.38,330],['rise',.4,.42,250],['metal',.69,.38,440],['rise',.88,.4,330],['chord',1.25,.55,523]],
-    'bh10':[['rumble',.03,.72,100],['rise',.14,.65,100],['hit',.74,.23,130],['paper',.91,.3,1800],['chord',1.21,.59,330]],
+    'bh10':[['rise',.04,.72,92],['chord',.48,.48,294],['ping',.92,.36,587],['chord',1.24,.54,392]],
     'bh14':[['paper',.08,.36,1700],['hit',.56,.34,85],['metal',.57,.37,390],['ping',.9,.42,523],['ping',1.05,.42,659],['chord',1.23,.55,392]],
     'bh16':[['wind',.14,.58,1250],['metal',.37,.32,480],['wind',.52,.61,1650],['metal',.76,.32,620],['wind',.9,.65,2050],['metal',1.16,.4,790],['crack',1.41,.35,1150]]
   };
@@ -108,7 +110,7 @@
     '90':['surf',400,.57,7,-.4], '99':['steel',260,.58,2,-.45],
     'bh01':['surf',440,.5,3,.5], 'bh05':['paper',1150,.47,2,.6],
     'bh06':['electric',280,.52,3,.6], 'bh09':['steel',500,.51,2,.85],
-    'bh10':['engine',105,.48,7,.7], 'bh13':['paper',1100,.48,3,0],
+    'bh10':['chauffeur',92,.5,2,.45], 'bh13':['paper',1100,.48,3,0],
     'bh14':['paper',970,.36,4,.5], 'bh16':['steel',680,.52,3,-.8],
     'bh19':['electric',175,.6,5,0], 'bh20':['wing',590,.57,6,.65],
     'bh21':['sand',620,.54,4,.55], 'bh22':['glass',440,.56,3,0]
@@ -148,11 +150,11 @@
       '38':'sizzle','39':'rope','40':'forge','43':'origami','45':'wind','48':'space','51':'cloth','56':'blade','61':'rifle',
       '66':'stamp','67':'eraser','81':'dough','82':'ice','83':'stone','84':'flutter','86':'fireworks','87':'ukulele',
       '90':'net','99':'balance','bh01':'sailing','bh04':'maelstrom','bh05':'origami','bh06':'mechanism','bh09':'blade',
-      'bh10':'engine','bh13':'coin','bh14':'stamp','bh16':'blade','bh19':'charge','bh20':'wing','bh21':'sand','bh22':'harp'
+      'bh10':'chauffeur','bh13':'coin','bh14':'stamp','bh16':'blade','bh19':'charge','bh20':'wing','bh21':'sand','bh22':'harp'
     };
     const preserveOriginal=['06','27','84','86','45','29'].includes(String(id));
     const theme=preserveOriginal?null:themes[String(id)];
-    const materialGain={dance:2.5,specter:2.5,chuckle:3,garden:3,writing:4,eraser:4,cloth:3.8,circuit:5,charge:5,origami:2.2,parchment:2.5,wind:2.2,flutter:3.3,rope:2.3,net:2.3,dough:2.1,sailing:2.5,maelstrom:2.2,wing:1.7,engine:1.5,chain:1.8,blade:1.4,sizzle:2,sand:1.8,glitch:2,rifle:1.3,wood:1.4};
+    const materialGain={dance:2.5,specter:2.5,chuckle:3,garden:3,writing:4,eraser:4,cloth:3.8,circuit:5,charge:5,origami:2.2,parchment:2.5,wind:2.2,flutter:3.3,rope:2.3,net:2.3,dough:2.1,sailing:2.5,maelstrom:2.2,wing:1.7,engine:1.5,chauffeur:2.2,chain:1.8,blade:1.4,sizzle:2,sand:1.8,glitch:2,rifle:1.3,wood:1.4};
     if(theme)out.gain.setValueAtTime(Math.min(1,volume)*.72*(materialGain[theme]||1)*(String(id)==='77'?1.8:1),now);
     function materialVoice(material,at,dur,f,level,role){
       dur=Math.min(dur,1.94-at);if(dur<=0)return;
@@ -194,6 +196,10 @@
           if(material==='wing')sample+=Math.sin(sec*(Math.PI*2)*75)*Math.exp(-sec*15)*.23;
           if(material==='sand')sample+=high*.17*Math.sin(sec*53)**10;
           if(material==='sailing'||material==='maelstrom')sample+=Math.sin(phase*(1-u*.6))*.08*swell;
+        }else if(material==='chauffeur'){
+          // Smooth luxury-car glide with no sharp transient that could read as gunfire.
+          sample=(Math.sin(phase*.55)*.18+Math.sin(phase*1.1)*.08+low*1.7)*swell;
+          if(role==='ping'||role==='chord')sample+=Math.sin(phase*4)*.16*Math.exp(-sec*5);
         }else if(['blade','chain','rifle','fireworks','stone','stamp','engine','sizzle'].includes(material)){
           if(material==='blade')sample=n*.25*swell+(.28*Math.sin(phase)+.12*Math.sin(phase*2.71))*Math.exp(-sec*8);
           if(material==='chain')sample=(Math.sin(phase)+.5*Math.sin(phase*2.76)+.3*Math.sin(phase*4.1))*.23*Math.exp(-sec*11)+high*.12*strike;
@@ -230,9 +236,9 @@
       for(let i=0;i<data.length;i++){
         seed=(Math.imul(seed,1664525)+1013904223)>>>0;const white=seed/2147483648-1,sec=i/ac.sampleRate;low=low*.96+white*.04;
         const harmonic=Math.sin(sec*pitch*Math.PI*2)+.27*Math.sin(sec*pitch*2.013*Math.PI*2);
-        data[i]=material==='glass'?harmonic*.34+white*.035:material==='electric'?harmonic*.27+white*.2:material==='engine'||material==='stone'?low*2.4+harmonic*.16:material==='steel'?white*.48+harmonic*.14:material==='surf'?low*2.7+white*.16:white*.65;
+        data[i]=material==='glass'?harmonic*.34+white*.035:material==='electric'?harmonic*.27+white*.2:material==='chauffeur'?low*1.65+harmonic*.1:material==='engine'||material==='stone'?low*2.4+harmonic*.16:material==='steel'?white*.48+harmonic*.14:material==='surf'?low*2.7+white*.16:white*.65;
       }
-      source.buffer=buffer;filter.type=['glass','engine','stone','surf'].includes(material)?'lowpass':'bandpass';filter.Q.value=material==='steel'?1.8:.7;
+      source.buffer=buffer;filter.type=['glass','engine','chauffeur','stone','surf'].includes(material)?'lowpass':'bandpass';filter.Q.value=material==='steel'?1.8:.7;
       const curve=new Float32Array(121),frequencies=new Float32Array(121),pans=new Float32Array(121);
       for(let i=0;i<curve.length;i++){
         const t=i/(curve.length-1),rise=Math.sin(Math.min(1,t/peak)*Math.PI/2),release=t<peak?1:Math.pow(Math.max(0,1-(t-peak)/(1-peak)),.9);

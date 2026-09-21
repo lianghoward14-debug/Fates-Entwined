@@ -1,0 +1,15 @@
+import fs from 'node:fs';
+import vm from 'node:vm';
+import assert from 'node:assert/strict';
+const source=fs.readFileSync('src/scripts/18-online-rooms.js','utf8');
+const extract=name=>{const start=source.indexOf('  function '+name+'(');const asyncStart=source.indexOf('  async function '+name+'(');const i=start<0?asyncStart:start;return source.slice(i,source.indexOf('\n  }',i)+4);};
+let committed=0,cinematics=0;const sets=[];const card={iid:'free',type:'Coordinator'};
+const ctx={window:{FateActionPresentation:{beginConsolidation(){throw Error('generic consolidation invoked');}},FateSquareFeedbackFx:{playSet:(...args)=>sets.push(args)},showConsolidationCinematic:()=>cinematics++},phase7FastPresentationMode:()=>false,onlineApproxBoardCellRect:()=>null,phase7PresentationCard:c=>c,phase7FindAnyCard:()=>card,phase7FindProjectedEntry:()=>({card}),phase7IsTokenCard:()=>false,phase7FindBoardCard:()=>null,phase7CommitCurrentView:()=>{committed++;return true;}};
+vm.createContext(ctx);vm.runInContext(extract('phase7CommitWithConsolidationMotion')+'\n'+extract('phase7PlayConsolidationCinematic'),ctx);
+const event={cardIid:'free',destination:{z:0,r:3,c:3},tributeIids:[]};
+assert.equal(await ctx.phase7CommitWithConsolidationMotion({},'test',event,()=>true),true);
+await ctx.phase7PlayConsolidationCinematic({},event);
+assert.equal(committed,1);assert.equal(sets.length,1);assert.equal(sets[0][2],'hammer-lock');assert.equal(cinematics,0);
+assert.equal(await ctx.phase7CommitWithConsolidationMotion({},'test',event,()=>false),false);
+assert.equal(sets.length,1);
+console.log('Zero-tribute multiplayer placement uses Free Set, skips consolidation cinematic, and ignores stale views.');

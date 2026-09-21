@@ -11,6 +11,7 @@
   var _cloudReady = false;
   var _cloudUid = null;
   var _cloudSessionId = 0;
+  var _presetSyncInFlight = false;
   var _loadingOverlay = null;
   var _loadingOverlayWasAsset = false;
 
@@ -111,6 +112,7 @@
     var headers = {'accept':'application/json'};
     var method = String((opts && opts.method) || 'GET').toUpperCase();
     var init = {method:method, headers:headers};
+    if(opts && opts.signal) init.signal=opts.signal;
     var tokenPromise = FO.auth && FO.auth.currentUser && typeof FO.auth.currentUser.getIdToken === 'function'
       ? FO.auth.currentUser.getIdToken(false).catch(function(){ return ''; })
       : Promise.resolve('');
@@ -232,9 +234,65 @@
 
   function cloudSavePresets(){
     if(!_cloudUid) return;
+    if(window.FatePresetSync){
+      var uid=_cloudUid, sessionId=_cloudSessionId;
+      try{ localStorage.setItem('fate_presets_pending_'+uid, '1'); }catch(e){}
+      clearTimeout(_cloudSaveDebounceTimers.presets);
+      _cloudSaveDebounceTimers.presets=setTimeout(function(){ _syncPresets(uid,sessionId); },500);
+      return;
+    }
     var data = typeof PRESET_DECKS !== 'undefined' ? PRESET_DECKS : null;
     if(data == null) return;
     _debouncedCloudWrite('presets', 'presets', data, 500);
+  }
+
+  function _presetSnapshot(uid){
+    var result={presets:{},presetTombstones:{}};
+    try{ result.presets=JSON.parse(localStorage.getItem('fate_user_presets_'+uid)||'{}'); }catch(e){}
+    try{ result.presetTombstones=JSON.parse(localStorage.getItem('fate_preset_tombstones_'+uid)||'{}'); }catch(e){}
+    return result;
+  }
+
+  function _storePresetSnapshot(uid, snapshot){
+    var previous=_presetSnapshot(uid);
+    if(JSON.stringify(previous.presets)!==JSON.stringify(snapshot.presets)){
+      localStorage.setItem('fate_presets_backup_'+uid,JSON.stringify({at:Date.now(),presets:previous.presets,presetTombstones:previous.presetTombstones}));
+    }
+    localStorage.setItem('fate_user_presets_'+uid,JSON.stringify(snapshot.presets));
+    localStorage.setItem('fate_preset_tombstones_'+uid,JSON.stringify(snapshot.presetTombstones));
+    if(typeof PRESET_DECKS!=='undefined') PRESET_DECKS=snapshot.presets;
+  }
+
+  async function _syncPresets(uid, sessionId){
+    if(!_isCurrentCloudSession(uid,sessionId)) return;
+    if(_presetSyncInFlight){
+      _cloudSaveDebounceTimers.presets=setTimeout(function(){_syncPresets(uid,sessionId);},1000);
+      return;
+    }
+    _presetSyncInFlight=true;
+    var controller=typeof AbortController==='function' ? new AbortController() : null;
+    var timeout=controller ? setTimeout(function(){controller.abort();},20000) : null;
+    try{
+      // Read before writing also protects clients talking to older servers.
+      var response=await _flyApiRequest('/api/player-save/'+encodeURIComponent(uid),{method:'GET',signal:controller?.signal});
+      if(!_isCurrentCloudSession(uid,sessionId)) return;
+      var remote=response.data || response.save?.data || {};
+      var merged=window.FatePresetSync.merge(remote,_presetSnapshot(uid));
+      _storePresetSnapshot(uid,merged);
+      var saved=await _flyApiRequest('/api/player-save/'+encodeURIComponent(uid),{method:'POST',signal:controller?.signal,body:{uid:uid,data:merged}});
+      if(!_isCurrentCloudSession(uid,sessionId)) return;
+      var accepted=window.FatePresetSync.merge(saved.data || saved.save?.data || merged,{});
+      // An edit made while the request was in flight must survive its reply.
+      var latest=window.FatePresetSync.merge(accepted,_presetSnapshot(uid));
+      _storePresetSnapshot(uid,latest);
+      if(JSON.stringify(latest)!==JSON.stringify(accepted)) cloudSavePresets();
+      else localStorage.removeItem('fate_presets_pending_'+uid);
+    }catch(error){
+      console.warn('[CloudSave] preset upload pending; local decks retained',error);
+      if(_isCurrentCloudSession(uid,sessionId)){
+        _cloudSaveDebounceTimers.presets=setTimeout(function(){_syncPresets(uid,sessionId);},30000);
+      }
+    }finally{ if(timeout) clearTimeout(timeout); _presetSyncInFlight=false; }
   }
 
   function cloudSaveLeaderboard(){
@@ -309,6 +367,7 @@
     }
     var presets = typeof PRESET_DECKS !== 'undefined' ? PRESET_DECKS : null;
     if(presets != null) payload.presets = presets;
+    if(window.FatePresetSync && uid) payload.presetTombstones=_presetSnapshot(uid).presetTombstones;
     var pd = typeof PUBLIC_DECKS !== 'undefined' ? PUBLIC_DECKS : null;
     if(pd) payload.publicDecks = pd;
     try {
@@ -347,6 +406,11 @@
     if(!_cloudUid) return;
     if(_useFlyCloudSave()){
       var flyData = _buildCloudSavePayload(_cloudUid);
+      if(window.FatePresetSync){
+        delete flyData.presets;
+        delete flyData.presetTombstones;
+        cloudSavePresets();
+      }
       if(Object.keys(flyData).length){
         _flyApiRequest('/api/player-save/' + encodeURIComponent(_cloudUid), {
           method:'POST',
@@ -504,8 +568,13 @@
     // A delayed cloud load may finish after sign-in's public-profile read.
     // Collections come from the save; account identity still comes from Fly.
     window.FateOnline?.restoreCanonicalProfile?.();
-    // Presets
-    if(data.presets && typeof data.presets === 'object'){
+    // Merge only this account's disk cache; omitted decks are not deletions.
+    if(window.FatePresetSync){
+      var mergedPresets=window.FatePresetSync.merge(data,_presetSnapshot(uid));
+      _storePresetSnapshot(uid,mergedPresets);
+      if(JSON.stringify(mergedPresets)!==JSON.stringify(window.FatePresetSync.merge(data,{}))
+        || localStorage.getItem('fate_presets_pending_'+uid)==='1') cloudSavePresets();
+    }else if(data.presets && typeof data.presets === 'object'){
       if(typeof PRESET_DECKS !== 'undefined'){
         for(var pk in PRESET_DECKS) delete PRESET_DECKS[pk];
         for(var pk2 in data.presets) PRESET_DECKS[pk2] = data.presets[pk2];
@@ -676,6 +745,7 @@
       if(typeof normalizeOwnedPfps === 'function') normalizeOwnedPfps();
       if(typeof seedBuiltInPresets === 'function') seedBuiltInPresets();
       if(typeof syncStarterPresetMetadata === 'function') syncStarterPresetMetadata();
+      if(window.FatePresetSync && localStorage.getItem('fate_presets_pending_'+uid)==='1') cloudSavePresets();
       if(typeof updateLeaderboardEntry === 'function') updateLeaderboardEntry();
       if(window.FateCloudSave && typeof window.FateCloudSave.saveProfile === 'function') window.FateCloudSave.saveProfile();
       if(typeof safeRenderTitleProfile === 'function') safeRenderTitleProfile();
@@ -724,5 +794,9 @@
     showLoading: showCloudLoadingOverlay,
     hideLoading: hideCloudLoadingOverlay
   };
+
+  if(typeof window.addEventListener==='function') window.addEventListener('online',function(){
+    if(_cloudUid && localStorage.getItem('fate_presets_pending_'+_cloudUid)==='1') cloudSavePresets();
+  });
 
 })();

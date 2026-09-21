@@ -4567,6 +4567,19 @@
     });
     return {maja:ids.includes('07'), polish:ids.includes('28'), ids};
   };
+  window.fatePhase7SupportCompany = function(){
+    if(!phase7CurrentUiActive()) return null;
+    return {state:phase7CurrentUiSession.view?.state,
+      commands:phase7CurrentCommands().filter(command=>command?.type === 'SUPPORT_COMPANY')};
+  };
+  window.fatePhase7UseSupportCompany = function(ability, cardId){
+    if(!phase7CurrentUiActive()) return Promise.resolve(false);
+    const command = phase7CurrentCommands().find(candidate=>candidate?.type === 'SUPPORT_COMPANY'
+      && candidate.payload.ability === ability && candidate.payload.cardId === cardId);
+    if(!command) return Promise.resolve(false);
+    if(typeof closeModal === 'function') closeModal();
+    return phase7SubmitCommand(command);
+  };
   window.fatePhase7PresentationAudit = window.fatePhase7PresentationAudit || {
     overlays:[], fateMotions:[], draws:[], warnings:[]
   };
@@ -6583,6 +6596,12 @@
     const batchId = String(batch?.id || '');
     const events = Array.isArray(eventsOverride) ? eventsOverride : (batch?.events || []);
     if(!batchId || !events.length) return;
+    for(let eventIndex = 0; eventIndex < events.length; eventIndex++){
+      const event = events[eventIndex];
+      if(event?.type === 'SUPPORT_COMPANY_USED'){
+        await window.presentSupportCompanyUse?.(event, `${view.state.matchId}:${batchId}:${eventIndex}:support`);
+      }
+    }
     const moraleCalculationFirst = events.some(function(event){
       return String(event?.type || '').toUpperCase() === 'MORALE_CYCLE_RESOLVED';
     });
@@ -7691,6 +7710,12 @@
     const previousCard = phase7PresentationCard(phase7FindAnyCard(event?.cardIid));
     const nextCard = phase7PresentationCard(phase7FindProjectedEntry(view, event?.cardIid)?.card) || previousCard;
     const tokenResult = event?.adaptiveToken === true || phase7IsTokenCard(nextCard);
+    if(!tokenResult && nextCard && destination && (event?.tributeIids || []).length === 0){
+      if(typeof isCurrent === 'function' && !isCurrent()) return Promise.resolve(false);
+      const applied = phase7CommitCurrentView(view, reason);
+      if(applied !== false) window.FateSquareFeedbackFx?.playSet(destination, nextCard, 'hammer-lock');
+      return Promise.resolve(applied);
+    }
     if(tokenResult || !tributeEntries.length || !nextCard || !event?.destination){
       if(tokenResult || ((event?.tributeIids || []).length && !tributeEntries.length)){
         phase7RecordPresentationStage('consolidation-motion:skipped', {
@@ -7780,7 +7805,7 @@
   }
   async function phase7PlayConsolidationCinematic(view, event){
     const fast = phase7FastPresentationMode();
-    if(fast || event?.faceDown === true || typeof window.showConsolidationCinematic !== 'function') return;
+    if(fast || !(event?.tributeIids || event?.tributes || []).length || event?.faceDown === true || typeof window.showConsolidationCinematic !== 'function') return;
     const card = phase7FindAnyCard(event?.cardIid) || phase7FindProjectedEntry(view, event?.cardIid)?.card;
     if(!card || event?.adaptiveToken === true || phase7IsTokenCard(card)) return;
     phase7RecordPresentationStage('cinematic:start', {type:'CONSOLIDATION', cardIid:String(event.cardIid || '')});

@@ -5,7 +5,7 @@
   if(window.FateVfxRecipes) return;
 
   const VERSION = 53;
-  const STYLE_VERSION = 'professional-tcg-motion-v48-search-flip-catch';
+  const STYLE_VERSION = 'professional-tcg-motion-v49-search-fixed-size';
   const MOTION = {
     micro:96,
     snap:154,
@@ -424,26 +424,29 @@
     const layer = p.layer || 'top';
     const h = Number((to || from || {}).h) || 98;
     const start = Math.max(0, Number(p.startOffset) || 0);
-    const safeTo = to
-      ? offsetRect(scaleRect(to, .76), 0, -6)
-      : to;
-    const reveal = clampRectToViewport(scaleRect(leftPanelSearchRevealRect(from, safeTo || to, sourceIsDiscard) || safeTo || to || from, 1.4), 18);
+    const destination = to ? offsetRect(to, 0, 14) : to;
+    const reveal = clampRectToViewport(leftPanelSearchRevealRect(from, destination || to, sourceIsDiscard) || destination || to || from, 18);
+    // Keep one physical card size for the complete search flight. Changing the
+    // rectangle dimensions between phases made the selected card visibly shrink.
+    const fixedSize = {w:Number(reveal?.w || from?.w || to?.w) || 70, h:Number(reveal?.h || from?.h || to?.h) || 98};
+    const flightFrom = resizeRectAroundCenter(from, fixedSize);
+    const flightTo = resizeRectAroundCenter(destination || to, fixedSize);
     // Flip & catch: wind up, flick into a readable reveal, then catch with
     // one small rebound. The complete 1700ms motion fits the 1750ms gate.
-    const recoil = offsetRect(from, 0, Math.min(10, h * .07));
-    const catchRect = offsetRect(safeTo || to, 0, Math.min(8, h * .055));
-    const rebound = offsetRect(safeTo || to, 0, -Math.min(6, h * .04));
+    const recoil = offsetRect(flightFrom, 0, Math.min(10, h * .07));
+    const catchRect = offsetRect(flightTo, 0, Math.min(8, h * .055));
+    const rebound = offsetRect(flightTo, 0, -Math.min(6, h * .04));
     const common = {iid:p.iid || baseId, card:p.card || null, faceDown:p.faceDown === true,
       scale:1, startScale:1, endScale:1, textureScale:1.18, overshoot:0,
       launchSquash:0, landSquash:0, wobble:0, settleMs:0, rotate:0,
       noShadow:true, keepInFrame:true, safeMargin:12, safeBottomMargin:12, layer, priority:'high'};
     const move = options => cardMove(Object.assign({}, common, options));
     return [
-      move({fromRect:from, toRect:recoil, startOffset:start, duration:140, easing:'in-out-cubic', path:'direct', arc:0, lift:0, endRotate:-8, faceDown:!sourceIsDiscard || common.faceDown}),
+      move({fromRect:flightFrom, toRect:recoil, startOffset:start, duration:140, easing:'in-out-cubic', path:'direct', arc:0, lift:0, endRotate:-8, faceDown:!sourceIsDiscard || common.faceDown}),
       move({fromRect:recoil, toRect:reveal, startOffset:start + 140, duration:800, holdMs:280, easing:'out-cubic', path:'s-curve', arc:.32, lift:.32, sideArc:-.08, startRotate:-8, rotate:-14, flipStart:sourceIsDiscard ? 0 : 180, flipEnd:360}),
       move({fromRect:reveal, toRect:catchRect, startOffset:start + 940, duration:500, easing:'in-quart', path:'s-curve', arc:.18, lift:.18, sideArc:.06, rotate:-9, endRotate:6}),
       move({fromRect:catchRect, toRect:rebound, startOffset:start + 1440, duration:130, easing:'out-cubic', path:'direct', arc:0, lift:0, startRotate:6, endRotate:-3}),
-      move({fromRect:rebound, toRect:safeTo || to, startOffset:start + 1570, duration:130, easing:'in-out-cubic', path:'direct', arc:0, lift:0, startRotate:-3, endRotate:0}),
+      move({fromRect:rebound, toRect:flightTo, startOffset:start + 1570, duration:130, easing:'in-out-cubic', path:'direct', arc:0, lift:0, startRotate:-3, endRotate:0}),
       P().soundCue({cue:'search_found', startOffset:start + 640, priority:'high'})
     ].filter(Boolean);
   }
@@ -456,6 +459,14 @@
       cardMove({iid:p.iid, card:p.card, faceDown:p.faceDown === true || p.card?.faceDown === true, fromRect:from, toRect:from, startOffset:0, duration:1500, fracture:true, noShadow:true, priority:'high'}),
       P().soundCue({cue:'discard_fracture', startOffset:720, priority:'high'})
     ];
+  }
+
+  function resizeRectAroundCenter(rect, size){
+    if(!rect || !size) return rect || null;
+    const point = center(rect);
+    const w = Math.max(1, Number(size.w) || Number(rect.w) || 1);
+    const h = Math.max(1, Number(size.h) || Number(rect.h) || 1);
+    return {x:point.x - w / 2, y:point.y - h / 2, w, h};
   }
 
   function destroyCard(payload){

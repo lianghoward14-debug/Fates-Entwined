@@ -3414,9 +3414,9 @@ function showDeckInfo(player) {
     +   '</div>'
     + '</div>'
     + '<div class="di-progress-wrap"><div class="di-progress-bar" style="width:' + Math.round((deck.length / Math.max(1,totalCards)) * 100) + '%"></div><div class="di-progress-label">' + deck.length + ' / ' + totalCards + ' Cards Remaining</div></div>'
-    + (isOwn ? '<p class="di-note">Deck contents are hidden — use search effects to look through specific cards.</p>' : '<p class="di-note">Opponent deck contents are hidden.</p>')
     + polishHtml
     + majaHtml
+    + (typeof window.buildSupportCompanyPanel === 'function' ? window.buildSupportCompanyPanel(player) : '')
     + '</div>',
     [{label:'Close',action:closeModal}], {immediate:true, silentOpen:true});
   const modalBox = document.querySelector('#modal .modal');

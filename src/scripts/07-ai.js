@@ -239,6 +239,10 @@ function aiProjectedOpponentAction(hypoMy, hypoOp){
   });
 }
 
+function aiTurnTimeExpired() {
+  return G._aiTimedOutTurn != null && G._aiTimedOutTurn === G.turn;
+}
+
 async function runAITurn() {
   if(G._rulesAiMatch || window.FateAuthorityV3SinglePlayer?.currentScreen?.()) return;
   if(G.currentPlayer !== G.aiPlayer) return;
@@ -261,7 +265,7 @@ async function runAITurn() {
     try {
       const settings = getAIDifficultySettings();
       aiObserveOpponentAndPlan();
-      if(typeof activateWhisperOfTheHeartLandscape === 'function') {
+      if(!aiTurnTimeExpired() && typeof activateWhisperOfTheHeartLandscape === 'function') {
         await activateWhisperOfTheHeartLandscape({auto:true, playerIndex:G.aiPlayer});
       }
     const thinkTime = G.aiDifficulty==='extreme'?280:G.aiDifficulty==='hard'?240:G.aiDifficulty==='easy'?380:320;
@@ -270,7 +274,9 @@ async function runAITurn() {
 
       // Resolve board abilities, then reconsider cards they added to hand.
       for(let actionPhase = 0; actionPhase < 2; actionPhase++){
+      if(aiTurnTimeExpired()) break;
       while(actionsThisTurn < maxActions){
+      if(aiTurnTimeExpired()) break;
       if(G._aiAborted || G._aiAbort) { G._aiRunning = false; return; }
       if(G.currentPlayer !== G.aiPlayer || G.turn !== aiTurnNumber || G._aiTurnToken !== aiTurnToken) { G._aiRunning = false; return; }
       actionsThisTurn++;
@@ -284,6 +290,7 @@ async function runAITurn() {
 
       await aiResolveAutomaticBoardEffects();
       if(G.currentPlayer !== G.aiPlayer || G.turn !== aiTurnNumber) { G._aiRunning = false; return; }
+      if(aiTurnTimeExpired()) break;
 
       // Generate all legal moves
       const moves = aiGenerateAllMoves();
@@ -319,6 +326,7 @@ async function runAITurn() {
       // Only pace a chosen action, not an empty end-of-turn scan.
       await aiSleep(Math.max(thinkTime, AI_VISUAL_PAUSE_THINK));
       if(G._aiAborted || G._aiAbort) { G._aiRunning = false; return; }
+      if(aiTurnTimeExpired()) break;
 
       // Phase 0 legacy recorder: observe only when ?fateV3Recorder=1 loaded
       // the separate bridge. It never changes gameplay authority or routing.
@@ -453,8 +461,20 @@ function aiRecordSearchQueueYield(reason, elapsedMs) {
 function aiYieldToFrame(reason, elapsedMs) {
   aiRecordSearchQueueYield(reason, elapsedMs);
   return new Promise(resolve => {
-    if(typeof requestAnimationFrame === 'function') requestAnimationFrame(()=>setTimeout(resolve, 0));
-    else setTimeout(resolve, 0);
+    // Animation frames can stop in a hidden/minimized window. Search must
+    // still resume to observe its cancellation/turn deadline and finish.
+    let finished = false;
+    let frame = null;
+    const finish = ()=>{
+      if(finished) return;
+      finished = true;
+      clearTimeout(fallback);
+      if(frame !== null && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(frame);
+      resolve();
+    };
+    const fallback = setTimeout(finish, 100);
+    if(typeof requestAnimationFrame === 'function') frame = requestAnimationFrame(()=>setTimeout(finish, 0));
+    else setTimeout(finish, 0);
   });
 }
 
@@ -475,7 +495,7 @@ async function aiRunSearchQueue(items, worker, ctx, reason, budgetMs) {
 }
 
 function aiShouldAbortSearch(ctx) {
-  return !!(G._aiAborted || G._aiAbort ||
+  return !!(aiTurnTimeExpired() || G._aiAborted || G._aiAbort ||
     (ctx && (G.currentPlayer !== G.aiPlayer || G.turn !== ctx.turnNumber || G._aiTurnToken !== ctx.turnToken)));
 }
 
@@ -5169,6 +5189,7 @@ async function aiActivateEffects() {
   if(G.currentPlayer !== G.aiPlayer) return;
   const cp = G.aiPlayer;
   await aiResolveAutomaticBoardEffects();
+  if(aiTurnTimeExpired()) return;
   const activated = new Set();
   const settings = getAIDifficultySettings();
   // Style personality modifiers
@@ -5180,6 +5201,7 @@ async function aiActivateEffects() {
     if(card.owner===cp && isFaceDownCard(card)) faceDownCards.push({card,z,r,c});
   });
   for(const hidden of faceDownCards){
+    if(aiTurnTimeExpired()) return;
     if(!hidden.card.whenSetActivated && hasAuthoritativeWhenSetEffect(hidden.card)){
       hidden.card._whenSetActivatedHidden = true;
       await aiTriggerWhenSet(hidden.card, hidden.z, hidden.r, hidden.c);
@@ -5211,6 +5233,7 @@ async function aiActivateEffects() {
     });
   }
   for(const {card,z,r,c} of toActivate){
+    if(aiTurnTimeExpired()) return;
     activated.add(card.iid);
     // Easier AIs sometimes skip activating a useful effect
     const automaticEffect = typeof automaticBoardEffectsEnabled === 'function'
@@ -5247,6 +5270,7 @@ async function aiActivateEffects() {
     return priority(b) - priority(a);
   });
   for(const action of supporterActions){
+    if(aiTurnTimeExpired()) return;
     const activated = await aiRunSupporterBoardAbility(action.card, action.z, action.r, action.c);
     if(activated) await aiSleep(AI_VISUAL_PAUSE_EFFECTS);
   }

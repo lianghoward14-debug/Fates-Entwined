@@ -47,6 +47,10 @@ export function collectInvariantViolations(state){
     }
   }
   if(state.activePlayer !== 0 && state.activePlayer !== 1) violations.push(issue('activePlayer', 'must be 0 or 1'));
+  if(state.supportCompanyUses !== undefined && (!Array.isArray(state.supportCompanyUses)
+    || state.supportCompanyUses.length !== 2 || state.supportCompanyUses.some(value=>!Number.isInteger(value) || value < 0 || value > 2))){
+    violations.push(issue('supportCompanyUses', 'must contain two use counts from 0 to 2'));
+  }
   if(typeof state.landscapeId !== 'string') violations.push(issue('landscapeId', 'must be a string'));
   if(!state.landscapeState || typeof state.landscapeState !== 'object'){
     violations.push(issue('landscapeState', 'must be an object'));

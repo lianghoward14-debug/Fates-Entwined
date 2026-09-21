@@ -8,6 +8,11 @@ const noop=()=>{};
 const ctx={window:{},G:{currentPlayer:0,turn:1,board:[Array.from({length:3},()=>Array(4).fill(null))],fateModifiers:{}},toast:noop,log:noop,renderEffectResolutionForPlayer:noop,setTimeout:noop,getCardRuntimeEffectId:c=>c.id,recordWojciechPlacementForTurn:noop,controlledEventideCardsForLiHua:()=>[],automaticBoardEffectsEnabled:()=>true};
 ctx.pressureCardReworkTimingActive=()=>false; ctx.recalcCoordinatorEffects=noop; ctx.renderGame=noop;
 vm.createContext(ctx);
+const structural=fs.readFileSync('src/scripts/00-structural-helpers.js','utf8');
+for(const name of ['ensureExtraRowOwnerState','getNextExtraRowIndex','addFullExtraSafeRowForPlayer','isFullExtraSafeRow','getExtraSafeRowOwner','isPlayableSafeSquare']){
+ const start=structural.indexOf('function '+name+'(');
+ vm.runInContext(structural.slice(start,structural.indexOf('\n}',start)+2),ctx);
+}
 vm.runInContext(data.slice(data.indexOf('window.FATE_PLAYER_TIMED_MANUAL_EFFECT_CARD_IDS'),data.indexOf('const CARDS')),ctx);
 vm.runInContext("const MANUAL_EFFECT_BLOCKED_CARD_IDS=new Set(); const AUTHORITATIVE_ACTIVATE_EFFECT_IDS=new Set(['bh01']);"+[fn('markCardSetTurn'),fn('hasAnickaVoyagerMovedThisTurn'),fn('canUseManualCharacterEffect'),fn('shouldShowManualCharacterEffectButton'),fn('activateLiHuaStormOfTenThousandBlades'),fn('_executeWhenSetSwitch')].join('\n'),ctx);
 for(const initial of [undefined,null,2]){
@@ -34,6 +39,8 @@ for(const owner of [0,1]){
  Object.assign(ctx,{card,z:0,r:owner===0?2:0,c:0,cp:owner,opp:1-owner,id:'02',forEachBoardCard:cb=>ctx.G.board.forEach(zone=>zone.forEach(row=>row.forEach(c=>c&&cb(c))))});
  await vm.runInContext('(async()=>{switch(id){'+character.slice(start,end)+'}})()',ctx);
  assert.equal(ctx.G.board[0][3].length,4);
+ assert.equal(ctx.isPlayableSafeSquare(0,3,3,owner),true);
+ assert.equal(ctx.G.board[0][3][3],null,'fourth square is a real empty slot');
  assert.equal(ctx.G.extraRowOwners[0][0],owner);
  assert.equal(ctx.G.anickaSafeRows[0].sourceIid,card.iid);
 }
