@@ -20,6 +20,14 @@ for(const warfrontMatch of [false,true])for(const firstSeat of [0,1]){
   assert.equal(ended.outcome.winner,1-firstSeat);
 }
 let initial=testState({matchId:'takeover-'+'x'.repeat(130)});
+for(const humanSeat of [0,1]){
+  const aiMatch=testState({matchId:'ai-concede-'+humanSeat});
+  aiMatch.warfrontMatch=true;aiMatch.warfrontAiSeats=[1-humanSeat];aiMatch.aiTakeoverSeats=[1-humanSeat];
+  const ended=concede(aiMatch,humanSeat);
+  assert.equal(ended.phase,'ended','leaving an AI opponent ends the match without an AI-only continuation');
+  assert.equal(ended.outcome.winner,1-humanSeat);
+  assert.equal(ended.outcome.commendationsEligible,false);
+}
 for(const seat of [0,1]){
   const view=projectStateForSpectator(initial,seat);
   assert.deepEqual(view.players[seat].hand,initial.players[seat].hand);
@@ -42,6 +50,10 @@ const actor={state:locked,
   async dispatch(id,cmd){const r=reduceCommand(this.state,cmd,{playerId:id});if(r.ok)this.state=r.state;return {response:r.ok?{kind:'accepted'}:{kind:'rejected',rejection:r.rejection},broadcasts:[]};}
 };
 const step=createWarfrontTakeoverDriver();
+const abandoned={...actor,state:{...locked,aiTakeoverSeats:[0,1],warfrontAiSeats:[1]}};
+await step(abandoned);
+assert.equal(abandoned.state.phase,'ended','old AI-only continuations stop without another search');
+assert.equal(abandoned.state.outcome.winner,1,'recovery preserves the concession star winner');
 for(let n=0;n<100 && actor.state.activePlayer===0&&!actor.state.outcome;n++) assert(await step(actor),'AI must produce a command');
 assert(actor.state.activePlayer===1 || actor.state.outcome,'takeover AI must end its turn');
 
@@ -101,14 +113,17 @@ try{
   liveMatch={...locked,warfrontMatchmakingKey:liveMatch.warfrontMatchmakingKey};
   api.settleWarfrontForfeit(liveMatch);
   a=await request('alpha');
-  assert.equal(a.zones[0].matches[0].starValue,5);
+  assert.equal(a.zones[0].matches[0].starValue,1,'concession immediately awards one star before continuation ends');
+  assert.equal(a.zones[0].activeMatch.matchId,liveMatch.matchId,'AI continuation stays active');
   assert.equal(a.zones[0].matches[0].winnerTeam,'b');
   assert.equal(a.zones[0].matches[0].commendationExcluded,true);
   const earned=a.zones[0].b.elo;
-  a.zones[0].matches[0].winnerTeam='a';a.zones[0].matches[0].starValue=1;
+  a.zones[0].matches[0].winnerTeam='a';a.zones[0].matches[0].starValue=5;
   assert.equal((await request('alpha','POST',a)).zones[0].matches[0].winnerTeam,'b','client cannot reverse an authoritative sweep');
   assert(earned>687);
   api.settleWarfrontForfeit(locked);
+  assert.equal((await request('bravo')).zones[0].matches.length,1,'repeat settlement cannot duplicate the automatic star');
+  assert.equal((await request('bravo')).zones[0].matches[0].starValue,1,'client cannot inflate the automatic star');
   assert.equal((await request('bravo')).zones[0].b.elo,earned,'repeat settlement must not award ELO twice');
   liveMatch={...left,warfrontMatchmakingKey:liveMatch.warfrontMatchmakingKey};
   api.settleWarfrontForfeit(liveMatch);
@@ -119,7 +134,7 @@ try{
   assert.deepEqual(a.zones[0].matches[0].playerStats,{a:{},b:{}});
   api.flush();
   const persisted=JSON.parse(fs.readFileSync(path.join(dir,'rooms.json'),'utf8'));
-  assert.equal(persisted.warfrontEvent.zones[0].matches[0].starValue,5,'sweep persists without a connected client');
+  assert.equal(persisted.warfrontEvent.zones[0].matches[0].starValue,1,'automatic star persists without a connected client');
   assert.equal(persisted.playerStats.find(p=>p.uid==='bravo').challengerElo,earned);
   // Completing, rather than leaving, allows only the remaining human's stats.
   liveMatch={...liveMatch,outcome:{...finish.state.outcome,totalFate:[30,12]},warfrontConsolidations:[7,3]};
@@ -130,5 +145,5 @@ try{
   assert.equal(a.zones[0].matches[0].playerStats.b.durationMs,5000);
   assert.deepEqual(a.zones[0].matches[0].playerStats.a,{});
   assert.equal(a.zones[0].b,null,'completed matches release the human post');
-  console.log('Warfront forfeit, takeover turn progression, rating consistency and durable 5–0 regression passed');
+  console.log('Warfront forfeit, takeover turn progression, rating consistency and durable automatic star regression passed');
 }finally{api?.flush();globalThis.fetch=originalFetch;fs.rmSync(dir,{recursive:true,force:true});}

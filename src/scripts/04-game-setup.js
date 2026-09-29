@@ -193,7 +193,23 @@ function clearCompletedOnlineSessionBeforeLocalGame() {
   G.playerProfiles = null;
 }
 
-function startGame(vsAI=false) {
+function resetSpectatorStateBeforeGame() {
+  try { window.fateLeaveSpectating?.({silent:true}); } catch(e) {}
+  try { window.fateAuthorityV3Beta?.stopSpectating?.({showWarfront:false}); } catch(e) {}
+  if(typeof G !== 'undefined' && G){
+    G._isSpectator = false;
+    G._warReplayMode = false;
+    if(G._onlineRole === 'spectator') G._onlineRole = null;
+    G.localPlayerIndex = null;
+    G.viewerPlayerIndex = null;
+  }
+  document.getElementById('s-game')?.classList.remove('spectator-mode','warfront-team-spectator');
+  document.getElementById('warfront-spectator-panel')?.remove();
+}
+window.resetSpectatorStateBeforeGame = resetSpectatorStateBeforeGame;
+
+function startGame(vsAI=false, options={}) {
+  if(!options.spectatorBootstrap) resetSpectatorStateBeforeGame();
   clearCompletedOnlineSessionBeforeLocalGame();
   const keepHowardDevMode = !!window.__fateHowardDevLaunchPending;
   window.__fateHowardDevLaunchPending = false;
@@ -242,6 +258,7 @@ function startGame(vsAI=false) {
   if(!vsAI) G.players[1].name = 'Player 2';
   G.aiEnabled = vsAI;
   G._supportCompanyUses = [0, 0];
+  delete G._supportCompanyPool;
   G.aiPlayer = 1; // AI is always player 2
   if(vsAI){
     if(G._selectedAI) G._selectedAI = resolveCurrentAIOpponentState(G._selectedAI);
@@ -428,10 +445,21 @@ if(typeof document !== 'undefined' && !window.__fateHowardDevCommandInstalled) {
 
 function getAIProfileImg(ai, shape='circle') {
   if(!ai) return null;
-  const raw = ai.img || ai.profileImg || ai.avatar || null;
+  const name = String(ai.name || ai.username || 'ai');
+  const pools = [];
+  if(typeof AI_OPPONENTS !== 'undefined' && Array.isArray(AI_OPPONENTS)) pools.push(AI_OPPONENTS);
+  if(typeof MONTHLY_AI_OPPONENTS !== 'undefined' && Array.isArray(MONTHLY_AI_OPPONENTS)) pools.push(MONTHLY_AI_OPPONENTS);
+  const canonical = pools.flat().find(candidate=>candidate && candidate !== ai && String(candidate.name || candidate.username || '') === name) || null;
+  const candidates = [
+    canonical?.profileImg, canonical?.avatar, canonical?.pfp, canonical?.img,
+    ai.profileImg, ai.avatar, ai.pfp, ai.img
+  ];
+  // AI records sometimes carry featured card art in `img` or stale leaderboard
+  // `profileImg` fields. Only dedicated portrait assets are valid AI avatars.
+  const raw = candidates.find(value=>/^(?:aiicons|pfp)[\\/]/i.test(String(value || ''))) || null;
   const resolved = typeof resolveProfileImgSrc === 'function' ? resolveProfileImgSrc(raw, shape) : raw;
   if(resolved) return resolved;
-  const seed = Math.abs(typeof hashStr === 'function' ? hashStr(ai.name || 'ai') : 0);
+  const seed = Math.abs(typeof hashStr === 'function' ? hashStr(name) : 0);
   return 'aiicons/ai' + ((seed % 18) + 1) + '.png';
 }
 

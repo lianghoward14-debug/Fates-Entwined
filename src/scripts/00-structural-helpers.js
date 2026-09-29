@@ -455,7 +455,7 @@ function trackLandscapeConsolidation(player, card, z) {
   if (!st) return 0;
   st.consolidations[player] = (Number(st.consolidations[player]) || 0) + 1;
   let bonus = 0;
-  if (isLandscapeActive('igb3') && st.targetZone === z && G.turn < 10 && !(card && typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(card))) {
+  if (isLandscapeActive('igb3') && st.targetZone === z && G.turn <= 12 && !(card && typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(card))) {
     bonus = 4;
     if (card) {
       card._landscapeStaticFateBonus = (Number(card._landscapeStaticFateBonus) || 0) + bonus;
@@ -673,7 +673,8 @@ function getFateFeedbackPresentationBlockUntil() {
       Number(G._actionPresentationLockUntil) || 0,
       Number(G._cinematicUiLockUntil) || 0,
       Number(G._effectActivationPresentationLockUntil) || 0,
-      Number(G._postConsolidationFateFeedbackUntil) || 0
+      Number(G._postConsolidationFateFeedbackUntil) || 0,
+      Number(G._coordinatorSignatureUntil) || 0
     );
   }
   let presentationActive = false;
@@ -793,6 +794,14 @@ function getCardEffectType(card) {
 function cardHasEffectType(card, type) {
   const normalize = value=>String(value || '').replace(/^Improviser$/i, 'Improvisor').toLowerCase();
   return normalize(getCardEffectType(card)) === normalize(type);
+}
+
+// Effect-facing classification includes Blame Game without changing the
+// printed structural type used for placement and reinforcement costs.
+function cardHasCurrentEffectType(card, type) {
+  if(!card) return false;
+  if(getCardStructuralType(card) === 'Supporter' && isBlameGameActive(card.owner)) return type === 'Character';
+  return cardHasEffectType(card, type);
 }
 
 function isCardSupporterForRules(card, owner) {
@@ -1081,7 +1090,7 @@ function getSupportReinforcementValue(card) {
     return 1;
   }
   let value = 1;
-  if (card.id === '09') value = 2;
+  if (card.id === '09' && !(typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(card))) value = 2;
   if (card.id === '37' && card._returnUsed) value = 0.5;
   if (Number(card._reinforcementBonus)) value += Number(card._reinforcementBonus);
   if (typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(card)) return value;
@@ -1323,19 +1332,10 @@ function fatePushDiscard(playerIndex, cardOrCards, options = {}) {
     if(options.skipVigilantesDeparture !== true && typeof resolveVigilantesMarkedCardDeparture === 'function') {
       resolveVigilantesMarkedCardDeparture(card, {reason:'discard'});
     }
-    if(card && String(card.id || '') === '70' && card.guerilla_transferred !== true && options.wineCountryReturn !== true){
-      const holder = Number(playerIndex) === 0 ? 1 : 0;
-      if(G.players[holder] && Array.isArray(G.players[holder].hand)){
-        card.guerilla_transferred = true;
-        card.guerilla_turnsLeft = 5;
-        card.guerilla_owner = Number(playerIndex);
-        if(typeof resetCaliforniqueHandTenure === 'function') resetCaliforniqueHandTenure(card, holder);
-        G.players[holder].hand.push(card);
-        showWineCountryGuerillaSentBanner();
-        refreshStatusEffectsNow();
-        return;
-      }
-    }
+    const offerGuerilla = card && String(card.id || '') === '70'
+      && card.guerilla_transferred !== true && options.wineCountryReturn !== true
+      && !(typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(card))
+      && !(typeof cardActsAsPassive === 'function' && !cardActsAsPassive(card,'70'));
     if(card && card._stolenByRobo === true){
       const originalOwner = Number(card._roboOrigOwner);
       if((originalOwner === 0 || originalOwner === 1) && G.players[originalOwner] && Array.isArray(G.players[originalOwner].discard)){
@@ -1347,6 +1347,15 @@ function fatePushDiscard(playerIndex, cardOrCards, options = {}) {
         if(typeof toast === 'function') toast(card.name + ' returned to its original owner\'s discard.');
         return;
       }
+    }
+    if(offerGuerilla){
+      card.guerilla_transferred=true;
+      card.guerilla_turnsLeft=5;
+      card.guerilla_owner=playerIndex;
+      G.players[1-playerIndex].hand.push(card);
+      if(typeof resetCaliforniqueHandTenure==='function') resetCaliforniqueHandTenure(card,1-playerIndex);
+      if(typeof showWineCountryGuerillaSentBanner==='function') showWineCountryGuerillaSentBanner();
+      return;
     }
     G.players[playerIndex].discard.push(card);
     discarded.push(card);
@@ -1360,6 +1369,9 @@ function fatePushDiscard(playerIndex, cardOrCards, options = {}) {
       if(srcs.length) window.FateMatchRendererAdapter.prewarmAssetImages(srcs);
     }
   } catch(e) {}
+  if(options.animate !== false && window.FateV2CardMotionFx?.discardCard){
+    discarded.forEach(function(card){ window.FateV2CardMotionFx.discardCard(card, playerIndex, options.source ? {zone:options.source} : null); });
+  }
   if(options.sound !== false) playDiscardSfx({count:discarded.length});
   return true;
 }
@@ -1659,3 +1671,5 @@ function beginHiddenEffectPresentation(card) {
   };
 }
 window.beginHiddenEffectPresentation=beginHiddenEffectPresentation;
+
+// Defer optional discard triggers until the current picker has finished.

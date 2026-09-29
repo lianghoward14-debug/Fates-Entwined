@@ -4803,7 +4803,9 @@
       const discards = commands.filter(function(command){
         return command?.type === 'DISCARD_CARD' && String(command?.payload?.targetIid || '') === iid;
       });
-      if(discards.length) add('Discard', function(){
+      const berkeleyCost = discards.some(command=>command.payload?.reason === 'CLEAR_BERKELEY')
+        && !(typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(card));
+      if(discards.length) add(berkeleyCost ? 'Discard (expend 2 hand cards)' : 'Discard', function(){
         closeModal();
         phase7ChooseCommand(discards, 'Discard Card');
       }, {danger:true, phase7Action:'discard', iid});
@@ -5067,7 +5069,7 @@
         ? modal.querySelector?.('.phase7-hand-limit-discard')
         : null;
       const confirm = Array.from(modal?.querySelectorAll?.('#modal-acts button') || []).find(function(button){
-        return String(button.textContent || '').trim().toLowerCase() === 'discard selected';
+        return String((window.FateI18n ? window.FateI18n.sourceText(button) : button?.textContent) || '').trim().toLowerCase() === 'discard selected';
       });
       if(shell && confirm){
         phase7CurrentUiSession.handLimitMissingSince = 0;
@@ -5535,7 +5537,7 @@
         const mode = String(payload.choice || 'NEGATE').toUpperCase();
         const modeLabel = kind === 'LYDIA'
           ? 'Negate effect & suppress source'
-          : (kind === 'HAVANO' ? (mode === 'SUPPRESS' ? 'Suppress' : 'Negate')
+          : (kind === 'HAVANO' ? 'Permanently suppress source'
             : (mode === 'SUPPRESS' ? 'Suppress the source' : 'Negate the effect'));
         const location = phase7FindCardLocation(payload.reactionIid);
         const locationLabel = location?.zone === 'hand'
@@ -5600,14 +5602,13 @@
       if(!iid) return false;
       const option = (prompt?.options || []).find(function(value){ return value.reactionIid === iid; });
       if(option?.kind !== 'HAVANO') return true;
-      // Show one response per Havano. Passive-entry prompts already supply
-      // SUPPRESS; explicit effect resolutions supply NEGATE. Keep the exact
-      // server-issued command so this is only a presentation choice.
-      const preferred = prompt?.phase === 'PASSIVE_TARGET' ? 'SUPPRESS' : 'NEGATE';
+      // Havano always permanently suppresses. Prefer the server's SUPPRESS
+      // command; retain compatibility with older NEGATE-only prompts.
+      const preferred = 'SUPPRESS';
       const preferredExists = choices.some(function(value){
         return value?.payload?.reactionIid === iid && value.payload.choice === preferred;
       });
-      return command.payload.choice === (preferredExists ? preferred : 'SUPPRESS');
+      return command.payload.choice === (preferredExists ? preferred : 'NEGATE');
     });
   }
   function phase7OpenBoardPromptPicker(key, commands, options){
@@ -5744,7 +5745,7 @@
     if(mountedPicker) mountedPicker.dataset.phase7PickerKey = String(key || '');
     const promptId = String(phase7CurrentUiSession.view?.state?.pendingPrompt?.promptId || '');
     Array.from(document.querySelectorAll('#modal.on #modal-acts button')).forEach(function(button){
-      if(String(button.textContent || '').trim().toLowerCase() !== 'cancel') return;
+      if(String((window.FateI18n ? window.FateI18n.sourceText(button) : button?.textContent) || '').trim().toLowerCase() !== 'cancel') return;
       button.dataset.phase7PromptId = promptId;
       button.dataset.phase7PromptCancel = 'true';
     });
@@ -6911,7 +6912,9 @@
         if(targetLocation?.zone === 'board' && fx && typeof fx.flyBoardCard === 'function'){
           resultMotionStarted = !!fx.flyBoardCard(discardTarget, targetLocation.z, targetLocation.r, targetLocation.c, 'discard') || resultMotionStarted;
         }else if(targetLocation?.zone === 'hand' && fx && typeof fx.sendHandCardToDiscard === 'function'){
-          resultMotionStarted = !!fx.sendHandCardToDiscard(target, targetLocation.playerIndex, targetLocation.index) || resultMotionStarted;
+          resultMotionStarted = !!fx.sendHandCardToDiscard(discardTarget, targetLocation.playerIndex, targetLocation.index) || resultMotionStarted;
+        }else if(fx && typeof fx.discardCard === 'function'){
+          resultMotionStarted = !!fx.discardCard(discardTarget, event.playerIndex ?? discardTarget.owner, {zone:event.from || targetLocation?.zone}) || resultMotionStarted;
         }
         if(typeof window.playDiscardSfx === 'function') window.playDiscardSfx({count:1});
         else if(typeof window.playSfx === 'function') window.playSfx('discard');
@@ -7525,7 +7528,8 @@
       legacy._turnStartedAt = Number(g._turnStartedAt);
     }
     g._onlineRoomCode = String(view.state.matchId || 'PHASE7');
-    g._onlineRole = g._warReplayMode ? 'spectator' : (localIndex === 0 ? 'host' : 'guest');
+    g._isSpectator = !!g._warReplayMode || /spectator/.test(String(view.mode || ''));
+    g._onlineRole = g._isSpectator ? 'spectator' : (localIndex === 0 ? 'host' : 'guest');
     g._onlinePlayerIndex = localIndex;
     g.localPlayerIndex = localIndex;
     g.viewerPlayerIndex = localIndex;
@@ -7805,9 +7809,14 @@
   }
   async function phase7PlayConsolidationCinematic(view, event){
     const fast = phase7FastPresentationMode();
-    if(fast || !(event?.tributeIids || event?.tributes || []).length || event?.faceDown === true || typeof window.showConsolidationCinematic !== 'function') return;
+    if(fast || event?.faceDown === true) return;
     const card = phase7FindAnyCard(event?.cardIid) || phase7FindProjectedEntry(view, event?.cardIid)?.card;
-    if(!card || event?.adaptiveToken === true || phase7IsTokenCard(card)) return;
+    if(!card || card.faceDown === true) return;
+    if(event?.adaptiveToken === true || phase7IsTokenCard(card)){
+      if(typeof window.playCardSetAudio === 'function') window.playCardSetAudio(card);
+      return;
+    }
+    if(!(event?.tributeIids || event?.tributes || []).length || typeof window.showConsolidationCinematic !== 'function') return;
     phase7RecordPresentationStage('cinematic:start', {type:'CONSOLIDATION', cardIid:String(event.cardIid || '')});
     try{ window.showConsolidationCinematic(card, {playVoice:true, playSfx:true, allowRenderV2Cinematic:true, tributeCount:(event?.tributeIids || event?.tributes || []).length}); }
     catch(error){ console.warn('Phase 7 consolidation cinematic failed open', error); }
@@ -8544,7 +8553,7 @@
         }
         return `<button class="reaction-choice-card" type="button" data-server-reaction-idx="${idx}" data-server-reaction-havano="1">` +
           `<span class="reaction-choice-art">${img}</span>` +
-          `<span class="reaction-choice-copy"><b>${reactionEscapeHtml(label)}</b><em>Negate and deploy</em><small>Choose a highlighted board square</small></span>` +
+          `<span class="reaction-choice-copy"><b>${reactionEscapeHtml(label)}</b><em>Permanently suppress and deploy</em><small>Choose a highlighted board square</small></span>` +
         `</button>`;
       }
       const loc = Number.isInteger(Number(option.z)) ? `Zone ${Number(option.z) + 1}` : 'Board';
@@ -10109,7 +10118,7 @@
       online:true,
       allowBridgeVfx:true,
       forceBridgeVfx:type === 'CONSOLIDATE',
-      allowMatchActionMotion:type === 'CONSOLIDATE',
+      allowMatchActionMotion:['CONSOLIDATE', 'DISCARD_CARD', 'HAND_DISCARD'].includes(type),
       source:'online-authoritative-' + String(suffix || recipe || 'presentation'),
       actionSeq:Number(action?.seq || 0) || 0
     };
@@ -10492,7 +10501,15 @@
     }
     if(discardDelta > 0){
       setTimeout(function(){
-        if(!emitOnlineAcceptedPresentation('HAND_DISCARD', {count:discardDelta}, action, 'hand-discard')){
+        const boardIids = new Set(onlineBoardSnapshotValues(previousSnapshot.board).map(entry=>String(entry.card?.iid || '')));
+        const discarded = (player.discard || []).slice(Number(before.discard) || 0)
+          .filter(card=>!boardIids.has(String(card?.iid || '')));
+        const fx = window.FateV2CardMotionFx;
+        let animated = false;
+        discarded.forEach(function(card){
+          if(fx && typeof fx.discardCard === 'function') animated = !!fx.discardCard(card, playerIndex, {zone:deckDelta < 0 ? 'deck' : 'hand'}) || animated;
+        });
+        if(!animated && discarded.length){
           if(typeof window.playDiscardSfx === 'function') window.playDiscardSfx({count:discardDelta});
           else if(typeof window.playSfx === 'function') window.playSfx('discard');
         }
@@ -10694,7 +10711,7 @@
     if(removed.length) {
       removed.forEach(function(entry, index){
         setTimeout(function(){
-          if(!emitOnlineAcceptedPresentation('DISCARD_CARD', {iid:entry.card?.iid, card:entry.card}, action, 'discard')){
+          if(!emitOnlineAcceptedPresentation('DISCARD_CARD', {iid:entry.card?.iid, card:entry.card, fromRect:onlineBoardCellRect(entry.z, entry.r, entry.c)}, action, 'discard')){
             if(typeof window.playDiscardSfx === 'function') window.playDiscardSfx();
             else if(typeof window.playSfx === 'function') window.playSfx('discard');
           }
@@ -13083,7 +13100,9 @@
         const p = profiles[idx] || {};
         const slot = document.querySelector('#ingame-chat-widget .ingame-chat-pic.p' + (idx + 1));
         if(!slot) return;
-        const src = p.img || (FO.profilePhoto ? FO.profilePhoto(p) : (p.photoURL || p.profileImg || 'blank.png'));
+        const src = p.isAI && typeof window.getAIProfileImg === 'function'
+          ? window.getAIProfileImg(p, 'square')
+          : (p.img || (FO.profilePhoto ? FO.profilePhoto(p) : (p.photoURL || p.profileImg || 'blank.png')));
         const style = p.crop || (FO.profilePhotoCropStyle ? FO.profilePhotoCropStyle(p, 'center 22%') : 'width:100%;height:100%;object-fit:cover;object-position:center 22%;');
         if(src && src !== 'blank.png') slot.innerHTML = '<img src="'+esc(src)+'" width="96" height="96" decoding="async" loading="eager" fetchpriority="high" style="'+esc(style)+'" onerror="this.onerror=null;this.src=&quot;blank.png&quot;;">';
       });

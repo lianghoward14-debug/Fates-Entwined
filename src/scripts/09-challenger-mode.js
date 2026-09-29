@@ -2855,7 +2855,11 @@ function buildDeckSlateRow(pid, preset, presentation, index, options={}) {
       if(typeof options.onEditArt === 'function') options.onEditArt(pid, preset, presentation);
     });
   } else {
-    row.querySelector('[data-preview]')?.addEventListener('click', e=>{ e.stopPropagation(); viewChallengerDeckContents(pid); });
+    row.querySelector('[data-preview]')?.addEventListener('click', e=>{
+      e.stopPropagation();
+      if(typeof options.onPreview === 'function') return options.onPreview(pid,preset);
+      viewChallengerDeckContents(pid);
+    });
     row.querySelector('[data-play]')?.addEventListener('click', e=>{
       e.stopPropagation();
       if(!presentation.ok) return;
@@ -2865,6 +2869,7 @@ function buildDeckSlateRow(pid, preset, presentation, index, options={}) {
   }
   row.addEventListener('click', ()=>{
     if(typeof options.onRowClick === 'function') return options.onRowClick(pid, preset, presentation);
+    if(typeof options.onPreview === 'function') return options.onPreview(pid,preset);
     viewChallengerDeckContents(pid);
   });
   return row;
@@ -2917,7 +2922,7 @@ function renderUnifiedChooseDeckModal(page=0, options={}) {
         <button class="btn sm" type="button" data-deck-next ${currentPage>=totalPages-1?'disabled':''}><span class="deck-modal-button-text">Next</span></button>
       </div>
       <div class="deck-slate-footer-actions">
-        ${(freeMode && !libraryMode) ? '' : `<button class="btn sm" type="button" data-deck-order ${keys.length<=1?'disabled':''}>Edit Order</button>`}
+        ${(options.allowOrder === false || (freeMode && !libraryMode)) ? '' : `<button class="btn sm" type="button" data-deck-order ${keys.length<=1?'disabled':''}>Edit Order</button>`}
         ${(freeMode || libraryMode) ? `<button class="btn sm" type="button" data-deck-close><span class="deck-modal-button-text">Close</span></button>` : ''}
         ${(!freeMode && !libraryMode && !isRandomCommitted) ? `<button class="btn sm" type="button" data-deck-close>Cancel</button>` : ''}
       </div>
@@ -3134,7 +3139,13 @@ function openNextBooster2Pack() {
 }
 
 window.openWarfrontDeckPicker = function openWarfrontDeckPicker(options={}){
+  if(window.fateAuthorityV3Beta?.report?.().spectatingMatchId){
+    window.fateAuthorityV3Beta.stopSpectating({showWarfront:false});
+  }
   CURRENT_MODE = 'challenger';
+  G._pickDeckAfterAi = false;
+  G._pickDeckAfterMatchmaking = false;
+  G._selectedAI = null;
   const presets = USER_PROFILE.challengerPresets || {};
   const keys = getOrderedDeckPickKeysForCurrentMode().filter(key=>presets[key]);
   return renderUnifiedChooseDeckModal(0, {
@@ -3145,6 +3156,10 @@ window.openWarfrontDeckPicker = function openWarfrontDeckPicker(options={}){
     modeLabel:options.modeLabel || 'WARFRONT DEPLOYMENT',
     subcopy:options.subcopy || 'Choose a complete Challenger deck before entering this front.',
     extraClasses:['warfront-deck-picker'],
+    allowOrder:false,
+    onPreview(pid,preset){
+      viewChallengerDeckContents(pid,{preset,onBack:()=>window.openWarfrontDeckPicker(options)});
+    },
     emptyText:'No Challenger decks are ready. Build a 40-card deck before deploying.',
     onPlay(pid,preset,presentation){
       if(typeof options.onSelect === 'function') options.onSelect({
@@ -4805,7 +4820,7 @@ function openChallengerDeckBuilderCardDetail(card) {
   };
   refresh();
   const close = Array.from(acts.querySelectorAll('button')).find(function(button){
-    return /^close$/i.test(String(button.textContent || '').trim());
+    return /^close$/i.test(String((window.FateI18n ? window.FateI18n.sourceText(button) : button?.textContent) || '').trim());
   });
   acts.insertBefore(add, close || null);
 }
@@ -5231,7 +5246,7 @@ showLeaderboard = async function(page=0, opts={}) {
     if(window.FateOnline && typeof window.FateOnline.refreshFlyLeaderboard === 'function') refreshes.push(Promise.resolve(window.FateOnline.refreshFlyLeaderboard({force:true})).catch(()=>{}));
     if(refreshes.length) Promise.all(refreshes).then(function(){
       const title = document.querySelector('#modal .modal-title, #modal-title');
-      if(document.getElementById('modal')?.classList.contains('on') && /leaderboard/i.test(title?.textContent || '')) showLeaderboard(page, {skipFresh:true});
+      if(document.getElementById('modal')?.classList.contains('on') && /leaderboard/i.test((window.FateI18n ? window.FateI18n.sourceText(title) : title?.textContent) || '')) showLeaderboard(page, {skipFresh:true});
     });
   }
   if(typeof resetModalChrome === 'function') resetModalChrome();
@@ -6666,7 +6681,9 @@ function initInGameChat() {
   const p1Elo = p1Profile.elo || USER_PROFILE.elo || 1000;
   const p2Elo = p2Profile.elo || G._aiOpponentElo || (G._selectedAI ? G._selectedAI.elo : 1000);
   const onlineProfileImg = p => {
-    const src = window.FateOnline?.profilePhoto
+    const src = p?.isAI && typeof getAIProfileImg === 'function'
+      ? getAIProfileImg(p, 'square')
+      : window.FateOnline?.profilePhoto
       ? window.FateOnline.profilePhoto(p || {})
       : (p?.img || p?.photoURL || p?.profileImg || null);
     return src && src !== 'blank.png' && src !== '[object Object]' ? src : null;
@@ -7171,7 +7188,8 @@ function logMatch(p1, p2, winnerName, p1EloChange, p2EloChange, p1NewElo, p2NewE
   const imageFor = (name, lb, ai) => {
     if(currentName && String(name) === currentName) return activeImg || lb?.profileImg || lb?.photoURL || null;
     const online = onlineProfiles.find(entry=>getLeaderboardDisplayName(entry) === name);
-    return lb?.profileImg || lb?.photoURL || online?.photoURL || online?.profileImg || ai?.img || null;
+    if(ai && typeof getAIProfileImg === 'function') return getAIProfileImg(ai, 'square');
+    return lb?.profileImg || lb?.photoURL || online?.photoURL || online?.profileImg || ai?.profileImg || ai?.img || null;
   };
   const p1Img = imageFor(p1, p1Lb, p1Ai);
   const p2Img = imageFor(p2, p2Lb, p2Ai);
@@ -7221,8 +7239,17 @@ function showMatchHistory(page) {
       var p2Arrow = m.p2Change > 0 ? '+' : m.p2Change < 0 ? '-' : '';
       var p1EloColor = m.p1Change > 0 ? '#7fffa0' : m.p1Change < 0 ? '#ff6b6b' : 'var(--dim)';
       var p2EloColor = m.p2Change > 0 ? '#7fffa0' : m.p2Change < 0 ? '#ff6b6b' : 'var(--dim)';
-      var p1Img = m.p1Img || (m.p1 === USER_PROFILE?.username && typeof getProfileImgSrc === 'function' ? getProfileImgSrc('square') : null);
-      var p2Img = m.p2Img || (m.p2 === USER_PROFILE?.username && typeof getProfileImgSrc === 'function' ? getProfileImgSrc('square') : null);
+      var historyAiList = typeof getRandomMatchAIOpponents === 'function' ? getRandomMatchAIOpponents() : AI_OPPONENTS;
+      var p1Ai = historyAiList.find(function(ai){ return ai.name === m.p1; });
+      var p2Ai = historyAiList.find(function(ai){ return ai.name === m.p2; });
+      // Historical simulation records contain retired/shortened AI names, so
+      // exact catalog matching cannot be the condition for rejecting saved
+      // card art. Every simulated participant is an AI and receives a stable
+      // portrait derived from its name when no current catalog entry exists.
+      if(m.simulated && !p1Ai) p1Ai = {name:m.p1, isAI:true};
+      if(m.simulated && !p2Ai) p2Ai = {name:m.p2, isAI:true};
+      var p1Img = p1Ai && typeof getAIProfileImg === 'function' ? getAIProfileImg(p1Ai, 'square') : (m.p1Img || (m.p1 === USER_PROFILE?.username && typeof getProfileImgSrc === 'function' ? getProfileImgSrc('square') : null));
+      var p2Img = p2Ai && typeof getAIProfileImg === 'function' ? getAIProfileImg(p2Ai, 'square') : (m.p2Img || (m.p2 === USER_PROFILE?.username && typeof getProfileImgSrc === 'function' ? getProfileImgSrc('square') : null));
       var timeStr = _fmtMatchTime(m.timestamp);
       html += '<div style="display:flex;align-items:center;gap:.8rem;padding:.75rem 1rem;border:1px solid var(--border);border-radius:10px;background:rgba(0,0,0,.3);">'
         // P1

@@ -1,7 +1,9 @@
 import crypto from 'node:crypto';
+import {createDeltaEncoder} from '../../shared/multiplayer-delta.mjs';
 import {normalizeMultiplayerPhoto} from '../../shared/profile-photo.mjs';
 import fs from 'node:fs';
 import http from 'node:http';
+import {endJsonResponse} from './http-json.mjs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {ENGINE_VERSION, RULESET_VERSION} from '../../shared/engine/constants.mjs';
@@ -10,6 +12,8 @@ import {SQLiteAuthorityStore} from './storage.mjs';
 import {normalizePhase7GameSettings, resolvePhase7GameSettings} from './phase7-game-settings.mjs';
 import {createFlyDataApi} from './fly-data-api.mjs';
 import {createWarfrontTakeoverDriver} from './warfront-takeover.mjs';
+import {warfrontSpectatorPerspective} from './warfront-spectator-perspective.mjs';
+import {spectatorSnapshotResponse} from './spectator-sync.mjs';
 import {warfrontAiDeck} from './warfront-simulation.mjs';
 
 if(process.env.FATE_SERVER_AUTHORITATIVE_V3_ENABLED !== '1'){
@@ -295,7 +299,7 @@ function json(value){
 
 function send(ws, message){
   if(!ws || ws.destroyed) return;
-  const payload = Buffer.from(json(message), 'utf8');
+  const payload = Buffer.from(ws.authorityDeltaEncode ? ws.authorityDeltaEncode(message) : json(message), 'utf8');
   let header;
   if(payload.length < 126){
     header = Buffer.from([0x81, payload.length]);
@@ -537,6 +541,7 @@ async function handleSocketMessage(ws, message){
     if(!credential) throw new Error('match authentication failed');
     const actor = manager.actor(message.matchId);
     if(!actor) throw new Error('match not found');
+    ws.authorityDeltaEncode=Array.isArray(message.capabilities) && message.capabilities.includes('view-delta-v1') ? createDeltaEncoder() : null;
     register(ws, {
       matchId:String(message.matchId),
       playerId:String(message.playerId),
@@ -629,8 +634,7 @@ function setCors(res){
 
 function writeJson(res, status, body){
   setCors(res);
-  res.writeHead(status, {'content-type':'application/json; charset=utf-8', 'cache-control':'no-store'});
-  res.end(json(body));
+  endJsonResponse(res, status, json(body));
 }
 
 function readBody(req, maxBytes = MAX_MESSAGE_BYTES){
@@ -908,8 +912,8 @@ const server = http.createServer(async (req, res)=>{
       }
       const teammateIndex=flyDataApi.warfrontSpectatorSeat?.(matchId,spectatorUid,spectatorPlayerId);
       const requestedPerspective=Number(url.searchParams.get('perspective'))===1?1:0;
-      const perspective=teammateIndex===0||teammateIndex===1?teammateIndex:requestedPerspective;
-      writeJson(res, 200, {ok:true, playerIndex:perspective, ...actor.snapshotForSpectator(teammateIndex)});
+      const {perspective,handSeat}=warfrontSpectatorPerspective(actor.state,teammateIndex,requestedPerspective);
+      writeJson(res, 200, spectatorSnapshotResponse(actor, {perspective,handSeat}, url.searchParams.get('since')));
       return;
     }
     const snapshotMatch = BETA_MODE

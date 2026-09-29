@@ -1,0 +1,27 @@
+/* Japanese versions of CSS-generated labels; English remains the CSS fallback. */
+html[lang="ja"] {
+  --fate-label-79a1694efa: "フィールドオーダー · 目のみ";
+  --fate-label-b5887e0958: "シアターインテリジェンス";
+  --fate-label-9c1a2e4221: "ユニットドシエ";
+  --fate-label-1b1f8a58b1: "信号隊";
+  --fate-label-e1e1024c47: "最終インテリジェンス · 読み取り専用";
+  --fate-label-2f45a6362e: "戦線";
+  --fate-label-07732a73c0: "アフターアクションファイル";
+  --fate-label-e90fbbde09: "バトルテレグラム";
+  --fate-label-11939f1f51: "機密扱いのキャンペーン ファイル";
+  --fate-label-6e00805398: "音声設定";
+  --fate-label-800756b0ed: "統合はありません";
+  --fate-label-bda58606d1: "アーカイブ · 描画順序 · 承認されたアクセス";
+  --fate-label-211a0a7004: "ファイル 0";
+  --fate-label-b5c7aed7cd: "すべて";
+  --fate-label-41cf8adfd8: "カード関係書類";
+  --fate-label-5ec3c1c34e: "フィールドリソース";
+  --fate-label-10547aaa7b: "グランドマップ · 積極的な関与";
+  --fate-label-8f2e2070f9: "風景の聖遺物";
+  --fate-label-3f89dc4fcd: "地形";
+  --fate-label-0ab09daaa2: "フィールドフォリオ";
+  --fate-label-4e8c9131d3: "地図引き出し 03";
+  --fate-label-930eff8e37: "ゾーン I";
+  --fate-label-ec4aaac9e3: "ゾーン II";
+  --fate-label-0c429f1ce9: "ゾーン III";
+}

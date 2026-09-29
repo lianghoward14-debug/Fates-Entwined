@@ -2,6 +2,7 @@ import {boardEntries, controllerOf, findCard} from './selectors.mjs';
 import {zoneScore} from './scoring.mjs';
 import {
   canTarget,
+  adjustedTriggeredFateHistoryGain,
   coordinatorAuraPotencyBoost,
   effectiveCardType,
   effectiveFate,
@@ -128,7 +129,7 @@ export function collectTriggeredOperations(state, event){
   }
   if(event.type === 'DECK_SEARCHED'){
     for(const boleslaw of boardEntries(state).filter(entry=>
-      String(entry.card.id || '') === '86'
+      runtimeRuleId(entry.card) === '86'
       && controllerOf(entry.card) !== Number(event.playerIndex)
       && !isEffectSourceSuppressed(state, entry)
     )){
@@ -213,7 +214,7 @@ export function collectTriggeredOperations(state, event){
         operations.push({
           type:'SET_CARD_COUNTER', targetIid:source.card.iid,
           counterKey:'triggeredFateHistoryTotal',
-          value:Math.max(0, Number(source.card.counters?.triggeredFateHistoryTotal) || 0) + amount,
+          value:Math.max(0, Number(source.card.counters?.triggeredFateHistoryTotal) || 0) + adjustedTriggeredFateHistoryGain(state,source,amount),
           sourceIid:source.card.iid, sourceController:playerIndex
         });
         for(const target of boardEntries(state).filter(entry=>
@@ -253,7 +254,7 @@ export function collectTriggeredOperations(state, event){
       operations.push({
         type:'SET_CARD_COUNTER', targetIid:source.card.iid,
         counterKey:'triggeredFateHistoryTotal',
-        value:Math.max(0, Number(source.card.counters?.triggeredFateHistoryTotal) || 0) + amount,
+        value:Math.max(0, Number(source.card.counters?.triggeredFateHistoryTotal) || 0) + adjustedTriggeredFateHistoryGain(state,source,amount),
         sourceIid:source.card.iid, sourceController:reactingPlayer
       });
       for(const target of boardEntries(state).filter(entry=>
@@ -276,6 +277,7 @@ export function collectTriggeredOperations(state, event){
           sourceIid:source.card.iid,
           sourceController:reactingPlayer,
           reason:'MISCHIEVOUS_ACTIVITIES',
+          permanentFateGain:false,
           bypassReaction:true
         });
       }
@@ -289,7 +291,7 @@ export function collectTriggeredOperations(state, event){
       operations.push({
         type:'SET_CARD_COUNTER', targetIid:joie.card.iid,
         counterKey:'triggeredFateHistoryTotal',
-        value:Math.max(0, Number(joie.card.counters?.triggeredFateHistoryTotal) || 0) + amount,
+        value:Math.max(0, Number(joie.card.counters?.triggeredFateHistoryTotal) || 0) + adjustedTriggeredFateHistoryGain(state,joie,amount),
         sourceIid:joie.card.iid, sourceController:Number(event.playerIndex),
         semanticSourceCardId:'bh02'
       });
@@ -421,7 +423,7 @@ export function collectTriggeredOperations(state, event){
   }
   if(event.type === 'TURN_STARTED'){
     if(state.gameSettings?.pressureCardReworks === true){
-      for(const entry of boardEntries(state).filter(item=>String(item.card.id||'')==='65'&&controllerOf(item.card)===Number(event.playerIndex)&&!isEffectSourceSuppressed(state,item))){
+      for(const entry of boardEntries(state).filter(item=>runtimeRuleId(item.card)==='65'&&controllerOf(item.card)===Number(event.playerIndex)&&!isEffectSourceSuppressed(state,item))){
         operations.push({type:'MODIFY_MORALE',playerIndex:1-Number(event.playerIndex),amount:-2,sourceIid:entry.card.iid});
       }
     }

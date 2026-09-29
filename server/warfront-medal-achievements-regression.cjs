@@ -1,0 +1,48 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const vm=require('node:vm');
+const api=require('../shared/warfront-medals.js');
+const zones=['north-gate','silver-crossing','heartland','sunken-road','crown-reach'];
+const win=(id,overrides={})=>({id,winnerTeam:'a',participants:{a:{uid:'me'},b:{uid:'other'}},playerStats:{a:{totalFateGenerated:300,fateDifferential:100,consolidations:20,durationMs:60000}},...overrides});
+const profile={warfrontParticipations:250,warfrontWins:100,ownedMedals:[1,50],displayedMedals:[1,50]};
+const result={players:[{uid:'me',team:'a'}],winner:'a',score:{a:20,b:19},achievements:['fate','speed','consolidation'].map(id=>({id,leader:{uid:'me'},tied:false})),zones:zones.map((id,i)=>({id,matches:[win('mine-'+i),win('ally1-'+i,{participants:{a:{uid:'ally'}}}),win('ally2-'+i,{participants:{a:{uid:'ally'}}})]}))};
+assert.equal(api.catalog.length,50);
+assert.deepEqual(api.catalog.map(m=>m.id),Array.from({length:50},(_,i)=>51+i));
+assert.equal(new Set(api.catalog.map(m=>m.name)).size,50);
+assert.deepEqual(api.evaluateCampaign(profile,result,'me'),api.catalog.map(m=>m.id),'all 50 medals are reachable');
+const awarded=api.unlock(profile,api.evaluateCampaign(profile,result,'me'));
+assert.equal(awarded.length,50);assert.deepEqual(profile.displayedMedals,[1,50,51]);
+assert.deepEqual(api.unlock(profile,awarded),[],'repeated reward evaluation is idempotent');
+for(const flag of ['forfeitSweep','voidedByForfeit','commendationExcluded','forfeit'])assert.deepEqual(api.evaluateMatch(win('bad',{[flag]:true}),'a',zones[0]),[],flag);
+assert.deepEqual(api.evaluateMatch(win('loss',{winnerTeam:'b'}),'a',zones[0]),[]);
+assert.deepEqual(api.evaluateMatch(win('simulated',{statsSource:'simulated'}),'a',zones[0]),[]);
+assert.deepEqual(api.evaluateCampaign(profile,result,'spectator'),[]);
+const missingClock=win('unknown',{playerStats:{a:{totalFateGenerated:300,fateDifferential:100,consolidations:20}}});
+assert.ok(!api.evaluateMatch(missingClock,'a',zones[0]).some(id=>id>=81&&id<=83));
+for(const medal of api.catalog.filter(m=>['fate','differential','consolidations','speed'].includes(m.rule))){
+  const field={fate:'totalFateGenerated',differential:'fateDifferential',consolidations:'consolidations',speed:'durationMs'}[medal.rule];
+  const match={winnerTeam:'a',stats:{[field]:medal.threshold}};
+  assert.ok(api.evaluateMatch(match,'a',zones[0]).includes(medal.id),medal.name+' boundary');
+  match.stats[field]+=medal.rule==='speed'?1:-1;
+  assert.ok(!api.evaluateMatch(match,'a',zones[0]).includes(medal.id),medal.name+' below boundary');
+}
+const tied=structuredClone(result);tied.achievements.forEach(a=>a.tied=true);
+assert.ok(!api.evaluateCampaign(profile,tied,'me').some(id=>id>=91&&id<=95||id===100));
+const mixed=structuredClone(result);mixed.zones[0].matches.push(win('loss',{winnerTeam:'b'}));
+assert.ok(!api.evaluateCampaign(profile,mixed,'me').includes(96),'an additional loss blocks perfect campaign');
+const invalid=structuredClone(result);invalid.zones[0].matches[0].voidedByForfeit=true;
+assert.ok(!api.evaluateCampaign(profile,invalid,'me').includes(65),'voided battles do not count');
+for(const m of api.catalog)assert.ok(fs.existsSync(m.image),m.image);
+const source=fs.readFileSync('src/scripts/47-challenger-war-event.js','utf8');
+// Exercise the actual match reward hook, receipt replay and earned-medal markup.
+const saved=new Map(),p={ownedMedals:[50],displayedMedals:[50]};
+const context=vm.createContext({window:{FateWarfrontMedals:api,FATE_WAR_REPLAY_CAPTURE:{consolidations:{a:10}}},profile:()=>p,localStorage:{getItem:k=>saved.get(k),setItem:(k,v)=>saved.set(k,v)},storageKey:k=>k,MATCH_RECEIPTS:'matches',clone:structuredClone,saveProfile:()=>{},recordChallengerResult:()=>({}),state:{service:{}},me:()=>({uid:'me'}),seat:()=>null,console});
+const matchFunction=source.slice(source.indexOf('function warMatchRewardOnce('),source.indexOf('warMatchReward=warMatchRewardOnce;'));
+vm.runInContext(matchFunction+'\nthis.run=warMatchRewardOnce;',context);
+const view={playerIndex:0,state:{matchId:'real-test',players:[{},{}],turnClockUsage:{consumedMs:[60000,90000]}}};
+const receipt=context.run(view,{winner:0,totalFate:[150,50]},{team:'a',zoneId:zones[0]});
+assert.ok(receipt.medalIds.includes(83));assert.ok(receipt.medalIds.includes(85));
+const owned=JSON.stringify(p.ownedMedals);
+assert.equal(JSON.stringify(context.run(view,{winner:0,totalFate:[150,50]},{team:'a',zoneId:zones[0]})),JSON.stringify(receipt));
+assert.equal(JSON.stringify(p.ownedMedals),owned,'replayed receipt does not mutate medals');
+console.log('All 50 medals reachable; thresholds, forfeits, ties, missing clocks, assets and actual match-reward idempotency passed.');

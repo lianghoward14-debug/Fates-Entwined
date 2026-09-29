@@ -613,19 +613,20 @@ function resolveZoneFateMoraleDamage(ctx){
   const outgoing = [0, 0];
   const outgoingSources = [[], []];
   const pressureReworks = state.gameSettings?.pressureCardReworks === true;
-  const entries = boardEntries(state).filter(entry=>
+  const allEntries = boardEntries(state);
+  const entries = allEntries.filter(entry=>
     !isEffectSourceSuppressed(state, entry)
   );
   for(const entry of entries){
       const source = entry.card;
       const owner = controllerOf(source);
-      const id = String(source.id || '');
+      const id = runtimeRuleId(source);
       let sourceDamage = 0;
       let affectedIids = [];
       const whisperRozsi = source.counters?.whisperLandscapeToken === true && runtimeRuleId(source) === '34';
       if((runtimeRuleId(source) === '34' || whisperRozsi) && source.counters?.moraleAffiliation){
         const affiliation = String(source.counters.moraleAffiliation).toLowerCase();
-        const affected = entries.filter(target=>
+        const affected = allEntries.filter(target=>
           controllerOf(target.card) === owner
           && (whisperRozsi || target.z === entry.z)
           && cardAffiliation(target.card) === affiliation
@@ -643,7 +644,7 @@ function resolveZoneFateMoraleDamage(ctx){
   for(let owner = 0; owner < 2; owner += 1){
       const doublers = entries.filter(entry=>
         controllerOf(entry.card) === owner
-        && String(entry.card.id || '') === '64'
+        && runtimeRuleId(entry.card) === '64'
         && entry.card.counters?.doubleNextMoraleDamage === true
       );
       const doubleCount = system.pendingBladeDance?.[owner] ?? doublers.length;
@@ -671,7 +672,7 @@ function resolveZoneFateMoraleDamage(ctx){
   const bh18ZoneFateReductions = [];
   for(let player = 0; player < 2; player += 1){
     if(Math.max(0, Number(resolution.damage[player]) || 0) <= 0) continue;
-    for(const entry of entries.filter(item=>controllerOf(item.card) === player && String(item.card.id || '') === 'bh18')){
+    for(const entry of entries.filter(item=>controllerOf(item.card) === player && runtimeRuleId(item.card) === 'bh18')){
       const status = {
         statusId:`bh18:${entry.card.iid}:cycle:${Number(system.cycle || 0)}`,
         type:'ZONE_FATE_MODIFIER',

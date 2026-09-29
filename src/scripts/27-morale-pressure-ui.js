@@ -651,7 +651,7 @@
     const resolveWhenSetEffects = options?.resolveWhenSetEffects === true
       || !(card._onlineSetResolutionPending || card._onlineSetResolutionInFlight);
 
-    if(pressureReworks && resolveWhenSetEffects){
+    if(resolveWhenSetEffects){
       if(String(card.id||'')==='33'){
         const before=Number(system.morale[player]||0);system.morale[player]=Math.min(Number(system.maxMorale||200),before+16);
         if(system.morale[player]>before) events.push({type:'MORALE_HEALED',playerIndex:player,amount:system.morale[player]-before,before:before,after:system.morale[player],sourceIid:String(card.iid||'')});
@@ -807,17 +807,18 @@
     const outgoing=[0,0];
     const outgoingSources=[[],[]];
     zoneResults.forEach(function(result){if(!pacificaPreventsMoraleDamage&&(result.damagedPlayer===0||result.damagedPlayer===1))damage[result.damagedPlayer]+=Math.floor(result.difference*33/100);});
-    const entries=legacyBoardEntries(state).filter(function(entry){return entry.card&&!legacySuppressed(entry);});
+    const allEntries=legacyBoardEntries(state).filter(function(entry){return entry.card;});
+    const entries=allEntries.filter(function(entry){return !legacySuppressed(entry);});
     if(entries.length || state._southWindMoraleBlock || system.pendingBladeDance?.some(count=>count>0)){
       entries.forEach(function(entry){
         const source=entry.card;
         const owner=Number(source.owner);
-        const id=String(source.id||'');
+        const id=String(typeof getCardRuntimeEffectId==='function'?getCardRuntimeEffectId(source):source.id||'');
         let sourceDamage=0;
         let affectedIids=[];
         const whisperRozsi=String(source._whisperCopiedEffectId||'')==='34';
         if(((typeof cardActsAsPassive==='function'?cardActsAsPassive(source,'34'):id==='34')||whisperRozsi)&&source._moraleAffiliation){
-          const affected=entries.filter(function(target){return Number(target.card.owner)===owner&&(whisperRozsi||Number(target.z)===Number(entry.z))&&String(target.card.aff||target.card.affiliation||'')===String(source._moraleAffiliation);});
+          const affected=allEntries.filter(function(target){return Number(target.card.owner)===owner&&(whisperRozsi||Number(target.z)===Number(entry.z))&&String(target.card.aff||target.card.affiliation||'')===String(source._moraleAffiliation);});
           sourceDamage=affected.length*3;
           affectedIids=affected.map(function(target){return String(target.card&&target.card.iid||'');}).filter(Boolean);
         }else if(id==='35'){

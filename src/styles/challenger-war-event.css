@@ -603,7 +603,7 @@ body:has(#s-game.warfront-team-spectator) :is(#spectator-badge,#spectator-perspe
 #s-challenger .war2-zone-command-screen>header{height:82px!important;min-height:82px!important;background:linear-gradient(90deg,#2b3c40,#101c22)!important;border-bottom:2px solid #c39c42!important}
 #s-challenger .war2-zone-brief-grid{min-height:0;display:grid;grid-template-columns:38% 62%;overflow:hidden}
 #s-challenger .war2-zone-theater{position:relative;min-width:0;overflow:hidden;border-right:1px solid #c19a4266;background:#0a151b}
-#s-challenger .war2-zone-theater:after{content:"THEATER\A INTELLIGENCE";white-space:pre;position:absolute;left:22px;top:20px;color:#fff2;font:900 36px/.88 Cinzel,serif;letter-spacing:.07em;text-align:left}
+#s-challenger .war2-zone-theater:after{content:var(--fate-label-b5887e0958,"THEATER\A INTELLIGENCE");white-space:pre;position:absolute;left:22px;top:20px;color:#fff2;font:900 36px/.88 Cinzel,serif;letter-spacing:.07em;text-align:left}
 #s-challenger .war2-zone-theater img{width:100%;height:100%;object-fit:cover;filter:saturate(.7) contrast(1.08) brightness(.72)}
 #s-challenger .war2-zone-theater>div{position:absolute;left:0;right:0;bottom:0;padding:74px 24px 24px;background:linear-gradient(transparent,#061016 70%);text-align:left}
 #s-challenger .war2-zone-theater span{color:#dcb852;font:900 10px/1 Cinzel,serif;letter-spacing:.14em}.war2-zone-theater h3{margin:9px 0 6px;color:#fff0ce;font:900 24px/1 Cinzel,serif}.war2-zone-theater p{margin:0;color:#bcc7c5;font-size:12px;line-height:1.4}
@@ -656,7 +656,7 @@ body:has(#s-game.warfront-team-spectator) :is(#spectator-badge,#spectator-perspe
 /* Shared vertical command spine. */
 #s-challenger :is(.war2-matches,.war2-live-record,.war2-archive,.war2-achievements){display:grid!important;grid-template-columns:224px minmax(0,1fr)!important;grid-template-rows:auto minmax(0,1fr)!important;overflow:hidden!important;background:#071117!important}
 #s-challenger :is(.war2-matches,.war2-live-record,.war2-archive,.war2-achievements)>header{grid-column:1!important;grid-row:1/3!important;width:auto!important;height:auto!important;min-height:0!important;display:flex!important;flex-direction:column!important;align-items:flex-start!important;justify-content:flex-end!important;padding:34px 26px!important;border:0!important;border-right:1px solid #c59d3d!important;background:linear-gradient(180deg,#26383d 0,#101c22 58%,#1c2422 100%)!important;overflow:hidden}
-#s-challenger :is(.war2-matches,.war2-live-record,.war2-archive,.war2-achievements)>header:before{content:"WARFRONT";position:absolute;left:-13px;top:38px;writing-mode:vertical-rl;color:#ffffff0a;font:900 74px/.8 Cinzel,serif;letter-spacing:.02em}
+#s-challenger :is(.war2-matches,.war2-live-record,.war2-archive,.war2-achievements)>header:before{content:var(--fate-label-2f45a6362e,"WARFRONT");position:absolute;left:-13px;top:38px;writing-mode:vertical-rl;color:#ffffff0a;font:900 74px/.8 Cinzel,serif;letter-spacing:.02em}
 #s-challenger :is(.war2-matches,.war2-live-record,.war2-archive,.war2-achievements)>header>div{flex:none!important;position:relative;z-index:1}
 #s-challenger :is(.war2-matches,.war2-live-record,.war2-archive,.war2-achievements)>header span{font-size:10px!important;line-height:1.45!important}
 #s-challenger :is(.war2-matches,.war2-live-record,.war2-archive,.war2-achievements)>header h2{margin-top:12px!important;font-size:30px!important;line-height:.95!important}
@@ -890,7 +890,7 @@ body .warfront-deck-picker .deck-slate-row{border-left:4px solid #c69e3d!importa
 #s-challenger .war2-landscape{height:128px!important;min-height:128px!important;background:#0a151b!important;border-bottom:1px solid #7c6837!important}
 #s-challenger .war2-landscape img{width:34%!important;object-fit:cover!important;filter:saturate(.78) contrast(1.08)}
 #s-challenger .war2-landscape>div{position:relative;padding-left:30px!important}
-#s-challenger .war2-landscape>div:before{content:"THEATER INTELLIGENCE";position:absolute;right:28px;top:0;color:#ffffff17;font:900 25px/1 Cinzel,serif;letter-spacing:.12em}
+#s-challenger .war2-landscape>div:before{content:var(--fate-label-b5887e0958,"THEATER INTELLIGENCE");position:absolute;right:28px;top:0;color:#ffffff17;font:900 25px/1 Cinzel,serif;letter-spacing:.12em}
 #s-challenger .war2-duel{flex:1!important;min-height:0!important;gap:56px!important;padding:20px 30px!important;background:linear-gradient(90deg,rgba(142,35,45,.16),transparent 43%,transparent 57%,rgba(33,104,161,.18)),repeating-linear-gradient(0deg,transparent 0 35px,#ffffff06 36px)!important}
 #s-challenger .war2-duel>article{position:relative;border-radius:0!important;border:1px solid #ffffff18!important;border-top:4px solid #d25b65!important;background:linear-gradient(160deg,rgba(112,32,41,.32),rgba(8,16,22,.78) 60%)!important;clip-path:polygon(0 0,100% 0,100% calc(100% - 16px),calc(100% - 16px) 100%,0 100%)}
 #s-challenger .war2-duel>article.team-b{border-top-color:#58a9ea!important;background:linear-gradient(200deg,rgba(29,92,144,.35),rgba(8,16,22,.78) 60%)!important}
@@ -919,7 +919,7 @@ body .warfront-deck-picker .deck-slate-row{border-left:4px solid #c69e3d!importa
 /* Archive entries read as stamped campaign files. */
 #s-challenger .war2-archive-list{display:grid;align-content:start;gap:10px;padding:18px 24px!important}
 #s-challenger .war2-archive-list>button{position:relative;min-height:104px!important;margin:0!important;grid-template-columns:126px 1fr 120px minmax(190px,1.25fr) 34px!important;padding:12px 18px!important;border:1px solid #b08f3d55!important;border-left:6px solid #c8a141!important;background:linear-gradient(90deg,#bd973518,transparent 38%),#0d1a20!important;clip-path:polygon(0 0,calc(100% - 16px) 0,100% 16px,100% 100%,0 100%)}
-#s-challenger .war2-archive-list>button:before{content:"AFTER-ACTION FILE";position:absolute;right:48px;top:12px;color:#ffffff12;font:900 18px/1 Cinzel,serif;letter-spacing:.14em}
+#s-challenger .war2-archive-list>button:before{content:var(--fate-label-07732a73c0,"AFTER-ACTION FILE");position:absolute;right:48px;top:12px;color:#ffffff12;font:900 18px/1 Cinzel,serif;letter-spacing:.14em}
 #s-challenger .war2-archive-list>button b{font-size:21px!important;color:#f5e7c3}
 
 /* The zone dossier is a fixed operational ledger; battle cards scroll only here when needed. */
@@ -1005,7 +1005,7 @@ body .warfront-deck-picker .deck-slate-row{border-left:4px solid #c69e3d!importa
 /* Recent Battles: two-column battle telegrams with a central result seal. */
 #s-challenger .war2-matches{display:flex!important;flex-direction:column!important;background:linear-gradient(135deg,#1c2c32,#071117 72%)!important}
 #s-challenger .war2-matches>header{position:relative!important;width:auto!important;height:92px!important;min-height:92px!important;display:flex!important;flex-direction:row!important;align-items:center!important;justify-content:flex-start!important;padding:0 82px 0 28px!important;border:0!important;border-bottom:1px solid #c49d4455!important;background:linear-gradient(90deg,#283b40,#101b21)!important}
-#s-challenger .war2-matches>header:before{content:"BATTLE TELEGRAMS"!important;position:absolute!important;left:auto!important;right:92px!important;top:27px!important;writing-mode:horizontal-tb!important;color:#ffffff0a!important;font-size:42px!important}
+#s-challenger .war2-matches>header:before{content:var(--fate-label-e90fbbde09,"BATTLE TELEGRAMS")!important;position:absolute!important;left:auto!important;right:92px!important;top:27px!important;writing-mode:horizontal-tb!important;color:#ffffff0a!important;font-size:42px!important}
 #s-challenger .war2-matches>header>button{left:auto!important;right:22px!important;top:24px!important}
 #s-challenger .war2-match-list{flex:1!important;display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;grid-auto-rows:214px!important;gap:14px!important;padding:18px!important;overflow:auto!important;background:repeating-linear-gradient(0deg,transparent 0 39px,#ffffff05 40px)!important}
 #s-challenger .war2-match-card{min-height:214px!important;display:grid!important;grid-template-columns:1fr!important;grid-template-rows:40px 1fr 42px!important;border:1px solid #b7944266!important;border-top:6px solid #cba13c!important;border-left:1px solid #b7944266!important;clip-path:polygon(0 0,calc(100% - 17px) 0,100% 17px,100% 100%,0 100%)!important;background:linear-gradient(145deg,#15252c,#09151b)!important}
@@ -1027,7 +1027,7 @@ body .warfront-deck-picker .deck-slate-row{border-left:4px solid #c69e3d!importa
 #s-challenger .war2-archive>header:before{display:none!important}.war2-archive>header>button{left:auto!important;right:22px!important;top:24px!important}
 #s-challenger .war2-archive-list{flex:1!important;display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;grid-auto-rows:240px!important;align-content:start!important;gap:18px!important;padding:22px!important;overflow:auto!important}
 #s-challenger .war2-archive-list>button{min-height:240px!important;display:grid!important;grid-template-columns:1fr auto!important;grid-template-rows:34px 1fr auto!important;padding:24px 20px 20px!important;border:1px solid #b08d4055!important;border-top:12px solid #b58f3d!important;border-left:1px solid #b08d4055!important;background:linear-gradient(145deg,#26373b,#101c21 76%)!important;clip-path:polygon(0 0,74% 0,79% 12px,100% 12px,100% 100%,0 100%)!important}
-#s-challenger .war2-archive-list>button:before{content:"CLASSIFIED CAMPAIGN FILE"!important;right:18px!important;top:19px!important;font-size:9px!important;color:#dfbc67!important}
+#s-challenger .war2-archive-list>button:before{content:var(--fate-label-11939f1f51,"CLASSIFIED CAMPAIGN FILE")!important;right:18px!important;top:19px!important;font-size:9px!important;color:#dfbc67!important}
 #s-challenger .war2-archive-list>button b{align-self:center!important;font-size:27px!important}.war2-archive-list>button strong{align-self:center!important;font-size:34px!important}.war2-archive-list>button em{grid-column:1/3!important}
 
 @media(max-height:850px){
@@ -1070,7 +1070,7 @@ body .warfront-deck-picker .deck-slate-row{border-left:4px solid #c69e3d!importa
 #s-challenger .war2-zone-command-screen>header{height:82px!important;min-height:82px!important;background:linear-gradient(90deg,#2b3c40,#101c22)!important;border-bottom:2px solid #c39c42!important}
 #s-challenger .war2-zone-brief-grid{min-height:0;display:grid;grid-template-columns:38% 62%;overflow:hidden}
 #s-challenger .war2-zone-theater{position:relative;min-width:0;overflow:hidden;border-right:1px solid #c19a4266;background:#0a151b}
-#s-challenger .war2-zone-theater:after{content:"THEATER\A INTELLIGENCE";white-space:pre;position:absolute;left:22px;top:20px;color:#fff2;font:900 36px/.88 Cinzel,serif;letter-spacing:.07em;text-align:left}
+#s-challenger .war2-zone-theater:after{content:var(--fate-label-b5887e0958,"THEATER\A INTELLIGENCE");white-space:pre;position:absolute;left:22px;top:20px;color:#fff2;font:900 36px/.88 Cinzel,serif;letter-spacing:.07em;text-align:left}
 #s-challenger .war2-zone-theater img{width:100%;height:100%;object-fit:cover;filter:saturate(.7) contrast(1.08) brightness(.72)}
 #s-challenger .war2-zone-theater>div{position:absolute;left:0;right:0;bottom:0;padding:74px 24px 24px;background:linear-gradient(transparent,#061016 70%);text-align:left}
 #s-challenger .war2-zone-theater span{color:#dcb852;font:900 10px/1 Cinzel,serif;letter-spacing:.14em}.war2-zone-theater h3{margin:9px 0 6px;color:#fff0ce;font:900 24px/1 Cinzel,serif}.war2-zone-theater p{margin:0;color:#bcc7c5;font-size:12px;line-height:1.4}

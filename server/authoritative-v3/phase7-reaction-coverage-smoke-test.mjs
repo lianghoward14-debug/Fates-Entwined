@@ -315,7 +315,7 @@ for(const mode of ['NEGATE', 'SUPPRESS']){
   assert.equal(result.state.effectStack.length, 0);
   assert.equal(
     findCard(result.state, opened.fixture.source.iid)?.statuses?.includes('EFFECTS_SUPPRESSED'),
-    mode === 'SUPPRESS'
+    true
   );
   assertInvariants(result.state);
   coverage.cases.push({sourceCardId:'30', reactorCardId:'79', branches:[mode, 'BOARD_DESTINATION']});

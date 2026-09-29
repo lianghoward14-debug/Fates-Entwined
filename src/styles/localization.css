@@ -1,0 +1,70 @@
+/* Language selection follows the title audio panel in the menu layout. */
+#title-language-btn {
+  position: static;
+  grid-column: 1 / -1;
+  justify-self: center;
+  align-self: center;
+  margin: 6px auto 0;
+  z-index: 10;
+  min-width: 96px;
+  min-height: 40px;
+  padding: 8px 16px;
+  color: #f2dfaa;
+  border: 1px solid #b99a55;
+  background: rgba(9, 13, 22, .92);
+  font: 600 14px/1.4 'Yu Gothic', Meiryo, sans-serif;
+  letter-spacing: .04em;
+}
+#title-language-btn:focus-visible { outline: 2px solid #ffe29a; outline-offset: 4px; }
+/* Share the authored typography and layout in both languages. The body font
+   already includes Japanese serif fallbacks; localization changes text only. */
+html[lang="ja"] body { font-family: var(--font-body); }
+html[lang="ja"] :is(button, input, select, textarea, .logo-sub, .title-btn, .modal, .ch-tab) {
+  /* Keep each control's existing font and letter spacing. */
+  line-break: strict;
+  overflow-wrap: break-word;
+}
+
+html[lang="ja"] .cinematic-subtitle-live { font-family: "Yu Gothic", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif !important; line-height: 1.5 !important; letter-spacing: .02em !important; word-break: normal; line-break: strict; overflow-wrap: anywhere; }
+
+/* Keep audio and language selection together beneath the title menu. */
+html body #s-title .title-audio-controls{
+  grid-column:1 / -1!important;
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  justify-self:center!important;
+  width:100%!important;
+  gap:29px!important;
+}
+html body #s-title #title-language-btn{
+  position:static!important;
+  inset:auto!important;
+  transform:none!important;
+  translate:none!important;
+  order:2!important;
+  width:144px!important;
+  min-height:34px!important;
+  margin:0 auto!important;
+  padding:7px 18px!important;
+  border:1px solid rgba(218,185,82,.75)!important;
+  border-radius:5px!important;
+  background:linear-gradient(180deg,rgba(92,70,24,.42),rgba(12,10,7,.86))!important;
+  box-shadow:inset 0 1px 0 rgba(255,235,161,.08),0 4px 12px rgba(0,0,0,.3)!important;
+  color:#e9d18e!important;
+  font-family:Cinzel,'Yu Mincho',serif!important;
+  font-size:12px!important;
+  font-weight:500!important;
+  letter-spacing:.08em!important;
+}
+html body #s-title #title-language-btn:hover{
+  border-color:#efcf75!important;
+  background:linear-gradient(180deg,rgba(120,91,30,.5),rgba(23,18,9,.9))!important;
+}
+
+/* Japanese glyph metrics must not add height above the title menu. */
+html body #s-title .logo{line-height:1.2!important;}
+html body #s-title .title-audio-controls :is(#widescreen-toggle-btn,#game-version){
+  white-space:nowrap!important;
+  line-height:1.2!important;
+}

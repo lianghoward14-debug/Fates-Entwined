@@ -1,3 +1,4 @@
+import {createDeltaDecoder} from '../../shared/multiplayer-delta.mjs';
 // The established authoritative service owns the shared live queue.  Keep
 // the release client on this protocol until a coordinated server migration
 // can preserve one queue for every installed client.
@@ -83,6 +84,8 @@ let matchmakingGeneration = 0;
 let activeScreen = null;
 let spectatorPollTimer = null;
 let spectatingMatchId = '';
+let spectatorGeneration = 0;
+let screenGeneration = 0;
 let spectatorPerspective = 0;
 const listeners = new Set();
 const inflight = new Map();
@@ -261,8 +264,10 @@ let takeoverNoticeKey = '';
 let takeoverNoticeTimer = null;
 function updateTakeoverNotice(state, playerIndex){
   if(!globalThis.document) return;
-  const key=state?.aiTakeoverSeats?.length&&!state.outcome
-    ? `${state.matchId}:${state.aiTakeoverSeats.join(',')}` : '';
+  const departedSeat=state?.warfrontForfeit?.loser;
+  const key=!spectatingMatchId && Number.isInteger(departedSeat)
+    && state?.aiTakeoverSeats?.includes(departedSeat) && !state.outcome
+    ? `${state.matchId}:${departedSeat}` : '';
   if(key===takeoverNoticeKey) return;
   takeoverNoticeKey=key;
   clearTimeout(takeoverNoticeTimer);
@@ -271,7 +276,7 @@ function updateTakeoverNotice(state, playerIndex){
   const notice=document.createElement('div');
   notice.id='warfront-ai-takeover-notice';notice.setAttribute('role','status');
   notice.style.cssText='position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:100000;background:#241707;color:#ffe29a;border:2px solid #e8b64c;padding:12px 22px;font-weight:bold;text-align:center;pointer-events:none';
-  notice.textContent=state.aiTakeoverSeats.includes(playerIndex)
+  notice.textContent=departedSeat===playerIndex
     ? 'YOU FORFEITED — AI CONTROLS YOUR SEAT'
     : 'OPPONENT LEFT — AI HAS TAKEN OVER';
   document.getElementById('s-game')?.appendChild(notice);
@@ -346,6 +351,10 @@ function applyServerMessage(message){
 async function connect(nextCredential = credential || loadCredential()){
   if(fatalError) throw new Error(fatalError);
   const validatedCredential = validateCredential(nextCredential);
+  if(spectatingMatchId) stopSpectating({showWarfront:false});
+  globalThis.fateLeaveSpectating?.({silent:true});
+  const game = globalThis.getFateGameState?.();
+  if(game){game._isSpectator=false;game._warReplayMode=false;}
   resetForNextMatch(validatedCredential);
   credential = validatedCredential;
   saveCredential(credential);
@@ -359,11 +368,15 @@ async function connect(nextCredential = credential || loadCredential()){
     return report();
   }
   const connectedSocket = new WebSocket(WS_URL);
+  const decodeView=createDeltaDecoder();
   socket = connectedSocket;
   connectedSocket.addEventListener('message', event=>{
     if(socket !== connectedSocket) return;
-    try{ applyServerMessage(JSON.parse(String(event.data || '{}'))); }
-    catch(error){ console.error('[Fate Phase 7 Beta] invalid server message', error); }
+    try{ applyServerMessage(decodeView(JSON.parse(String(event.data || '{}')))); }
+    catch(error){
+      console.error('[Fate Phase 7 Beta] invalid server message; reconnecting for full snapshot', error);
+      connectedSocket.close(1000,'view resync');
+    }
   });
   connectedSocket.addEventListener('close', ()=>{
     if(socket !== connectedSocket) return;
@@ -377,6 +390,7 @@ async function connect(nextCredential = credential || loadCredential()){
       reconnectAttempts = 0;
       connectedSocket.send(JSON.stringify({
         kind:'hello',
+        capabilities:['view-delta-v1'],
         protocolVersion:3,
         clientVersion:CLIENT_VERSION,
         matchId:credential.matchId,
@@ -481,6 +495,7 @@ function report(){
     connected:socket?.readyState === WebSocket.OPEN,
     reconnectAttempts,
     matchId:credential?.matchId || '',
+    spectatingMatchId,
     playerId:credential?.playerId || '',
     playerIndex,
     revision,
@@ -644,6 +659,7 @@ const networkAdapter = Object.freeze({
 });
 
 function unmountGameScreen(){
+  screenGeneration += 1;
   clearTimeout(takeoverNoticeTimer);
   takeoverNoticeTimer=null;
   takeoverNoticeKey='';
@@ -665,38 +681,62 @@ async function waitForCurrentUiBridge(timeoutMs = 20_000){
 async function mountGameScreen(options = {}){
   if(!globalThis.document) return null;
   unmountGameScreen();
+  const generation = screenGeneration;
   const currentUi = await waitForCurrentUiBridge();
+  if(generation !== screenGeneration) return null;
+  const returnToWarfront=credential?.queueMode === 'warfront';
   activeScreen = currentUi.mount({
     adapter:networkAdapter,
     onExit(){
       unmountGameScreen();
       if(typeof options.onExit === 'function') options.onExit();
       else{
-        disconnect();
-        globalThis.showScreen?.('s-title');
+        disconnect({forget:true});
+        globalThis.FATE_WAR_REPLAY_CAPTURE?.unsubscribe?.();
+        globalThis.FATE_WAR_REPLAY_CAPTURE=null;
+        globalThis.FATE_PENDING_WAR_MATCH=null;
+        const game=globalThis.getFateGameState?.();
+        if(game){
+          game._onlineRoomCode=null;game._onlineRole=null;game._onlinePlayerIndex=null;
+          game.localPlayerIndex=null;game.viewerPlayerIndex=null;
+          game._onlineActionLogMode=false;game._phase7CurrentMultiplayer=false;
+        }
+        if(returnToWarfront) returnToWarfrontScreen();
+        else globalThis.showScreen?.('s-title');
       }
     }
   });
   return activeScreen;
 }
 
+function returnToWarfrontScreen(){
+  globalThis.showScreen?.('s-challenger');
+  globalThis.switchChTab?.('war');
+}
+
+function clearWarfrontSpectatorLabels(){
+  globalThis.document?.getElementById('s-game')?.classList.remove('spectator-mode','warfront-team-spectator');
+  for(const id of ['warfront-spectator-panel','spectator-badge','spectator-perspective-controls']){
+    globalThis.document?.getElementById(id)?.remove();
+  }
+}
+
 function stopSpectating({showWarfront = true} = {}){
+  spectatorGeneration += 1;
   if(spectatorPollTimer) clearTimeout(spectatorPollTimer);
   spectatorPollTimer = null;
   spectatingMatchId = '';
   unmountGameScreen();
-  globalThis.document?.getElementById('s-game')?.classList.remove('spectator-mode','warfront-team-spectator');
-  globalThis.document?.getElementById('warfront-spectator-panel')?.remove();
+  clearWarfrontSpectatorLabels();
   const game=globalThis.getFateGameState?.();
-  if(game?._onlineRole==='spectator'){
+  if(game){
     game._isSpectator=false;game._onlineRole=null;game._onlinePlayerIndex=null;
     game.localPlayerIndex=null;game.viewerPlayerIndex=null;game._onlineRoomCode=null;
     game._onlineActionLogMode=false;game._phase7CurrentMultiplayer=false;
   }
   state = null;revision = 0;stateHash = '';playerIndex = null;legalCommands = [];privateActionCards = [];presentationBatch = null;
   if(showWarfront){
-    globalThis.showScreen?.('s-challenger');
-    globalThis.renderChWarEventTab?.(globalThis.document?.querySelector('#ch-content > .ch-tab-pane[data-tab="war"]'));
+    returnToWarfrontScreen();
   }
 }
 
@@ -706,6 +746,7 @@ function enforceWarfrontSpectatorState(){
     game._isSpectator=true;game._onlineRole='spectator';game._onlinePlayerIndex=spectatorPerspective;
     game.localPlayerIndex=spectatorPerspective;game.viewerPlayerIndex=spectatorPerspective;
   }
+  if(state?.outcome){clearWarfrontSpectatorLabels();return;}
   globalThis.document?.getElementById('s-game')?.classList.add('spectator-mode','warfront-team-spectator');
   if(globalThis.document){
     let panel=globalThis.document.getElementById('warfront-spectator-panel');
@@ -726,19 +767,29 @@ async function startSpectating({matchId, playerIndex:requestedPerspective = 0} =
   if(!/^[A-Za-z0-9_-]{3,80}$/.test(id)) throw new Error('Invalid live Warfront match');
   stopSpectating({showWarfront:false});
   disconnect({forget:false});
+  const generation=++spectatorGeneration;
   spectatingMatchId=id;spectatorPerspective=Number(requestedPerspective)===1?1:0;playerIndex=spectatorPerspective;
+  const current=()=>spectatingMatchId===id && spectatorGeneration===generation;
+  let spectatorSyncToken='';
   const poll=async()=>{
-    if(spectatingMatchId!==id)return;
+    if(!current())return;
+    if(globalThis.document?.hidden){spectatorPollTimer=setTimeout(poll,1100);return;}
     try{
-      const snapshot=await matchmakingRequest(`/v3/beta/matches/${encodeURIComponent(id)}/spectator-snapshot?perspective=${spectatorPerspective}`);
-      if(spectatingMatchId!==id)return;
+      const snapshot=await matchmakingRequest(`/v3/beta/matches/${encodeURIComponent(id)}/spectator-snapshot?perspective=${spectatorPerspective}${spectatorSyncToken?'&since='+encodeURIComponent(spectatorSyncToken):''}`);
+      if(!current())return;
+      if(snapshot.unchanged && spectatorSyncToken && snapshot.syncToken===spectatorSyncToken){
+        spectatorPollTimer=setTimeout(poll,1100);return;
+      }
       const projected=clone(snapshot.state || {});
       spectatorPerspective=Number(snapshot.playerIndex)===1?1:0;playerIndex=spectatorPerspective;
       if(Array.isArray(projected.players))projected.players=projected.players.map((player,index)=>({...player,hand:index===spectatorPerspective?(player.hand||[]):[],deck:[]}));
       applyServerMessage({...snapshot,kind:'snapshot',state:projected,legalCommands:[],privateActionCards:[]});
+      spectatorSyncToken=String(snapshot.syncToken||'');
       enforceWarfrontSpectatorState();
-      if(projected.outcome){setTimeout(()=>stopSpectating(),1800);return;}
+      // Keep the final result mounted until the spectator presses Return.
+      if(projected.outcome){spectatorPollTimer=null;return;}
     }catch(error){
+      if(!current())return;
       if(Number(error?.status)===404){globalThis.toast?.('That Warfront match has ended.');stopSpectating();return;}
       if(Number(error?.status)===403){globalThis.toast?.('Only deployed teammates may spectate this match.');stopSpectating();return;}
       console.warn('[Fate Phase 7 Beta] spectator refresh failed',error);
@@ -746,8 +797,9 @@ async function startSpectating({matchId, playerIndex:requestedPerspective = 0} =
     spectatorPollTimer=setTimeout(poll,1100);
   };
   await poll();
-  if(!spectatingMatchId)return false;
-  await mountGameScreen({onExit:()=>stopSpectating()});
+  if(!current())return false;
+  await mountGameScreen({onExit:()=>{if(current())stopSpectating();}});
+  if(!current())return false;
   enforceWarfrontSpectatorState();
   activeScreen?.render(networkAdapter.view());
   return true;
@@ -775,8 +827,39 @@ globalThis.fateAuthorityV3Beta = Object.freeze({
   }
 });
 
+async function resumeSavedMatch(){
+  if(!credential) return;
+  const saved=credential;
+  if(saved.queueMode === 'warfront'){
+    // A saved connection is not a new deployment. Never open the board over
+    // the Warfront map or its deck picker without the player's decision.
+    await waitForCurrentUiBridge();
+    if(credential !== saved || spectatingMatchId) return;
+    if(typeof globalThis.showModal !== 'function') return;
+    globalThis.showModal('Resume Warfront Match?',
+      'A previous Warfront match is saved. Resume uses the deck already locked for that match. Choose Select Deck & Deploy on the map to select a deck for a new match.',[
+        {label:'Stay in Menu',action(){globalThis.closeModal?.();if(credential===saved)disconnect({forget:true});}},
+        {label:'Resume Match',action:async()=>{
+          globalThis.closeModal?.();
+          if(credential!==saved || spectatingMatchId) return;
+          try{
+            await connect(saved);
+            await waitForInitialView();
+            if(intentionallyClosed || spectatingMatchId || credential?.matchId!==saved.matchId) return;
+            if(state?.outcome || state?.warfrontForfeit?.loser===playerIndex){
+              disconnect({forget:true});
+              globalThis.toast?.('That Warfront match has ended or your seat was forfeited. Choose a new deployment from the map.');
+              return;
+            }
+            await mountGameScreen();
+          }catch(error){globalThis.toast?.(error?.message || 'Could not resume Warfront match.');}
+        }}
+      ]);
+    return;
+  }
+  await connect(saved);
+  await waitForInitialView();
+  if(!intentionallyClosed && !spectatingMatchId && credential) await mountGameScreen();
+}
 credential = loadCredential();
-if(credential) connect(credential)
-  .then(()=>waitForInitialView())
-  .then(()=>mountGameScreen())
-  .catch(error=>console.warn('[Fate Phase 7 Beta] resume pending', error));
+resumeSavedMatch().catch(error=>console.warn('[Fate Phase 7 Beta] resume pending', error));

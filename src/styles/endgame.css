@@ -431,6 +431,11 @@
   background: rgba(var(--result-accent-rgb), .042);
 }
 
+#s-win.endgame-redesign-v2 .win-reward-box.starlight .wrb-value {
+  justify-content: flex-start !important;
+  text-align: left;
+}
+
 #s-win.endgame-redesign-v2 .win-reward-rank-box {
   grid-column: auto;
   justify-self: start;

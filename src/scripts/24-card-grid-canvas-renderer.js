@@ -1,6 +1,9 @@
 // Canvas-backed deck-builder collection grids.
 // The canvas paints the card visuals; lightweight buttons preserve click/right-click behavior.
 (function(){
+  'use strict';
+  function localizeCanvasText(text) { return window.FateI18n ? window.FateI18n.t(text) : String(text == null ? "" : text); }
+
   const imageCache = new Map();
   const imageWaiters = new WeakMap();
   const pendingImageRedraws = new Set();
@@ -106,7 +109,7 @@
     ctx.font = opts.font || '700 14px Cinzel, serif';
     const padX = opts.padX || 9;
     const padY = opts.padY || 4;
-    const metrics = ctx.measureText(text);
+    const metrics = ctx.measureText(localizeCanvasText(text));
     const w = Math.ceil(metrics.width + padX * 2);
     const h = opts.height || 24;
     const bx = opts.align === 'right' ? x - w : x;
@@ -119,7 +122,7 @@
     ctx.fillStyle = opts.color || '#f8eebd';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(text, bx + w / 2, y + h / 2 + (opts.textOffsetY || 0));
+    ctx.fillText(localizeCanvasText(text), bx + w / 2, y + h / 2 + (opts.textOffsetY || 0));
     ctx.restore();
   }
 
@@ -158,7 +161,7 @@
         ctx.font = '700 ' + Math.max(34, Math.floor(rect.w * .34)) + 'px Cinzel, serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('?', rect.x + rect.w / 2, rect.y + rect.h / 2);
+        ctx.fillText(localizeCanvasText('?'), rect.x + rect.w / 2, rect.y + rect.h / 2);
       }
     }
 
@@ -505,12 +508,13 @@
   }
 
   function trimText(ctx, text, maxW) {
+    text = localizeCanvasText(text);
     text = String(text || '');
-    if(ctx.measureText(text).width <= maxW) return text;
+    if(ctx.measureText(localizeCanvasText(text)).width <= maxW) return text;
     let lo = 0, hi = text.length;
     while(lo < hi) {
       const mid = Math.ceil((lo + hi) / 2);
-      if(ctx.measureText(text.slice(0, mid) + '...').width <= maxW) lo = mid;
+      if(ctx.measureText(localizeCanvasText(text.slice(0, mid) + '...')).width <= maxW) lo = mid;
       else hi = mid - 1;
     }
     return text.slice(0, Math.max(0, lo)) + '...';
@@ -593,11 +597,11 @@
       ctx.fillStyle = '#fff';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'alphabetic';
-      ctx.fillText(trimText(ctx, card.name || '', textW), textX, rect.y + (compact ? 48 : 52));
+      ctx.fillText(localizeCanvasText(trimText(ctx, card.name || '', textW)), textX, rect.y + (compact ? 48 : 52));
       ctx.font = compact ? '13px Crimson Pro, serif' : '14px Crimson Pro, serif';
       ctx.fillStyle = 'rgba(236,224,190,.68)';
       const sub = entry.subtitle || (card.type || '') + (card.cost > 0 ? ' (' + (card.xCost ? 'X' : card.cost) + ')' : '');
-      ctx.fillText(trimText(ctx, sub, textW), textX, rect.y + (compact ? 70 : 76));
+      ctx.fillText(localizeCanvasText(trimText(ctx, sub, textW)), textX, rect.y + (compact ? 70 : 76));
 
       drawBadge(ctx, 'x' + (entry.count || 0), rect.x + rect.w - removeW - rightPad - 8, rect.y + Math.round((rect.h - 26) / 2), {
         fill:'rgba(18,46,24,.92)',
@@ -612,7 +616,7 @@
       ctx.fillStyle = opts.removeColor || 'rgba(226,78,78,.86)';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(opts.removeLabel || 'Remove', rect.x + rect.w - removeW / 2 - 8, rect.y + rect.h / 2);
+      ctx.fillText(localizeCanvasText(opts.removeLabel || 'Remove'), rect.x + rect.w - removeW / 2 - 8, rect.y + rect.h / 2);
       ctx.restore();
     }
 
@@ -811,6 +815,9 @@
 
   function renderCanvasImage(canvas, src, opts) {
     if(!canvas || !canvas.getContext || !window.HTMLCanvasElement) return false;
+    // Consumers such as the match HUD can reuse the original artwork without
+    // synchronous GPU readback and PNG encoding of this canvas.
+    canvas.__fateCanvasImageSource = src || '';
     opts = opts || {};
     const parent = opts.parent || canvas.parentElement || canvas;
     const rect = parent.getBoundingClientRect ? parent.getBoundingClientRect() : null;
@@ -863,7 +870,7 @@
       ctx.font = opts.fallbackFont || '700 13px Cinzel, serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(String(opts.fallbackText).slice(0, 18), cssW / 2, cssH / 2);
+      ctx.fillText(localizeCanvasText(String(opts.fallbackText).slice(0, 18)), cssW / 2, cssH / 2);
     }
     canvas.__fateCanvasImageSig = sig;
     canvas.__fateCanvasImageDrawn = true;

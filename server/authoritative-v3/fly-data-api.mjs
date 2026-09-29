@@ -1,4 +1,5 @@
 import warfrontMaps from '../../shared/warfront-maps.js';
+import {warfrontLandscapeCatalog} from './warfront-landscape-catalog.mjs';
 import presetSync from '../../shared/preset-sync.js';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -58,6 +59,7 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
   let worldSeq = Number(snapshot.worldChatSeq || 0) || 0;
   let dmSeq = Number(snapshot.privateMessageSeq || 0) || 0;
   let saveTimer = null;
+  let savedSnapshotHash = null;
   const tokenCache = new Map();
   const presence = new Map();
   let certCache = {certs:null, expiresAt:0};
@@ -82,9 +84,13 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
   }
   function flush(){
     if(saveTimer){ clearTimeout(saveTimer); saveTimer = null; }
+    const serialized = JSON.stringify(serialize());
+    const hash = crypto.createHash('sha256').update(serialized).digest('hex');
+    if(hash === savedSnapshotHash) return;
     const temp = SNAPSHOT_PATH + '.tmp';
-    fs.writeFileSync(temp, JSON.stringify(serialize()), 'utf8');
+    fs.writeFileSync(temp, serialized, 'utf8');
     fs.renameSync(temp, SNAPSHOT_PATH);
+    savedSnapshotHash = hash;
   }
   function persist(){ if(!saveTimer) saveTimer = setTimeout(()=>{ try{ flush(); }catch(error){ console.error('Fly data snapshot write failed:', error); } }, 80); }
   function sanitizeWarfrontState(value){
@@ -190,8 +196,8 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
     if(!binding.ratingsSettled){
       const winnerElo=profile(participants[winnerTeam].uid).challengerElo;
       const loserElo=profile(participants[loserTeam].uid).challengerElo;
-      applyChallengerResult(participants[winnerTeam].uid,{didWin:true,source:'warfront',roomCode:id,opponentElo:loserElo,eloGainMultiplier:3});
-      applyChallengerResult(participants[loserTeam].uid,{didWin:false,source:'warfront',roomCode:id,opponentElo:winnerElo});
+      if(!participants[winnerTeam].isAI)applyChallengerResult(participants[winnerTeam].uid,{didWin:true,source:'warfront',roomCode:id,opponentElo:loserElo,eloGainMultiplier:3,isAI:!!participants[loserTeam].isAI});
+      if(!participants[loserTeam].isAI)applyChallengerResult(participants[loserTeam].uid,{didWin:false,source:'warfront',roomCode:id,opponentElo:winnerElo,isAI:!!participants[winnerTeam].isAI});
       binding.ratingsSettled=true;
     }
     if(match.outcome){
@@ -308,6 +314,8 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
     const sequence=Math.max(1,Number(current.sequence)||1)+1;
     warfrontEvent={...clone(current),sequence,mapCode:`WF-${String(sequence).padStart(2,'0')}-${crypto.randomBytes(2).toString('hex').slice(0,3).toUpperCase()}`,status:'enrollment',humanOnly,service:{},waitingAI:[],createdAt:Date.now(),startedAt:0,endsAt:0,nextTeam:null,lastResult:null,postWarUntil:0,zones:current.zones.map(zone=>({id:zone.id,a:null,b:null,matches:[],landscape:clone(zone.landscape||null),bans:{a:[],b:[]},bansLocked:{a:false,b:false}})),archives:(current.archives||[]).slice(0,30),_syncRevision:Number(current._syncRevision||0)+1,_updatedAt:Date.now()};
     warfrontMaps.apply(warfrontEvent,warfrontMaps.pick(current.mapId));
+    const selectedLandscapes=warfrontMaps.pickLandscapes(warfrontLandscapeCatalog());
+    warfrontEvent.zones.forEach((zone,index)=>{zone.landscape=selectedLandscapes[index];});
     warfrontBindings.clear();persist();return warfrontStateForClient();
   }
   function finishWarfrontEvent(){
@@ -356,7 +364,7 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
         refreshWarfrontForfeits();
         const event=warfrontEvent,now=Date.now();
         for(const zone of event.zones){
-          const aiWinner=zone.a?.isAI&&zone.b&&!zone.b.isAI?'a':zone.b?.isAI&&zone.a&&!zone.a.isAI?'b':null;
+          const aiWinner=zone.a?.isAI&&(!zone.b||!zone.b.isAI)?'a':zone.b?.isAI&&(!zone.a||!zone.a.isAI)?'b':null;
           // An unfinished human-vs-AI front defaults to the waiting AI at
           // deadline, including a match still open when the war expires.
           if((aiWinner||!zone.activeMatch)&&(zone.a?.isAI||zone.b?.isAI)&&!event.humanOnly){

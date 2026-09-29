@@ -9,6 +9,7 @@ import {FateAuthoritativeV3LocalSession} from './authoritative-v3-local-session.
 import {resolveOpeningHandArrivals} from '../../shared/engine/reducer.mjs';
 import {chooseStrategicV3AiCommand} from './authoritative-v3-ai-policy.mjs';
 import {AiSearchWorker} from './new-ai-worker-client.mjs';
+import {filterAiTargets} from '../../shared/ai/targeting.mjs';
 import {FateAuthoritativeV3SinglePlayerScreen} from './authoritative-v3-single-player-screen.mjs?v=20260913-negation-result-sfx';
 
 export const FATE_V3_SINGLE_PLAYER_QUERY_FLAG = 'fateV3SinglePlayer';
@@ -56,6 +57,14 @@ export function chooseDeterministicV3AiCommand(commands = []){
       commandPriority(left) - commandPriority(right)
       || stableStringify(left).localeCompare(stableStringify(right))
     )[0] || null;
+}
+
+// Recovery must not start another search on the renderer thread.
+function recoverAiCommand(legal, state, player, finishTurn=false){
+  const pass=legal.find(command=>command.type==='END_TURN');
+  if(finishTurn && pass)return pass;
+  const candidates=filterAiTargets(legal,state,player);
+  return chooseDeterministicV3AiCommand(candidates) || pass || null;
 }
 
 // The first decision gets the full strategic search. After a command has
@@ -243,7 +252,7 @@ export class FateAuthoritativeV3SinglePlayerAdapter {
     this.aiRunning=true;
     const results=[];
     try{
-      for(let index=0;index<maxCommands && !this.disposed;index++){
+      for(let index=0;index<maxCommands+32 && !this.disposed;index++){
         const canonical=this.session.state;
         const aiIndex=this.session.playerIndex(this.aiPlayerId);
         const actor=Number(canonical.pendingPrompt?.playerIndex ?? canonical.pendingHandLimit?.playerIndex ?? canonical.activePlayer);
@@ -252,7 +261,9 @@ export class FateAuthoritativeV3SinglePlayerAdapter {
         const projection=this.session.projectionFor(this.aiPlayerId);
         const context=aiSearchContextForStep({playerId:this.aiPlayerId,playerIndex:aiIndex,difficulty:this.aiDifficulty,style:this.aiStyle,canonicalState:canonical},results.length);
         let selected;
-        if(this.aiPolicy!==chooseStrategicV3AiCommand){
+        if(index>=maxCommands){
+          selected=recoverAiCommand(legal,canonical,aiIndex,true);
+        }else if(this.aiPolicy!==chooseStrategicV3AiCommand){
           selected=await this.aiPolicy(legal,projection,context);
         }else{
           this.searchWorker ||= new AiSearchWorker();
@@ -263,7 +274,7 @@ export class FateAuthoritativeV3SinglePlayerAdapter {
             if(this.disposed)return {ok:true,results,cancelled:true};
             console.warn('[Fate AI] worker unavailable; using bounded rules search',error);
             await new Promise(resolve=>setTimeout(resolve,0));
-            selected=this.aiPolicy(legal,projection,{...context,samples:1,nodeBudget:120});
+            selected=recoverAiCommand(legal,canonical,aiIndex);
           }
         }
         if(this.disposed)return {ok:true,results,cancelled:true};
@@ -272,7 +283,7 @@ export class FateAuthoritativeV3SinglePlayerAdapter {
         if(!template){
           // Recover with the shared policy and its strategic restrictions,
           // rather than silently abandoning the still-active AI turn.
-          const recovered=chooseStrategicV3AiCommand(legal,projection,{...context,samples:1,nodeBudget:120});
+          const recovered=recoverAiCommand(legal,canonical,aiIndex);
           template=recovered && matchingTemplate(legal,recovered.type,recovered.payload);
         }
         if(!template)return rejection('AI_INVALID_COMMAND','AI search returned no legal move');

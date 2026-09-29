@@ -7,6 +7,7 @@
   let legacyReturnMode = '';
   let eventsInstalled = false;
   const MEDAL_NAMES = ['The First Standard','Crimson Vanguard','Azure Vanguard','Crown of the Victor','Iron Laurel','Star of the Warfront','The Unbroken Line','Spearhead Citation','Gilded Campaigner','Medal of Entwined Fates','Dawnwatch Honor','Twilight Standard','The Fivefold Star','Heartland Cross','North Gate Ribbon','Silver Crossing Star','Sunken Road Crest','Crown Reach Laureate','Order of the Resolute','Order of the Red Comet','Order of the Blue Moon','The Fateforged Medal','Starlight Conqueror','The Golden Front','Ash and Glory Medal','Banner of Tenacity','The Final Advance','Shield of the Last Line','Laurel of Command',"Field Marshal's Star",'The Quiet Strategist','Master of Five Fronts','Stormbreaker Medal','The Long Vigil','Crest of the Warbound','The Concord Star','Twin Banners Medal','The Victorious Accord','Medal of Decisive Force','Lightning Laureate','Master of Position Star','The Gilded Hour','The Ember Crown','The Sapphire Crown','The Eternal Standard','Veteran of the War Table',"The Mapmaker's Honor",'Champion of the Five Zones','The Lasting Peace','Legend of the Warfront'];
+  MEDAL_NAMES.push(...(window.FateWarfrontMedals?.catalog || []).map(m => m.name));
   window.FATE_WAR_MEDAL_NAMES = MEDAL_NAMES.slice();
   let medalDraft = [];
 
@@ -112,14 +113,14 @@
       isSelf:!!opts.isSelf,
       isFriend:!!opts.isFriend,
       actions:Array.isArray(opts.actions) ? opts.actions : []
-      ,ownedMedals:[...new Set((Array.isArray(source.ownedMedals) ? source.ownedMedals : []).map(Number).filter(function(id){ return id >= 1 && id <= 50; }))],
-      displayedMedals:[...new Set((Array.isArray(source.displayedMedals) ? source.displayedMedals : []).map(Number).filter(function(id){ return id >= 1 && id <= 50; }))].slice(0,3)
+      ,ownedMedals:[...new Set((Array.isArray(source.ownedMedals) ? source.ownedMedals : []).map(Number).filter(function(id){ return id >= 1 && Number.isInteger(id) && id <= 100; }))],
+      displayedMedals:[...new Set((Array.isArray(source.displayedMedals) ? source.displayedMedals : []).map(Number).filter(function(id){ return id >= 1 && Number.isInteger(id) && id <= 100; }))].slice(0,3)
     };
   }
 
   function medalIcon(id, selected){
-    const n = clamp(Math.round(number(id, 1)), 1, 50);
-    const src = 'assets/medals/cropped/medal-' + String(n).padStart(2, '0') + '.png';
+    const n = clamp(Math.round(number(id, 1)), 1, 100);
+    const src = n > 50 ? 'assets/medals/achievement/medal-' + n + '.svg' : 'assets/medals/cropped/medal-' + String(n).padStart(2, '0') + '.png';
     return '<span class="profile-medal-icon' + (selected ? ' is-selected' : '') + '" aria-hidden="true"><img src="' + src + '" alt="" loading="eager"></span>';
   }
 
@@ -183,7 +184,7 @@
     if(!body||!activeContext)return;
     const model=activeContext.model;
     medalDraft=model.displayedMedals.filter(function(id){return model.ownedMedals.includes(id);}).slice(0,3);
-    body.innerHTML='<div class="profile-medal-picker"><header><div><span>PROFILE DISPLAY</span><h2>Choose displayed medals</h2><p>Select up to three Warfront medals. Your selection appears on your public profile.</p></div><strong id="profile-medal-count">'+medalDraft.length+' / 3</strong></header><div class="profile-medal-picker-grid">'+(model.ownedMedals.length?model.ownedMedals.map(function(id){return '<button type="button" data-medal-id="'+id+'" class="'+(medalDraft.includes(id)?'is-selected':'')+'" title="'+escapeHtml(MEDAL_NAMES[id-1])+'">'+medalIcon(id,medalDraft.includes(id))+'<b>'+escapeHtml(MEDAL_NAMES[id-1])+'</b><small>WAR-'+String(id).padStart(3,'0')+'</small></button>';}).join(''):'<div class="profile-medal-empty"><b>No Warfront medals earned yet</b><span>Win a completed Warfront event to receive one.</span></div>')+'</div><footer><button type="button" data-profile-command="medals-cancel">Cancel</button><button type="button" class="primary" data-profile-command="medals-save" '+(model.ownedMedals.length?'':'disabled')+'>Save display</button></footer></div>';
+    body.innerHTML='<div class="profile-medal-picker"><header><div><span>PROFILE DISPLAY</span><h2>Choose displayed medals</h2><p>Select up to three Warfront medals. Your selection appears on your public profile.</p></div><strong id="profile-medal-count">'+medalDraft.length+' / 3</strong></header><div class="profile-medal-picker-grid">'+(model.ownedMedals.length?model.ownedMedals.map(function(id){return '<button type="button" data-medal-id="'+id+'" class="'+(medalDraft.includes(id)?'is-selected':'')+'" title="'+escapeHtml(MEDAL_NAMES[id-1])+'">'+medalIcon(id,medalDraft.includes(id))+'<b>'+escapeHtml(MEDAL_NAMES[id-1])+'</b><small>WAR-'+String(id).padStart(3,'0')+'</small>'+(id>50?'<p>'+escapeHtml(window.FateWarfrontMedals.catalog.find(m=>m.id===id)?.description||'')+'</p>':'')+'</button>';}).join(''):'<div class="profile-medal-empty"><b>No Warfront medals earned yet</b><span>Win a completed Warfront event to receive one.</span></div>')+'</div><footer><button type="button" data-profile-command="medals-cancel">Cancel</button><button type="button" class="primary" data-profile-command="medals-save" '+(model.ownedMedals.length?'':'disabled')+'>Save display</button></footer></div>';
   }
 
   function recordMarkup(model){

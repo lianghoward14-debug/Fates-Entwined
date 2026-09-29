@@ -32,7 +32,7 @@
    the engraved, institutional character of the Ledger-keepers. */
 #ledger-archive{background:radial-gradient(circle at 50% 24%,rgba(28,77,82,.28),transparent 38%),linear-gradient(rgba(2,8,12,.9),rgba(1,4,7,.96));backdrop-filter:blur(14px) saturate(.72)}
 #ledger-archive .ledger-panel{position:relative;width:min(1160px,100%);border:1px solid #a88a43;border-radius:4px;padding:34px 38px 30px;background:linear-gradient(135deg,rgba(35,55,58,.97),rgba(9,19,24,.99) 54%,rgba(5,12,17,.99));box-shadow:0 34px 110px #000d,inset 0 0 0 1px #f1d78520,inset 0 0 0 7px #02080c99;overflow:auto}
-#ledger-archive .ledger-panel:before{content:"ARCHIVE · DRAW ORDER · AUTHORIZED ACCESS";position:absolute;right:38px;top:28px;color:#b79a5680;font:700 9px/1 Georgia,serif;letter-spacing:.2em}
+#ledger-archive .ledger-panel:before{content:var(--fate-label-bda58606d1,"ARCHIVE · DRAW ORDER · AUTHORIZED ACCESS");position:absolute;right:38px;top:28px;color:#b79a5680;font:700 9px/1 Georgia,serif;letter-spacing:.2em}
 #ledger-archive .ledger-panel:after{content:"";position:absolute;inset:7px;pointer-events:none;border:1px solid #8eb2ad18;background:repeating-linear-gradient(135deg,transparent 0 10px,#d7c07a08 10px 11px);clip-path:polygon(0 0,100% 0,100% 17%,0 17%)}
 #ledger-archive header{position:relative;margin:-34px -38px 24px;padding:31px 38px 25px;border-bottom:1px solid #a88a43;background:linear-gradient(90deg,#172c31,#0b181e 72%,#071116)}
 #ledger-archive .ledger-eyebrow{display:flex;align-items:center;gap:10px;color:#d3b45f;font:700 10px Georgia,serif;letter-spacing:.24em}
@@ -43,7 +43,7 @@
 #ledger-archive .ledger-direction:after{content:"";position:absolute;left:20%;right:20%;top:50%;height:1px;background:linear-gradient(90deg,transparent,#9c864b66,transparent)}
 #ledger-archive .ledger-cards{gap:11px;counter-reset:ledger-file}
 #ledger-archive .ledger-card{counter-increment:ledger-file;position:relative;padding:9px 9px 11px;border:1px solid #53666a;border-radius:2px;background:linear-gradient(165deg,#26393d,#111f25 58%,#091319);box-shadow:0 10px 24px #0008,inset 0 1px #e8d39712;transition:border-color .15s,transform .15s,box-shadow .15s}
-#ledger-archive .ledger-card:before{content:"FILE 0" counter(ledger-file);position:absolute;z-index:2;left:-1px;top:-1px;width:72px;padding:5px 9px 4px;background:#a98a3e;color:#071116;clip-path:polygon(0 0,86% 0,100% 100%,0 100%);font:800 8px Georgia,serif;letter-spacing:.12em}
+#ledger-archive .ledger-card:before{content:var(--fate-label-211a0a7004,"FILE 0") counter(ledger-file);position:absolute;z-index:2;left:-1px;top:-1px;width:72px;padding:5px 9px 4px;background:#a98a3e;color:#071116;clip-path:polygon(0 0,86% 0,100% 100%,0 100%);font:800 8px Georgia,serif;letter-spacing:.12em}
 #ledger-archive .ledger-card:first-child{border-color:#d4b55d;background:linear-gradient(165deg,#30464a,#17292e 58%,#0b171d);box-shadow:0 0 0 1px #d4b55d33,0 13px 30px #000a}
 #ledger-archive .ledger-card:hover{border-color:#d4b55d;transform:translateY(-4px);box-shadow:0 15px 32px #000b,0 0 18px #b99a3420}
 #ledger-archive .ledger-position{display:flex;justify-content:flex-end;align-items:center;height:27px;color:#a9c9c8;font:700 9px Georgia,serif;letter-spacing:.1em;text-transform:uppercase}

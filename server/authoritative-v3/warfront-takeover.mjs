@@ -8,6 +8,16 @@ export function createWarfrontTakeoverDriver(){
   return async function step(actor){
     const state = actor.state;
     if(state.outcome){plans.delete(state.matchId);return null;}
+    // Recover continuations created before AI-opponent concessions ended
+    // immediately. No human remains; preserve the locked star and stop work.
+    if(state.warfrontForfeit && [0,1].every(seat=>state.aiTakeoverSeats?.includes(seat))){
+      const winner=state.warfrontForfeit.winner;
+      plans.delete(state.matchId);
+      return actor.dispatch(state.players[winner].id,{
+        type:'CONCEDE',payload:{},matchId:state.matchId,
+        expectedRevision:state.revision,commandId:`takeover-finish:${state.revision}`
+      });
+    }
     for(const seat of state.aiTakeoverSeats || []){
       const view = actor.snapshotForPlayer(seat);
       const legal = view.legalCommands.filter(command=>command.type !== 'CONCEDE');

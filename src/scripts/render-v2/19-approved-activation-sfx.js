@@ -115,6 +115,26 @@
     'bh19':['electric',175,.6,5,0], 'bh20':['wing',590,.57,6,.65],
     'bh21':['sand',620,.54,4,.55], 'bh22':['glass',440,.56,3,0]
   };
+  const sampleBuffers = new Map();
+  let sampleBufferBytes = 0;
+  const MAX_SAMPLE_BYTES = 16 * 1024 * 1024;
+  function cachedSamples(ac, key, duration, fill){
+    key = ac.sampleRate + ':' + key;
+    let buffer = sampleBuffers.get(key);
+    if(buffer){ sampleBuffers.delete(key); sampleBuffers.set(key,buffer); return buffer; }
+    buffer = ac.createBuffer(1,Math.ceil(ac.sampleRate*duration),ac.sampleRate);
+    fill(buffer.getChannelData(0));
+    const bytes = buffer.length * 4;
+    if(bytes <= MAX_SAMPLE_BYTES){
+      while(sampleBufferBytes + bytes > MAX_SAMPLE_BYTES && sampleBuffers.size){
+        const oldest = sampleBuffers.keys().next().value;
+        sampleBufferBytes -= sampleBuffers.get(oldest).length * 4;
+        sampleBuffers.delete(oldest);
+      }
+      sampleBuffers.set(key,buffer); sampleBufferBytes += bytes;
+    }
+    return buffer;
+  }
   function schedule(ac,destination,id,volume=1){
     const score=cues[String(id)];if(!score||volume<=0)return null;
     const now=ac.currentTime,out=ac.createGain(),nodes=[out],sources=[];
@@ -130,8 +150,9 @@
     function tone(type,f0,f1,at,dur,level){const o=ac.createOscillator();o.type=type;o.frequency.setValueAtTime(f0,now+at);o.frequency.exponentialRampToValueAtTime(Math.max(20,f1),now+at+dur);voice(o,at,dur,level);}
     function noise(at,dur,freq,level,type='bandpass'){
       const source=ac.createBufferSource(),filter=ac.createBiquadFilter();nodes.push(filter);
-      const buffer=ac.createBuffer(1,Math.ceil(ac.sampleRate*dur),ac.sampleRate),data=buffer.getChannelData(0);
+      const buffer=cachedSamples(ac,['noise',at,dur,freq].join(':'),dur,function(data){
       let seed=7919+Math.round(at*1000+freq);for(let i=0;i<data.length;i++){seed=(Math.imul(seed,1664525)+1013904223)>>>0;data[i]=(seed/2147483648-1);}
+      });
       source.buffer=buffer;filter.type=type;filter.frequency.setValueAtTime(freq,now+at);filter.frequency.exponentialRampToValueAtTime(Math.max(100,freq*.45),now+at+dur);filter.Q.value=.75;
       const gain=voice(source,at,dur,level,.012);source.disconnect();source.connect(filter);filter.connect(gain);
     }
@@ -158,7 +179,7 @@
     if(theme)out.gain.setValueAtTime(Math.min(1,volume)*.72*(materialGain[theme]||1)*(String(id)==='77'?1.8:1),now);
     function materialVoice(material,at,dur,f,level,role){
       dur=Math.min(dur,1.94-at);if(dur<=0)return;
-      const source=ac.createBufferSource(),buffer=ac.createBuffer(1,Math.ceil(ac.sampleRate*dur),ac.sampleRate),data=buffer.getChannelData(0);
+      const source=ac.createBufferSource(),buffer=cachedSamples(ac,['material',material,at,dur,f,role].join(':'),dur,function(data){
       let seed=1337+Math.round(at*999+f),low=0,previous=0,phase=0;
       const tonal=['glass','ice','ukulele','harp','coin','balance','mechanism','forge','space'].includes(material);
       for(let i=0;i<data.length;i++){
@@ -221,6 +242,7 @@
         }
         data[i]=Math.tanh(sample*1.6)*Math.min(1,u*70)*Math.min(1,(1-u)*50);
       }
+      });
       source.buffer=buffer;voice(source,at,dur,level,.004);
     }
 
@@ -231,13 +253,14 @@
       const [material,pitch,peak,pulses,pan]=profile;
       const source=ac.createBufferSource(),filter=ac.createBiquadFilter(),gain=ac.createGain(),stereo=ac.createStereoPanner();
       nodes.push(source,filter,gain,stereo);sources.push(source);
-      const buffer=ac.createBuffer(1,Math.ceil(ac.sampleRate*1.98),ac.sampleRate),data=buffer.getChannelData(0);
+      const buffer=cachedSamples(ac,['motion',material,pitch].join(':'),1.98,function(data){
       let seed=3203,low=0;
       for(let i=0;i<data.length;i++){
         seed=(Math.imul(seed,1664525)+1013904223)>>>0;const white=seed/2147483648-1,sec=i/ac.sampleRate;low=low*.96+white*.04;
         const harmonic=Math.sin(sec*pitch*Math.PI*2)+.27*Math.sin(sec*pitch*2.013*Math.PI*2);
         data[i]=material==='glass'?harmonic*.34+white*.035:material==='electric'?harmonic*.27+white*.2:material==='chauffeur'?low*1.65+harmonic*.1:material==='engine'||material==='stone'?low*2.4+harmonic*.16:material==='steel'?white*.48+harmonic*.14:material==='surf'?low*2.7+white*.16:white*.65;
       }
+      });
       source.buffer=buffer;filter.type=['glass','engine','chauffeur','stone','surf'].includes(material)?'lowpass':'bandpass';filter.Q.value=material==='steel'?1.8:.7;
       const curve=new Float32Array(121),frequencies=new Float32Array(121),pans=new Float32Array(121);
       for(let i=0;i<curve.length;i++){

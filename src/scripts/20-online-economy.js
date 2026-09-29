@@ -1103,7 +1103,7 @@
       const pfpSrc = isPfp ? (typeof PFP_PATH === 'function' ? PFP_PATH(l.pfpId, 'square') : `pfp/pfp${Number(l.pfpId || 1)}.png`) : '';
       const when = l.soldAt || l.updatedAt || l.createdAt || l.timestamp || Date.now();
       const date = new Date(Number(when) || Date.now()).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
-      return `<div class="market-history-row">
+      return `<div class="market-history-row${isPfp ? ' market-history-pfp' : ''}">
         <div class="market-history-card">${isPfp ? `<img src="${esc(pfpSrc)}" alt="Profile picture ${Number(l.pfpId || 0)}">` : (c?.img ? `<img src="${esc(c.img)}" alt="${esc(c.name)}">` : '')}</div>
         <div class="market-history-copy">
           <div class="market-history-name">${isPfp ? `Profile Picture ${Number(l.pfpId || 0)}` : esc(c?.name || 'Unknown Card')}</div>
@@ -1251,12 +1251,14 @@
   window.openPublicDeckCard = function openPublicDeckCard(cardId, deckId){
     const card = cardById(cardId);
     if(!card){ if(window.toast) toast('Card not found'); return; }
-    if(typeof window.openCardDetail === 'function') window.openCardDetail(card);
+    // The deck preview owns the shared modal. Inspect cards in the dedicated
+    // overlay so closing a card (or its lore page) always reveals the preview.
+    if(typeof window.showCardInfoOverlay === 'function') window.showCardInfoOverlay(card);
+    else if(typeof showCardInfoOverlay === 'function') showCardInfoOverlay(card);
+    else if(typeof window.openCardDetailFromDeckPreview === 'function') {
+      window.openCardDetailFromDeckPreview(card, ()=>viewPublicDeck(deckId));
+    } else if(typeof window.openCardDetail === 'function') window.openCardDetail(card);
     else if(typeof openCardDetail === 'function') openCardDetail(card);
-    const closeBtn = document.querySelector('#modal-acts .btn');
-    if(closeBtn && deckId){
-      closeBtn.onclick = ()=>viewPublicDeck(deckId);
-    }
   };
 
   window.showPublicDecks = function showPublicDecks(page=publicDecksPage){

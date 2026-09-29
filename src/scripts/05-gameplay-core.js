@@ -1,6 +1,6 @@
 function hasNoSuppressibleFieldEffect(card){
   const id=String(typeof getCardRuntimeEffectId==='function'?getCardRuntimeEffectId(card):card?.id || '');
-  return ['09','28','70','74','79','91','98','76','bh01'].includes(id);
+  return ['76','bh01'].includes(id);
 }
 function isFlowerPickingEligible(player){
   if(typeof G.players?.[player]?.flowerPickingEligible==='boolean')return G.players[player].flowerPickingEligible;
@@ -27,7 +27,7 @@ function coercePlayerIndex(value, fallback) {
   return fallback;
 }
 
-const FRENCH_FUSILIERS_COPYABLE_PASSIVE_IDS = new Set(['24','49','53','59','64','65','92','93']);
+const FRENCH_FUSILIERS_COPYABLE_PASSIVE_IDS = new Set(['25','24','44','49','53','59','65','92','93']);
 
 function getFrenchFusiliersCopiedPassiveId(card) {
   if(!card) return '';
@@ -69,12 +69,18 @@ function getCardRuntimeEffectId(card) {
   return id;
 }
 
+function isTriggeredFateCoordinator(card) {
+  return !!card && cardHasEffectType(card, 'Coordinator')
+    && ['15','bh02','bh08'].includes(String(card._whisperCopiedEffectId || getCardRuntimeEffectId(card)));
+}
+
 function canFrenchFusiliersCopyPassive(card) {
   if(!card || !(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, card.owner) : card.type === 'Supporter')) return false;
   const id = String(card.id || '');
   if(id === '37' || !FRENCH_FUSILIERS_COPYABLE_PASSIVE_IDS.has(id)) return false;
   const text = String(card.effect || '');
-  if(id === '93') return true;
+  if(id === '65' && !pressureCardReworkTimingActive()) return false;
+  if(id === '93' || id === '25' || id === '44') return true;
   return /while\s+(this\s+card\s+is\s+)?on\s+the\s+field/i.test(text);
 }
 
@@ -101,6 +107,15 @@ function chooseFrenchFusiliersPassive(inst, z, options) {
     inst.copiedPassiveId = inst._copiedPassiveId;
     inst.copiedPassiveName = inst._copiedPassiveName;
     inst.copiedPassiveEffect = inst._copiedPassiveEffect;
+    if(inst._copiedPassiveId === '44' && !(G.aiEnabled && inst.owner===G.aiPlayer)) {
+      showSovietTypeDeclarationPicker(function(type){
+        inst._sovietDeclaredType=type;
+        if(!inst.counters) inst.counters={};
+        inst.counters.sovietDeclaredType=type;
+        reconcileSovietGrenadierTarget(inst);
+        renderGame({board:true,scores:true,topbar:true});
+      });
+    }
     toast('6th French Fusiliers copied ' + inst._copiedPassiveName + '.');
     applyContinuousEffects();
     renderGame({board:true, scores:true, topbar:true});
@@ -650,7 +665,7 @@ function endTurn(opts) {
   }
   // A player click must not interrupt a genuinely active AI turn. Check this
   // before consuming the shared input debounce.
-  if(G._aiRunning && isActualAITurn && !isAICompletion) return false;
+  if(isActualAITurn && !isAICompletion) return false;
   // Play on the human's input, before a card window/picker can defer turn
   // resolution.  Reserve one cue per turn so resuming after that window does
   // not replay it.
@@ -816,7 +831,7 @@ function resolveBreakfastRepublicBusser(inst, player, options) {
     if(!card)return;delete card._busserTurnsLeft;delete card._busserMoves;delete card._busserOwner;
     delete card._busserSourceIid;delete card._busserMovedThisTurn;delete card._busserActivationInFlight;
   });
-  const candidates=discard.filter(function(card){return card&&String(card.type||'')==='Initiator';});
+  const candidates=discard.filter(function(card){return cardHasCurrentEffectType(card, 'Initiator');});
   if(!candidates.length){toast('Corner! Behind!: there are no Initiators in your discard.');renderEffectResolutionForPlayer(cp,{hand:false,topbar:true});return false;}
   const commit=function(chosen){
     if(!chosen||!discard.some(function(card){return String(card.iid||'')===String(chosen.iid||'');}))return false;
@@ -1300,7 +1315,7 @@ function getWhisperAuraPotencyBoost(sourceEntry) {
   if(!sourceEntry || !sourceEntry.card) return 0;
   // Jeremiah strengthens Coordinator zone auras. Copying a Coordinator effect
   // never changes the copying card's printed type.
-  if(String(sourceEntry.card.type || '') !== 'Coordinator') return 0;
+  if(!cardHasEffectType(sourceEntry.card, 'Coordinator')) return 0;
   const owner = sourceEntry.card.owner;
   let boost = getFieldWideWhisperJeremiahBoost(owner);
   const zone = G.board?.[sourceEntry.z] || [];
@@ -1497,6 +1512,13 @@ function getHighTPotencyCount(playerIndex) {
     return Number(status.playerIndex) === Number(playerIndex)
       && Number(status.turn) === Number(G.turn);
   }) ? 1 : 0;
+}
+function adjustedTriggeredFateHistoryGain(source, amount) {
+  const owner = Number(source.owner);
+  const potency = 1 + getHighTPotencyCount(owner);
+  const riders = typeof activeChineseMacArthurSources === 'function' ? activeChineseMacArthurSources(owner).length : 0;
+  const permanent = String(source._whisperCopiedEffectId || getCardRuntimeEffectId(source)) !== 'bh08';
+  return Math.max(0, Number(amount) || 0) * (permanent ? potency : 1) + riders;
 }
 window.getHighTPotencyCount = getHighTPotencyCount;
 
@@ -1789,7 +1811,11 @@ async function nextPlayerTurn() {
       // Send to original owner's discard
       G.players[currentPlayer].hand = G.players[currentPlayer].hand.filter(c=>c.iid!==gc.iid);
       const origOwner = gc.guerilla_owner;
-      fatePushDiscard(origOwner, gc);
+      delete gc.guerilla_transferred;
+      delete gc.guerilla_turnsLeft;
+      delete gc.guerilla_owner;
+      gc.owner = origOwner;
+      fatePushDiscard(origOwner, gc, {wineCountryReturn:true});
       toast('Wine Country Guerilla returned to original owner\'s discard');
     }
   });
@@ -1901,6 +1927,7 @@ async function nextPlayerTurn() {
 }
 
 function applyContinuousEffects() {
+  reconcileHenrySuppressionTriggers();
   // South Wind no longer creates a zone-wide Shield Wall aura.
   G.shieldWallZones = [];
   forEachBoardCard((card, z)=>{
@@ -1970,7 +1997,7 @@ function queueSovietLinkPresentation(card, before, after, sourceIid, role){
 }
 
 function reconcileSovietGrenadierTarget(source){
-  if(!source || String(source.id || '') !== '44') return null;
+  if(!source || !cardActsAsPassive(source,'44')) return null;
   if(!getSovietDeclaredType(source)){
     if(source._sovietDeclarationPending) return null;
     const owner=typeof source.owner==='number'?source.owner:G.currentPlayer;
@@ -2035,7 +2062,7 @@ function reconcileSovietGrenadierTarget(source){
 function reconcileSovietGrenadierTargets(){
   if(typeof forEachBoardCard !== 'function') return 0;
   const sources=[];
-  forEachBoardCard(function(card){if(card&&String(card.id||'')==='44')sources.push(card);});
+  forEachBoardCard(function(card){if(card&&cardActsAsPassive(card,'44'))sources.push(card);});
   sources.forEach(reconcileSovietGrenadierTarget);
   return sources.length;
 }
@@ -2855,6 +2882,7 @@ let deferredCardEffectFlashBypass = false;
 
 function consolidationOverlayGateIsActive() {
   if(typeof G !== 'undefined' && G && Number(G._coordinatorSignatureUntil || 0) > Date.now()) return true;
+  if(typeof G !== 'undefined' && G && Math.max(Number(G._postConsolidationFateFeedbackUntil) || 0, Number(G._effectActivationPresentationLockUntil) || 0) > Date.now()) return true;
   if(typeof G !== 'undefined' && G && G._consolidating) return true;
   if(typeof consolidationCinematicIsActive === 'function' && consolidationCinematicIsActive()) return true;
   if(typeof document !== 'undefined') {
@@ -2945,7 +2973,8 @@ function flashCardEffect(card, kind, options) {
             pairedEffectOverlayKind:String(kind || '')
           });
         }
-        playResolvedFateChangeSfx(card, pendingFate.before, pendingFate.after, pendingFate.sourceOwner);
+        // The paired overlay owns gain audio; keep reduction feedback.
+        if(Number(pendingFate.after) < Number(pendingFate.before)) playResolvedFateChangeSfx(card, pendingFate.before, pendingFate.after, pendingFate.sourceOwner);
       } else if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.scheduleRender === 'function') {
         window.FateMatchRendererAdapter.scheduleRender('card-effect-flash-started');
       } else if(typeof renderGame === 'function') {
@@ -3437,7 +3466,7 @@ function applyZsofiaCoordinatorSetTrigger(placedCard, z, r, c) {
   sources.forEach(function(source){
     const potencyBoost = typeof getWhisperAuraPotencyBoost === 'function' ? getWhisperAuraPotencyBoost(source) : 0;
     const amount = 1 + Math.max(0, Number(potencyBoost) || 0);
-    source.card._triggeredFateHistoryTotal = Math.max(0, Number(source.card._triggeredFateHistoryTotal) || 0) + amount;
+    source.card._triggeredFateHistoryTotal = Math.max(0, Number(source.card._triggeredFateHistoryTotal) || 0) + adjustedTriggeredFateHistoryGain(source.card, amount);
     const visitZone = function(zone, zoneIndex){
       (zone || []).forEach(function(row){
         (row || []).forEach(function(target){
@@ -3513,7 +3542,7 @@ function triggerJoieDrawEffectPassive(player, context) {
     source.card._joieProcCount = Math.max(0, Math.floor(Number(source.card._joieProcCount) || 0)) + 1;
     const potencyBoost = typeof getWhisperAuraPotencyBoost === 'function' ? getWhisperAuraPotencyBoost(source) : 0;
     const amount = 1 + Math.max(0, Number(potencyBoost) || 0);
-    source.card._triggeredFateHistoryTotal = Math.max(0, Number(source.card._triggeredFateHistoryTotal) || 0) + amount;
+    source.card._triggeredFateHistoryTotal = Math.max(0, Number(source.card._triggeredFateHistoryTotal) || 0) + adjustedTriggeredFateHistoryGain(source.card, amount);
     G.board.forEach(function(zone, z){
       if(!source.fieldWide && z !== source.z) return;
       (zone || []).forEach(function(row){
@@ -3631,14 +3660,14 @@ function triggerMajaMischievousActivities(player, context) {
     source.card._bh08ProcCount = Math.max(0, Math.floor(Number(source.card._bh08ProcCount) || 0)) + 1;
     const potencyBoost = typeof getWhisperAuraPotencyBoost === 'function' ? getWhisperAuraPotencyBoost(source) : 0;
     const amount = 2 + Math.max(0, Number(potencyBoost) || 0);
-    source.card._triggeredFateHistoryTotal = Math.max(0, Number(source.card._triggeredFateHistoryTotal) || 0) + amount;
+    source.card._triggeredFateHistoryTotal = Math.max(0, Number(source.card._triggeredFateHistoryTotal) || 0) + adjustedTriggeredFateHistoryGain(source.card, amount);
     const zones = source.fieldWide ? G.board : [G.board[source.z] || []];
     zones.forEach(function(zone){ (zone || []).forEach(function(row){
       (row || []).forEach(function(target){
         if(!target || target.owner !== owner) return;
         if(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(target)) return;
         const presentation = applyPairedOverlayFateGain(target, amount, owner, {
-          type:'temporary',
+          type:'ordinary',
           kind:'bh08_mischief',
           label:'Mischievous Activities',
           sourceIid:String(source.card.iid || source.card.id || 'bh08'),
@@ -4030,9 +4059,10 @@ async function clickCell(z,r,c) {
     const valid = !mv.options || !!option;
     if(!valid){toast('Choose one of the highlighted Wolf Creek squares');return;}
     const target = G.board[z][r][c];
+    if(!isWolfCreekMoveCandidateCard(mv.card, mv.card.owner) || (typeof isZoeFieldLeaveLockedAt==='function' && isZoeFieldLeaveLockedAt(mv.card,mv.fromZ,mv.fromR,mv.fromC))) return;
     if(option && option.kind === 'swap'){
       const movingOwner = typeof mv.card.owner === 'number' ? mv.card.owner : (mv.wolfCreekCard && typeof mv.wolfCreekCard.owner === 'number' ? mv.wolfCreekCard.owner : G.currentPlayer);
-      if(!target || Number(target.owner) !== Number(movingOwner) || target.iid === mv.card.iid || target.cantBeMoved){ toast('Choose a card you control to swap with'); return; }
+      if(!isWolfCreekMoveCandidateCard(target, movingOwner) || target.iid === mv.card.iid || (typeof isZoeFieldLeaveLockedAt==='function' && isZoeFieldLeaveLockedAt(target,z,r,c))){ toast('Choose a card you control to swap with'); return; }
       G.board[mv.fromZ][mv.fromR][mv.fromC] = target;
       G.board[z][r][c] = mv.card;
     }else{
@@ -4873,7 +4903,6 @@ function tickBlameGameAtEndOfTurn() {
   const effects = ensureBlameGameState();
   effects.forEach(function(fx){
     if(!fx || !fx.active) return;
-    if(Number(fx.startedTurn) === Number(G.turn)) return;
     fx.turnsLeft = Math.max(0, (Number(fx.turnsLeft) || 0) - 1);
     if(fx.turnsLeft <= 0) {
       fx.active = false;
@@ -5335,7 +5364,7 @@ function sendConsolidationTributeToDiscard(card, cp) {
     });
     if(unsuppressCount > 0) toast('Lydia left the field - '+unsuppressCount+' Supporter aura(s) restored');
   }
-  return fatePushDiscard(Number.isInteger(Number(card.owner)) ? Number(card.owner) : cp, card, {sound:false}) === true;
+  return fatePushDiscard(Number.isInteger(Number(card.owner)) ? Number(card.owner) : cp, card, {sound:false, animate:false}) === true;
 }
 
 function spendConsolidationTributesAtomically(tributes, cp) {
@@ -5821,16 +5850,16 @@ async function resolveAlpineEngineerAmbition(engineer, zoneIndex, controller){
   G.board.forEach((sourceZone,z)=>sourceZone.forEach((row,r)=>(row||[]).forEach((card,c)=>{
     if(!card || card === engineer) return;
     if(Number(card.controller ?? card.owner) !== Number(controller)) return;
-    if(![...ALPINE_ENGINEER_TRIGGERED_FATE_IDS].some(id=>cardActsAsPassive(card,id))) return;
+    if(![...ALPINE_ENGINEER_TRIGGERED_FATE_IDS].some(id=>cardActsAsPassive(card,id) || String(card._whisperCopiedEffectId||'')===id)) return;
     if(card._effectNegatedByReaction || card._effectSuppressedByReaction || card._reactionSuppressed || card._lydiaSuppressed || card._lumberjackSuppressed) return;
-    sources.push({card,z,r,c});
+    sources.push({card,z,r,c,fieldWide:!!card._whisperCopiedEffectId});
   })));
   let activated = 0;
   for(const source of sources){
     const live = G.board?.[source.z]?.[source.r]?.[source.c];
     if(!live || String(live.iid || '') !== String(source.card.iid || '')) continue;
     const owner = Number(live.controller ?? live.owner);
-    const id = [...ALPINE_ENGINEER_TRIGGERED_FATE_IDS].find(id=>cardActsAsPassive(live,id));
+    const id = [...ALPINE_ENGINEER_TRIGGERED_FATE_IDS].find(id=>cardActsAsPassive(live,id) || String(live._whisperCopiedEffectId||'')===id);
     if(typeof flashCardEffect === 'function') flashCardEffect(live, 'alpine_engineer_proc', {label:"An Engineer's Ambition"});
     // Resolve rules immediately; the paired presenter holds the displayed Fate
     // until Engineer's 3.5-second overlay has finished, just like authority events.
@@ -5849,12 +5878,16 @@ async function resolveAlpineEngineerAmbition(engineer, zoneIndex, controller){
       soundKey:'engineer-proc:'+String(engineer.iid)+':'+String(live.iid)+':'+String(target.iid)+':'+String(G.turn)
     });
     const ownTargets = [];
-    G.board[source.z].forEach(row=>(row||[]).forEach(target=>{
+    const targetZones = live._whisperCopiedEffectId ? G.board : [G.board[source.z]];
+    targetZones.forEach(zone=>zone.forEach(row=>(row||[]).forEach(target=>{
       if(target && Number(target.controller ?? target.owner) === owner && !(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(target))) ownTargets.push(target);
-    }));
+    })));
     if(id === '15' || id === 'bh02' || id === 'bh08'){
-      const amount = id === 'bh08' ? 2 : 1;
-      ownTargets.forEach(target=>presentGain(target, amount, id === 'bh08' ? 'temporary' : 'permanent'));
+      const amount = (id === 'bh08' ? 2 : 1) + (typeof getWhisperAuraPotencyBoost === 'function' ? getWhisperAuraPotencyBoost(source) : 0);
+      live._triggeredFateHistoryTotal = (Number(live._triggeredFateHistoryTotal)||0) + adjustedTriggeredFateHistoryGain(live, amount);
+      if(id === 'bh02') live._joieProcCount = (Number(live._joieProcCount)||0) + 1;
+      if(id === 'bh08') live._bh08ProcCount = (Number(live._bh08ProcCount)||0) + 1;
+      ownTargets.forEach(target=>presentGain(target, amount, id === 'bh08' ? 'ordinary' : 'permanent'));
     }else if(id === '86'){
       await drawCard(owner, 1, {afterSetOrCinematic:true,activatedDrawEffect:true,effectSource:live});
       presentGain(live, 2);
@@ -6126,7 +6159,7 @@ function tickMailDeliveriesForCurrentPlayer() {
   let changed = false;
   for(let i = deliveries.length - 1; i >= 0; i--) {
     const d = deliveries[i];
-    if(!d || (d.player !== 0 && d.player !== 1)) continue;
+    if(!d || (d.player !== 0 && d.player !== 1) || d.player !== G.currentPlayer) continue;
     d.turnsLeft = Math.max(0, (Number(d.turnsLeft) || 0) - 1);
     changed = true;
     if(d.turnsLeft <= 0) {
@@ -6207,7 +6240,7 @@ function markSnowballFightHit(card) {
 window.markSnowballFightHit = markSnowballFightHit;
 
 function applyWodnyPotokLumberjackSuppression(inst, z, owner) {
-  if(!inst || inst.id === '92' || isEffectImmuneSource(inst)) return false;
+  if(!inst || (typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(inst) : isEffectImmuneSource(inst))) return false;
   const cp = owner === 0 || owner === 1 ? owner : (inst.owner === 0 || inst.owner === 1 ? inst.owner : G.currentPlayer);
   // Blame Game changes how Supporters classify for effects, but does not erase
   // the printed Supporter identity referenced by Wood for the Hearth.
@@ -6318,7 +6351,7 @@ if(typeof window!=='undefined') window.pressureCardReworkTimingActive=pressureCa
 
 function hasAuthoritativeWhenSetEffect(cardOrId){
   const id=String(cardOrId&&typeof cardOrId==='object'?cardOrId.id:cardOrId||'');
-  if(['20','34','64','73'].includes(id)) return ['34','64'].includes(id);
+  if(['20','25','33','34','47','64','73'].includes(id)) return ['33','34','47','64'].includes(id);
   if(pressureCardReworkTimingActive()&&PRESSURE_REWORK_TIMING_CARD_IDS.has(id)){
     return PRESSURE_REWORK_WHEN_SET_EFFECT_IDS.has(id);
   }
@@ -6489,19 +6522,15 @@ async function resolveWhenSetEffect(inst, z, r, c, opts = {}) {
   // Match the authority: field abilities count, but abilities operating only
   // in the opening hand, hand, deck or discard do not count on placement.
   const _hasWhenSet = hasAuthoritativeWhenSetEffect(inst);
-  if(String(typeof getCardRuntimeEffectId === 'function' ? getCardRuntimeEffectId(inst) : inst.id) === '84' && !isFlowerPickingEligible(cp)) {
-    markInitialEffectResolved(inst);
-    return;
-  }
-  const placementEffectRelevant = !['09','28','70','74','79','91','98'].includes(String(typeof getCardRuntimeEffectId === 'function' ? getCardRuntimeEffectId(inst) : inst.id));
-  if(placementEffectRelevant && G.oppSuppressedNextTurn && G.suppressTarget===cp && instIsSupporterForRules && !isEffectImmuneSource(inst)) {
+  if(G.oppSuppressedNextTurn && G.suppressTarget===cp && inst.type === 'Supporter' && !isFullyEffectImmuneCard(inst)) {
     if(typeof triggerMajaMischievousActivities === 'function') triggerMajaMischievousActivities(opp, {mode:'suppressed', sourceCard:inst});
     showBlockedAnimation('Effect SUPPRESSED - Semper Fidelis');
     markInitialEffectResolved(inst);
     return;
   }
-  if(placementEffectRelevant && !isEffectImmuneSource(inst) && ((typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(inst, z, r, c)) || (instIsSupporterForRules && typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(inst)))) {
-    if(typeof triggerMajaMischievousActivities === 'function') triggerMajaMischievousActivities(opp, {mode:'suppressed', sourceCard:inst});
+  if(!isFullyEffectImmuneCard(inst) && ((typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(inst, z, r, c)) || (instIsSupporterForRules && typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(inst)))) {
+    if(isCardSuppressedByHenryDong(inst, z, r, c)) reconcileHenrySuppressionTriggers();
+    else if(typeof triggerMajaMischievousActivities === 'function') triggerMajaMischievousActivities(opp, {mode:'suppressed', sourceCard:inst});
     showBlockedAnimation(isCardSuppressedByHenryDong(inst, z, r, c) ? 'Effect SUPPRESSED - The Last Revolution' : 'Effect SUPPRESSED');
     markInitialEffectResolved(inst);
     return;
@@ -6513,6 +6542,10 @@ async function resolveWhenSetEffect(inst, z, r, c, opts = {}) {
     return;
   }
 
+  if(String(typeof getCardRuntimeEffectId === 'function' ? getCardRuntimeEffectId(inst) : inst.id) === '84' && !isFlowerPickingEligible(cp)) {
+    markInitialEffectResolved(inst);
+    return;
+  }
   const isInitiatorWithEffect = _hasWhenSet
     && (inst.type === 'Initiator' || String(id || '') === '21')
     && !inst.effectUsedInitial;
@@ -6577,7 +6610,8 @@ async function runWhenSetEffect(inst, z, r, c, opts = {}) {
     ? {allowRepeat:true, skipLandscapeCount:true}
     : undefined;
   if(!isEffectImmuneSource(inst) && ((typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(inst, z, r, c)) || (instIsSupporterForRules && typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(inst)))) {
-    if(typeof triggerMajaMischievousActivities === 'function') triggerMajaMischievousActivities(opp, {mode:'suppressed', sourceCard:inst});
+    if(isCardSuppressedByHenryDong(inst, z, r, c)) reconcileHenrySuppressionTriggers();
+    else if(typeof triggerMajaMischievousActivities === 'function') triggerMajaMischievousActivities(opp, {mode:'suppressed', sourceCard:inst});
     showBlockedAnimation(isCardSuppressedByHenryDong(inst, z, r, c) ? 'Effect SUPPRESSED - The Last Revolution' : 'Effect SUPPRESSED');
     markInitialEffectResolved(inst);
     return;
@@ -7106,7 +7140,7 @@ function applyDestructionOfParadise(sourceCard, zoneIndex, sourceOwner, declared
   const targets = [];
   const zone = G.board && G.board[zoneIndex] ? G.board[zoneIndex] : [];
   zone.forEach(function(row){ (row || []).forEach(function(card){
-    if(!card || card.owner !== opponent || String(card.type || '') !== String(declaredType || '')) return;
+    if(!card || card.owner !== opponent || !(typeof cardHasEffectType === 'function' ? cardHasEffectType(card, declaredType) : String(card.type || '') === String(declaredType || ''))) return;
     if(typeof isTargetImmuneToEffectOwner === 'function' && isTargetImmuneToEffectOwner(card, sourceOwner)) return;
     targets.push(card);
   }); });
@@ -7114,11 +7148,14 @@ function applyDestructionOfParadise(sourceCard, zoneIndex, sourceOwner, declared
     toast('The Destruction of Paradise found no eligible ' + declaredType + ' cards in this zone.');
     return {targets:0, lossEach:0};
   }
-  const lossEach = Math.max(0, Math.round(24 / targets.length));
+  targets.sort((a,b)=>String(a.iid).localeCompare(String(b.iid)));
+  const lossEach = Math.floor(24 / targets.length);
+  const remainder = 24 % targets.length;
+  const reductionsBefore = Number(G.damageDoneP?.[sourceOwner] || 0);
   G._bh04SelvaSeq = (Number(G._bh04SelvaSeq) || 0) + 1;
   const flashKeyBase = ['bh04-selva', String(sourceCard && (sourceCard.iid || sourceCard.id) || 'bh04'), String(declaredType || 'type'), Number(G.turn) || 0, G._bh04SelvaSeq].join(':');
-  targets.forEach(function(target){
-    const changed = applyDestructionOfParadisePermanentFateLoss(target, lossEach, sourceOwner);
+  targets.forEach(function(target,index){
+    const changed = applyDestructionOfParadisePermanentFateLoss(target, lossEach + (index < remainder ? 1 : 0), sourceOwner);
     if(changed && typeof flashCardEffect === 'function') {
       flashCardEffect(target, 'bh04_selva_paradise', {
         label:'The Destruction of Paradise',
@@ -7126,8 +7163,10 @@ function applyDestructionOfParadise(sourceCard, zoneIndex, sourceOwner, declared
       });
     }
   });
-  toast('The Destruction of Paradise: ' + targets.length + ' ' + declaredType + ' card' + (targets.length === 1 ? '' : 's') + ' permanently lost ' + lossEach + ' Fate each.');
-  log(sourceOwner===0?'p1':'p2', 'The Destruction of Paradise declared ' + declaredType + ': ' + targets.length + ' cards permanently lost ' + lossEach + ' Fate each');
+  if(G.damageDoneP && G.damageDoneP[sourceOwner] > reductionsBefore) G.damageDoneP[sourceOwner] = reductionsBefore + 1;
+  const splitLabel = remainder ? lossEach + '–' + (lossEach + 1) : String(lossEach);
+  toast('The Destruction of Paradise: 24 Fate split across ' + targets.length + ' ' + declaredType + ' cards (' + splitLabel + ' each).');
+  log(sourceOwner===0?'p1':'p2', 'The Destruction of Paradise declared ' + declaredType + ': 24 Fate split across ' + targets.length + ' cards');
   renderEffectResolutionForPlayer(sourceOwner, {hand:false});
   return {targets:targets.length, lossEach:lossEach};
 }
@@ -7147,11 +7186,11 @@ function chooseDestructionOfParadiseType(sourceCard, z, sourceOwner, authoritati
   BRAVE_HORIZONS_DECLARABLE_CARD_TYPES.forEach(function(type){
     let count = 0;
     zone.forEach(function(row){ (row || []).forEach(function(card){
-      if(!card || card.owner !== opponent || String(card.type || '') !== type) return;
+      if(!card || card.owner !== opponent || !(typeof cardHasEffectType === 'function' ? cardHasEffectType(card, type) : String(card.type || '') === type)) return;
       if(typeof isTargetImmuneToEffectOwner === 'function' && isTargetImmuneToEffectOwner(card, sourceOwner)) return;
       count += 1;
     }); });
-    typeStats[type] = { count:count, lossEach:count ? Math.max(0, Math.round(24 / count)) : 0 };
+    typeStats[type] = { count:count, lossEach:count ? Math.max(0, Math.floor(24 / count)) : 0, remainder:count ? 24 % count : 0 };
   });
   const body = '<div class="bh04-type-picker">' +
     '<p class="bh04-picker-prompt">Choose one card type. <span>Zone ' + (Number(z) + 1) + ' - 24 Fate split evenly, permanently</span></p>' +
@@ -7161,7 +7200,7 @@ function chooseDestructionOfParadiseType(sourceCard, z, sourceOwner, authoritati
         return '<button type="button" class="btn bh04-type-choice" data-bh04-type="' + escapeHtml(type) + '">' +
           '<span class="bh04-type-name">' + escapeHtml(labels[type] || type) + '</span>' +
           '<span class="bh04-type-meta">' + stat.count + ' card' + (stat.count === 1 ? '' : 's') + ' affected</span>' +
-          '<span class="bh04-type-result">' + (stat.count ? '-' + stat.lossEach + ' Fate each, permanently' : 'No targets') + '</span>' +
+          '<span class="bh04-type-result">' + (stat.count ? '-' + stat.lossEach + (stat.remainder ? ' to -' + (stat.lossEach + 1) : '') + ' Fate each, permanently' : 'No targets') + '</span>' +
         '</button>';
       }).join('') +
     '</div>' +
@@ -7419,15 +7458,7 @@ async function resolveSmartInvestments(card, cp) {
       if(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(live)) return;
       if(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(live)) return;
       const before = Math.max(0, Number(live.currentFate ?? live.fate) || 0);
-      // Smart Investments changes a card while it is being filed back into
-      // the deck. It is not a visible board Fate-gain event, so commit the
-      // permanent value without spawning the generic floating Fate number.
-      live.currentFate = before + 7;
-      if(typeof applyChineseMacArthurFateRider === 'function') applyChineseMacArthurFateRider(live, before, live.currentFate);
-      if(Number.isFinite(Number(live._permanentFateCeiling))){
-        live._permanentFateCeiling = Math.max(0, Number(live._permanentFateCeiling) || 0) + 7;
-      }
-      if(typeof clampCardToLandscapeFateCap === 'function') clampCardToLandscapeFateCap(live);
+      modifyFate(live, 7, 'permanent', cp, {deferBasePresentation:true});
       const after = Math.max(0, Number(live.currentFate ?? live.fate) || 0);
       if(after <= before) return;
       if(typeof recordHandCardEffectModifier === 'function') {
@@ -7671,7 +7702,7 @@ function isFlowerKingBlessedCard(card, z, r, c) {
 window.isFlowerKingBlessedCard = isFlowerKingBlessedCard;
 
 async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
-  if(pressureCardReworkTimingActive()
+  if((['33','47'].includes(String(id || '')) || pressureCardReworkTimingActive())
     && new Set(['20','33','47','64']).has(String(id || ''))
     && typeof window.recordLegacyMoralePressureCardSet === 'function') {
     window.recordLegacyMoralePressureCardSet(inst, {resolveWhenSetEffects:true});
@@ -7843,7 +7874,8 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
               maxCount: discardCount,
               minCount: discardCount,
               confirmLabel: 'Discard',
-              onlineParentAction: true
+              onlineParentAction: true,
+              allowCancel: false
             }, (chosen)=>{
               chosen.forEach(c=>{
                 G.players[cp].hand=G.players[cp].hand.filter(h=>h.iid!==c.iid);
@@ -7900,13 +7932,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       activateUsMarinesSuppressionEffect(cp, opp);
       break;
     case '33': // West Caribbea Infantry
-      if(window.FATE_PRESSURE_CARD_REWORKS_ENABLED === true){
-        renderEffectResolutionForPlayer(cp,{hand:false,topbar:true});
-        break;
-      }
-      G._westCaribNext = { owner: cp, sourceIid: inst.iid || null };
-      toast('The next character added to your hand gains 2 Fate and costs 1 less Reinforcement');
-      if(typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
+      renderEffectResolutionForPlayer(cp,{hand:false,topbar:true});
       break;
     case '34': // Rozsi Szocs
       showAffiliationPickerVisual(function(aff){inst._moraleAffiliation=aff;renderEffectResolutionForPlayer(cp,{hand:false,topbar:true});}, inst);
@@ -7939,7 +7965,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       }
       break;
     case '58': // Crossroads Worker: add supporter from discard
-      const recoverableSupporters = typeof getRecoverableDiscardCards === 'function' ? getRecoverableDiscardCards(cp, c=>(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(c, cp) : c.type==='Supporter')) : G.players[cp].discard.filter(c=>(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(c, cp) : c.type==='Supporter'));
+      const recoverableSupporters = typeof getRecoverableDiscardCards === 'function' ? getRecoverableDiscardCards(cp, c=>cardHasCurrentEffectType(c, 'Supporter')) : G.players[cp].discard.filter(c=>cardHasCurrentEffectType(c, 'Supporter'));
       if(recoverableSupporters.length===0){
         toast('No supporters in discard');break;
       }
@@ -8101,7 +8127,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       break;
     }
     case '68': { // Great Oak High Schooler: search deck for a Coordinator (non-star)
-      const matches = G.players[cp].deck.filter(c=>c.type==='Coordinator' && c.rarity!=='star');
+      const matches = G.players[cp].deck.filter(c=>cardHasCurrentEffectType(c, 'Coordinator') && c.rarity!=='star');
       const openSchoolerSearch = function(){
         pickCardsVisual(matches,{sourceCard:inst,
           title:'Home of the Wolfpack',
@@ -8238,7 +8264,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       const openMailDelivery = function(){
         pickCardsVisual(matches, {sourceCard:inst,
           title:'Mail Delivery',
-          subtitle:'Choose a Triangle card from your deck. It will arrive in four turns.',
+          subtitle:'Choose a Triangle card from your deck. It will arrive after four of your turns.',
           maxCount:1,
           confirmLabel:'Schedule Delivery',
           immediate:true,
@@ -8251,10 +8277,11 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
           G.players[cp].deck = G.players[cp].deck.filter(x=>x.iid!==found.iid);
           found._fateHandArrivalKind = 'search';
           ensureMailDeliveryState().push({player:cp, card:found, turnsLeft:4, sourceIid:inst.iid});
-          toast(found.name + ' will arrive in four turns.');
+          toast(found.name + ' will arrive after four of your turns.');
           inst.whenSetActivated = true;
           if(typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
           renderEffectResolutionForPlayer(cp, {hand:true, piles:true});
+          if(typeof resolveBoleslawAfterSearchSelection==='function') return resolveBoleslawAfterSearchSelection(cp,[found],{sourceCardId:'94'});
         });
       };
       openMailDelivery();
@@ -8471,6 +8498,7 @@ function applyHenryDongSuppressionSquares(card, chosen, z, r, c) {
   card._henrySuppressionSquares = squares;
   card._henrySuppressionTurn = G ? G.turn : 0;
   card.effectUsedInitial = true;
+  reconcileHenrySuppressionTriggers();
   const count = squares.length;
   if(typeof playSfx === 'function') playSfx('effectSuppressed');
   toast('Henry Dong is suppressing opponent Coordinator effects on ' + count + ' adjacent square' + (count === 1 ? '' : 's') + '.');
@@ -8727,11 +8755,10 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
       if(typeof highlightJaimeHealingSquare === 'function') highlightJaimeHealingSquare(card);
       break;
     case 'bh23': {
-      const eligibleTriggerCoordinators = new Set(['15','bh02','bh08']);
-      const opened = pickCardInZone(z, 'In Defense of Pacifica: select Zsofia, Joie, or Maja University:', function(target){
+      const opened = pickCardInZone(z, 'In Defense of Pacifica: select a Coordinator with a triggered Fate-gain effect:', function(target){
         const inherited = Math.max(0, Number(target && target._triggeredFateHistoryTotal) || 0);
         const before = Math.max(0, Number(card.currentFate ?? card.fate) || 0);
-        card.currentFate = before + inherited;
+        modifyFate(card, inherited, 'permanent', cp);
         card._bh23InheritedCoordinatorIid = String(target && target.iid || '');
         card._bh23InheritedFate = inherited;
         card.effectUsedInitial = true;
@@ -8740,9 +8767,9 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
           : target.name + ' has not generated Fate yet.');
         renderEffectResolutionForPlayer(cp, {hand:false});
       }, function(target){
-        return !!target && target.owner === cp && eligibleTriggerCoordinators.has(String(target.id || ''));
+        return !!target && target.owner === cp && isTriggeredFateCoordinator(target);
       }, null, card);
-      if(opened === false) toast('No eligible Zsofia, Joie, or Maja University is in this zone.');
+      if(opened === false) toast('No eligible Coordinator is in this zone.');
       break;
     }
     case 'bh24': {
@@ -8780,7 +8807,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
         renderHand();
       }, {sourceCardId:'06'}); break;
     case '07': { // Maja Kaminska: add up to 3 deck supporters, buff them, then +2 supporter plays this turn
-      const matches = G.players[cp].deck.filter(c=>typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(c, cp) : c.type==='Supporter');
+      const matches = G.players[cp].deck.filter(c=>cardHasCurrentEffectType(c, 'Supporter'));
       // The supporter search is optional. Grant Maja's placement bonus as soon
       // as her effect activates so choosing zero cards or closing the picker
       // cannot discard this independent part of Oblique Order.
@@ -8838,7 +8865,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
                 recordHandCardEffectModifier(c, {
                   key:'maja-kaminska-oblique-order',
                   name:'Maja Kaminska',
-                  text:'Oblique Order: this Supporter gained +4 Fate permanently.',
+                  text:'Oblique Order: this card gained +4 Fate.',
                   fateDelta:4
                 });
               }
@@ -9041,7 +9068,6 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
           title:'Juan Carlos',
           prompt:`Move ${tgt.name} into Juan Carlos' current zone`,
           horizontalZones:true,
-          disallowRows:[cp===0 ? 2 : 0],
           sourceCard:card
         });
       },c=>c.owner===opp && !(typeof isTargetImmuneToEffectOwner === 'function' ? isTargetImmuneToEffectOwner(c, cp) : (c.immuneFlag || c.id==='76'))); break;
@@ -9139,8 +9165,10 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
         chosen.forEach((found, searchSequenceIndex)=>{
           G.players[cp].deck = G.players[cp].deck.filter(x=>x.iid!==found.iid);
           const beforeFate = Math.max(0, Number(found.currentFate ?? found.fate) || 0);
-          found.currentFate = beforeFate + 3;
-          if(typeof applyChineseMacArthurFateRider === 'function') applyChineseMacArthurFateRider(found, beforeFate, found.currentFate);
+          if(!(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(found))){
+            found.currentFate = beforeFate + 3;
+            if(typeof applyChineseMacArthurFateRider === 'function') applyChineseMacArthurFateRider(found, beforeFate, found.currentFate);
+          }
           if(typeof recordHandCardEffectModifier === 'function' && !(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(found))) {
             recordHandCardEffectModifier(found, {
               key:'wojciech-fisherman:' + (card.iid || card.id || 'source'),
@@ -9819,6 +9847,10 @@ function queuePairedOverlayFateGain(target, options) {
       }
       return;
     }
+    if(consolidationOverlayGateIsActive()){
+      setTimeout(presentNext, 90);
+      return;
+    }
     const next = current.queue[0];
     if(Number(next.readyAt || 0) > Date.now()){
       setTimeout(presentNext, Math.max(20, Number(next.readyAt) - Date.now()));
@@ -9885,8 +9917,10 @@ function queuePairedOverlayFateGain(target, options) {
       });
     }
     if(typeof markEffectFateVisualDelta === 'function') markEffectFateVisualDelta(liveTarget, presentation.before, presentation.after, presentation.kind);
-    if(typeof playFateSfxOnce === 'function') playFateSfxOnce('fateGain', ['paired-gain', presentation.kind, presentation.sourceIid, targetKey, presentation.after, Date.now()].join(':'), 500);
-    else if(typeof playSfx === 'function') playSfx('fateGain');
+    if(!shown){
+      if(typeof playFateSfxOnce === 'function') playFateSfxOnce('fateGain', ['paired-gain', presentation.kind, presentation.sourceIid, targetKey, presentation.after, Date.now()].join(':'), 500);
+      else if(typeof playSfx === 'function') playSfx('fateGain');
+    }
     setTimeout(presentNext, 3535);
   };
   setTimeout(presentNext, 0);
@@ -9966,6 +10000,10 @@ function queueHighTPotencyOverlay(target, sourceIids, options) {
         && !pairedOverlayFateQueues.get(targetKey)?.queue?.length) finishSequentialFateDisplay(finishingTarget);
       return;
     }
+    if(consolidationOverlayGateIsActive()){
+      setTimeout(presentNext, 90);
+      return;
+    }
     const next = current.queue[0];
     if(Number(next.readyAt || 0) > Date.now()){
       setTimeout(presentNext, Math.max(20, Number(next.readyAt) - Date.now()));
@@ -10014,8 +10052,10 @@ function queueHighTPotencyOverlay(target, sourceIids, options) {
       });
     }
     if(typeof markEffectFateVisualDelta === 'function') markEffectFateVisualDelta(liveTarget, presentation.before, presentation.after, 'bh19');
-    if(typeof playFateSfxOnce === 'function') playFateSfxOnce('fateGain', ['bh19-gain', presentation.sourceIid, targetKey, presentation.after, Date.now()].join(':'), 500);
-    else if(typeof playSfx === 'function') playSfx('fateGain');
+    if(!shown){
+      if(typeof playFateSfxOnce === 'function') playFateSfxOnce('fateGain', ['bh19-gain', presentation.sourceIid, targetKey, presentation.after, Date.now()].join(':'), 500);
+      else if(typeof playSfx === 'function') playSfx('fateGain');
+    }
     setTimeout(presentNext, 3535);
   };
   setTimeout(presentNext, 0);
@@ -10069,6 +10109,10 @@ function queueChineseMacArthurOverlay(target, sourceIids, options) {
       if(finishingTarget
         && !bh19OverlayQueues.get(targetKey)?.queue?.length
         && !pairedOverlayFateQueues.get(targetKey)?.queue?.length) finishSequentialFateDisplay(finishingTarget);
+      return;
+    }
+    if(consolidationOverlayGateIsActive()){
+      setTimeout(presentNext, 90);
       return;
     }
     const nextPresentation = current.queue[0];
@@ -10130,8 +10174,10 @@ function queueChineseMacArthurOverlay(target, sourceIids, options) {
         });
       }
       if(typeof markEffectFateVisualDelta === 'function') markEffectFateVisualDelta(liveTarget, presentation.before, presentation.after, 'bh15');
-      if(typeof playFateSfxOnce === 'function') playFateSfxOnce('fateGain', ['bh15-gain', sourceIid, targetKey, presentation.after, Date.now()].join(':'), 500);
-      else if(typeof playSfx === 'function') playSfx('fateGain');
+      if(!overlayShown){
+        if(typeof playFateSfxOnce === 'function') playFateSfxOnce('fateGain', ['bh15-gain', sourceIid, targetKey, presentation.after, Date.now()].join(':'), 500);
+        else if(typeof playSfx === 'function') playSfx('fateGain');
+      }
     }
     setTimeout(presentNext, 3535);
   };
@@ -10167,7 +10213,7 @@ function applyChineseMacArthurFateRider(card, beforeValue, afterValue) {
     && now - Number(lastGain.at || 0) < 250){
     return {bonus:0, after:currentFate, baseAfter:Number(lastGain.requestedAfter), sourceIids:[], duplicate:true};
   }
-  const highTCount = getHighTPotencyCount(owner);
+  const highTCount = 0; // Hsei-Ling's additional Fate is an ordinary gain.
   const riderStartFate = currentFate;
   const bonus = sources.length * (1 + highTCount);
   card.currentFate = currentFate + bonus;
@@ -10482,7 +10528,7 @@ function getCookIslandsDuelistTarget(source, zHint) {
 
 function isDirectCardEffectSuppressed(card) {
   if(card && hasNoSuppressibleFieldEffect(card))return false;
-  if(!card || isEffectImmuneSource(card)) return false;
+  if(!card || (typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(card) : isEffectImmuneSource(card))) return false;
   const canonicalSuppression = Array.isArray(card.statuses) && card.statuses.some(function(status){
     return String(status && typeof status === 'object' ? status.type : status) === 'EFFECTS_SUPPRESSED';
   });
@@ -10490,8 +10536,8 @@ function isDirectCardEffectSuppressed(card) {
 }
 
 function isCardSuppressedByHenryDong(card, z, r, c) {
-  if(!card || isEffectImmuneSource(card)) return false;
-  if(String(card.type || '') !== 'Coordinator') return false;
+  if(!card || !cardHasEffectType(card, 'Coordinator')) return false;
+  if(isEffectImmuneSource(card)) return false;
   const targetPos = (Number.isInteger(z) && Number.isInteger(r) && Number.isInteger(c))
     ? {z, r, c}
     : (typeof findBoardPositionForCard === 'function' ? findBoardPositionForCard(card) : null);
@@ -10510,11 +10556,28 @@ function isCardSuppressedByHenryDong(card, z, r, c) {
   return suppressed;
 }
 
+function reconcileHenrySuppressionTriggers() {
+  if(!G || G._onlineRoomCode || G._reconcilingHenrySuppression) return;
+  const previous = new Set(G._henrySuppressedIids || []);
+  const current = [];
+  const newlySuppressed = [];
+  G.board.forEach((zone,z)=>zone.forEach((row,r)=>row.forEach((card,c)=>{
+    if(!card || !isCardSuppressedByHenryDong(card,z,r,c)) return;
+    current.push(card.iid);
+    if(!previous.has(card.iid) && !isDirectCardEffectSuppressed(card)) newlySuppressed.push(card);
+  })));
+  G._henrySuppressedIids = current;
+  G._reconcilingHenrySuppression = true;
+  try{
+    newlySuppressed.forEach(card=>triggerMajaMischievousActivities(1-card.owner,{mode:'suppressed',sourceCard:card}));
+  }finally{G._reconcilingHenrySuppression=false;}
+}
+
 function isCardEffectSuppressed(card) {
   if(card && hasNoSuppressibleFieldEffect(card))return false;
   const z = arguments[1], r = arguments[2], c = arguments[3];
-  if(!card || isEffectImmuneSource(card)) return false;
-  return !!(isDirectCardEffectSuppressed(card) || isCardSuppressedByHenryDong(card, z, r, c));
+  if(!card || (typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(card) : isEffectImmuneSource(card))) return false;
+  return !!(isDirectCardEffectSuppressed(card) || isCardSuppressedByHenryDong(card, z, r, c) || isSupporterEffectSuppressed(card));
 }
 
 const ONGOING_REACTION_EFFECT_IDS = new Set(['10','14','21','35','36','53','62','64','65','bh18']);
@@ -10533,8 +10596,8 @@ const DELAYED_REACTION_SUPPRESSION_IDS = new Set([
 ]);
 function isOngoingReactionEffect(card) {
   if(!card) return false;
-  const id = String(card.id || '');
-  if(String(card.type || '') === 'Coordinator' || ONGOING_REACTION_EFFECT_IDS.has(id) || DELAYED_REACTION_SUPPRESSION_IDS.has(id)) return true;
+  const id = String(typeof getCardRuntimeEffectId === 'function' ? getCardRuntimeEffectId(card) : card.id || '');
+  if(id === '93' || String(card.type || '') === 'Coordinator' || ONGOING_REACTION_EFFECT_IDS.has(id) || DELAYED_REACTION_SUPPRESSION_IDS.has(id)) return true;
   const base = typeof CARDS !== 'undefined' && Array.isArray(CARDS) ? CARDS.find(item=>String(item && item.id || '') === id) : null;
   const effect = String(card.effect || base && base.effect || '').toLowerCase();
   return /\bwhile\b[\s\S]*\b(?:field|play)\b|\bwhenever\b|\bonce per turn\b/.test(effect);
@@ -10542,7 +10605,7 @@ function isOngoingReactionEffect(card) {
 
 function isCoordinatorSuppressedAt(z, r, c) {
   const card = G && G.board && G.board[z] && G.board[z][r] ? G.board[z][r][c] : null;
-  return !!(card && card.type === 'Coordinator' && isCardEffectSuppressed(card));
+  return !!(card && cardHasEffectType(card, 'Coordinator') && isCardEffectSuppressed(card));
 }
 
 function isSupporterAuraSuppressed(card) {
@@ -10555,7 +10618,7 @@ function isPlayerSupporterEffectsSuppressed(player) {
 
 function isSupporterEffectSuppressed(card) {
   if(card && hasNoSuppressibleFieldEffect(card))return false;
-  if(!card) return false;
+  if(!card || (typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(card) : isEffectImmuneSource(card))) return false;
   // Authoritative snapshots carry suppression as a public status instead of
   // the single-player-only transient flags below.  Presentation helpers such
   // as getEffectiveFate reuse this function, so omitting the canonical status
@@ -10566,9 +10629,8 @@ function isSupporterEffectSuppressed(card) {
     return String(status && typeof status === 'object' ? status.type : status) === 'EFFECTS_SUPPRESSED';
   })) return true;
   if(card._lumberjackSuppressed) return true;
-  if(!(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, card.owner) : card.type === 'Supporter')) return false;
-  if(isEffectImmuneSource(card)) return false;
-  if(card._lydiaSuppressed) return true;
+  if(card.type !== 'Supporter' && !(typeof isCardSupporterForRules === 'function' && isCardSupporterForRules(card, card.owner))) return false;
+  if(card._effectSuppressedByReaction || card._lydiaSuppressed) return true;
   if(card._reactionSuppressed) return true;
   if(isCardSuppressedByHenryDong(card)) return true;
   return isPlayerSupporterEffectsSuppressed(card.owner);
@@ -10667,11 +10729,11 @@ function getEffectiveFate(card, z) {
   // Alexander (and Taylor copying Alexander) recalculates from the zone's current
   // Supporter Fate total every time effective Fate is requested.
   let bonus = 0;
-  if(window.FATE_PRESSURE_CARD_REWORKS_ENABLED === true && !isSupporterEffectSuppressed(card)){
+  {
     const hasHonorGuard=G.board.some(zone=>zone.some(row=>row.some(source=>source&&source.owner===card.owner&&cardContributesAura(source,'25')&&!isSupporterEffectSuppressed(source))));
     if(hasHonorGuard){
       let pos=null;G.board[z].forEach((row,r)=>row.forEach((cell,c)=>{if(cell&&cell.iid===card.iid)pos={r:r,c:c};}));
-      if(pos&&getAdjacentCards(z,pos.r,pos.c).some(peer=>peer.card&&peer.card.owner===card.owner&&String(peer.card.aff||peer.card.affiliation||'')===String(card.aff||card.affiliation||'')))bonus+=1;
+      if(pos&&getAdjacentCards(z,pos.r,pos.c).some(peer=>peer.card&&!isInvisible(peer.card)&&peer.card.owner===card.owner&&String(peer.card.aff||peer.card.affiliation||'')===String(card.aff||card.affiliation||'')))bonus+=1;
     }
   }
   const adjacencyMultiplier = getSuperiorMarksMultiplier(z, card.owner);
@@ -10689,7 +10751,7 @@ function getEffectiveFate(card, z) {
       : 0;
     if(!(G?._phase7CurrentMultiplayer === true && Number.isFinite(projectedCharacterCount))){
       forEachBoardCard(cell=>{
-        if(cell && cell.owner===card.owner && (typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(cell, card.owner) : cell.type!=='Supporter') && !isInvisible(cell)) charCount++;
+        if(cell && cell.owner===card.owner && !cardHasCurrentEffectType(cell, 'Supporter') && !isInvisible(cell)) charCount++;
       });
     }
     bonus += charCount * 2;
@@ -10729,30 +10791,25 @@ function getEffectiveFate(card, z) {
     }
   }));
   // --- Coordinator passive buffs ---
-  // Jeremiah Jones (57) boosts each friendly coordinator aura by 1 potency.
-  let jeremiahBoost = typeof getFieldWideWhisperJeremiahBoost === 'function'
-    ? getFieldWideWhisperJeremiahBoost(card.owner)
-    : 0;
-  G.board[z].forEach((row, r)=>row.forEach((cell, c)=>{
-    if(cell && cardContributesAura(cell, '57') && cell.owner===card.owner && !isInvisible(cell) && !isCoordinatorSuppressedAt(z, r, c)) jeremiahBoost++;
-  }));
+  // Compute Jeremiah potency per source, including its current effect type.
   // These are legacy Coordinator auras, not Morale card reworks. They must
   // remain active in both flag states; gating this whole loop disabled Dylan,
   // Kvetka, Anne, Felicyta, Cathy, Duncan and Agent-K whenever the flag was
   // absent or enabled.
   G.board[z].forEach((row, r)=>row.forEach((cell, c)=>{
     if(!cell || isInvisible(cell)) return;
-    if(cell.type==='Coordinator' && isCoordinatorSuppressedAt(z, r, c)) return;
-    if(cardContributesAura(cell, '10') && cell.owner!==card.owner) {
+    if(cardHasEffectType(cell, 'Coordinator') && isCoordinatorSuppressedAt(z, r, c)) return;
+    const sourcePotency = getWhisperAuraPotencyBoost({card:cell, z, r, c});
+    if(cardContributesAura(cell, '10') && cell.owner!==card.owner && !(typeof isTargetImmuneToEffectOwner === 'function' && isTargetImmuneToEffectOwner(card, cell.owner))) {
       if(!G._continuousDamageSources) G._continuousDamageSources = new Set();
       G._continuousDamageSources.add(cell.owner+':10:'+cell.iid);
-      bonus -= 3;
+      bonus -= 3 + sourcePotency;
       return;
     }
     // Agent-K affects only cards its owner controls in its zone.
     if(cardContributesAura(cell, 'bh07') && cell.owner===card.owner) {
       const adjacentDauntless = getAdjacentCards(z, r, c).filter(function(entry){
-        return entry && entry.card && !isInvisible(entry.card) && String(entry.card.type || '') === 'Dauntless';
+        return entry && entry.card && !isInvisible(entry.card) && cardHasCurrentEffectType(entry.card, 'Dauntless');
       }).length;
       const sourceBoost = typeof getWhisperAuraPotencyBoost === 'function'
         ? getWhisperAuraPotencyBoost({card:cell, z:z, r:r, c:c})
@@ -10761,12 +10818,12 @@ function getEffectiveFate(card, z) {
     }
     if(cell.owner!==card.owner) return;
     // Felicyta (01): +4 to adjacent friendly cards
-    if(cardContributesAura(cell, '01') && getAdjacentCards(z, r, c).some(a=>a.card.iid===card.iid)) bonus += (4 + jeremiahBoost) * adjacencyMultiplier;
+    if(cardContributesAura(cell, '01') && getAdjacentCards(z, r, c).some(a=>a.card.iid===card.iid)) bonus += (4 + sourcePotency) * adjacencyMultiplier;
     // Phil (46): no zone aura
     // Anne Stone (11): +3 to cards currently classified as Supporters in zone.
-    if(cardContributesAura(cell, '11') && (typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, card.owner) : card.type==='Supporter')) bonus += 3 + jeremiahBoost;
+    if(cardContributesAura(cell, '11') && cardHasCurrentEffectType(card, 'Supporter')) bonus += 3 + sourcePotency;
     // KvÄ›tka (19): all Coordinators in zone +2
-    if(cardContributesAura(cell, '19') && (typeof cardHasEffectType === 'function' ? cardHasEffectType(card, 'Coordinator') : card.type==='Coordinator')) bonus += 3 + jeremiahBoost;
+    if(cardContributesAura(cell, '19') && cardHasCurrentEffectType(card, 'Coordinator')) bonus += 3 + sourcePotency;
     // Zsofia (15): handled in its own stacking block below
     // Post-Modernist Dylan (10): -3 to all opponent cards in zone (continuous)
     // Dylan Kirby (29): Initiator â€” no continuous effect (search only)
@@ -10774,12 +10831,12 @@ function getEffectiveFate(card, z) {
     // Cathy (23): +2 to cards currently classified as Characters in zone.
     // Blame Game (99) temporarily reclassifies Supporters, so use the shared
     // rules predicate instead of their printed/effect type.
-    if(cardContributesAura(cell, '23') && (typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(card, card.owner) : card.type!=='Supporter')) bonus += 2 + jeremiahBoost;
+    if(cardContributesAura(cell, '23') && !cardHasCurrentEffectType(card, 'Supporter')) bonus += 2 + sourcePotency;
     // Jeremiah Jones (57): now boosts other coordinator auras' potency (handled above via jeremiahBoost)
     // Maroon Knights (59): +1 to all Supporters in zone (while on field)
-    if(cardContributesAura(cell, '59') && (typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, card.owner) : card.type==='Supporter') && !isSupporterEffectSuppressed(cell)) bonus += 1;
+    if(cardContributesAura(cell, '59') && cardHasCurrentEffectType(card, 'Supporter') && !isSupporterEffectSuppressed(cell)) bonus += 1;
     // Duncan Heyward (77): +4 to declared-affiliation friendly cards in zone
-    if(cardContributesAura(cell, '77') && cell._declaredAff && card.aff===cell._declaredAff) bonus += 4 + jeremiahBoost;
+    if(cardContributesAura(cell, '77') && cell._declaredAff && card.aff===cell._declaredAff) bonus += 4 + sourcePotency;
   }));
   let flowerKingTargetPosition = null;
   if(Array.isArray(G.board && G.board[z])){
@@ -10813,7 +10870,7 @@ function getEffectiveFate(card, z) {
       const source = sourceEntry.card;
       const copiedId = String(source._whisperCopiedEffectId || '');
       const sourceBoost = typeof getWhisperAuraPotencyBoost === 'function' ? getWhisperAuraPotencyBoost(sourceEntry) : 0;
-      if(copiedId === '10' && source.owner !== card.owner) {
+      if(copiedId === '10' && source.owner !== card.owner && !isTargetImmuneToEffectOwner(card, source.owner)) {
         if(!G._continuousDamageSources) G._continuousDamageSources = new Set();
         G._continuousDamageSources.add(source.owner + ':whisper10:' + source.iid);
         bonus -= 3 + sourceBoost;
@@ -10821,14 +10878,14 @@ function getEffectiveFate(card, z) {
       }
       if(copiedId === 'bh07' && source.owner === card.owner) {
         const adjacentDauntless = getAdjacentCards(sourceEntry.z, sourceEntry.r, sourceEntry.c).filter(function(entry){
-          return entry && entry.card && !isInvisible(entry.card) && String(entry.card.type || '') === 'Dauntless';
+          return entry && entry.card && !isInvisible(entry.card) && cardHasCurrentEffectType(entry.card, 'Dauntless');
         }).length;
         if(adjacentDauntless > 0) bonus += adjacentDauntless * (2 + sourceBoost) * adjacencyMultiplier;
       }
       if(source.owner !== card.owner) return;
-      if(copiedId === '11' && (typeof cardHasEffectType === 'function' ? cardHasEffectType(card, 'Supporter') : card.type === 'Supporter')) bonus += 3 + sourceBoost;
-      if(copiedId === '19' && (typeof cardHasEffectType === 'function' ? cardHasEffectType(card, 'Coordinator') : card.type === 'Coordinator')) bonus += 3 + sourceBoost;
-      if(copiedId === '23' && (typeof cardHasEffectType === 'function' ? !cardHasEffectType(card, 'Supporter') : card.type !== 'Supporter')) bonus += 2 + sourceBoost;
+      if(copiedId === '11' && cardHasCurrentEffectType(card, 'Supporter')) bonus += 3 + sourceBoost;
+      if(copiedId === '19' && cardHasCurrentEffectType(card, 'Coordinator')) bonus += 3 + sourceBoost;
+      if(copiedId === '23' && !cardHasCurrentEffectType(card, 'Supporter')) bonus += 2 + sourceBoost;
       if(copiedId === '77' && source._declaredAff && card.aff === source._declaredAff) bonus += 4 + sourceBoost;
     });
   }
@@ -11289,9 +11346,9 @@ function checkWin() {
           </div>
         </div>` : '';
     const starlightBox = starlightGained > 0 ? `
-        <div class="win-reward-box" style="border-color:rgba(255,215,0,.5);background:rgba(255,215,0,.08);">
+        <div class="win-reward-box starlight" style="border-color:rgba(255,215,0,.5);background:rgba(255,215,0,.08);">
           <div class="wrb-label" style="color:#ffd700;">STARLIGHT</div>
-          <div class="wrb-value" style="color:#ffd700;display:flex;align-items:center;justify-content:center;gap:.3rem;">
+          <div class="wrb-value" style="color:#ffd700;display:flex;align-items:center;justify-content:flex-start;gap:.3rem;">
             <span style="font-size:1.4rem;">${STARLIGHT_ICON}</span>+${starlightGained}
           </div>
           <div class="wrb-sub">Total: ${USER_PROFILE.starlight}${(G._aiRewardMultiplier||1)>1?` - ${G._aiRewardMultiplier}x bonus`:''}</div>
@@ -11377,7 +11434,7 @@ async function activateVigilantes(card, z, r, c, options) {
 
 function startWolfCreekMove(cardToMove, fromZ, fromR, fromC, wolfCreekCard) {
   if(typeof isZoeFieldLeaveLockedAt==='function'&&isZoeFieldLeaveLockedAt(cardToMove,fromZ,fromR,fromC)){toast(cardToMove.name+' cannot leave Zoe\'s locked square');return false;}
-  if(!cardToMove || !wolfCreekCard) return false;
+  if(!cardToMove || !wolfCreekCard || !isWolfCreekMoveCandidateCard(cardToMove, wolfCreekCard.owner)) return false;
   if(typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(wolfCreekCard)) {
     toast('Wolf Creek movement was suppressed.');
     return false;
@@ -11389,7 +11446,8 @@ function startWolfCreekMove(cardToMove, fromZ, fromR, fromC, wolfCreekCard) {
   for(let zz=0; zz<(G.board ? G.board.length : 3); zz++){
     G.board[zz].forEach((row,rr)=>row.forEach((cell,cc)=>{
       if(cell){
-        if(cell.owner === cp && cell.iid !== cardToMove.iid && !cell.cantBeMoved){
+        if(isWolfCreekMoveCandidateCard(cell, cp) && cell.iid !== cardToMove.iid
+          && !(typeof isZoeFieldLeaveLockedAt==='function' && isZoeFieldLeaveLockedAt(cell,zz,rr,cc))){
           options.push({z:zz,r:rr,c:cc,kind:'swap'});
           const el=document.querySelector('#board .cell[data-z="'+zz+'"][data-r="'+rr+'"][data-c="'+cc+'"]');
           if(el) el.classList.add('placeable','move-target','wolf-creek-swap-target');
@@ -11416,7 +11474,9 @@ function startWolfCreekMove(cardToMove, fromZ, fromR, fromC, wolfCreekCard) {
 }
 
 function isWolfCreekMoveCandidateCard(cell, owner, sourceIid) {
-  return !!(cell && cell.owner === owner && !cell.cantBeMoved);
+  return !!(cell && cell.owner === owner && !cell.cantBeMoved
+    && !(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(cell))
+    && !(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(cell)));
 }
 
 function isWolfCreekSideOpenSquare(z, r, c, owner) {
@@ -12033,7 +12093,7 @@ function beginHavanoDeployment(reaction, owner) {
       const commit = function(){
         G.board[o.z][o.r][o.c] = inst;
         applyHavanoPlacementRules(inst, reaction.card, o.z, o.r, o.c, owner);
-        toast('Havano Citizen negated the effect and deployed to Zone '+(o.z+1)+'!');
+        toast('Havano Citizen permanently suppressed the source and deployed to Zone '+(o.z+1)+'!');
         renderEffectResolutionForPlayer(owner, {hand:true});
         resolve(false);
       };
@@ -12128,7 +12188,7 @@ function executeReaction(reaction, actionData) {
     else showBlockedAnimation(resultWord.toUpperCase()+' by Lydia!');
     renderEffectResolutionForPlayer(opp, {hand:false});
   } else if(reaction.type === 'havano'){
-    const resolutionMode = isOngoingReactionEffect(actionData && actionData.card) ? 'suppressed' : 'negated';
+    const resolutionMode = 'suppressed';
     if(actionData.card) {
       delete actionData.card._effectNegatedByReaction;
       delete actionData.card._effectSuppressedByReaction;
@@ -12136,12 +12196,14 @@ function executeReaction(reaction, actionData) {
       if(resolutionMode === 'suppressed'){
         actionData.card._effectSuppressedByReaction = true;
         actionData.card._reactionSuppressed = true;
+        actionData.card.statuses ||= [];
+        if(!actionData.card.statuses.includes('EFFECTS_SUPPRESSED')) actionData.card.statuses.push('EFFECTS_SUPPRESSED');
       }else{
         actionData.card._effectNegatedByReaction = true;
       }
       markInitialEffectResolved(actionData.card);
     }
-    log(opp===0?'p1':'p2', 'Havano Citizen negated and deployed');
+    log(opp===0?'p1':'p2', 'Havano Citizen permanently suppressed the source and deployed');
     reaction.resolutionMode = resolutionMode;
     if(typeof triggerMajaMischievousActivities === 'function') triggerMajaMischievousActivities(opp, {mode:resolutionMode, sourceCard:actionData && actionData.card});
     return beginHavanoDeployment(reaction, opp);

@@ -1229,9 +1229,14 @@ In both Polish and international media, the Second Polish-Lithuanian Army was re
   window.openCardLoreFromInfo = function(card){
     const page = lorePageForCard(card);
     if(!page){ if(window.toast) toast('No lore page for this card yet'); return false; }
+    const openedFromOverlay = !!document.querySelector('.card-info-overlay');
     if(typeof window.dismissCardInfoOverlay === 'function') window.dismissCardInfoOverlay();
-    if(typeof window.closeModal === 'function') window.closeModal();
-    else document.getElementById('modal')?.classList.remove('on');
+    // An info overlay can sit above another workflow such as Public Decks.
+    // Preserve that underlying modal so closing lore returns to it.
+    if(!openedFromOverlay){
+      if(typeof window.closeModal === 'function') window.closeModal();
+      else document.getElementById('modal')?.classList.remove('on');
+    }
     renderLoreWindowPage(page.id, {allowBack:false});
     return true;
   };

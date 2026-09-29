@@ -30,6 +30,7 @@ const REGISTRY = Object.freeze({
           playerIndex:'$controller',
           destinationPile:'hand',
           fateBonus:4,
+          permanentFateGain:false,
           reason:'OBLIQUE_ORDER'
         }
       }
@@ -62,38 +63,7 @@ const REGISTRY = Object.freeze({
       }
     ]
   },
-  '25':{
-    timings:['WHEN_SET'],
-    whenSetTurnUseKey:'AFRICA_UNITED',
-    operations:['SET_CARD'],
-    prompts:['CARD_SELECTION', 'BOARD_DESTINATION'],
-    program:[
-      {
-        kind:'SELECT_CARDS',
-        local:'targetIid',
-        min:0,
-        max:1,
-        optional:true,
-        filter:{
-          locations:['deck', 'hand'],
-          playerIndex:'controller',
-          cardId:'25',
-          excludeSource:true
-        }
-      },
-      {
-        kind:'SELECT_DESTINATION',
-        local:'destination',
-        filter:{ownSide:true, open:true}
-      },
-      {
-        kind:'FREE_SET',
-        cardIid:'$targetIid',
-        destination:'$destination',
-        turnUseKey:'AFRICA_UNITED'
-      }
-    ]
-  },
+  '25':{timings:['PASSIVE'],operations:[],prompts:[],program:[]},
   '28':{
     timings:['DECK_SET', 'PASSIVE'],
     operations:['SET_CARD'],
@@ -107,7 +77,7 @@ const REGISTRY = Object.freeze({
       {
         kind:'SELECT_BOARD',
         local:'targetIid',
-        filter:{supporter:true, ruleTiming:'PASSIVE', ruleTimingExceptions:['93'], excludeSource:true}
+        filter:{supporter:true, copyableSupporterPassive:true, excludeSource:true}
       },
       {
         kind:'COPY_EFFECT',
@@ -368,7 +338,7 @@ const REGISTRY = Object.freeze({
         operation:{
           type:'REVEAL_HAND',
           viewerPlayerIndex:'$controller',
-          targetPlayerIndex:'$opponent'
+          targetPlayerIndex:'$opponent', charactersOnly:true
         }
       },
       {
@@ -831,26 +801,7 @@ const REGISTRY = Object.freeze({
     prompts:[],
     program:[{kind:'OPERATION', operation:{type:'DRAW_CARD', playerIndex:'$controller', count:1, activatedEffect:true}}]
   },
-  '33':{
-    timings:['WHEN_SET'],
-    operations:['CREATE_MATCH_STATUS'],
-    prompts:[],
-    program:[
-      {
-        kind:'OPERATION',
-        operation:{
-          type:'CREATE_MATCH_STATUS',
-          status:{
-            type:'NEXT_CHARACTER_HAND_ARRIVAL',
-            playerIndex:'$controller',
-            sourceIid:'$sourceIid',
-            fateBonus:2,
-            costDelta:-1
-          }
-        }
-      }
-    ]
-  },
+  '33':{timings:['WHEN_SET'],operations:['MODIFY_MORALE'],prompts:[],program:[{kind:'OPERATION',operation:{type:'MODIFY_MORALE',playerIndex:'$controller',sourceIid:'$sourceIid',amount:16}}]},
   '34':{
     timings:['PASSIVE'],
     operations:['MODIFY_FATE'],
@@ -899,11 +850,10 @@ const REGISTRY = Object.freeze({
         kind:'SELECT_BOARD',
         local:'targetIid',
         filter:{
-          sameZone:true,
           opponent:true,
           movable:true,
           targetable:'MOVE_CARD',
-          requiresDestination:{sameZone:true, open:true}
+          requiresSourceDestination:{sameZone:true, open:true}
         }
       },
       {kind:'SELECT_DESTINATION', local:'destination', filter:{sameZone:true, open:true}},
@@ -932,6 +882,7 @@ const REGISTRY = Object.freeze({
         kind:'SELECT_HAND',
         local:'targetIids',
         exactUpToAvailable:3,
+        cancellable:false,
         filter:{playerIndex:'controller', targetable:'DISCARD_CARD'}
       },
       {
@@ -946,12 +897,7 @@ const REGISTRY = Object.freeze({
     prompts:[],
     triggerSubscriptions:['DRAW_PHASE_COMPLETED']
   },
-  '47':{
-    timings:['PASSIVE'],
-    operations:['MODIFY_FATE'],
-    prompts:[],
-    triggerSubscriptions:['CARD_CONSOLIDATED']
-  },
+  '47':{timings:['WHEN_SET'],operations:['MODIFY_MORALE'],prompts:['REACTION'],havanoTargeting:'OPPONENT',program:[{kind:'OPERATION',operation:{type:'MODIFY_MORALE',playerIndex:'$opponent',sourceIid:'$sourceIid',amount:-10}}]},
   '48':{
     timings:['ACTIVATE'],
     operations:['TRANSFER_CARDS'],
@@ -1400,6 +1346,7 @@ const REGISTRY = Object.freeze({
           count:2,
           affiliation:'$affiliation',
           fateBonus:3,
+          permanentFateGain:false,
           shuffleDeckAfter:true
         }
       }
@@ -1800,7 +1747,7 @@ const REGISTRY = Object.freeze({
     operations:['MODIFY_FATE'],
     prompts:['BOARD_TARGET'],
     program:[
-      {kind:'SELECT_BOARD',local:'coordinatorIid',filter:{sameZone:true,controller:true,faceUp:true,cardIds:['15','bh02','bh08']}},
+      {kind:'SELECT_BOARD',local:'coordinatorIid',filter:{sameZone:true,controller:true,triggeredFateCoordinator:true}},
       {kind:'INHERIT_TRIGGERED_FATE',coordinatorIid:'$coordinatorIid'}
     ]
   },
@@ -1962,7 +1909,7 @@ const HAVANO_TARGETING_SOURCE_IDS = new Set([
 export function cardRule(cardId, state = null){
   const id = String(cardId || '');
   let rule = null;
-  if(['20','34','64','73'].includes(id) && PRESSURE_REWORK_REGISTRY[id]) rule = PRESSURE_REWORK_REGISTRY[id];
+  if(['20','25','33','34','47','64','73'].includes(id) && PRESSURE_REWORK_REGISTRY[id]) rule = PRESSURE_REWORK_REGISTRY[id];
   else if(state?.gameSettings?.pressureCardReworks === true && PRESSURE_REWORK_REGISTRY[id]) rule = PRESSURE_REWORK_REGISTRY[id];
   else rule = REGISTRY[id] || null;
   if(rule && HAVANO_TARGETING_SOURCE_IDS.has(id) && rule.havanoTargeting !== 'OPPONENT'){

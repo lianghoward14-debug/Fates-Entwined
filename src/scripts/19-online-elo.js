@@ -226,8 +226,8 @@
     }catch(e){ return {wins:0, losses:0}; }
   }
   function aiPhoto(ai){
-    try{ if(typeof window.getAIProfileImg === 'function') return window.getAIProfileImg(ai, 'circle') || ai?.img || ai?.profileImg || 'blank.png'; }catch(e){}
-    return ai?.img || ai?.profileImg || 'blank.png';
+    try{ if(typeof window.getAIProfileImg === 'function') return window.getAIProfileImg(ai, 'circle') || 'blank.png'; }catch(e){}
+    return 'blank.png';
   }
   function aiEntry(ai, extra={}){
     const id = extra.aiId || aiIdFor(ai);

@@ -46,6 +46,18 @@ try{
   assert.notEqual(read().warfrontEvent.mapCode,resultMap);
   assert.equal(read().warfrontEvent.zones.every(z=>!z.a&&!z.b),true);
 
+  // An unoccupied opposing post must not crash deadline settlement.
+  api.close();
+  const vacant=event();startWarfrontBattle(vacant,now);
+  vacant.zones[0].b=null;vacant.zones[1].a=null;
+  fs.writeFileSync(path.join(dir,'rooms.json'),JSON.stringify({warfrontEvent:vacant}));
+  api=createFlyDataApi({readBody:async()=>({}),writeJson(){}});
+  await api.tickWarfront();
+  assert.equal(read().warfrontEvent.status,'results');
+  assert.equal(read().warfrontEvent.zones[0].matches.every(m=>m.winnerTeam==='a'),true);
+  assert.equal(read().warfrontEvent.zones[1].matches.every(m=>m.winnerTeam==='b'),true);
+  await api.tickWarfront();assert.equal(read().warfrontEvent.archives.length,1);
+
   const record=(source,id,didWin,isAI=false)=>api.testApplyChallengerResult('career',{source,roomCode:id,didWin,isAI,opponentElo:600});
   record('human','challenger-human',true);record('ai','challenger-ai',false);
   record('warfront','war-human',true);record('warfront','war-ai',false,true);
@@ -78,5 +90,19 @@ try{
   assert.equal(human.warfrontMatchWins,1);
   assert.equal(human.warfrontHumanWins||0,0);
   assert.equal(human.challengerWins||0,0);
+  api.close();
+  fs.writeFileSync(path.join(dir,'rooms.json'),JSON.stringify({warfrontEvent:aiEvent}));
+  const forfeited={...match,matchId:'AI_FORFEITED',warfrontForfeit:{winner:0,loser:1},
+    outcome:{type:'WARFRONT_FORFEIT',winner:0,loser:1,commendationsEligible:false}};
+  api=createFlyDataApi({readBody:async()=>({}),writeJson(){},resolveMatchState:id=>id===forfeited.matchId?forfeited:null});
+  assert.equal(api.bindWarfrontAiMatch(forfeited.matchId,'human','human@session',key),true);
+  assert.equal(api.settleWarfrontForfeit(forfeited),true);
+  assert.equal(api.settleWarfrontForfeit(forfeited),true);
+  const quit=read(),front=quit.warfrontEvent.zones[0];
+  assert.equal(front.matches.length,1,'AI concession records exactly one result');
+  assert.equal(front.matches[0].starValue,1,'AI alliance receives the concession star');
+  assert.equal(front.matches[0].winnerTeam,'b');
+  assert.equal(front.activeMatch,null,'ended AI match is no longer offered for spectating');
+  assert.equal(quit.playerStats.find(p=>p.uid==='human').warfrontMatchLosses,1);
   console.log('Warfront clock, AI scheduling and career counter checks passed (no games simulated)');
 }finally{Date.now=realNow;api?.close();}

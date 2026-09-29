@@ -3447,7 +3447,7 @@ function setupCropper(card) {
   img.onload = ()=>{
     if(document.getElementById('cropper-img') !== img || _cropState?.card !== card || !img.naturalWidth || !img.naturalHeight) return;
     // Center the image initially
-    const areaW=300, areaH=300;
+    const areaW=area.clientWidth || 300, areaH=area.clientHeight || 300;
     const iw=img.naturalWidth, ih=img.naturalHeight;
     const scaleX = areaW/iw, scaleY = areaH/ih;
     const baseScale = Math.max(scaleX, scaleY);
@@ -3462,15 +3462,24 @@ function setupCropper(card) {
   img.onerror = ()=>{ if(document.getElementById('cropper-img') === img) toast('Picture could not load. Please pick it again.'); };
   if(img.complete) img.onload();
 
+  const pointerInCropperSpace = (clientX, clientY)=>{
+    const rect = area.getBoundingClientRect();
+    return {
+      x: (clientX - rect.left) * ((area.clientWidth || 300) / Math.max(1, rect.width)),
+      y: (clientY - rect.top) * ((area.clientHeight || 300) / Math.max(1, rect.height))
+    };
+  };
   area.onmousedown = (e)=>{
+    const point = pointerInCropperSpace(e.clientX, e.clientY);
     _cropState.dragging=true;
-    _cropState.dragStartX = e.clientX - _cropState.offsetX;
-    _cropState.dragStartY = e.clientY - _cropState.offsetY;
+    _cropState.dragStartX = point.x - _cropState.offsetX;
+    _cropState.dragStartY = point.y - _cropState.offsetY;
   };
   document.onmousemove = (e)=>{
     if(!_cropState?.dragging) return;
-    _cropState.offsetX = e.clientX - _cropState.dragStartX;
-    _cropState.offsetY = e.clientY - _cropState.dragStartY;
+    const point = pointerInCropperSpace(e.clientX, e.clientY);
+    _cropState.offsetX = point.x - _cropState.dragStartX;
+    _cropState.offsetY = point.y - _cropState.dragStartY;
     clampCropperOffsets();
     updateCropperDisplay();
   };
@@ -3479,15 +3488,17 @@ function setupCropper(card) {
   // Touch support
   area.ontouchstart = (e)=>{
     const t = e.touches[0];
+    const point = pointerInCropperSpace(t.clientX, t.clientY);
     _cropState.dragging=true;
-    _cropState.dragStartX = t.clientX - _cropState.offsetX;
-    _cropState.dragStartY = t.clientY - _cropState.offsetY;
+    _cropState.dragStartX = point.x - _cropState.offsetX;
+    _cropState.dragStartY = point.y - _cropState.offsetY;
   };
   area.ontouchmove = (e)=>{
     if(!_cropState?.dragging) return;
     const t = e.touches[0];
-    _cropState.offsetX = t.clientX - _cropState.dragStartX;
-    _cropState.offsetY = t.clientY - _cropState.dragStartY;
+    const point = pointerInCropperSpace(t.clientX, t.clientY);
+    _cropState.offsetX = point.x - _cropState.dragStartX;
+    _cropState.offsetY = point.y - _cropState.dragStartY;
     clampCropperOffsets();
     updateCropperDisplay();
     e.preventDefault();
@@ -3628,9 +3639,10 @@ function saveCroppedImage(card) {
 function showLeaderboard() {
   updateLeaderboardEntry();
   AI_OPPONENTS.forEach(ai=>{
-    if(!LEADERBOARD.find(e=>e.username===ai.name)){
-    LEADERBOARD.push({username:ai.name, elo:ai.elo, wins:0, losses:0, profileImg:ai.img||'blank.png', isAI:true});
-    }
+    const existing = LEADERBOARD.find(e=>e.username===ai.name);
+    const portrait = typeof getAIProfileImg === 'function' ? getAIProfileImg(ai, 'square') : 'blank.png';
+    if(!existing) LEADERBOARD.push({username:ai.name, elo:ai.elo, wins:0, losses:0, profileImg:portrait, isAI:true});
+    else if(existing.isAI) existing.profileImg = portrait;
   });
   saveLeaderboard();
   const sorted = [...LEADERBOARD].sort((a,b)=>b.elo-a.elo);
@@ -3647,7 +3659,10 @@ function showLeaderboard() {
     sorted.forEach((entry,i)=>{
       const isMe = entry.username===USER_PROFILE.username;
       const rankCls = i===0?' top1':i===1?' top2':i===2?' top3':'';
-      const imgSrc = entry.profileImg ? (typeof entry.profileImg==='string'?entry.profileImg:(entry.profileImg.dataUrl||entry.profileImg.cardImg)) : null;
+      const aiSource = entry.isAI && typeof getAIProfileImg === 'function'
+        ? ([...(typeof AI_OPPONENTS !== 'undefined' ? AI_OPPONENTS : []), ...(typeof MONTHLY_AI_OPPONENTS !== 'undefined' ? MONTHLY_AI_OPPONENTS : [])].find(ai=>ai.name===entry.username) || entry)
+        : null;
+      const imgSrc = aiSource ? getAIProfileImg(aiSource, 'square') : (entry.profileImg ? (typeof entry.profileImg==='string'?entry.profileImg:(entry.profileImg.dataUrl||entry.profileImg.cardImg)) : null);
       html += `<div class="lb-row${isMe?' me':''}" style="display:flex;align-items:center;gap:.6rem;padding:.5rem .6rem;border-bottom:1px solid var(--border);">
         <div class="lb-rank${rankCls}" style="width:32px;text-align:center;font-weight:700;flex-shrink:0;">#${i+1}</div>
         <div style="width:48px;height:48px;border-radius:8px;overflow:hidden;background:#0a0a0f;flex-shrink:0;display:flex;align-items:center;justify-content:center;${typeof getRankFrameStyle==='function'?getRankFrameStyle(entry.elo,'icon'):''}">

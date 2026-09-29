@@ -10,30 +10,9 @@ Support Company appears in the in-match deck window, including the developer dec
 - Desperate Reinforcement is unavailable without Morale rules. Paying the last point of Morale causes defeat.
 - The opponent sees the ability announcement and public Morale payment, never the selected card. Owner-only events and hand projections contain the selection.
 
-## Approved pool
+## Per-game pool
 
-The shared allowlist lives in `shared/support-company.mjs`. South Wind Spearman is excluded.
-
-| ID | Card |
-| --- | --- |
-| 16 | MINAE Death Squad |
-| 18 | 1st US Marines |
-| 21 | Henry Dong |
-| 26 | UCPD |
-| 30 | Santiago |
-| 36 | Marie L'amboure |
-| 39 | Juan Carlos |
-| 50 | Berkeley CS Major |
-| 52 | The Vigilantes |
-| 53 | Colombo Thug |
-| 61 | Maria Song |
-| 67 | Mr. Secules |
-| 79 | Havano Citizen |
-| 81 | Wojciech |
-| 86 | Boleslaw Kopewicz |
-| 97 | Visegrad Politician |
-| bh16 | Li-Hua (Battle-Ready) |
-| bh18 | Jimmy (Post-Cynthia Hug) |
+Each match randomly samples 10 distinct Supporters and 5 distinct characters from the eligible catalog (excluding star-rarity, retired, and temporarily disabled cards). Both abilities use this same pool for the whole match. The authoritative state saves it for reconnects and enforces membership in single-player and multiplayer. Canceling or reopening does not reroll the pool or spend a use; only selecting a card and confirming spends it.
 
 ## Animation review
 

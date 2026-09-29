@@ -16970,7 +16970,7 @@ html body .dc-bonus-row .dc-icon{
 }
 
 html body .dc-bonus-row .dc-icon::before{
-  content:'ALL'!important;
+  content:var(--fate-label-b5c7aed7cd,'ALL')!important;
   display:inline-flex!important;
   align-items:center!important;
   justify-content:center!important;
@@ -21518,7 +21518,7 @@ html body .card-info-overlay.card-detail-modern .cio-title{
 
 html body #modal.card-detail-modern .modal-title::before,
 html body .card-info-overlay.card-detail-modern .cio-title::before{
-  content:"CARD DOSSIER"!important;
+  content:var(--fate-label-41cf8adfd8,"CARD DOSSIER")!important;
   display:inline-flex!important;
   align-items:center!important;
   align-self:stretch!important;
@@ -27571,7 +27571,7 @@ html body #s-game:has(#board.zone-layout-444) .match-utility-panel{
   box-shadow:0 14px 36px rgba(0,0,0,.66),inset 0 0 0 1px rgba(231,196,86,.12)!important;
 }
 html body #s-game .match-utility-panel::before{
-  content:"FIELD RESOURCES"!important;
+  content:var(--fate-label-5ec3c1c34e,"FIELD RESOURCES")!important;
   position:absolute!important;
   top:7px!important;
   left:14px!important;
@@ -29520,4 +29520,69 @@ html body #s-challenger .ch-store-unopened-market .ch-store-unopened-title::-web
   width:0!important;
   height:0!important;
   display:none!important;
+}
+
+/* Store viewport fit: keep the pack panel visible and scroll its inventory. */
+@media (min-width:1181px) and (min-height:720px){
+  html body #s-challenger .ch-store-bank-value{
+    position:relative!important;
+    top:3px!important;
+  }
+  html body #s-challenger .ch-store-layout{
+    min-height:0!important;
+  }
+  html body #s-challenger .ch-store-market-column{
+    display:grid!important;
+    grid-template-rows:minmax(0,1fr) clamp(145px,22vh,230px)!important;
+    align-content:stretch!important;
+    /* The parent store uses zoom:1.1; size in its unscaled coordinate space. */
+    box-sizing:border-box!important;
+    height:calc((100dvh - 300px) / 1.1)!important;
+    max-height:calc((100dvh - 300px) / 1.1)!important;
+    min-height:0!important;
+    overflow:hidden!important;
+  }
+  html body #s-challenger .ch-store-market{
+    display:flex!important;
+    flex:1 1 auto!important;
+    flex-direction:column!important;
+    height:100%!important;
+    max-height:100%!important;
+    min-height:0!important;
+    box-sizing:border-box!important;
+    overflow:hidden!important;
+  }
+  html body #s-challenger .ch-store-market #marketplace-listings{
+    flex:1 1 auto!important;
+    min-height:0!important;
+    max-height:none!important;
+    overflow-y:auto!important;
+  }
+  html body #s-challenger .ch-store-unopened-market{
+    flex:none!important;
+    height:100%!important;
+    max-height:100%!important;
+    min-height:0!important;
+    overflow:hidden!important;
+  }
+  html body #s-challenger .ch-store-unopened-market .ch-store-unopened-title{
+    min-height:0!important;
+    overflow-y:auto!important;
+    scrollbar-width:thin!important;
+    scrollbar-color:#b88d2d #070b10!important;
+  }
+}
+
+/* Give every unopened booster row more clearance from the panel bottom. */
+html body #s-challenger .ch-store-unopened-market .ch-store-unopened-title{
+  position:relative!important;
+  top:calc(-5px / 1.1)!important;
+}
+
+/* Japanese store heading adds a line: reserve its height before the pack panel. */
+@media (min-width:1181px) and (min-height:720px){
+  html[lang="ja"] body #s-challenger .ch-store-market-column{
+    height:calc((100dvh - 340px) / 1.1)!important;
+    max-height:calc((100dvh - 340px) / 1.1)!important;
+  }
 }

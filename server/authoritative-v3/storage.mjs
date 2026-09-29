@@ -2,9 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {DatabaseSync} from 'node:sqlite';
 import {stableStringify} from '../../shared/engine/serialization.mjs';
+import {encodeStoredJson, decodeStoredJson} from './storage-json.mjs';
 
 function parseJson(value){
-  return value ? JSON.parse(String(value)) : null;
+  return decodeStoredJson(value);
 }
 
 export class SQLiteAuthorityStore {
@@ -219,7 +220,7 @@ export class SQLiteAuthorityStore {
       this.db.prepare(`
         INSERT INTO snapshots(match_id, revision, state_json, state_hash, created_at)
         VALUES(?, ?, ?, ?, ?)
-      `).run(state.matchId, state.revision, stableStringify(state), stateHash, now);
+      `).run(state.matchId, state.revision, encodeStoredJson(state), stateHash, now);
       this.db.exec('COMMIT');
     }catch(error){
       this.rollbackIfActive();
@@ -288,7 +289,7 @@ export class SQLiteAuthorityStore {
         command.commandId,
         playerId,
         stableStringify(command),
-        stableStringify(response),
+        encodeStoredJson(response),
         stateHash,
         now
       );
@@ -301,7 +302,7 @@ export class SQLiteAuthorityStore {
         this.db.prepare(`
           INSERT INTO snapshots(match_id, revision, state_json, state_hash, created_at)
           VALUES(?, ?, ?, ?, ?)
-        `).run(state.matchId, state.revision, stableStringify(state), stateHash, now);
+        `).run(state.matchId, state.revision, encodeStoredJson(state), stateHash, now);
         this.db.prepare(`
           DELETE FROM snapshots
           WHERE match_id = ?
@@ -323,7 +324,7 @@ export class SQLiteAuthorityStore {
 
   latestStoredState(matchId){
     const row=this.db.prepare('SELECT state_json AS stateJson FROM snapshots WHERE match_id = ? ORDER BY revision DESC LIMIT 1').get(matchId);
-    return row?JSON.parse(row.stateJson):null;
+    return row?parseJson(row.stateJson):null;
   }
 
   loadRecovery(matchId){

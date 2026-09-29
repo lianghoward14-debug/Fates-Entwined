@@ -8,13 +8,16 @@ export function comboPlan(state,player){
   const own=boardEntries(state).filter(e=>controllerOf(e.card)===player);
   const all=[...hand,...(owner.deck || []),...(owner.discard || []),...own.map(e=>e.card)];
   const has=ids=>ids.every(id=>all.some(c=>c.id===id));
-  const kind=has(['89','84','bh19','03'])?'patience':has(['87','bh19','bh06','07','bh24','80'])?'indie':null;
+  const kind=has(['89','84','bh19','03'])?'patience':has(['87','bh19','bh06'])?'indie':null;
   if(!kind)return null;
   const doubled=(state.statuses || []).some(s=>s.type==='PERMANENT_FATE_GAIN_POTENCY' && Number(s.playerIndex)===player && Number(s.remainingOwnerTurns)>0);
   const live=own.filter(e=>!e.card.faceDown && !isEffectSourceSuppressed(state,e));
   const anchor=kind==='patience'?live.find(e=>e.card.id==='89'):null;
   if(kind==='patience' && all.some(c=>c.id==='03' && Number(c.counters?.effectUses)>0))return null;
-  const ids=kind==='patience'?[...(!anchor?['89']:[]),...(!doubled?['bh19']:[]),'03']:[...(!doubled?['bh19']:[]),'87','bh06'];
+  const ballad=(state.statuses || []).some(s=>s.type==='CONSOLIDATION_FATE_BONUS' && Number(s.playerIndex)===player);
+  // Once Ukulele has resolved, reserve Achille rather than demanding a second Ukulele.
+  if(kind==='indie' && doubled && ballad && !hand.some(c=>c.id==='bh06'))return null;
+  const ids=kind==='patience'?[...(!anchor?['89']:[]),...(!doubled?['bh19']:[]),'03']:[...(!doubled?['bh19']:[]),...(!ballad?['87']:[]),'bh06'];
   const reserved=new Set(),missing=[];
   let demand=0;
   for(const id of ids){

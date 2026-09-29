@@ -426,7 +426,7 @@ function aiSleep(ms){
 }
 
 // Keep AI work visible without holding the frame loop hostage during board operations.
-const AI_VISUAL_PAUSE_THINK = 1100;
+const AI_VISUAL_PAUSE_THINK = 300;
 const AI_VISUAL_PAUSE_PLACE = 1650;
 const AI_VISUAL_PAUSE_CONSOLIDATE = 3100;
 const AI_VISUAL_PAUSE_EFFECTS = 900;
@@ -484,6 +484,7 @@ async function aiRunSearchQueue(items, worker, ctx, reason, budgetMs) {
   let chunkStart = aiNowMs();
   for(let i = 0; i < list.length; i++){
     if(aiShouldAbortSearch(ctx)) return false;
+    if(ctx?.searchDeadline != null && aiNowMs() >= ctx.searchDeadline) return false;
     worker(list[i], i);
     const elapsed = aiNowMs() - chunkStart;
     if(elapsed >= maxMs){
@@ -513,15 +514,22 @@ function aiGetMCTSConfig() {
 
 async function aiChooseMoveWithMCTS(moves, settings, ctx) {
   const cfg = aiGetMCTSConfig();
+  // Share one wall-clock budget across every search stage.
+  ctx = {...ctx, searchDeadline:aiNowMs() + Math.max(350, cfg.budgetMs)};
   const moveScores = [];
+  const bestCompleted = ()=>{
+    if(aiShouldAbortSearch(ctx)) return null;
+    const best = moveScores.reduce((best, ms)=>!best || ms.combined > best.combined ? ms : best, null);
+    return best ? {move:best.move, score:best.combined} : null;
+  };
   let bestBaseScore = -Infinity;
 
   const scored = await aiRunSearchQueue(moves, function(move){
     const baseScore = aiEvaluateMove(move);
-    moveScores.push({ move, baseScore, combined: 0 });
+    moveScores.push({ move, baseScore, combined: baseScore });
     if(baseScore > bestBaseScore) bestBaseScore = baseScore;
   }, ctx, 'score-moves', cfg.maxChunkMs);
-  if(!scored) return null;
+  if(!scored) return bestCompleted();
 
   const pruneThreshold = bestBaseScore - 25;
   const setupCandidates = new Set();
@@ -541,14 +549,14 @@ async function aiChooseMoveWithMCTS(moves, settings, ctx) {
     ms.combined = ms.baseScore + aiSimulateOutcome(ms.move);
     if(ms.combined > bestCombined) bestCombined = ms.combined;
   }, ctx, 'simulate-moves', cfg.maxChunkMs);
-  if(!simulated) return null;
+  if(!simulated) return bestCompleted();
 
   if(viable.length > 1){
     const deepThreshold = bestCombined - 5;
     const deepEvaluated = await aiRunSearchQueue(viable, function(ms){
       if(ms.combined >= deepThreshold) ms.combined += aiDeepEval(ms.move);
     }, ctx, 'deep-eval-moves', cfg.maxChunkMs);
-    if(!deepEvaluated) return null;
+    if(!deepEvaluated) return bestCompleted();
   }
 
   viable.sort((a,b)=>b.combined-a.combined);
@@ -607,7 +615,7 @@ async function aiRunRootMCTS(candidates, cfg, ctx) {
   });
 
   while(!aiShouldAbortSearch(ctx)){
-    if(aiNowMs() - started >= cfg.budgetMs && totalVisits >= cfg.minVisits) break;
+    if(aiNowMs() - started >= cfg.budgetMs || (ctx?.searchDeadline != null && aiNowMs() >= ctx.searchDeadline)) break;
     const child = aiSelectMCTSChild(candidates, totalVisits, cfg.exploration);
     const reward = aiMCTSPlayout(child.move, cfg.depth);
     child.mctsVisits++;
@@ -917,7 +925,7 @@ function aiGenerateAllMoves() {
       }
     }
   }
-  return moves;
+  return aiFilterIndieComboMoves(moves);
 }
 
 // Pick tributes for consolidation — sacrifice from lowest-value zones
@@ -1020,7 +1028,7 @@ function aiProjectedLandscapeFateBonus(card, move) {
   if(typeof isLandscapeActive === 'function' && isLandscapeActive('igb11') && card.type === 'Initiator') bonus += 3;
   if(move && move.type === 'consolidate' && typeof isLandscapeActive === 'function' && isLandscapeActive('igb3')) {
     const targetZone = aiLandscapeTargetZone();
-    if(G.turn < 10 && targetZone === move.z) bonus += 4;
+    if(G.turn <= 12 && targetZone === move.z) bonus += 4;
   }
   return bonus;
 }
@@ -1136,7 +1144,7 @@ function aiLandscapeMoveBonus(move) {
     bonus += myCon <= opCon ? 14 : 7;
   }
 
-  if(isLandscapeActive('igb3') && G.turn < 10 && move.type === 'consolidate' && targetZone === move.z) {
+  if(isLandscapeActive('igb3') && G.turn <= 12 && move.type === 'consolidate' && targetZone === move.z) {
     bonus += 16;
   }
 
@@ -3665,9 +3673,10 @@ async function aiDoPlace(choice) {
     }
     if(typeof markCardSetTurn === 'function') markCardSetTurn(inst, cp);
     if(typeof applyRiveraBuffToPlacedCard === 'function') applyRiveraBuffToPlacedCard(inst, inst.owner);
-    const characterSetCinematic = card.type !== 'Supporter' && typeof requestCharacterSetCinematic === 'function';
     const hammerSet = !cardIsSupporterForRules && isEffectFree && window.FateSquareFeedbackFx?.playSet({z:choice.z,r:choice.r,c:choice.c},inst,'hammer-lock');
-    if(characterSetCinematic) requestCharacterSetCinematic(inst, {z:choice.z, r:choice.r, c:choice.c, delayMs:hammerSet ? window.FateSquareFeedbackFx.hammerDuration : 90, source:'ai-set'});
+    const characterSetCinematic = card.type !== 'Supporter'
+      && typeof requestCharacterSetCinematic === 'function'
+      && requestCharacterSetCinematic(inst, {z:choice.z, r:choice.r, c:choice.c, delayMs:hammerSet ? window.FateSquareFeedbackFx.hammerDuration : 90, source:'ai-set'}) !== false;
     sourceList.splice(idx,1);
     if(!placementCountsAsConsolidated && typeof recordSupporterHardCapSet === 'function') recordSupporterHardCapSet(inst, cp);
     if(cardIsSupporterForRules && !placementCountsAsConsolidated) {
@@ -3931,32 +3940,16 @@ async function aiTriggerWhenSet(inst, z, r, c) {
 
   if(typeof applyRiveraBuffToPlacedCard === 'function') applyRiveraBuffToPlacedCard(inst, inst.owner);
 
-  if(G.oppSuppressedNextTurn && G.suppressTarget===cp && instIsSupporterForRules) {
+  if(G.oppSuppressedNextTurn && G.suppressTarget===cp && inst.type === 'Supporter' && !isFullyEffectImmuneCard(inst)) {
     if(typeof triggerMajaMischievousActivities === 'function') triggerMajaMischievousActivities(opp, {mode:'suppressed', sourceCard:inst});
     showBlockedAnimation('Effect SUPPRESSED - Semper Fidelis');
     return;
   }
 
-  if(inst.type === 'Supporter' && inst.id !== '92' && !isEffectImmuneSource(inst)) {
-    let lumberjack = null;
-    if(G.board && G.board[z]) G.board[z].forEach(function(row){ row.forEach(function(cell){
-      if(!lumberjack && cell && cell.owner === cp && cell.iid !== inst.iid && typeof cardActsAsPassive === 'function' && cardActsAsPassive(cell, '92') && !isSupporterEffectSuppressed(cell)) lumberjack = cell;
-    }); });
-    if(lumberjack) {
-      if(typeof applyWodnyPotokLumberjackSuppression === 'function') {
-        applyWodnyPotokLumberjackSuppression(inst, z, cp);
-      } else {
-        inst._lumberjackSuppressed = true;
-        inst.whenSetActivated = true;
-        inst.effectUsedInitial = true;
-        if(!inst._lumberjackReinforcementGranted) {
-          inst._lumberjackReinforcementGranted = true;
-          inst._reinforcementBonus = (Number(inst._reinforcementBonus) || 0) + 1;
-        }
-      }
-      showBlockedAnimation('Effect SUPPRESSED - Wood for the Hearth');
-      return;
-    }
+  if(typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(inst)) return;
+  if(applyWodnyPotokLumberjackSuppression(inst, z, cp)) {
+    showBlockedAnimation('Effect SUPPRESSED - Wood for the Hearth');
+    return;
   }
 
   if(instIsSupporterForRules && typeof canActivateLandscapeSupporterEffect === 'function' && !canActivateLandscapeSupporterEffect(cp)) return;
@@ -4019,8 +4012,8 @@ async function aiTriggerWhenSet(inst, z, r, c) {
     }
   }
 
-  if(typeof pressureCardReworkTimingActive === 'function'
-    && pressureCardReworkTimingActive()
+  if((['33','47'].includes(String(id || '')) || (typeof pressureCardReworkTimingActive === 'function'
+    && pressureCardReworkTimingActive()))
     && new Set(['20','33','47','64']).has(String(id || ''))
     && typeof window.recordLegacyMoralePressureCardSet === 'function') {
     window.recordLegacyMoralePressureCardSet(inst, {resolveWhenSetEffects:true});
@@ -4163,7 +4156,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       break;
     }
     case '07': { // Maja Kaminska: search up to 3 deck supporters, buff them, then +2 supporter plays
-      const sources = G.players[cp].deck.filter(c=>c.type==='Supporter');
+      const sources = G.players[cp].deck.filter(c=>cardHasCurrentEffectType(c, 'Supporter'));
       const strat = G._selectedAI?._deckStrategy || '';
       const priorities = aiDeckSearchPriority(strat, 'supporter');
       sources.sort((a,b)=>{
@@ -4201,7 +4194,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
           recordHandCardEffectModifier(c, {
             key:'maja-kaminska-oblique-order',
             name:'Maja Kaminska',
-            text:'Oblique Order: this Supporter gained +4 Fate permanently.',
+            text:'Oblique Order: this card gained +4 Fate.',
             fateDelta:4
           });
         }
@@ -4262,10 +4255,9 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       break;
     }
     case 'bh23': {
-      const eligibleIds = new Set(['15','bh02','bh08']);
       const sources = [];
       (G.board[z] || []).forEach(function(row){ (row || []).forEach(function(candidate){
-        if(candidate && candidate.owner === cp && eligibleIds.has(String(candidate.id || ''))) sources.push(candidate);
+        if(candidate && candidate.owner === cp && isTriggeredFateCoordinator(candidate)) sources.push(candidate);
       }); });
       sources.sort(function(a,b){
         return (Math.max(0, Number(b._triggeredFateHistoryTotal) || 0))
@@ -4274,7 +4266,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       if(sources.length){
         const source = sources[0];
         const inherited = Math.max(0, Number(source._triggeredFateHistoryTotal) || 0);
-        inst.currentFate = Math.max(0, Number(inst.currentFate ?? inst.fate) || 0) + inherited;
+        modifyFate(inst, inherited, 'permanent', cp);
         inst._bh23InheritedCoordinatorIid = String(source.iid || '');
         inst._bh23InheritedFate = inherited;
         inst.effectUsedInitial = true;
@@ -4332,7 +4324,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       break;
     }
     case '13': { // Johnathan Kirby: search deck for 2 supporters
-      const deckSups = G.players[cp].deck.filter(c=>c.type==='Supporter');
+      const deckSups = G.players[cp].deck.filter(c=>cardHasCurrentEffectType(c, 'Supporter'));
       // Deck strategy: Maelstrom prioritizes ALPINE Expeditionary (73) and Soviet Grenadiers (44)
       // Incel prioritizes Oathbound Noble Fighter (31)
       // Assault prioritizes Czechoslovak Maroon Knights (59)
@@ -4552,7 +4544,6 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       break;
     }
     case '90': { // Wojciech Fisherman: choose the affiliation with the largest deck pool and give those cards +3 Fate
-      if(typeof triggerJoieDrawEffectPassive === 'function') triggerJoieDrawEffectPassive(cp, {sourceCard:inst});
       const pools = {};
       G.players[cp].deck.forEach(function(deckCard){ if(deckCard && deckCard.aff) (pools[deckCard.aff] || (pools[deckCard.aff] = [])).push(deckCard); });
       const strat = G._selectedAI?._deckStrategy || '';
@@ -4569,8 +4560,10 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       chosen.forEach(function(found){
         G.players[cp].deck = G.players[cp].deck.filter(function(deckCard){ return deckCard.iid !== found.iid; });
         const beforeFate = Math.max(0, Number(found.currentFate ?? found.fate) || 0);
-        found.currentFate = beforeFate + 3;
-        if(typeof applyChineseMacArthurFateRider === 'function') applyChineseMacArthurFateRider(found, beforeFate, found.currentFate);
+        if(!(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(found))){
+          found.currentFate = beforeFate + 3;
+          if(typeof applyChineseMacArthurFateRider === 'function') applyChineseMacArthurFateRider(found, beforeFate, found.currentFate);
+        }
         if(typeof recordHandCardEffectModifier === 'function' && !(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(found))) {
           recordHandCardEffectModifier(found, {
             key:'wojciech-fisherman:' + (inst.iid || inst.id || 'source'),
@@ -4607,6 +4600,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
         G.players[cp].deck = G.players[cp].deck.filter(function(deckCard){ return deckCard.iid !== found.iid; });
         found._fateHandArrivalKind = 'search';
         if(typeof ensureMailDeliveryState === 'function') ensureMailDeliveryState().push({player:cp, card:found, turnsLeft:4, sourceIid:inst.iid});
+        if(typeof resolveBoleslawAfterSearchSelection==='function') await resolveBoleslawAfterSearchSelection(cp,[found],{sourceCardId:'94'});
       }
       break;
     }
@@ -4786,10 +4780,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       if(typeof activateUsMarinesSuppressionEffect === 'function') activateUsMarinesSuppressionEffect(cp, opp, {silent:true});
       else { G.oppSuppressedNextTurn=true; G.suppressTarget=opp; }
       break;
-    case '33': // West Caribbea Infantry: next character added to hand gets boosted
-      if(window.FATE_PRESSURE_CARD_REWORKS_ENABLED === true) break;
-      G._westCaribNext = { owner: cp };
-      if(typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
+    case '33': // Morale recovery is resolved by the shared when-set hook above.
       break;
     case '34': { // Rozsi Szocs: declare the affiliation for Morale damage.
         const counts={};(G.board[z]||[]).forEach(row=>row.forEach(card=>{if(card&&card.owner===cp){const aff=String(card.aff||card.affiliation||'');counts[aff]=(counts[aff]||0)+1;}}));
@@ -4935,7 +4926,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       break;
     }
     case '58': { // Crossroads: add supporter from discard
-      const sups = typeof getRecoverableDiscardCards === 'function' ? getRecoverableDiscardCards(cp, c=>(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(c, cp) : c.type==='Supporter')) : G.players[cp].discard.filter(c=>(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(c, cp) : c.type==='Supporter'));
+      const sups = typeof getRecoverableDiscardCards === 'function' ? getRecoverableDiscardCards(cp, c=>cardHasCurrentEffectType(c, 'Supporter')) : G.players[cp].discard.filter(c=>cardHasCurrentEffectType(c, 'Supporter'));
       if(sups.length){
         // Deck-aware: prioritize recycling key supporters
         const strat = G._selectedAI?._deckStrategy || '';
@@ -4971,7 +4962,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       } break;
     }
     case '60': { // IB Student: search deck for supporter
-      const sups = G.players[cp].deck.filter(c=>typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(c, cp) : c.type==='Supporter');
+      const sups = G.players[cp].deck.filter(c=>cardHasCurrentEffectType(c, 'Supporter'));
       if(sups.length){
         const strat = G._selectedAI?._deckStrategy || '';
         const priorities = aiDeckSearchPriority(strat, 'supporter').length ? aiDeckSearchPriority(strat, 'supporter')
@@ -5064,7 +5055,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       } break;
     }
     case '68': { // Great Oak High Schooler: add Coordinator from deck
-      const coords = G.players[cp].deck.filter(c=>c.type==='Coordinator' && c.rarity!=='star');
+      const coords = G.players[cp].deck.filter(c=>cardHasCurrentEffectType(c, 'Coordinator') && c.rarity!=='star');
       if(coords.length){
         const strat = G._selectedAI?._deckStrategy || '';
         let priority = aiDeckSearchPriority(strat, 'coordinator');
@@ -5631,3 +5622,32 @@ async function aiRunEffect(card, z, r, c) {
 }
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+// Mandatory Indie sequencing applies before scoring and fallback selection.
+function aiFilterIndieComboMoves(moves){
+  const cp=G.aiPlayer,owner=G.players[cp],hand=owner.hand||[],own=[];
+  forEachBoardCard((card,z,r,c)=>{if(card.owner===cp)own.push({card,z,r,c});});
+  const ids=new Set([...hand,...(owner.deck||[]),...(owner.discard||[]),...own.map(e=>e.card)].map(c=>String(c.id)));
+  if(!['87','bh19','bh06'].every(id=>ids.has(id)))return moves;
+  const doubled=typeof getHighTPotencyCount==='function'&&getHighTPotencyCount(cp)>0;
+  const ballad=(G._balladEffects?.[cp]||[]).some(e=>e&&e.active&&!e.ended);
+  const uke=hand.find(c=>c.id==='87'),achille=hand.find(c=>c.id==='bh06');
+  const cost=c=>c?Math.max(0,Number(typeof getDisplayedCardCost==='function'?getDisplayedCardCost(c):c.cost)||0):0;
+  const supply=own.reduce((n,e)=>n+(e.card.type==='Supporter'&&canUseAsConsolidationTribute(e.card,cp,e.z,e.r,e.c)?getSupportReinforcementValue(e.card):0),0);
+  const isToken=c=>typeof isAchillesAdaptiveToken==='function'&&isAchillesAdaptiveToken(c);
+  const tokens=hand.some(isToken);
+  const remaining=m=>{
+    const spent=new Set((m.tributes||[]).map(t=>t.card.iid));
+    return own.reduce((n,e)=>n+(!spent.has(e.card.iid)&&e.card.type==='Supporter'&&canUseAsConsolidationTribute(e.card,cp,e.z,e.r,e.c)?getSupportReinforcementValue(e.card):0),0);
+  };
+  const filtered=moves.filter(m=>{
+    if(m.card.id==='bh19')return remaining(m)>=cost(uke)+cost(achille)&&!doubled&&!!uke&&!!achille&&G.turn>=6&&supply>=cost(m.card)+cost(uke)+cost(achille);
+    if(m.card.id==='87')return doubled&&!!achille&&remaining(m)>=cost(achille);
+    if(m.card.id==='bh06')return doubled&&ballad;
+    if(ballad&&doubled&&(achille||tokens)&&m.card.type==='Supporter'&&!isToken(m.card))return false;
+    if(!doubled&&uke&&achille&&m.type==='consolidate')return false;
+    return true;
+  });
+  const next=doubled?(ballad?(tokens?filtered.filter(m=>isToken(m.card)):filtered.filter(m=>m.card.id==='bh06')):filtered.filter(m=>m.card.id==='87')):[];
+  return next.length?next:filtered;
+}

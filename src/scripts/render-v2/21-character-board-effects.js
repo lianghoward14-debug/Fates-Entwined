@@ -18,8 +18,21 @@
     const bannerCard = typeof CARDS !== 'undefined' ? CARDS.find(card=>String(card.id)===(kind==='scope'?'61':kind==='possibility'?'17':'04')) : null;
     window.FateActivationBanner?.play(bannerCard, {sfx:false});
     const sound=window.FateApprovedActivationSfx?.play(kind==='scope'?'61':kind==='possibility'?'17':'04');
-    const dpr=Math.min(2,window.devicePixelRatio||1),w=window.innerWidth,h=window.innerHeight;
-    canvas.width=w*dpr;canvas.height=h*dpr;canvas.style.cssText='position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:12990';canvas.setAttribute('aria-hidden','true');canvas.dataset.characterBoardEffect=kind;document.body.appendChild(canvas);
+    const dpr=Math.min(2,window.devicePixelRatio||1);
+    canvas.style.cssText='position:fixed;pointer-events:none;z-index:12990';canvas.setAttribute('aria-hidden','true');canvas.dataset.characterBoardEffect=kind;document.body.appendChild(canvas);
+    let bounds=null;
+    function fitSurface(r,src){
+      const pad=Math.max(r.w,r.h)/67*110+32;
+      const left=Math.max(0,Math.floor(Math.min(r.x-pad,src?src.x-pad:r.x-pad)));
+      const top=Math.max(0,Math.floor(Math.min(r.y-pad,src?src.y-pad:r.y-pad)));
+      const right=Math.min(window.innerWidth,Math.ceil(Math.max(r.x+r.w+pad,src?src.x+src.w+pad:r.x+r.w+pad)));
+      const bottom=Math.min(window.innerHeight,Math.ceil(Math.max(r.y+r.h+pad,src?src.y+src.h+pad:r.y+r.h+pad)));
+      const next={x:left,y:top,w:Math.max(1,right-left),h:Math.max(1,bottom-top)};
+      if(!bounds||Object.keys(next).some(k=>next[k]!==bounds[k])){
+        bounds=next;canvas.width=Math.ceil(next.w*dpr);canvas.height=Math.ceil(next.h*dpr);
+        canvas.style.left=next.x+'px';canvas.style.top=next.y+'px';canvas.style.width=next.w+'px';canvas.style.height=next.h+'px';
+      }
+    }
     // Carolyn and Zoe's newly-added board cinematics intentionally hold for a
     // full two seconds. Keep this local instead of inheriting the global
     // activation speed so later tuning elsewhere cannot shorten them again.
@@ -30,13 +43,16 @@
     function draw(now){
       if(dead)return;if(disabled()){finish();return;}
       const t=cl((now-start)/duration),r=rect(target)||initial,cx=r.x+r.w/2,cy=r.y+r.h/2,scale=Math.max(r.w,r.h)/67;
-      ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);ctx.strokeStyle=color;ctx.shadowColor=color;ctx.shadowBlur=10;ctx.lineWidth=2;
+      const sourceRect=kind==='scope'?rect(source):null;
+      fitSurface(r,sourceRect);
+      ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,canvas.width,canvas.height);
+      ctx.setTransform(dpr,0,0,dpr,-bounds.x*dpr,-bounds.y*dpr);ctx.strokeStyle=color;ctx.shadowColor=color;ctx.shadowBlur=10;ctx.lineWidth=2;
       function line(points,a=1){ctx.globalAlpha=cl(a);ctx.beginPath();points.forEach((p,i)=>i?ctx.lineTo(...p):ctx.moveTo(...p));ctx.stroke();}
       function ring(radius,a){ctx.globalAlpha=cl(a);ctx.beginPath();ctx.arc(cx,cy,Math.max(1,radius),0,Math.PI*2);ctx.stroke();}
       if(kind==='scope'){
         const q=cl(t/.54),radius=(52-29*(1-Math.pow(1-q,3)))*scale,charge=Math.sin(Math.PI*cl(t/.59));
         ring(radius,charge);line([[cx-radius-9*scale,cy],[cx+radius+9*scale,cy]],charge);line([[cx,cy-radius-9*scale],[cx,cy+radius+9*scale]],charge);
-        if(t>.49&&t<.77){const src=rect(source),sx=src?src.x+src.w/2:cx-90*scale,sy=src?src.y+src.h/2:cy+65*scale,k=cl((t-.49)/.11);ctx.lineWidth=4;line([[sx,sy],[sx+(cx-sx)*k,sy+(cy-sy)*k]],1-cl((t-.60)/.17));ctx.lineWidth=2;}
+        if(t>.49&&t<.77){const src=sourceRect,sx=src?src.x+src.w/2:cx-90*scale,sy=src?src.y+src.h/2:cy+65*scale,k=cl((t-.49)/.11);ctx.lineWidth=4;line([[sx,sy],[sx+(cx-sx)*k,sy+(cy-sy)*k]],1-cl((t-.60)/.17));ctx.lineWidth=2;}
       }else if(kind==='possibility'){
         const q=1-Math.pow(1-cl(t/.70),3),fade=Math.sin(Math.PI*cl(t/.82));
         for(let k=0;k<7;k++){

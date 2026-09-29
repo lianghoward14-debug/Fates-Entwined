@@ -1,4 +1,5 @@
 import {DRAW_EFFECT_CARD_IDS} from './cards/draw-effects.mjs';
+import {supportCompanyPool} from './support-company.mjs';
 import {ENGINE_VERSION, RULESET_VERSION, SCHEMA_VERSION} from './constants.mjs';
 import {normalizeMultiplayerPhoto} from '../profile-photo.mjs';
 import {createRngState, nextInt, shuffleInPlace} from './rng.mjs';
@@ -186,7 +187,9 @@ export function createInitialState(input = {}){
       affiliation:String(definition.affiliation || definition.aff || ''),
       rarity:String(definition.rarity || ''),
       fate:Number(definition.fate || 0),
-      cost:Number(definition.cost || 0)
+      cost:Number(definition.cost || 0),
+      retired:!!definition.retired,
+      temporarilyDisabled:!!definition.temporarilyDisabled
     })),
     players:playerStates,
     board:createEmptyBoard(
@@ -233,6 +236,7 @@ export function createInitialState(input = {}){
       state.queuedExtraSupporters[playerIndex] = 0;
     }
   }
+  state.supportCompanyPool = supportCompanyPool(state);
   state.landscapeState = createLandscapeState(state.landscapeId, state.rngState);
   initializeLandscapeHandCards(state);
   return state;

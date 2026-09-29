@@ -143,7 +143,7 @@ function applyPlacementLandscape(state, card, z){
     const theirs = totalScore(state,1-card.owner);
     if(mine > theirs) card.currentFate += 2;
   }
-  if(state.landscape === 'igb3' && z === state.landscapeTargetZone && state.turn < 10 && card.type !== 'Supporter') card.currentFate += 4;
+  if(state.landscape === 'igb3' && z === state.landscapeTargetZone && state.turn <= 12 && card.type !== 'Supporter') card.currentFate += 4;
 }
 
 function applyDrawOrSearch(state, player, card, text){

@@ -362,7 +362,7 @@
   function refreshFriendRequestsModal(){
     const title = document.getElementById('modal-title');
     const body = document.getElementById('modal-body');
-    if(!title || !body || !/^Friend Requests/.test(title.textContent || '')) return;
+    if(!title || !body || !/^Friend Requests/.test((window.FateI18n ? window.FateI18n.sourceText(title) : title?.textContent) || '')) return;
     const reqUids = Object.keys(requests || {});
     title.textContent = `Friend Requests (${reqUids.length})`;
     body.innerHTML = friendRequestsBody();
@@ -1932,7 +1932,7 @@
     }
     const panel = document.getElementById('world-chat-panel');
     if(panel){
-      const sendBtn = Array.from(panel.querySelectorAll('button')).find(b=>(b.textContent||'').trim().toLowerCase()==='send');
+      const sendBtn = Array.from(panel.querySelectorAll('button')).find(b=>((window.FateI18n ? window.FateI18n.sourceText(b) : b?.textContent)||'').trim().toLowerCase()==='send');
       if(sendBtn){
         sendBtn._fateOnlineChatBound = true;
         sendBtn.onclick = ()=>window.sendWorldChat();

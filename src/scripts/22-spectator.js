@@ -438,7 +438,7 @@
     g.playerProfiles = { 0: gameProfileFromPublic(hostProf, 'Host'), 1: gameProfileFromPublic(guestProf, 'Guest') };
 
     // Start game
-    if(typeof window.startGame === 'function') window.startGame(false);
+    if(typeof window.startGame === 'function') window.startGame(false, {spectatorBootstrap:true});
 
     // Restore spectator state after startGame resets things
     g._onlineRoomCode = roomCode;
@@ -640,6 +640,7 @@
   function subscribeSpectatorActions(code){
     if(spectatorActionsUnsub) try{ spectatorActionsUnsub(); }catch(e){}
     function consumeCanonicalAction(action){
+      if(spectatingRoom !== code) return;
       const seq = Number(action?.seq || 0) || 0;
       if(!seq || seq <= spectatorLastActionSeq) return;
       const payload = action?.payload || {};
@@ -657,11 +658,13 @@
         spectatorActionPollInFlight = true;
         try{
           const data = await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}/events?after=${encodeURIComponent(spectatorLastActionSeq)}&limit=120&spectator=1`);
+          if(stopped || spectatingRoom !== code) return;
           const events = Array.isArray(data.events) ? data.events : [];
           events.forEach(item=>consumeCanonicalAction(item?.action || item));
           const serverSeq = Number(data.lastSeq || 0) || 0;
           if(serverSeq > spectatorLastActionSeq && !events.length){
             const recovery = await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}/resume?after=${encodeURIComponent(spectatorLastActionSeq)}&limit=120&includeState=1&spectator=1`);
+            if(stopped || spectatingRoom !== code) return;
             const recoveryEvents = Array.isArray(recovery.events) ? recovery.events : [];
             recoveryEvents.forEach(item=>consumeCanonicalAction(item?.action || item));
             if(recovery.canonicalState && Number(recovery.lastSeq || 0) > spectatorLastActionSeq){
@@ -711,6 +714,7 @@
         spectatorRoomPollInFlight = true;
         try{
           const data = await flyApiRequest(`/api/rooms/${encodeURIComponent(code)}?spectator=1`);
+          if(stopped || spectatingRoom !== code) return;
           const room = data.room || {};
           spectatorHostUid = String(room.hostUid || spectatorHostUid || initialRoom?.hostUid || '');
           spectatorGuestUid = String(room.guestUid || spectatorGuestUid || initialRoom?.guestUid || '');
@@ -766,6 +770,7 @@
     let chatUnsub = null;
     let lastChatJson = '';
     statusUnsub = FO().onValue(FO().ref(FO().rtdb, `rooms/${code}/status`), snap=>{
+      if(spectatingRoom !== code) return;
       const status = snap.val();
       if(!status){
         if(typeof toast === 'function') toast('Match room no longer exists');
@@ -774,7 +779,7 @@
       }
       if(status === 'ended'){
         if(typeof toast === 'function') toast('Match has ended');
-        setTimeout(()=> leaveSpectating(), 4000);
+        setTimeout(()=> leaveSpectating({expectedCode:code}), 4000);
       }
     });
     // Watch chat separately to avoid downloading actions/players on every change
@@ -980,6 +985,10 @@
 
   function leaveSpectating(options){
     const opts = options && typeof options === 'object' ? options : {};
+    if(window.fateAuthorityV3Beta?.report?.().spectatingMatchId){
+      window.fateAuthorityV3Beta.stopSpectating({showWarfront:!opts.silent});
+      return true;
+    }
     const code = spectatingRoom;
     if(opts.expectedCode && String(opts.expectedCode) !== String(code || '')) return false;
     const current = typeof window.getFateGameState === 'function' ? window.getFateGameState() : window.FATE_GAME_STATE;
@@ -1028,8 +1037,10 @@
       g._onlineActionLogMode = false;
       g._onlineApplyingRemoteAction = false;
     }
-    if(typeof window.cleanupGame === 'function') window.cleanupGame();
-    if(typeof window.showScreen === 'function') window.showScreen('s-title');
+    if(!opts.silent){
+      if(typeof window.cleanupGame === 'function') window.cleanupGame();
+      if(typeof window.showScreen === 'function') window.showScreen('s-title');
+    }
     return true;
   }
 

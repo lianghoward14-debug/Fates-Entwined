@@ -1,4 +1,12 @@
-import {supportCompanyAvailability, supportCompanyCardEligible} from '../support-company.mjs';
+import {supportCompanyAvailability, supportCompanyCardEligible, createSupportCompanyPool} from '../support-company.mjs';
+import {createRngState, nextUint32} from './rng.mjs';
+
+export function supportCompanyPool(state){
+  if(Array.isArray(state.supportCompanyPool)) return state.supportCompanyPool;
+  // Stable fallback for snapshots created before pools were persisted.
+  const rng=createRngState(`${state.rngState?.seed || state.matchId}:support-company`);
+  return createSupportCompanyPool(state.cardCatalog || [], ()=>nextUint32(rng)/4294967296);
+}
 
 export function supportCompanyCommands(state, player){
   if(state.phase !== 'main' || state.outcome || state.pendingPrompt || state.pendingHandLimit
@@ -7,7 +15,8 @@ export function supportCompanyCommands(state, player){
     state.moralePressure?.morale?.[player], state.gameSettings?.healthPressureSeals === true);
   const ability = available.call ? 'call' : available.desperate ? 'desperate' : null;
   if(!ability) return [];
-  return (state.cardCatalog || []).filter(supportCompanyCardEligible).map(card=>({
+  const pool = supportCompanyPool(state);
+  return (state.cardCatalog || []).filter(supportCompanyCardEligible).filter(card=>pool.includes(String(card.id))).map(card=>({
     type:'SUPPORT_COMPANY', payload:{ability, cardId:String(card.id)}
   }));
 }

@@ -46,9 +46,10 @@ assert.equal(effectiveReinforcement(state, findBoardCard(state, army.iid), 0), 2
 army.statuses.push('EFFECTS_SUPPRESSED');
 assert.equal(
   effectiveReinforcement(state, findBoardCard(state, army.iid), 0),
-  2,
-  'the printed reinforcement value is intrinsic rather than an activated effect'
+  1,
+  'suppression disables the additional reinforcement passive'
 );
+army.statuses = army.statuses.filter(status=>status !== 'EFFECTS_SUPPRESSED');
 const character = state.players[0].hand.find(card=>card.id === 'custom-character');
 let result = reduceCommand(
   state,

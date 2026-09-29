@@ -35,9 +35,9 @@ function ownSetDestination(state, playerIndex, destination){
 function opponentAlondraBlocksSupporterSet(state, playerIndex, destination){
   return boardEntries(state).some(entry=>
     entry.z === Number(destination.z)
-    && String(entry.card.id || '') === '14'
+    && runtimeRuleId(entry.card) === '14'
     && controllerOf(entry.card) !== Number(playerIndex)
-    && !entry.card.statuses?.includes('EFFECTS_SUPPRESSED')
+    && !isEffectSourceSuppressed(state, entry)
     && Math.abs(entry.r - Number(destination.r))
       + Math.abs(entry.c - Number(destination.c)) === 1
   );
@@ -399,23 +399,7 @@ export function legalCommandTemplates(state, playerIndex){
           && !entry.card.statuses?.includes('EFFECTS_SUPPRESSED')
         );
         if(colomboRestricted && tributes.some(entry=>entry.z !== destination.z)) continue;
-        const remainingCharacters = boardEntries(state).filter(entry=>
-          entry.z === destination.z
-          && controllerOf(entry.card) === player
-          && structuralCardType(state, entry.card) !== 'Supporter'
-          && !tributes.some(tribute=>String(tribute.card.iid) === String(entry.card.iid))
-        );
-        if(String(card.id || '') === '45'){
-          if(remainingCharacters.length) continue;
-          if(state.gameSettings?.pressureCardReworks !== true && boardEntries(state).some(entry=>
-            String(entry.card.id || '') === '45'
-            && Number(entry.card.owner) === player
-            && !tributes.some(tribute=>String(tribute.card.iid) === String(entry.card.iid))
-          )) continue;
-        }else if(remainingCharacters.some(entry=>
-          String(entry.card.id || '') === '45'
-          && !entry.card.statuses?.includes('EFFECTS_SUPPRESSED')
-        )) continue;
+        if(!consolidationPlacementCheck(state, card, player, destination, tributes.map(entry=>entry.card.iid)).ok) continue;
         const preview = placementPreview(
           state,
           player,
@@ -458,7 +442,13 @@ export function legalCommandTemplates(state, playerIndex){
   for(const entry of state.board.flatMap((zone, z)=>
     zone.flatMap((row, r)=>row.map((card, c)=>card ? {card, z, r, c} : null).filter(Boolean))
   )){
-    if(controllerOf(entry.card) !== player) continue;
+    if(controllerOf(entry.card) !== player){
+      if(String(entry.card.id) === '62' && rowOwner(state, entry.z, entry.r) === player
+        && (isEffectSourceSuppressed(state, entry) || state.players[player].hand.length >= 2)){
+        commands.push({type:'DISCARD_CARD', payload:{targetIid:entry.card.iid, reason:'CLEAR_BERKELEY'}});
+      }
+      continue;
+    }
     // Single-player parity: during the active main phase a player may manually
     // discard any controlled board card except immutable ALPINE Infantry.
     if(String(entry.card.id || '') !== '76'){

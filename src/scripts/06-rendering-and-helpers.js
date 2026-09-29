@@ -885,9 +885,9 @@ function performGameRender(parts) {
 
 function isCardVisuallySuppressed(card, z, r, c) {
   if(!card) return false;
-  if(isCardVisuallyNegated(card)) return false;
+  if(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(card)) return false;
   try {
-    if(typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(card, z, r, c) && !card._effectNegatedByReaction) return true;
+    if(typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(card, z, r, c)) return true;
   } catch(e) {}
   try {
     if(card.type === 'Supporter' && typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(card)) return true;
@@ -901,7 +901,7 @@ function isCardVisuallySuppressed(card, z, r, c) {
 if(typeof window !== 'undefined') window.isCardVisuallySuppressed = isCardVisuallySuppressed;
 
 function isCardVisuallyNegated(card) {
-  return !!(card && card._effectNegatedByReaction);
+  return !!(card && card._effectNegatedByReaction && !isCardVisuallySuppressed(card));
 }
 if(typeof window !== 'undefined') window.isCardVisuallyNegated = isCardVisuallyNegated;
 
@@ -1259,8 +1259,8 @@ function getCardStatusVisualState(card, statuses) {
   const flash = active.effectFlash && active.effectFlash.kind ? active.effectFlash : null;
   let primary = '';
   // Temporary overlays always cover persistent statuses for their full
-  // duration. Once they expire, the most recently applied persistent overlay
-  // resumes. This single selector is shared by DOM and canvas rendering.
+  // duration. Once they expire, suppression stays visible; otherwise the most
+  // recent persistent overlay resumes. DOM and canvas share this selector.
   for(let i = 0; i < TEMPORARY_CARD_STATUS_VISUAL_PRIORITY.length; i++) {
     const kind = TEMPORARY_CARD_STATUS_VISUAL_PRIORITY[i];
     if((kind === 'effect_flash' && flash) || (kind !== 'effect_flash' && active[kind])) {
@@ -1285,7 +1285,7 @@ function getCardStatusVisualState(card, statuses) {
   }else{
     latestPermanent = activePermanent[activePermanent.length - 1] || '';
   }
-  if(!primary) primary = latestPermanent;
+  if(!primary) primary = active.suppressed ? 'suppressed' : latestPermanent;
   if(key) {
     const signature = primary === 'effect_flash'
       ? primary + ':' + String(flash && flash.at || '') + ':' + String(flash && flash.kind || '')
@@ -2380,10 +2380,6 @@ function resolveBattleOfPellaDiscard(winner, choice) {
   G._igb20ResolvingDiscard = true;
   G._onlineResolvingPickerAction = (Number(G._onlineResolvingPickerAction || 0) || 0) + 1;
   try {
-    // Pella resolves from a modal over the live board. Its target must vanish
-    // on confirmation; the generic discard fly-clone otherwise makes the
-    // already-removed card appear to linger for several seconds.
-    live._suppressDiscardVfx = true;
     discardBoardCard(live, z, r, c);
   } finally {
     delete G._landscapeFateThresholdResolvingDiscard;
@@ -6794,7 +6790,9 @@ function updatePlayerBanners() {
   const normalizeOnlineBannerProfile = (profile, playerIndex) => {
     const p = profile || {};
     const name = p.name || p.chosenUsername || p.displayName || p.username || p.baseCode || G.players[playerIndex]?.name || `Player ${playerIndex + 1}`;
-    const img = window.FateOnline?.profilePhoto
+    const img = p.isAI && typeof window.getAIProfileImg === 'function'
+      ? window.getAIProfileImg({...p, name}, 'square')
+      : window.FateOnline?.profilePhoto
       ? window.FateOnline.profilePhoto(p)
       : (p.img || p.photoURL || p.profileImg || p.pfp || 'blank.png');
     const crop = window.FateOnline?.profilePhotoCropStyle
@@ -7276,14 +7274,14 @@ function canUseBusserMoveButton(card, actionPlayer) {
 
 function isBerkeleyHomelessEffectCard(card) {
   if(!card || !(card.berkeleyHomeless || String(card.id || '') === '62')) return false;
-  return !(typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(card));
+  return true;
 }
 
 function canDiscardBerkeleyHomelessEffect(card, z, r, c, player) {
   player = Number(player);
   if(!isBerkeleyHomelessEffectCard(card)) return false;
   if(!Number.isInteger(player) || Number(card.owner) === player) return false;
-  if(!G || Number(G.currentPlayer) !== player) return false;
+  if(!G || Number(G.currentPlayer) !== player || G.phase !== 'main') return false;
   if(G._isSpectator || G._onlineRole === 'spectator') return false;
   const rowOwner = typeof getBoardRowOwner === 'function'
     ? getBoardRowOwner(z, r)
@@ -7299,6 +7297,12 @@ function discardBerkeleyHomelessWithHandCost(card, z, r, c, options = {}) {
   if(!isBerkeleyHomelessEffectCard(card) || card.owner === actionPlayer) return false;
   if(!canDiscardBerkeleyHomelessEffect(card, z, r, c, actionPlayer)){
     toast('Berkeley Homeless can only be removed from your side of the field.');
+    return true;
+  }
+  if(typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(card)){
+    G.board[z][r][c] = null;
+    fatePushDiscard(card.owner, card);
+    renderBoardActionForPlayer(actionPlayer, {hand:true, piles:true});
     return true;
   }
   const hand = G.players[actionPlayer].hand;
@@ -7594,7 +7598,7 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
     if(canDiscardBerkeleyHomeless){
       const berkeleyDisc=document.createElement('button');
       berkeleyDisc.className='btn sm danger';
-      berkeleyDisc.textContent='Clearing Them Off';
+      berkeleyDisc.textContent=isCardEffectSuppressed(bc) ? 'Discard' : 'Discard (expend 2 hand cards)';
       berkeleyDisc.onclick=()=>{
         closeModal();
         discardBerkeleyHomelessWithHandCost(bc, z, r, c);
@@ -7717,7 +7721,7 @@ function openCardDetailFromDeckPreview(card, returnToPreview) {
     if(modalEl) modalEl.classList.add('on');
   };
   const acts = document.getElementById('modal-acts');
-  const closeBtn = acts && Array.from(acts.querySelectorAll('button')).find(btn => /^close$/i.test((btn.textContent || '').trim()));
+  const closeBtn = acts && Array.from(acts.querySelectorAll('button')).find(btn => /^close$/i.test(((window.FateI18n ? window.FateI18n.sourceText(btn) : btn?.textContent) || '').trim()));
   if(closeBtn) {
     closeBtn.textContent = 'Back';
     closeBtn.onclick = backToPreview;
@@ -7958,6 +7962,8 @@ function showModal(title, bodyHtml, actions, opts) {
 
 function closeModal(opts) {
   const modal = document.getElementById('modal');
+  if(modal?._mandatoryCardChoice && !(opts && opts.cardChoiceResolved)) return false;
+  if(modal) delete modal._mandatoryCardChoice;
   const closingHandLimit = isHandLimitDiscardModalOpen();
   if(closingHandLimit
     && isAuthoritativeLocalHandLimitPending()
@@ -8943,14 +8949,15 @@ function pickCardsVisual(cards, opts, onConfirm) {
   if(minCount > 0){ ok.disabled = true; ok.style.opacity = '.4'; }
   ok.onclick=()=>{
     if(minCount > 0 && selected.length < minCount){ toast('You must select at least '+minCount+' card(s)'); return; }
-    closeModal();onConfirm(selected.map(i=>cards[i]));
+    closeModal({cardChoiceResolved:true});onConfirm(selected.map(i=>cards[i]));
     opts._characterBannerConfirm?.();
   };
   const cl=document.createElement('button');
   cl.className='btn sm';cl.textContent='Cancel';
   cl.onclick=()=>{closeModal();if(opts.onCancel) opts.onCancel();};
-  if(minCount <= 0) document.getElementById('modal-acts').appendChild(cl);
+  if(opts.allowCancel === true || (minCount <= 0 && opts.allowCancel !== false)) document.getElementById('modal-acts').appendChild(cl);
   document.getElementById('modal-acts').appendChild(ok);
+  modalRoot._mandatoryCardChoice = opts.allowCancel === false;
   modalRoot.classList.add('on');
   const modalBox = document.querySelector('#modal .modal');
   if(modalBox) {
@@ -9842,8 +9849,7 @@ function discardBoardCard(card, z, r, c, options = {}) {
   // ALPINE Infantry cannot be discarded
   if(card.id==='76'){toast(card.name+' cannot be discarded');return;}
   if(discardBerkeleyHomelessWithHandCost(card, z, r, c, options)) return;
-  const replacedByGuerilla = (typeof cardActsAsPassive === 'function' ? cardActsAsPassive(card, '70') : card.id==='70') && !card.guerilla_transferred;
-  const revealDiscard = options.revealDiscard === true && !replacedByGuerilla;
+  const revealDiscard = options.revealDiscard === true;
   if(revealDiscard) {
     card.faceDown = false;
     showSantiagoDiscardBanner(card);
@@ -9892,28 +9898,7 @@ function discardBoardCard(card, z, r, c, options = {}) {
     }
   }
   // Mr. Secules (67): one-use reaction state lives on the card instance.
-  if((typeof cardActsAsPassive === 'function' ? cardActsAsPassive(card, '70') : card.id==='70') && !card.guerilla_transferred){
-    const originalOwner = card.owner;
-    const holder = 1 - originalOwner;
-    card.guerilla_transferred = true;
-    card.guerilla_turnsLeft = 5;
-    card.guerilla_owner = originalOwner;
-    if(typeof addCardToHand === 'function') addCardToHand(holder, card, { announce:false, animate:false, forceHandOwner:holder });
-    else G.players[holder].hand.push(card);
-    if(typeof showWineCountryGuerillaSentBanner === 'function') showWineCountryGuerillaSentBanner();
-    else toast('Wine Country Guerilla was sent to opponent\'s hand.');
-    log(originalOwner===0?'p1':'p2', 'Wine Country Guerilla moved to opponent hand from discard');
-    if(typeof renderHand === 'function') renderHand();
-    if(typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
-  } else if(false && card.id==='37' && !card._returnUsed){
-    card._returnUsed = true;
-    G.players[card.owner].hand.push(card);
-    toast(card.name+' returned to hand! Reinforcement is now 0.5.');
-    log(card.owner===0?'p1':'p2', card.name+' returned to hand instead of discard');
-    renderHand();
-  } else {
-    fatePushDiscard(Number.isInteger(Number(card.owner)) ? Number(card.owner) : G.currentPlayer, card, {sound:false});
-  }
+  fatePushDiscard(Number.isInteger(Number(card.owner)) ? Number(card.owner) : G.currentPlayer, card, {sound:false, animate:false});
   if(typeof window.refreshLegacyMoralePressure === 'function') {
     window.refreshLegacyMoralePressure({announce:true});
   }
@@ -10338,7 +10323,9 @@ function getCinematicVoiceline(card) {
 
 function showCinematicSubtitle(cardOrLine, durationMs, rarity, fadeLeadMs) {
   if(typeof cardOrLine !== 'string' && cardOrLine && (cardOrLine.faceDown || cardOrLine._suppressCinematicSubtitle || (typeof isAchillesAdaptiveToken === 'function' && isAchillesAdaptiveToken(cardOrLine)) || (typeof isFaceDownCard === 'function' && isFaceDownCard(cardOrLine)))) return null;
-  const line = typeof cardOrLine === 'string' ? cardOrLine : getCinematicVoiceline(cardOrLine);
+  const sourceLine = typeof cardOrLine === 'string' ? cardOrLine : getCinematicVoiceline(cardOrLine);
+  const japaneseSubtitle = window.FateI18n?.getLanguage() === 'ja';
+  const line = japaneseSubtitle ? String(sourceLine || '').split(/\r?\n/).map(part => window.FateJapaneseSubtitles?.[part.trim()] || window.FateI18n.t(part)).join('\n') : sourceLine;
   const cinematicCardId = typeof cardOrLine === 'string' ? '' : String(cardOrLine && cardOrLine.id || '');
   if(!line) return null;
   // A picker may already own the modal layer while its activation cinematic is
@@ -10351,7 +10338,9 @@ function showCinematicSubtitle(cardOrLine, durationMs, rarity, fadeLeadMs) {
   if(cinematicCardId) el.classList.add('cinematic-card-' + cinematicCardId.toLowerCase().replace(/[^a-z0-9_-]/g, ''));
   el.setAttribute('aria-live', 'polite');
   const hasManualLineBreak = /\r?\n/.test(line);
-  el.textContent = '“' + line + '”';
+  el.textContent = japaneseSubtitle ? '「' + line + '」' : '“' + line + '”';
+  el.lang = japaneseSubtitle ? 'ja' : 'en';
+  el.setAttribute('translate', 'no');
   if(hasManualLineBreak) el.classList.add('multi-line', 'dialogue-linebreak');
   // Inline visibility is intentional: older patches hide cinematic text elements.
   el.style.cssText = 'display:block!important;visibility:visible!important;position:fixed!important;left:50%!important;bottom:27vh!important;transform:translateX(-50%)!important;z-index:2147483000!important;width:min(84vw,960px)!important;max-width:960px!important;text-align:center!important;pointer-events:none!important;opacity:1!important;font-size:clamp(1.2rem,2.15vw,1.75rem)!important;white-space:pre-line!important;';
@@ -10708,7 +10697,8 @@ function showConsolidationCinematic(card, opts) {
       const signaturePlayed = card.type === 'Coordinator'
         ? window.FateSignatureActivationFx?.playCoordinator(card,{sfx:opts.playSfx !== false})
         : window.FateSignatureActivationFx?.playPlacement(card,{sfx:opts.playSfx !== false});
-      if(!signaturePlayed) window.FateActivationBanner?.play(card, {sfx:opts.playSfx !== false});
+      // Rozsi Youth's approved animation and banner run in its placement effect cinematic.
+      if(!signaturePlayed && String(card.id || '') !== '88') window.FateActivationBanner?.play(card, {sfx:opts.playSfx !== false});
     }
     if(cinematicDedupKey) {
       _consolidationCinematicPendingKeys.delete(cinematicDedupKey);

@@ -22,7 +22,7 @@ let USER_PROFILE = {
   starterChosen: false,   // has the player picked a starter deck?
   ownedCards: {},         // {cardId: count} — owned cards in Challenger mode
   ownedPfps: [],          // [pfpId]
-  ownedMedals: [],        // [1..50] unlocked hidden-achievement medals
+  ownedMedals: [],        // [1..100] unlocked Warfront medals
   displayedMedals: [],    // up to 3 owned medal IDs shown on profile
   warfrontParticipations: 0,
   warfrontWins: 0,

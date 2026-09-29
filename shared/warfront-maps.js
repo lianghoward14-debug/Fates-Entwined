@@ -127,6 +127,14 @@ const zoneIds=['north-gate','silver-crossing','heartland','sunken-road','crown-r
 function get(id){return maps.find(map=>map.id===id)||maps.find(map=>map.id==='french-fields');}
 function pick(previousId,random=Math.random){const pool=maps.filter(map=>map.id!==previousId);return pool[Math.min(pool.length-1,Math.max(0,Math.floor(random()*pool.length)))];}
 function apply(event,map){event.mapId=map.id;event.mapName=map.name;(event.zones||[]).forEach((zone,i)=>{zone.mapId=map.id;zone.name=map.zones[zoneIds.indexOf(zone.id)]||map.zones[i];});return event;}
-const api={maps,zoneIds,get,pick,apply};
+function pickLandscapes(catalog,random=Math.random){
+  const pool=[...new Map(catalog.filter(item=>item&&item.id).map(item=>[item.id,item])).values()];
+  for(let i=pool.length-1;i>0;i--){
+    const j=Math.min(i,Math.max(0,Math.floor(random()*(i+1))));
+    [pool[i],pool[j]]=[pool[j],pool[i]];
+  }
+  return pool.slice(0,5).map(item=>JSON.parse(JSON.stringify(item)));
+}
+const api={maps,zoneIds,get,pick,apply,pickLandscapes};
 if(typeof module==='object'&&module.exports)module.exports=api;else root.FateWarfrontMaps=api;
 })(globalThis);

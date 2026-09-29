@@ -6,9 +6,9 @@ import {SUPPORT_COMPANY_IDS} from '../../shared/support-company.mjs';
 import {AuthoritativeRoomActor} from './room-actor.mjs';
 const require=createRequire(import.meta.url);
 const definitions=require('../fate-card-catalog.js').getCardCatalog().cards;
-function initial(morale=true){return createInitialState({matchId:'support-test',seed:'support',handSize:2,
+function initial(morale=true){const state=createInitialState({matchId:'support-test',seed:'support',handSize:2,
   landscapeId:'igb1',gameSettings:{healthPressureSeals:morale},cardDefinitions:definitions,
-  players:[{id:'p0',deckIds:['05','05','05','05']},{id:'p1',deckIds:['05','05','05','05']}]});}
+  players:[{id:'p0',deckIds:['05','05','05','05']},{id:'p1',deckIds:['05','05','05','05']}]});state.supportCompanyPool=[...SUPPORT_COMPANY_IDS];return state;}
 let sequence=0;
 function use(state,ability,cardId,player=state.activePlayer){return reduceCommand(state,{
   commandId:`support-${++sequence}`,matchId:state.matchId,expectedRevision:state.revision,

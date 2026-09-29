@@ -8,7 +8,7 @@ export function createPublicComboPrior(state,player,entries,cards){
   const all=[...hand,...(owner.deck || []),...(owner.discard || []),...own.map(e=>e.card)];
   const hasIds=ids=>ids.every(id=>all.some(c=>c.id===id));
   const marine=hasIds(['38','08','03','18','58','13','97']);
-  const indie=hasIds(['87','bh19','bh06','07','bh24','80']);
+  const indie=hasIds(['87','bh19','bh06']);
   if(!marine && !indie)return ()=>0;
   const live=own.filter(e=>!e.card.faceDown && !isEffectSourceSuppressed(state,e));
   const jakes=live.filter(e=>e.card.id==='38');

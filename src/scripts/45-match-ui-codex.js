@@ -121,10 +121,14 @@
   }
   function findArt(source){
     if(!source)return '';
-    for(const node of [source,...source.querySelectorAll('*')]){
-      let src=node.currentSrc||node.src||node.dataset?.src||'';
-      if(!src&&node.tagName==='CANVAS'){try{src=node.toDataURL('image/png')}catch(_){}}
+    const nodes=[source,...source.querySelectorAll('*')];
+    for(const node of nodes){
+      const src=node.currentSrc||node.src||node.dataset?.src||node.__fateCanvasImageSource||'';
       if(src)return `url("${String(src).replace(/"/g,'\\"')}")`;
+    }
+    // Style reads can flush a newly inserted effect's layout. Only consult
+    // them when no image source is available anywhere in the portrait.
+    for(const node of nodes){
       const bg=getComputedStyle(node).backgroundImage;
       if(bg&&bg!=='none')return bg;
     }

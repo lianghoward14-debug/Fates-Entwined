@@ -18,7 +18,7 @@ function functionBody(source, name, nextName) {
 }
 
 const endTurn = functionBody(gameplay, 'endTurn', 'showPassTurn');
-const ownershipCheck = endTurn.indexOf('G._aiRunning && isActualAITurn');
+const ownershipCheck = endTurn.indexOf('if(isActualAITurn && !isAICompletion)');
 const debounceRead = endTurn.indexOf('G._turnInputLockUntil && Date.now()');
 const debounceWrite = endTurn.indexOf('G._turnInputLockUntil = isAICompletion ? 0 : Date.now() + 350');
 

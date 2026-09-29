@@ -1,6 +1,10 @@
 const {spawnSync}=require('node:child_process');
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 const tests=[
+  'warfront-medal-achievements-regression.cjs',
+  'authoritative-v3/warfront-landscape-rotation-test.mjs',
+  'warfront-navigation-regression-test.cjs',
+  'authoritative-v3/warfront-spectator-perspective-test.mjs',
   'authoritative-v3/warfront-commendation-stats-regression-test.mjs',
   'warfront-contribution-profile-regression.mjs',
   'authoritative-v3/warfront-human-only-regression-test.mjs',

@@ -1,5 +1,8 @@
 (function(){
   'use strict';
+  function localizeCanvasText(text) { return window.FateI18n ? window.FateI18n.t(text) : String(text == null ? "" : text); }
+
+  'use strict';
 
   if(typeof window === 'undefined') return;
 
@@ -272,7 +275,7 @@
     ctx.textBaseline = 'middle';
     ctx.font = Math.max(18, Math.round(w * .26)) + 'px Cinzel, serif';
     const aff = (visual && visual.aff && visual.aff !== 'hidden') ? String(visual.aff).slice(0, 1).toUpperCase() : '?';
-    ctx.fillText(aff, x + w / 2, y + h / 2);
+    ctx.fillText(localizeCanvasText(aff), x + w / 2, y + h / 2);
   }
 
   function offsetRect(r, originX, originY, scrollX, scrollY){
@@ -305,7 +308,7 @@
     ctx.textAlign = o.align || 'center';
     ctx.textBaseline = o.baseline || 'middle';
     ctx.font = o.font || '700 13px system-ui, sans-serif';
-    ctx.fillText(String(text || ''), x, y);
+    ctx.fillText(localizeCanvasText(String(text || '')), x, y);
     ctx.restore();
   }
 
@@ -629,7 +632,7 @@
       ctx.lineTo(bx + badgeW * .63, by + badgeH / 2 + 1);
       ctx.stroke();
     } else {
-      ctx.fillText(fate, bx + badgeW / 2, by + badgeH / 2 + 1);
+      ctx.fillText(localizeCanvasText(fate), bx + badgeW / 2, by + badgeH / 2 + 1);
     }
     ctx.restore();
 
@@ -645,8 +648,8 @@
         ctx.strokeStyle = 'rgba(0,0,0,.82)';
         const tx = bx + badgeW / 2;
         const ty = by - Math.max(8, badgeH * .48) - pulseProgress * Math.max(7, badgeH * .36);
-        ctx.strokeText(deltaText, tx, ty);
-        ctx.fillText(deltaText, tx, ty);
+        ctx.strokeText(localizeCanvasText(deltaText), tx, ty);
+        ctx.fillText(localizeCanvasText(deltaText), tx, ty);
       }
       ctx.restore();
     }

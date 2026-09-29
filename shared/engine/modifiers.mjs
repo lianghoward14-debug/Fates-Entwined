@@ -8,8 +8,24 @@ import {
   squareStatuses
 } from './selectors.mjs';
 
+// Historical gain for a normal friendly recipient at the time of the trigger.
+export function adjustedTriggeredFateHistoryGain(state, source, amount){
+  const owner = controllerOf(source.card || source);
+  const potency = state.statuses.some(status=>status?.type === 'PERMANENT_FATE_GAIN_POTENCY'
+    && Number(status.playerIndex) === owner && Number(status.remainingOwnerTurns) > 0) ? 2 : 1;
+  const riders = boardEntries(state).filter(entry=>controllerOf(entry.card) === owner
+    && runtimeRuleId(entry.card) === 'bh15' && !isEffectSourceSuppressed(state,entry)).length;
+  const permanent = runtimeRuleId(source.card || source) !== 'bh08';
+  return Math.max(0,Number(amount)||0) * (permanent ? potency : 1) + riders;
+}
+
 function rejection(code, reason, details = {}){
   return {ok:false, rejection:{code, reason, details}};
+}
+
+export function isTriggeredFateCoordinator(state, card){
+  return effectiveCardType(state, card) === 'Coordinator'
+    && ['15','bh02','bh08'].includes(runtimeRuleId(card));
 }
 
 export function runtimeRuleId(card){
@@ -69,8 +85,14 @@ export function isEffectSourceSuppressed(state, value){
     : (value?.iid ? findBoardCard(state, value.iid) : null);
   const card = entry?.card || value;
   if(!card) return false;
-  if(['09','28','70','74','79','91','98'].includes(runtimeRuleId(card)) || isEffectImmutable(card))return false;
+  if(isEffectImmutable(card)) return false;
   if(card.statuses?.includes('EFFECTS_SUPPRESSED')) return true;
+  if(entry && structuralCardType(state, card) === 'Supporter'
+    && (state.statuses || []).some(status=>status.type === 'TIMED_PLAYER_STATUS'
+      && status.statusType === 'SUPPORTER_EFFECTS_BLOCKED'
+      && Number(status.playerIndex) === controllerOf(card)
+      && Number(status.activeFromTurn) <= Number(state.turn)
+      && Number(status.remainingTargetTurns) > 0)) return true;
   if(!entry || effectiveCardType(state, card) !== 'Coordinator') return false;
   if(isEffectImmutable(card) || isImmuneToOpponentEffects(card, state)) return false;
   return squareStatuses(state, entry, 'COORDINATOR_SUPPRESSED').some(status=>{
@@ -78,6 +100,8 @@ export function isEffectSourceSuppressed(state, value){
     const source = findBoardCard(state, status.sourceIid);
     return !!source
       && runtimeRuleId(source.card) === '21'
+      && source.z === entry.z
+      && Math.abs(source.r-entry.r) + Math.abs(source.c-entry.c) === 1
       && controllerOf(source.card) !== controllerOf(card)
       && !source.card.statuses?.includes('EFFECTS_SUPPRESSED');
   });
@@ -129,7 +153,7 @@ function sovietGrenadierTarget(state, sourceEntry){
 }
 
 export function coordinatorAuraPotencyBoost(state, sourceEntry){
-  if(!sourceEntry?.card || String(sourceEntry.card.type || '') !== 'Coordinator') return 0;
+  if(!sourceEntry?.card || effectiveCardType(state, sourceEntry.card) !== 'Coordinator') return 0;
   const controller = controllerOf(sourceEntry.card);
   return boardEntries(state).filter(entry=>
     (entry.z === sourceEntry.z || entry.card.counters?.whisperLandscapeToken === true)
@@ -173,9 +197,9 @@ export function effectiveFate(state, entryOrCard){
     ? Math.max(0, Number(state.fateReductionEffectUses[targetController] || 0) * 3 + permanentAdjustment)
     : stored;
   let modifier = 0;
-  if(state?.gameSettings?.pressureCardReworks === true){
+  {
     const honorGuardActive=boardEntries(state).some(source=>controllerOf(source.card)===targetController&&runtimeRuleId(source.card)==='25'&&activeAuraSource(state,source));
-    const sameAffAdjacent=boardEntries(state).some(peer=>peer.z===entry.z&&controllerOf(peer.card)===targetController&&String(peer.card.iid)!==String(card.iid)&&String(peer.card.affiliation||'')===String(card.affiliation||'')&&Math.abs(peer.r-entry.r)+Math.abs(peer.c-entry.c)===1);
+    const sameAffAdjacent=boardEntries(state).some(peer=>peer.z===entry.z&&!isEffectImmutable(peer.card)&&controllerOf(peer.card)===targetController&&String(peer.card.iid)!==String(card.iid)&&String(peer.card.affiliation||'')===String(card.affiliation||'')&&Math.abs(peer.r-entry.r)+Math.abs(peer.c-entry.c)===1);
     if(honorGuardActive&&sameAffAdjacent)modifier+=1;
   }
   for(const source of boardEntries(state)){
@@ -183,8 +207,8 @@ export function effectiveFate(state, entryOrCard){
     if((source.z !== entry.z && !fieldWide) || !activeAuraSource(state, source)) continue;
     const sourceController = controllerOf(source.card);
     const sourceId = runtimeRuleId(source.card);
-    if(sourceId === '10' && sourceController !== targetController){
-      modifier -= 3;
+    if(sourceId === '10' && sourceController !== targetController && !isImmuneToOpponentEffects(card, state)){
+      modifier -= 3 + coordinatorAuraPotencyBoost(state, source);
       continue;
     }
     if(sourceController !== targetController) continue;
@@ -318,7 +342,7 @@ function isAdjacent(a, b){
 export function effectiveReinforcement(state, entry, playerIndex){
   const card = entry?.card;
   if(!card || controllerOf(card) !== Number(playerIndex)) return 0;
-  let value = runtimeRuleId(card) === '09' ? 2 : 1;
+  let value = runtimeRuleId(card) === '09' && activeAuraSource(state, entry) ? 2 : 1;
   value += Number(card.counters?.reinforcementBonus || 0) || 0;
   for(const status of card.statuses || []){
     if(String(status).startsWith('REINFORCEMENT:')) value += Number(String(status).slice(14)) || 0;
@@ -330,7 +354,7 @@ export function effectiveReinforcement(state, entry, playerIndex){
     value += 1;
   }
   for(const ralph of boardEntries(state)){
-    if(runtimeRuleId(ralph.card) !== '24' || controllerOf(ralph.card) !== Number(playerIndex)) continue;
+    if(runtimeRuleId(ralph.card) !== '24' || controllerOf(ralph.card) !== Number(playerIndex) || !activeAuraSource(state, ralph)) continue;
     if(isAdjacent(entry, ralph)) value += adjacencyBonusMultiplier(state, entry.z, playerIndex);
   }
   return Math.max(0, value);
@@ -357,7 +381,7 @@ export function canUseAsConsolidationTribute(state, entry, playerIndex, consolid
       source.z === entry.z
       && runtimeRuleId(source.card) === '49'
       && controllerOf(source.card) === Number(playerIndex)
-      && !source.card.statuses?.includes('EFFECTS_SUPPRESSED')
+      && activeAuraSource(state, source)
     );
     if(!irvinePermission || isEffectImmutable(card)){
       return rejection('INVALID_TRIBUTE_TYPE', 'only Supporters are eligible for this consolidation');

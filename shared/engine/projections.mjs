@@ -1,5 +1,5 @@
 import {cloneSerializable} from './serialization.mjs';
-import {effectiveFate} from './modifiers.mjs';
+import {effectiveFate, isEffectSourceSuppressed} from './modifiers.mjs';
 import {zoneScore} from './scoring.mjs';
 
 function hiddenSource(state, iid, viewer){
@@ -14,7 +14,10 @@ function boardProjection(state, viewer){
       iid:card.iid, owner:card.owner, controller:card.controller, faceDown:true, hidden:true,
       name:'Face-down card', img:'back.png', statuses:[], counters:{}, _authoritativeFate:fate
     };
-    return {...cloneSerializable(card), _authoritativeFate:fate};
+    const projected = {...cloneSerializable(card), _authoritativeFate:fate};
+    projected.statuses ||= [];
+    if(isEffectSourceSuppressed(state, {card, z, r, c}) && !projected.statuses.includes('EFFECTS_SUPPRESSED')) projected.statuses.push('EFFECTS_SUPPRESSED');
+    return projected;
   })));
 }
 function statusesProjection(state, viewer){

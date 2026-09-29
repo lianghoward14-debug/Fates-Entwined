@@ -3,7 +3,7 @@ const maps=require('../../shared/warfront-maps.js');
 assert.equal(maps.maps.length,10);
 for(const map of maps.maps){assert(fs.existsSync(map.image));assert.equal(new Set(map.zones).size,5);for(let i=0;i<100;i++)assert.notEqual(maps.pick(map.id).id,map.id);}
 const source=fs.readFileSync('src/scripts/47-challenger-war-event.js','utf8');
-const ctx={MAPS:maps,ZONES:maps.zoneIds.map(id=>({id})),TEAMS:{},clone:structuredClone,landscape:()=>({id:'test'}),POST_WAR_DURATION:86400000};vm.createContext(ctx);
+const ctx={MAPS:maps,ZONES:maps.zoneIds.map(id=>({id})),TEAMS:{},clone:structuredClone,landscapes:()=>[],landscape:()=>({id:'test'}),POST_WAR_DURATION:86400000};vm.createContext(ctx);
 vm.runInContext(source.slice(source.indexOf('function fresh('),source.indexOf('function normalize(')),ctx);
 for(const previous of maps.maps){const event=ctx.fresh(3,[],{mapId:previous.id,completedAt:Date.now()});assert.notEqual(event.mapId,previous.id);assert.deepEqual(Array.from(event.zones,z=>z.name),maps.get(event.mapId).zones);}
 const css=fs.readFileSync('src/styles/challenger-war-event-final.css','utf8');assert(!css.includes('warfront/map.png'));assert(css.includes('var(--warfront-map-image)'));

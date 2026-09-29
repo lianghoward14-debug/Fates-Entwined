@@ -1177,9 +1177,9 @@ html body #modal .modal.board-target-picker-modal.picker-zone-count-3 .board-tar
 html body #modal .modal.board-target-picker-modal.picker-zone-count-3 .board-target-zone-title::after{
   font-size:11px!important;
 }
-html body #modal .modal.board-target-picker-modal.picker-zone-count-3 .board-target-zone:nth-child(1) .board-target-zone-title::after{content:'ZONE I'!important;}
-html body #modal .modal.board-target-picker-modal.picker-zone-count-3 .board-target-zone:nth-child(2) .board-target-zone-title::after{content:'ZONE II'!important;}
-html body #modal .modal.board-target-picker-modal.picker-zone-count-3 .board-target-zone:nth-child(3) .board-target-zone-title::after{content:'ZONE III'!important;}
+html body #modal .modal.board-target-picker-modal.picker-zone-count-3 .board-target-zone:nth-child(1) .board-target-zone-title::after{content:var(--fate-label-930eff8e37,'ZONE I')!important;}
+html body #modal .modal.board-target-picker-modal.picker-zone-count-3 .board-target-zone:nth-child(2) .board-target-zone-title::after{content:var(--fate-label-ec4aaac9e3,'ZONE II')!important;}
+html body #modal .modal.board-target-picker-modal.picker-zone-count-3 .board-target-zone:nth-child(3) .board-target-zone-title::after{content:var(--fate-label-0c429f1ce9,'ZONE III')!important;}
 html body #modal .modal.board-target-picker-modal.picker-zone-count-3 .board-target-zone:not(:last-child){
   border-right:0!important;
 }

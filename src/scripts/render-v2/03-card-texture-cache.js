@@ -1,5 +1,8 @@
 (function(){
   'use strict';
+  function localizeCanvasText(text) { return window.FateI18n ? window.FateI18n.t(text) : String(text == null ? "" : text); }
+
+  'use strict';
 
   if(typeof window === 'undefined') return;
   if(window.FateCardTextureCache) return;
@@ -58,8 +61,11 @@
   }
 
   function notify(rec, reason){
+    if(rec.disposed) return;
     rec.lastNotifyReason = reason || '';
-    rec.callbacks.forEach(function(cb){
+    const callbacks = Array.from(rec.callbacks);
+    rec.callbacks.clear();
+    callbacks.forEach(function(cb){
       try { cb(rec, reason || 'change'); } catch(e) {}
     });
   }
@@ -79,6 +85,14 @@
       if(rec && rec.bitmap && typeof rec.bitmap.close === 'function') rec.bitmap.close();
     } catch(e) {}
     if(rec) rec.bitmap = null;
+  }
+
+  function disposeRecord(rec){
+    rec.disposed = true;
+    rec.callbacks.clear();
+    if(rec.artSubscription) rec.artSubscription.record.callbacks.delete(rec.artSubscription.callback);
+    rec.artSubscription = null;
+    tryCloseBitmap(rec);
   }
 
   function currentTotalPixels(){
@@ -109,7 +123,7 @@
       const key = candidates[i].key;
       const rec = candidates[i].rec;
       totalPixels -= Number(rec.pixels) || 0;
-      tryCloseBitmap(rec);
+      disposeRecord(rec);
       if(candidates[i].type === 'base') baseRecords.delete(key);
       else artRecords.delete(key);
       removed++;
@@ -139,6 +153,7 @@
     stats.bitmapAttempts++;
     const started = nowMs();
     window.createImageBitmap(img).then(function(bitmap){
+      if(rec.disposed || rec.img !== img){ bitmap.close(); return; }
       rec.bitmap = bitmap;
       rec.bitmapMs = roundMs(nowMs() - started);
       stats.bitmapSuccesses++;
@@ -164,6 +179,7 @@
     try { img.fetchPriority = 'high'; } catch(e) {}
 
     img.onload = function(){
+      if(rec.disposed) return;
       rec.loaded = true;
       rec.pending = false;
       rec.failed = false;
@@ -179,6 +195,7 @@
       prune();
     };
     img.onerror = function(){
+      if(rec.disposed) return;
       if(!rec.fallbackTried && rec.fallbackSrc && rec.fallbackSrc !== rec.currentSrc) {
         rec.fallbackTried = true;
         startLoad(rec, rec.fallbackSrc, true);
@@ -212,7 +229,7 @@
       stats.hits++;
       rec.lastUsed = nowMs();
       rec.useCount++;
-      if(typeof opts.onChange === 'function') rec.callbacks.add(opts.onChange);
+      if(!rec.loaded && !rec.failed && typeof opts.onChange === 'function') rec.callbacks.add(opts.onChange);
       if(!rec.loaded && !rec.failed && rec.img && rec.img.complete && (rec.img.naturalWidth || rec.img.width)) {
         rec.loaded = true;
         rec.pending = false;
@@ -247,7 +264,7 @@
     artRecords.set(key, rec);
     startLoad(rec, key, false);
     setTimeout(function(){
-      if(rec.loaded || rec.failed || rec.fallbackTried || !rec.fallbackSrc || rec.fallbackSrc === rec.currentSrc) return;
+      if(rec.disposed || rec.loaded || rec.failed || rec.fallbackTried || !rec.fallbackSrc || rec.fallbackSrc === rec.currentSrc) return;
       rec.fallbackTried = true;
       startLoad(rec, rec.fallbackSrc, true);
     }, defaults.fallbackDelayMs);
@@ -455,17 +472,17 @@
     ctx.strokeStyle = 'rgba(244,214,112,.9)';
     ctx.lineWidth = Math.max(1.5, w * .018);
     ctx.stroke();
-    const name = String((visual && visual.name) || (card && card.name) || 'Card');
-    const ability = String((visual && visual.ability) || (card && card.ability) || '');
+    const name = localizeCanvasText(String((visual && visual.name) || (card && card.name) || 'Card'));
+    const ability = localizeCanvasText(String((visual && visual.ability) || (card && card.ability) || ''));
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#f6e8ba';
     ctx.font = `600 ${Math.max(8, Math.round(w * .095))}px serif`;
-    ctx.fillText(name.slice(0, 28), w / 2, h * .45, w * .84);
+    ctx.fillText(localizeCanvasText(name.slice(0, 28)), w / 2, h * .45, w * .84);
     if(ability){
       ctx.fillStyle = 'rgba(246,232,186,.8)';
       ctx.font = `${Math.max(7, Math.round(w * .072))}px serif`;
-      ctx.fillText(ability.slice(0, 34), w / 2, h * .58, w * .8);
+      ctx.fillText(localizeCanvasText(ability.slice(0, 34)), w / 2, h * .58, w * .8);
     }
     rec.canvas = canvas;
     rec.loaded = true;
@@ -494,7 +511,7 @@
       stats.baseHits++;
       rec.lastUsed = nowMs();
       rec.useCount++;
-      if(typeof opts.onChange === 'function') rec.callbacks.add(opts.onChange);
+      if(!rec.loaded && !rec.failed && typeof opts.onChange === 'function') rec.callbacks.add(opts.onChange);
       return rec;
     }
     if(opts.noCreate || opts.peekOnly) return null;
@@ -531,12 +548,17 @@
       return rec;
     }
 
+    const onArtReady = function(nextArt){
+      rec.artSubscription = null;
+      if(rec.disposed) return;
+      if(nextArt.failed){ rec.pending=false; rec.failed=true; notify(rec, 'base-art-unavailable'); return; }
+      buildBaseTexture(rec, nextArt, visual);
+    };
     const artRec = getArtBitmap(rec.artSrc, {
       source:'base-texture',
-      onChange:function(nextArt){
-        buildBaseTexture(rec, nextArt, visual);
-      }
+      onChange:onArtReady
     });
+    if(artRec && artRec.callbacks.has(onArtReady)) rec.artSubscription = {record:artRec, callback:onArtReady};
     if(!artRec || artRec.failed){
       rec.pending = false;
       rec.failed = true;
@@ -627,12 +649,13 @@
     if(!keep.size) return {removed, report:report()};
     artRecords.forEach(function(rec, key){
       if(keep.has(key)) return;
-      tryCloseBitmap(rec);
+      disposeRecord(rec);
       artRecords.delete(key);
       removed++;
     });
     baseRecords.forEach(function(rec, key){
       if(keep.has(key) || keep.has(rec.artSrc)) return;
+      disposeRecord(rec);
       baseRecords.delete(key);
       removed++;
     });
@@ -668,6 +691,8 @@
 
   function report(){
     const totalPixels = currentTotalPixels();
+    let bitmapPixels = 0;
+    artRecords.forEach(rec=>{ if(rec.bitmap) bitmapPixels += Number(rec.pixels) || 0; });
     const recent = Array.from(artRecords.values()).concat(Array.from(baseRecords.values()))
       .sort(function(a, b){ return (b.lastUsed || 0) - (a.lastUsed || 0); })
       .slice(0, 8)
@@ -702,7 +727,9 @@
       failed:failedCount(),
       bitmaps:bitmapCount(),
       totalPixels,
-      estimatedBytes:totalPixels * 4,
+      bitmapPixels,
+      estimatedBytes:(totalPixels + bitmapPixels) * 4,
+      budgetedPixels:totalPixels,
       maxEntries:defaults.maxEntries,
       maxPixels:defaults.maxPixels,
       stats:Object.assign({}, stats),
@@ -711,7 +738,8 @@
   }
 
   function clear(){
-    artRecords.forEach(tryCloseBitmap);
+    artRecords.forEach(disposeRecord);
+    baseRecords.forEach(disposeRecord);
     artRecords.clear();
     baseRecords.clear();
     stats.clears++;

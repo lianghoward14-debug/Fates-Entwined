@@ -12,8 +12,10 @@ import {
   canTarget,
   consolidationPlacementCheck,
   effectiveCardType,
+  isTriggeredFateCoordinator,
   isEffectSourceSuppressed,
   isEffectImmutable,
+  runtimeRuleId,
   structuralCardType
 } from './modifiers.mjs';
 import {flowerPickingEligible} from './cards/draw-effects.mjs';
@@ -114,6 +116,7 @@ export function eligibleBoardTargets(state, frame, filter = {}){
         || Math.max(Math.abs(entry.r - source.r), Math.abs(entry.c - source.c)) !== 1)) return false;
       if(Number.isInteger(filter.row) && entry.r !== filter.row) return false;
       if(filter.controller && controllerOf(entry.card) !== frame.controller) return false;
+      if(filter.triggeredFateCoordinator && !isTriggeredFateCoordinator(state, entry.card)) return false;
       if(Array.isArray(filter.cardIds) && !filter.cardIds.map(String).includes(String(entry.card.id || ''))) return false;
       if(filter.opponent && controllerOf(entry.card) === frame.controller) return false;
       if(filter.supporter && effectiveCardType(state, entry.card) !== 'Supporter') return false;
@@ -149,6 +152,10 @@ export function eligibleBoardTargets(state, frame, filter = {}){
         const targetFrame = {...frame, sourceIid:entry.card.iid};
         if(!eligibleDestinations(state, targetFrame, filter.requiresDestination).length) return false;
       }
+      if(filter.requiresSourceDestination && !eligibleDestinations(state, frame, filter.requiresSourceDestination).length) return false;
+      if(filter.copyableSupporterPassive && (!['25','24','44','49','53','59','65','92','93'].includes(String(entry.card.id))
+        || (String(entry.card.id) === '65' && state.gameSettings?.pressureCardReworks !== true)
+        || isEffectSourceSuppressed(state, entry))) return false;
       if(filter.excludeSource && String(entry.card.iid) === String(frame.sourceIid)) return false;
       if(filter.ruleTiming && !filter.ruleTimingExceptions?.includes(String(entry.card.id)) && !cardRule(entry.card.id, state)?.timings?.includes(String(filter.ruleTiming))) return false;
       if(filter.copyEffectAvailable){
@@ -189,7 +196,7 @@ export function eligibleCardTargets(state, frame, filter = {}){
     if(filter.controller && entryController !== frame.controller) return false;
     if(filter.opponent && entryController === frame.controller) return false;
     if(filter.mentionsLandscape && !/landscape/i.test(String(entry.card.effect || ''))) return false;
-    if(filter.type && String(entry.card.type || '') !== String(filter.type)) return false;
+    if(filter.type && effectiveCardType(state, entry.card) !== String(filter.type)) return false;
     if(filter.cardId && String(entry.card.id || '') !== String(filter.cardId)) return false;
     if(filter.character && effectiveCardType(state, entry.card) === 'Supporter') return false;
     if(filter.affiliation && String(entry.card.affiliation || '') !== String(filter.affiliation)) return false;
@@ -276,10 +283,10 @@ export function eligibleDestinations(state, frame, filter = {}){
       if(String(freeSetCard.type || '') === 'Supporter'){
         const blockedByAlondra = boardEntries(state).some(entry=>
           entry.z === Number(destination.z)
-          && String(entry.card.id || '') === '14'
+          && runtimeRuleId(entry.card) === '14'
           && controllerOf(entry.card) !== Number(frame.controller)
           && entry.card.faceDown !== true
-          && !entry.card.statuses?.includes('EFFECTS_SUPPRESSED')
+          && !isEffectSourceSuppressed(state, entry)
           && Math.abs(entry.r - Number(destination.r))
             + Math.abs(entry.c - Number(destination.c)) === 1
         );
@@ -307,7 +314,9 @@ export function eligibleDestinations(state, frame, filter = {}){
         (row || []).forEach((card, c)=>{
           const destination = {z, r, c};
           if(!isBoardCoordinate(state, destination) || !accept(destination)) return;
-          if(!card || controllerOf(card) === frame.controller) destinations.push(destination);
+          if(!card || (controllerOf(card) === frame.controller && !isEffectImmutable(card)
+            && !card.cantBeMoved && !card.statuses?.includes('CANNOT_MOVE')
+            && !squareStatuses(state,destination,'FIELD_LEAVE_LOCKED').some(status=>Number(status.blockedPlayer)===controllerOf(card)))) destinations.push(destination);
         });
       });
     });

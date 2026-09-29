@@ -221,7 +221,7 @@
 
   function flyBoardCard(card, z, r, c, kind){
     const motionKind = String(kind || 'discard').toLowerCase();
-    const fromRect = boardCardRect(z, r, c);
+    const fromRect = rectForBoardTarget(z, r, c);
     const owner = card && card.owner != null ? card.owner : currentViewer();
     const toRect = pileRect(owner, 'discard') || pileRect(null, 'discard') || fromRect;
     if(motionKind === 'destroy') return play('DESTROY_CARD', {card, iid:card && card.iid, fromRect, toRect});
@@ -319,10 +319,25 @@
   }
 
   function sendHandCardToDiscard(card, owner, handIndex, opts){
-    const fromRect = anyHandRectByIid(card && card.iid) || (Number(owner) === Number(currentViewer()) ? handSlotRect(handIndex) : opponentHandSlotRect(handIndex, owner));
+    const fromRect = anyHandRectByIid(card && card.iid) || (Number(owner) === Number(currentViewer()) ? handSlotRect(handIndex) : opponentHandSlotRect(handIndex, owner)) || fallbackHandRect(owner);
     const toRect = pileRect(owner, 'discard') || pileRect(null, 'discard');
     if(!fromRect || !toRect) return false;
     return play('HAND_DISCARD', Object.assign({iid:card && card.iid, card, fromRect, toRect}, opts || {}));
+  }
+
+  function discardCard(card, owner, location){
+    const source = location || {};
+    const map = hitMap();
+    const boardHit = (map && Array.isArray(map.cards) ? map.cards : []).find(function(item){
+      return card && card.iid != null && String(item.iid) === String(card.iid);
+    });
+    if(source.zone === 'board') return flyBoardCard(card, source.z, source.r, source.c, 'discard');
+    const fromRect = (boardHit && boardHit.rect)
+      || anyHandRectByIid(card && card.iid)
+      || (source.zone === 'deck' ? pileRect(owner, 'deck') : null)
+      || fallbackHandRect(owner);
+    const toRect = pileRect(owner, 'discard') || fromRect;
+    return play('DISCARD_CARD', {iid:card && card.iid, card, fromRect, toRect});
   }
 
   function sendBoardCardToDeck(card, z, r, c, owner, opts){
@@ -604,6 +619,7 @@
     swapBoardCards,
     returnBoardCardToHand,
     sendHandCardToDiscard,
+    discardCard,
     sendBoardCardToDeck,
     sendDeckCardToBoard,
     sendDeckCardToHand,

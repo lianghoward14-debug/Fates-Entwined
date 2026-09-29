@@ -18,6 +18,9 @@ import {
 } from './hand-limits.mjs';
 import {
   effectiveCardType,
+  isTriggeredFateCoordinator,
+  coordinatorAuraPotencyBoost,
+  adjustedTriggeredFateHistoryGain,
   isEffectImmutable,
   isEffectSourceSuppressed,
   isImmuneToOpponentEffects,
@@ -25,7 +28,7 @@ import {
   structuralCardType,
   zoneActionBlock
 } from './modifiers.mjs';
-import {applyOperation, emitRuleEvent} from './operations.mjs';
+import {applyOperation, emitRuleEvent, applySpecialHandArrival} from './operations.mjs';
 import {
   destinationKey,
   eligibleBoardTargets,
@@ -318,7 +321,7 @@ function effectUses(card){
 function reconcileSovietGrenadierTargets(state, ctx){
   const entries = boardEntries(state);
   for(const source of entries){
-    if(String(source.card?.id || '') !== '44') continue;
+    if(runtimeRuleId(source.card) !== '44') continue;
     const declaredType = String(source.card.counters?.sovietDeclaredType || '');
     if(!declaredType) continue;
     if(!source.card.counters || typeof source.card.counters !== 'object') source.card.counters = {};
@@ -398,7 +401,7 @@ function activeTimedPlayerStatus(state, statusType, playerIndex){
 }
 
 function supporterEffectBlock(state, card, playerIndex){
-  if(['09','28','70','74','79','91','98'].includes(runtimeRuleId(card)))return null;
+  if(isEffectImmutable(card)) return null;
   if(landscapeSupporterEffectLimitReached(state, card, playerIndex)){
     return {
       statusId:`landscape:igb15:p${playerIndex}:turn${state.turn}`,
@@ -407,20 +410,14 @@ function supporterEffectBlock(state, card, playerIndex){
       sourceController:playerIndex
     };
   }
-  if(effectiveCardType(state, card) === 'Supporter'){
+  if(structuralCardType(state, card) === 'Supporter'){
     const status = activeTimedPlayerStatus(state, 'SUPPORTER_EFFECTS_BLOCKED', playerIndex);
     if(status){
-      if(Number(status.sourceController) !== Number(playerIndex)
-        && (isEffectImmutable(card) || isImmuneToOpponentEffects(card, state))){
-        return null;
-      }
       return status;
     }
   }
   if(String(card?.type || '') !== 'Supporter'
-    || String(card.id || '') === '92'
-    || isEffectImmutable(card)
-    || isImmuneToOpponentEffects(card, state)){
+    || isEffectImmutable(card)){
     return null;
   }
   const target = findBoardCard(state, card.iid);
@@ -518,8 +515,7 @@ function expireOwnerTurnStatuses(state, endingPlayer, ctx){
 function expireTimedPlayerStatuses(state, endingPlayer, ctx){
   const retained = [];
   for(const status of state.statuses){
-    if(status?.type === 'SUPPORTERS_AS_CHARACTERS'
-      && Number(status.playerIndex) === Number(endingPlayer)){
+    if(status?.type === 'SUPPORTERS_AS_CHARACTERS'){
       const remainingTargetTurns = Math.max(0, (Number(status.remainingTargetTurns) || 0) - 1);
       if(remainingTargetTurns > 0){
         retained.push({...status, remainingTargetTurns});
@@ -895,7 +891,7 @@ function openInstructionPrompt(state, frame, instruction, ctx){
       min,
       max,
       local:instruction.local,
-      cancellable:true,
+      cancellable:instruction.cancellable !== false,
       cancelBehavior:instruction.cancelBehavior || 'END_EFFECT',
       timeoutPolicy:min === 0 ? 'CANCEL' : 'FIRST_ELIGIBLE'
     };
@@ -1216,6 +1212,7 @@ function runEffectStack(state, ctx){
         baseFate:definition.fate,currentFate:definition.fate,owner:frame.controller,controller:frame.controller,
         faceDown:false,statuses:[],counters:{chauffeurFreeSet:true}};
       state.players[frame.controller].hand.push(card);
+      applySpecialHandArrival(ctx, frame.controller, card);
       ctx.events.push({type:'CARD_CREATED',cardIid:card.iid,playerIndex:frame.controller,sourceIid:frame.sourceIid,reason:'CHAUFFEUR_CATALOG',privateTo:[frame.controller]});
       frame.instructionIndex+=1;
       continue;
@@ -1244,7 +1241,7 @@ function runEffectStack(state, ctx){
         copiedFromIid:selected.iid
       });
       frame.instructionIndex += 1;
-      if(instruction.execute !== false && (copiedRule.program || copiedRule.havanoPassiveEntry)){
+      if((instruction.execute !== false || String(selected.id) === '44') && (copiedRule.program || copiedRule.havanoPassiveEntry)){
         const copiedFrame = {
           frameId:nextId(state, 'frame'),
           kind:'COPIED_CARD_EFFECT',
@@ -1271,7 +1268,7 @@ function runEffectStack(state, ctx){
     if(instruction.kind === 'INHERIT_TRIGGERED_FATE'){
       const coordinatorIid = String(resolveValue(instruction.coordinatorIid, frame) || '');
       const coordinator = findBoardCard(state, coordinatorIid)?.card;
-      if(!coordinator || !['15','bh02','bh08'].includes(String(coordinator.id || ''))){
+      if(!coordinator || !isTriggeredFateCoordinator(state, coordinator)){
         throw Object.assign(new Error('the selected Coordinator cannot provide triggered Fate history'), {code:'INVALID_TARGET'});
       }
       const amount = Math.max(0, Number(coordinator.counters?.triggeredFateHistoryTotal) || 0);
@@ -1326,14 +1323,18 @@ function runEffectStack(state, ctx){
           ,deferEffectOverlayMs:3500
         });
         const zoneTargets = boardEntries(state).filter(target=>
-          target.z === entry.z
+          (target.z === entry.z || entry.card.counters?.whisperLandscapeToken === true)
           && controllerOf(target.card) === owner
           && !isEffectImmutable(target.card)
         );
         if(['15','bh02','bh08'].includes(id)){
-          const amount = id === 'bh08' ? 2 : 1;
+          const amount = (id === 'bh08' ? 2 : 1) + coordinatorAuraPotencyBoost(state, entry);
+          entry.card.counters.triggeredFateHistoryTotal = Math.max(0, Number(entry.card.counters.triggeredFateHistoryTotal) || 0) + adjustedTriggeredFateHistoryGain(state,entry,amount);
+          if(id === 'bh02') entry.card.counters.joieProcCount = Math.max(0, Number(entry.card.counters.joieProcCount) || 0) + 1;
+          if(id === 'bh08') entry.card.counters.bh08ProcCount = Math.max(0, Number(entry.card.counters.bh08ProcCount) || 0) + 1;
           for(const target of zoneTargets){
-            applyResolvedEffectOperation(ctx,{type:'MODIFY_FATE',targetIid:target.card.iid,amount,sourceIid:entry.card.iid,sourceController:owner,semanticSourceCardId:id,reason:'ENGINEERS_AMBITION_FORCED_PROC',bypassReaction:true,presentationDelayMs:3500},frame);
+            if(id === 'bh08') target.card.counters.wintertideTriggerCount = Math.max(0, Number(target.card.counters.wintertideTriggerCount) || 0) + 1;
+            applyResolvedEffectOperation(ctx,{type:'MODIFY_FATE',targetIid:target.card.iid,amount,permanentFateGain:id !== 'bh08',sourceIid:entry.card.iid,sourceController:owner,semanticSourceCardId:id,reason:'ENGINEERS_AMBITION_FORCED_PROC',bypassReaction:true,presentationDelayMs:3500},frame);
           }
         }else if(id === '86'){
           applyResolvedEffectOperation(ctx,{type:'DRAW_CARD',playerIndex:owner,count:1,activatedEffect:true,sourceIid:entry.card.iid,sourceController:owner,semanticSourceCardId:id,reason:'ENGINEERS_AMBITION_FORCED_PROC'},frame);
@@ -1964,17 +1965,17 @@ function resolveReaction(state, ctx, frame, prompt, payload){
   const reactionEntry = findCard(state, option.reactionIid);
   if(!reactionEntry) throw Object.assign(new Error('reaction card no longer exists'), {code:'REACTION_NOT_FOUND'});
   if(option.kind !== 'HAVANO') consumeReaction(reactionEntry.card);
-  // Lydia has one clear response: negate this resolution and permanently
-  // suppress its source. Havano retains its distinct negate/suppress choice.
+  // Lydia and Havano both stop this resolution and permanently suppress
+  // its source, including clients that submit Havano's older NEGATE choice.
   const reactedSourceIid = frame.activeReactionSourceIid || frame.sourceIid;
-  if(choice === 'SUPPRESS' || option.kind === 'LYDIA' || frame.reactionPhase === 'PASSIVE_TARGET') addSuppression(state, reactedSourceIid);
+  if(choice === 'SUPPRESS' || option.kind === 'HAVANO' || option.kind === 'LYDIA' || frame.reactionPhase === 'PASSIVE_TARGET') addSuppression(state, reactedSourceIid);
   emitRuleEvent(ctx, {
     type:RULE_EVENT_TYPES.EFFECT_REACTED,
     sourceIid:reactedSourceIid,
     reactionIid:reactionEntry.card.iid,
     playerIndex:controllerOf(reactionEntry.card),
     reactionKind:option.kind,
-    mode:choice
+    mode:option.kind === 'HAVANO' ? 'SUPPRESS' : choice
   });
   state.pendingPrompt = null;
   if(option.kind === 'HAVANO'){
@@ -2148,12 +2149,30 @@ function performCommand(state, ctx, command, actorIndex, options){
   // disconnect forfeits must be able to terminate every active match state.
   if(command.type === 'CONCEDE'){
     if(state.warfrontMatch){
-      state.warfrontForfeit = {winner:1-actorIndex,loser:actorIndex,turn:state.turn};
+      if(!state.warfrontForfeit){
+        state.warfrontForfeit = {winner:1-actorIndex,loser:actorIndex,turn:state.turn};
+        if(state.warfrontAiSeats?.includes(1-actorIndex)){
+          state.outcome = {type:'WARFRONT_FORFEIT',...state.warfrontForfeit,commendationsEligible:false};
+          state.phase = 'ended';
+          state.pendingPrompt = null;
+          state.pendingHandLimit = null;
+          state.effectStack = [];
+          ctx.events.push({type:RULE_EVENT_TYPES.MATCH_ENDED,outcome:cloneSerializable(state.outcome)});
+          return;
+        }
+        state.aiTakeoverSeats = [...new Set([...(state.aiTakeoverSeats || []),actorIndex])];
+        ctx.events.push({type:'WARFRONT_AI_TAKEOVER',playerIndex:actorIndex});
+        return;
+      }
+      // Repeated concessions cannot reverse the locked result. The remaining
+      // human may leave the continuation without granting commendations.
+      if(actorIndex === state.warfrontForfeit.loser) return;
       state.outcome = {type:'WARFRONT_FORFEIT',...state.warfrontForfeit,commendationsEligible:false};
       state.phase = 'ended';
       state.pendingPrompt = null;
       state.pendingHandLimit = null;
       state.effectStack = [];
+      ctx.events.push({type:RULE_EVENT_TYPES.MATCH_ENDED, outcome:cloneSerializable(state.outcome)});
       return;
     }
     state.outcome = {
@@ -2477,12 +2496,10 @@ function performCommand(state, ctx, command, actorIndex, options){
       const effectId = isWhisperToken ? runtimeRuleId(card) : card.id;
       const hasWhenSetEffect = hasTiming(effectId, 'WHEN_SET', state);
       const block = supporterEffectBlock(state, card, actorIndex);
-      // Ongoing field abilities are suppressed too. These five abilities
-      // operate outside the field and cannot be suppressed merely by setting.
-      const hasRelevantFieldEffect = !['09','28','70','74','79','91','98'].includes(String(effectId));
+      // Every non-immune Supporter is suppressed, including passive-only cards.
       if(block?.statusType === 'LUMBERJACK_SUPPRESSION'){
         applyLumberjackSuppression(state, ctx, card, block, actorIndex);
-      }else if(block && (hasWhenSetEffect || (block.statusType === 'SUPPORTER_EFFECTS_BLOCKED' && hasRelevantFieldEffect))){
+      }else if(block && (hasWhenSetEffect || (block.statusType === 'SUPPORTER_EFFECTS_BLOCKED'))){
         emitRuleEvent(ctx, {
           type:RULE_EVENT_TYPES.EFFECT_REACTED,
           sourceIid:card.iid,
@@ -2755,8 +2772,21 @@ function performCommand(state, ctx, command, actorIndex, options){
   }
   if(command.type === 'DISCARD_CARD'){
     const entry = findBoardCard(state, payload.targetIid);
-    if(!entry || controllerOf(entry.card) !== actorIndex){
+    const clearBerkeley = entry && String(entry.card.id) === '62'
+      && controllerOf(entry.card) !== actorIndex && rowOwner(state, entry.z, entry.r) === actorIndex;
+    if(!entry || (controllerOf(entry.card) !== actorIndex && !clearBerkeley)){
       throw Object.assign(new Error('the actor does not control the discarded card'), {code:'CARD_NOT_CONTROLLED'});
+    }
+    if(clearBerkeley && !isEffectSourceSuppressed(state, entry)){
+      if(state.players[actorIndex].hand.length < 2) throw Object.assign(new Error('two hand cards are required'), {code:'ADDITIONAL_DISCARD_REQUIRED'});
+      state.effectStack.push({frameId:nextId(state,'frame'), kind:'CARD_EFFECT',
+        sourceIid:entry.card.iid, sourceCardId:'62', sourceType:entry.card.type,
+        controller:actorIndex, timing:'MANUAL_DISCARD', instructionIndex:0, waitingFor:null, locals:{},
+        originalCommandId:command.commandId,
+        program:[{kind:'OPERATION',operation:{type:'DISCARD_CARD',targetIid:entry.card.iid,
+          sourceController:actorIndex,reason:'CLEAR_BERKELEY',bypassTargeting:true,bypassReaction:true}}]});
+      runEffectStack(state, ctx);
+      return;
     }
     if(String(entry.card.id || '') === '76'){
       throw Object.assign(new Error('ALPINE Infantry cannot be manually discarded'), {code:'CARD_IMMUTABLE'});

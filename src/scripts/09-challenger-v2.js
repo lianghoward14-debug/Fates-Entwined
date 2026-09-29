@@ -3103,7 +3103,7 @@ showLeaderboard = async function(page=0, opts={}) {
     if(window.FateOnline && typeof window.FateOnline.refreshFlyLeaderboard === 'function') refreshes.push(Promise.resolve(window.FateOnline.refreshFlyLeaderboard({force:true})).catch(()=>{}));
     if(refreshes.length) Promise.all(refreshes).then(function(){
       const title = document.querySelector('#modal .modal-title, #modal-title');
-      if(document.getElementById('modal')?.classList.contains('on') && /leaderboard/i.test(title?.textContent || '')) showLeaderboard(page, {skipFresh:true});
+      if(document.getElementById('modal')?.classList.contains('on') && /leaderboard/i.test((window.FateI18n ? window.FateI18n.sourceText(title) : title?.textContent) || '')) showLeaderboard(page, {skipFresh:true});
     });
   }
   if(typeof resetModalChrome === 'function') resetModalChrome();
