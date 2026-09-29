@@ -27,14 +27,14 @@ app.whenReady().then(async () => {
    document.getElementById('title-language-btn').click();
    check(dynamic.textContent === 'Turn 7/20', 'latest English restored');
    check(document.getElementById('label').textContent === 'Free Play', 'English label restored');
-   const lorePair = FateJapaneseLore.find(([source]) => source.length > 200);
+   const lorePairs = FateJapaneseLore.filter(([source]) => source.length > 200);
    const article = document.createElement('article'); article.className = 'ch-lore-article';
-   const paragraph = document.createElement('p'); paragraph.textContent = lorePair[0]; article.append(paragraph); document.body.append(article);
+   const paragraphs = lorePairs.map(([source]) => { const p = document.createElement('p'); p.textContent = source; article.append(p); return p; }); document.body.append(article);
    FateI18n.setLanguage('ja'); await tick();
-   check(paragraph.textContent === lorePair[1], 'lore paragraph translated');
-   check(!/[\[【［]\s*\d{6}/.test(paragraph.textContent), 'lore has no batch markers');
+   paragraphs.forEach((p, i) => check(p.textContent === lorePairs[i][1], 'lore paragraph translated: ' + i));
+   check(!/[\[【［]\s*\d{6}/.test(article.textContent), 'lore has no batch markers');
    FateI18n.setLanguage('en');
-   check(paragraph.textContent === lorePair[0], 'English lore restored');
+   paragraphs.forEach((p, i) => check(p.textContent === lorePairs[i][0], 'English lore restored: ' + i));
 
    check(document.getElementById('search').placeholder === 'Search names or card text...', 'attribute restored');
    FateI18n.setLanguage('ja');
