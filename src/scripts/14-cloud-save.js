@@ -222,7 +222,7 @@
   // Each writes to both localStorage (cache) and Firebase (source of truth)
 
   function cloudSaveProfile(){
-    if(!_cloudUid) return;
+    if(!_cloudUid || !_cloudReady) return;
     var data = typeof USER_PROFILE !== 'undefined' ? USER_PROFILE : null;
     if(!data) return;
     if(data._fateAccountUid && data._fateAccountUid !== _cloudUid){
@@ -403,7 +403,7 @@
 
   // Save everything in a single batched write (used on sign-in migration)
   function cloudSaveAll(){
-    if(!_cloudUid) return;
+    if(!_cloudUid || !_cloudReady) return;
     if(_useFlyCloudSave()){
       var flyData = _buildCloudSavePayload(_cloudUid);
       if(window.FatePresetSync){
@@ -545,6 +545,7 @@
         // it and let the normal save path repair Fly. This prevents every
         // startup from restoring the same stale Starlight/booster balance.
         var chosenProfile = localUpdatedAt > cloudUpdatedAt ? localProfile : cloudProfile;
+        if(window.FateStarterChoice) chosenProfile = window.FateStarterChoice.merge(cloudProfile, chosenProfile);
         USER_PROFILE = Object.assign({}, defaults, chosenProfile, {_fateAccountUid:uid});
         // Never repair one account with an in-memory value from the account that
         // happened to be active before it.
@@ -721,24 +722,27 @@
     var loadPromise = cloudLoadAll(uid, sessionId);
     var startupManagedLoad = !!(window.__fateStartupLoadingManaged || document.getElementById('fate-loading-screen'));
     var cloudLoadTimeoutMs = startupManagedLoad ? 30000 : 7000;
-    var timeoutPromise = new Promise(function(resolve){
-      loadTimeout = setTimeout(function(){
-        timedOut = true;
-        hideCloudLoadingOverlay();
-        resolve(true);
-      }, cloudLoadTimeoutMs);
-    });
+    loadTimeout = setTimeout(function(){
+      timedOut = true;
+      hideCloudLoadingOverlay();
+    }, cloudLoadTimeoutMs);
 
-    return Promise.race([loadPromise, timeoutPromise]).then(function(hadCloudData){
+    // The timeout may dismiss the overlay, but cannot authorize default data
+    // to overwrite the account while its actual load is still outstanding.
+    return loadPromise.then(function(hadCloudData){
       clearTimeout(loadTimeout);
       if(!_isCurrentCloudSession(uid, sessionId)) return false;
+      if(hadCloudData == null){
+        hideCloudLoadingOverlay();
+        return null;
+      }
+      _cloudReady = true;
+      window._fateCloudReady = true;
       if(hadCloudData === false){
         // First sign-in or no cloud data — push current local data up
         if(typeof window._fatePrepareAccountSwitch === 'function') window._fatePrepareAccountSwitch(uid);
         cloudSaveAll();
       }
-      _cloudReady = true;
-      window._fateCloudReady = true;
 
       // Re-run the profile/preset load to refresh UI with cloud data
       if(typeof loadPresetsFromStorage === 'function') loadPresetsFromStorage();
@@ -759,8 +763,8 @@
     }).catch(function(e){
       clearTimeout(loadTimeout);
       console.warn('[CloudSave] sign-in load failed, using local data', e);
-      _cloudReady = true;
-      window._fateCloudReady = true;
+      _cloudReady = false;
+      window._fateCloudReady = false;
       hideCloudLoadingOverlay();
     });
   }
@@ -775,10 +779,24 @@
     _clearCloudDebounceTimers();
   }
 
+  async function saveStarterChoice(profile){
+    const uid = _cloudUid, sessionId = _cloudSessionId;
+    if(!uid || !_cloudReady || !_isCurrentCloudSession(uid, sessionId)) throw new Error('Account data is not ready');
+    if(profile._fateAccountUid && profile._fateAccountUid !== uid) throw new Error('Account changed');
+    clearTimeout(_cloudSaveDebounceTimers.profile);
+    const response = await _flyApiRequest('/api/player-save/' + encodeURIComponent(uid), {
+      method:'POST', body:{uid:uid, claimStarter:true, data:{profile:Object.assign({}, _stripServerRankStats(profile), {_fateAccountUid:uid})}}
+    });
+    if(!_isCurrentCloudSession(uid, sessionId)) throw new Error('Account changed');
+    if(!response.data?.profile?.starterChosen) throw new Error('Starter choice was not saved');
+    return response.data.profile;
+  }
+
   // ─── EXPOSE ───
 
   window.FateCloudSave = {
     saveProfile: cloudSaveProfile,
+    saveStarterChoice: saveStarterChoice,
     savePresets: cloudSavePresets,
     saveLeaderboard: cloudSaveLeaderboard,
     savePublicDecks: cloudSavePublicDecks,

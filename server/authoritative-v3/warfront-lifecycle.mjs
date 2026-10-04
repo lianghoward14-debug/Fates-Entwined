@@ -103,7 +103,7 @@ export function releaseWarfrontPlayers(event,zone,binding,matchId){
     if(!player||player.isAI)continue;
     const entry=event.service[player.uid] ||= {...structuredClone(player),team,zoneId:zone.id,matchIds:[]};
     if(!entry.matchIds.includes(matchId))entry.matchIds.push(matchId);
-    if(zone[team]?.uid===player.uid&&entry.matchIds.length<5)zone[team]=null;
+    if(zone[team]?.uid===player.uid)zone[team]=null;
   }
   binding.settled=true;
   relocateWarfrontAI(event);

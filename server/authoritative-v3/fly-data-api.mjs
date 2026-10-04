@@ -1,6 +1,7 @@
 import warfrontMaps from '../../shared/warfront-maps.js';
 import {warfrontLandscapeCatalog} from './warfront-landscape-catalog.mjs';
 import presetSync from '../../shared/preset-sync.js';
+import starterChoice from '../../shared/starter-choice.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -814,6 +815,14 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
         const target=cleanId(p[2],128);if(req.method==='GET'){await requireSelf(req,target);writeJson(res,200,{ok:true,save:clone(saves.get(target)||null),data:clone(saves.get(target)?.data||null)});return true;}
         const body=await readBody(req),uid=await requireSelf(req,body.uid||target),existing=saves.get(uid)||{uid,data:{}};
         const incoming=clone(body.data||{});
+        if(incoming.profile && typeof incoming.profile === 'object'){
+          const savedProfile=starterChoice.normalize(existing.data?.profile);
+          // Starter claims are first-write-wins within a collection version.
+          // Return the original grant on retries instead of granting twice.
+          incoming.profile=body.claimStarter === true && savedProfile.starterChosen
+            && String(savedProfile.cardCollectionResetVersion||'') >= String(incoming.profile.cardCollectionResetVersion||'')
+            ? savedProfile : starterChoice.merge(savedProfile,incoming.profile);
+        }
         if(incoming.presets || incoming.presetTombstones){
           const merged=presetSync.merge(existing.data,incoming);
           if(JSON.stringify(merged.presets)!==JSON.stringify(existing.data?.presets||{})){
@@ -822,9 +831,9 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
           Object.assign(incoming,merged);
         }
         existing.data=Object.assign({},existing.data||{},incoming);existing.updatedAt=Date.now();saves.set(uid,existing);
-        // A preset success response means the library and its recovery history
-        // reached disk, rather than waiting for the general debounce timer.
-        if(incoming.presets || incoming.presetTombstones) flush(); else persist();
+        // A profile or preset success response means the account data reached
+        // disk, rather than waiting for the general debounce timer.
+        if(incoming.profile || incoming.presets || incoming.presetTombstones) flush(); else persist();
         writeJson(res,200,{ok:true,save:clone(existing),data:clone(existing.data)});return true;
       }
       if(p[1]==='public-decks'){

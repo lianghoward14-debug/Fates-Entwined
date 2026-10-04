@@ -2189,7 +2189,17 @@ window.startFreePlayMatchmaking = function(){
   }
 };
 
+function starterAccountIsReady() {
+  const uid = window.FateOnline?.auth?.currentUser?.uid || window._fateCloudUid;
+  if(uid && (!window._fateCloudReady || window._fateCloudUid !== uid)){
+    toast('Your account data has not finished syncing. Please wait, or sign in again if syncing failed.');
+    return false;
+  }
+  return true;
+}
+
 function openChallengerMenu() {
+  if(!starterAccountIsReady()) return;
   CURRENT_MODE = 'challenger';
   closeAllOverlays();
   seedBuiltInPresets();
@@ -2265,18 +2275,21 @@ function previewStarterDeck(starterId) {
   });
 }
 
-function pickStarterDeck(starterId) {
+let _starterChoicePending = false;
+async function pickStarterDeck(starterId) {
+  if(_starterChoicePending || !starterAccountIsReady() || USER_PROFILE.starterChosen) return;
   const deck = STARTER_DECKS.find(d=>d.id===starterId);
   if(!deck) return;
+  const profile = JSON.parse(JSON.stringify(USER_PROFILE));
   // Grant all cards in the starter deck to the profile
-  if(!USER_PROFILE.ownedCards) USER_PROFILE.ownedCards = {};
+  if(!profile.ownedCards) profile.ownedCards = {};
   deck.ids.forEach(id=>{
-    USER_PROFILE.ownedCards[id] = (USER_PROFILE.ownedCards[id]||0) + 1;
+    profile.ownedCards[id] = (profile.ownedCards[id]||0) + 1;
   });
   // Save deck as a challenger preset
-  if(!USER_PROFILE.challengerPresets) USER_PROFILE.challengerPresets = {};
+  if(!profile.challengerPresets) profile.challengerPresets = {};
   const pid = createChallengerDeckId('ch_'+starterId);
-  USER_PROFILE.challengerPresets[pid] = {
+  profile.challengerPresets[pid] = {
     name: deck.name,
     description: deck.description,
     theme: deck.theme,
@@ -2287,13 +2300,28 @@ function pickStarterDeck(starterId) {
     lockedStarter: true,
     starterId: deck.id
   };
-  USER_PROFILE.unopenedProfilePacks = (USER_PROFILE.unopenedProfilePacks||0) + 3;
-  USER_PROFILE.unopenedPacks = (USER_PROFILE.unopenedPacks||0) + 3;
-  G.p1Deck = [...deck.ids];
-  G.dbCurrentPlayer = 0;
-  USER_PROFILE.starterChosen = true;
-  saveProfile();
-  toast(`${deck.name} chosen! 3 Profile Boosters + 3 Fates Entwined Boosters added.`);
+  profile.unopenedProfilePacks = (profile.unopenedProfilePacks||0) + 3;
+  profile.unopenedPacks = (profile.unopenedPacks||0) + 3;
+  profile.starterChosen = true;
+  profile.starterDeckId = starterId;
+  profile._clientUpdatedAt = Date.now();
+  _starterChoicePending = true;
+  try {
+    const uid = window.FateOnline?.auth?.currentUser?.uid || window._fateCloudUid;
+    const accepted = uid ? await window.FateCloudSave.saveStarterChoice(profile) : profile;
+    Object.assign(USER_PROFILE, accepted);
+    const selected = STARTER_DECKS.find(d=>d.id === accepted.starterDeckId) || deck;
+    G.p1Deck = [...selected.ids];
+    G.dbCurrentPlayer = 0;
+    saveProfile();
+  } catch(error){
+    console.warn('Starter choice save failed', error);
+    toast('Could not save your starter deck to your account. Please try again.');
+    return;
+  } finally {
+    _starterChoicePending = false;
+  }
+  toast('Your starter deck is saved to your profile.');
   setTimeout(()=>{
     showScreen('s-challenger');
     switchChTab('play');

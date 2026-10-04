@@ -56,11 +56,17 @@ try{
   const unchanged=await request('alpha','/api/warfront/state?revision='+state._syncRevision);
   const compact=await request('alpha','/api/warfront/state?revision=-1&archives=');assert.equal(compact.archivesUnchanged,true);assert.equal(compact.state.archives,undefined);
   assert.equal(unchanged.unchanged,true);assert.equal(unchanged.state,undefined,'unchanged polls omit archived replay payloads');
-  await assert.rejects(deploy('alpha',state.zones[1].id,'a'),/already deployed/);
-  const ui={state,me:()=>({uid:'new-player'}),score:()=>({played:0}),deploymentPending:null,selectedTeam:null,avatar:()=>'',esc:String,stars:()=>''};
+  await deploy('alpha',state.zones[1].id,'a');
+  assert.equal((await read()).zones[1].a.uid,'alpha','idle commander can replace an allied AI');
+  await deploy('alpha',zoneId,'a');
+  state=await read();
+  const ui={state,me:()=>({uid:'new-player'}),score:()=>({played:0}),deploymentPending:null,selectedTeam:null,seat:()=>null,avatar:()=>'',esc:String,stars:()=>''};
   vm.createContext(ui);vm.runInContext(source.slice(source.indexOf('function warCanDeploy('),source.indexOf('function zonePanel(')),ui);
   assert.match(ui.miniSeat(state.zones[1],'a',null),/onclick=/,'unassigned player can click AI without visiting Briefing');
-  assert.doesNotMatch(ui.miniSeat(state.zones[1],'a',{zone:state.zones[0],team:'a'}),/onclick=/,'assigned player cannot replace AI');
+  ui.seat=()=>({zone:state.zones[0],team:'a'});
+  assert.match(ui.miniSeat(state.zones[1],'a'),/onclick=/,'idle assigned player can replace allied AI');
+  ui.seat=()=>({zone:{...state.zones[0],activeMatch:'busy'},team:'a'});
+  assert.doesNotMatch(ui.miniSeat(state.zones[1],'a'),/onclick=/,'active match blocks changing posts');
   const start=async(uid,zoneId,id)=>{
     const state=await read(),z=state.zones.find(z=>z.id===zoneId),team=z.a?.uid===uid?'a':'b',ai=z[team==='a'?'b':'a'];
     const key=[state.mapCode,zoneId,...[uid,ai.uid].sort()].join('|');
@@ -69,7 +75,7 @@ try{
     assert(api.bindWarfrontAiMatch(id,uid,uid+'@session',key));return match;
   };
   const first=await start('alpha',zoneId,'first');const oldAI=state.zones[0].b.uid;
-  api.close();api=makeApi();await read();assert(recoveryChecks.includes(first.matchId),'restored active reservations trigger disconnected-player recovery');
+  api.close();api=makeApi();await api.tickWarfront();await read();assert(recoveryChecks.includes(first.matchId),'restored active reservations trigger disconnected-player recovery');
   await deploy('bravo',zoneId,'b');
   await assert.rejects(deploy('intruder',zoneId,'b'),/occupied/);
   first.outcome={winner:1,totalFate:[10,30]};assert(api.settleWarfrontForfeit(first));
@@ -97,7 +103,7 @@ try{
   const disk=JSON.parse(fs.readFileSync(path.join(dir,'rooms.json'),'utf8'));
   disk.warfrontEvent.status='active';disk.warfrontEvent.endsAt=Date.now()+3600000;
   disk.warfrontEvent.zones[0].activeMatch={matchId:'missing-actor',startedAt:Date.now()-60000};
-  fs.writeFileSync(path.join(dir,'rooms.json'),JSON.stringify(disk));api=makeApi();
-  assert.equal((await read()).zones[0].activeMatch,null,'orphaned spectate marker is released on the next read');
+  fs.writeFileSync(path.join(dir,'rooms.json'),JSON.stringify(disk));api=makeApi();await api.tickWarfront();
+  assert.equal((await read()).zones[0].activeMatch,null,'orphaned spectate marker is released on the next lifecycle tick');
   console.log('Warfront live AI replacement, relocation, human protection, release, attribution, five-match cap, draws and restart passed');
 }finally{if(server)await new Promise(resolve=>server.close(resolve));api?.close();globalThis.fetch=originalFetch;fs.rmSync(dir,{recursive:true,force:true});}

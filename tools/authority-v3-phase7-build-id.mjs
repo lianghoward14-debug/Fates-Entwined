@@ -56,7 +56,7 @@ export function buildPhase7SourceIdentity(workspaceRoot = root){
         && !/^phase6-/i.test(name);
     });
   const sharedFiles = collect(path.join(resolvedRoot, 'shared'))
-    .filter(filePath=>/\.(?:mjs|json)$/i.test(filePath));
+    .filter(filePath=>/\.(?:js|mjs|json)$/i.test(filePath));
   const files = [
     ...DIRECT_FILES.map(relative=>path.join(resolvedRoot, relative)),
     ...serverFiles,

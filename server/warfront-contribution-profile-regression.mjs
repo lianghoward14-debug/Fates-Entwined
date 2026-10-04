@@ -15,14 +15,14 @@ assert.equal(ctx.commanderContribution(state.zones[1],'a','foot').victories,2);
 state.zones=[{matches:[]}];assert.equal(ctx.commanderContribution(state.zones[0],'a','foot').stars,0);
 const setup=fs.readFileSync('src/scripts/04-game-setup.js','utf8');
 const profiles=vm.runInNewContext('('+extractArrayLiteral(setup,'AI_OPPONENTS')+')');
-const decks=getDeckCatalog().decks;assert.equal(decks.length,16);
+const decks=getDeckCatalog().decks;assert.equal(decks.length,20);
 for(const p of profiles){
  const profile=warfrontAiProfile(p);assert.equal(profile.style,p.style);
  const expected=decks.find(d=>d.id===p.deckRef)||decks[[...p.name].reduce((n,c)=>(n*31+c.charCodeAt(0))>>>0,0)%decks.length];
  assert.deepEqual(warfrontAiDeck(p),[...expected.ids]);
 }
-const reached=new Set();for(let i=0;i<1000;i++)reached.add(warfrontAiDeck({name:'commander-'+i}).join(','));assert.equal(reached.size,16);
-console.log('Campaign contributions and all 16 shared AI decks/profile parity passed');
+const reached=new Set();for(let i=0;i<1000;i++)reached.add(warfrontAiDeck({name:'commander-'+i}).join(','));assert.equal(reached.size,decks.length);
+console.log('Campaign contributions and all 20 shared AI decks/profile parity passed');
 
 import {warfrontDueMatch} from './authoritative-v3/warfront-lifecycle.mjs';
 const now=10000;
