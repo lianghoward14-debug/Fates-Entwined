@@ -22,17 +22,18 @@ function context(player){
       && !game.pendingEffect && !game._consolidating && !game._handLimitDiscard && !game._whenSetEffectsResolving;
   const commands = authority?.commands || view?.legalCommands;
   const available = supportCompanyAvailability(uses[player], morale, enabled);
+  const browseAvailable = {...available};
   if(commands){
     available.call = commands.some(c=>c.type==='SUPPORT_COMPANY' && c.payload.ability==='call');
     available.desperate = commands.some(c=>c.type==='SUPPORT_COMPANY' && c.payload.ability==='desperate');
   }else if(game._onlineRoomCode){available.call=false;available.desperate=false;}
-  return {game, player, own, active:active && !busy, uses:Number(uses[player] || 0), morale, available, authority, local, commands};
+  return {game, player, own, active:active && !busy, uses:Number(uses[player] || 0), morale, available, browseAvailable, pool:state?.supportCompanyPool, authority, local, commands};
 }
 
 window.buildSupportCompanyPanel = function(player){
   const c=context(player);if(!c)return '';
   const button=ability=>{
-    const disabled=!c.own || !c.active || !c.available[ability];
+    const disabled=!c.own || !c.browseAvailable[ability] || busy;
     const desperate=ability==='desperate';
     const icon=desperate?'<path d="M23 39h18l-3 8H26zM28 47v10h8V47M32 7c3 10 14 13 14 23a14 14 0 0 1-28 0c0-7 5-12 8-16-1 9 3 10 5 11 4-5 3-12 1-18zM31 28c-5 5-6 9 1 11 7-2 6-6 2-10M13 10l-5-5m43 5 5-5M9 25H3m52 0h6"/>':'<path d="M12 29h11L47 17v30L23 35H12zM12 26v12M47 14v36M22 35l5 15h8l-6-12M53 24l6-4m-6 12h8m-8 8 6 4"/>';
     const description=desperate?'Once per game, after using Call to Arms, add another card from this game’s pool by paying half your morale.':'Once per game, choose a card from a random pool of 10 supporters and 5 characters. Only spent when you confirm.';
@@ -52,21 +53,22 @@ window.presentSupportCompanyUse = function(event, key=''){
 
 window.openSupportCompany = function(ability,player){
   const original=context(player);
-  if(!original?.own || !original.active || !original.available[ability])return;
+  if(!original?.own || !original.browseAvailable[ability] || busy)return;
   if(typeof window.playFateSfxOnce === 'function'){
     window.playFateSfxOnce('uiClick', `support-company-${ability}`, 120);
   }else if(typeof playSfx === 'function'){
     playSfx('uiClick');
   }
-  const game=original.game,turn=game.turn;
+  const game=original.game;
   if(!original.commands) game._supportCompanyPool ||= createSupportCompanyPool(typeof CARDS!=='undefined'?CARDS:[]);
   const cards=(typeof CARDS!=='undefined'?CARDS:[]).filter(supportCompanyCardEligible).filter(card=>
-    original.commands ? original.commands.some(c=>c.type==='SUPPORT_COMPANY' && c.payload.ability===ability && String(c.payload.cardId)===String(card.id)) : game._supportCompanyPool.includes(String(card.id)));
+    original.commands ? (original.pool || original.commands.filter(c=>c.type==='SUPPORT_COMPANY').map(c=>String(c.payload.cardId))).includes(String(card.id)) : game._supportCompanyPool.includes(String(card.id)));
   if(!cards.length)return;
   const cost=ability==='desperate'?original.available.cost:0;
   pickCardsVisual(cards,{
     title:SUPPORT_COMPANY_NAMES[ability],
-    subtitle:ability==='desperate'?`Pay ${cost} Morale (${original.morale} → ${original.morale-cost}). Add one card privately.`:'Free once per game. Add one card privately.',
+    subtitle:(original.active?'':'Browse now; select a card on your turn. ') + (ability==='desperate'?`Pay ${cost} Morale (${original.morale} → ${original.morale-cost}). Add one card privately.`:'Free once per game. Add one card privately.'),
+    canSelect:()=>{const c=context(player);return c?.game===game && c.own && c.active && c.available[ability];},
     minCount:1,maxCount:1,allowCancel:true,confirmLabel:ability==='desperate'?`Pay ${cost} Morale`:'Call to Arms',
     // This picker builds a SUPPORT_COMPANY command, not a legacy picker action.
     authoritativeDirectAction:true,
@@ -74,7 +76,7 @@ window.openSupportCompany = function(ability,player){
   },async chosen=>{
     if(!chosen?.length || busy)return;
     const c=context(player),card=chosen[0];
-    if(c?.game!==game || game.turn!==turn || !c.own || !c.active || !c.available[ability] || !cards.includes(card) || !supportCompanyCardEligible(card))return;
+    if(c?.game!==game || !c.own || !c.active || !c.available[ability] || !cards.includes(card) || !supportCompanyCardEligible(card))return;
     // A changed Morale total needs a refreshed price, not a silent larger payment.
     if(ability==='desperate' && c.available.cost!==cost){window.openSupportCompany(ability,player);return;}
     busy=true;
@@ -106,5 +108,4 @@ window.openSupportCompany = function(ability,player){
     }finally{busy=false;}
   });
 };
-
 

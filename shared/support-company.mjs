@@ -1,3 +1,4 @@
+import {isRetiredCard} from './card-availability.mjs';
 // Previous reserve IDs retained for compatibility with older fixtures.
 export const SUPPORT_COMPANY_IDS = Object.freeze([
   '16','18','21','26','30','36','39','50','52','53','61','67','79','81','86','97','bh16','bh18'
@@ -11,7 +12,7 @@ export function supportCompanyCost(morale){
 export function supportCompanyCardEligible(card){
   return !!card && ['Supporter', 'Coordinator', 'Initiator', 'Dauntless', 'Improvisor'].includes(card.type)
     && String(card.rarity).toLowerCase() !== 'star'
-    && !card.retired && !card.temporarilyDisabled;
+    && !isRetiredCard(card);
 }
 export function createSupportCompanyPool(cards, random = Math.random){
   const eligible = [...new Map(cards.filter(supportCompanyCardEligible).map(card=>[String(card.id), card])).values()];

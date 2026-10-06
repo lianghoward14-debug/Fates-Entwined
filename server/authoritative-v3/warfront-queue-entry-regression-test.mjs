@@ -7,8 +7,9 @@ import vm from 'node:vm';
 import {spawn} from 'node:child_process';
 import {pathToFileURL} from 'node:url';
 import {multiplayerEligibleCardIds} from '../../shared/engine/index.mjs';
+import {createDeltaDecoder} from '../../shared/multiplayer-delta.mjs';
 
-const source=fs.readFileSync('src/scripts/authoritative-v3-phase7-beta-client.mjs','utf8');
+const source=fs.readFileSync('src/scripts/authoritative-v3-phase7-beta-client.mjs','utf8').replace(/^import \{createDeltaDecoder\} from '[^']+';\r?\n/, '');
 const sessionCode=source.slice(source.indexOf("let fallbackMatchmakingSession="),source.indexOf('async function matchmakingIdentityToken'));
 const queueCode=source.slice(source.indexOf('async function startUnrankedMatchmaking('),source.indexOf('async function leaveMatchmaking('));
 const dir=fs.mkdtempSync(path.join(os.tmpdir(),'warfront-queue-entry-')),port=25000+process.pid%1000,base=`http://127.0.0.1:${port}`;
@@ -28,7 +29,7 @@ try{
   let ready=false;for(let i=0;i<400;i++){try{if((await fetch(base+'/health')).ok){ready=true;break;}}catch{}await delay(50);}assert(ready,logs);
   function client(uid,sessionName){
     const storage=new Map(),statuses=[];let mounted=false,interrupted=false;
-    const c={location:{search:'?electronSession='+sessionName},URLSearchParams,sessionStorage:{getItem:k=>storage.get(k),setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},crypto,Date,Math,console,AbortSignal,AbortController,
+    const c={location:{search:'?electronSession='+sessionName},URLSearchParams,sessionStorage:{getItem:k=>storage.get(k),setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},crypto,Date,Math,console,AbortSignal,AbortController,createDeltaDecoder,
       setTimeout,clearTimeout,FATE_PHASE7_UNRANKED_BETA:true,
       document:{getElementById:()=>null},
       fetch:(url,options)=>{if(uid==='alpha'&&!interrupted&&String(url).endsWith('/matchmaking/enter')){interrupted=true;return Promise.resolve(new Response(JSON.stringify({ok:false,error:'Temporary connection interruption'}),{status:503}));}return fetch(String(url).replace('https://fates-entwined-main.fly.dev',base),options);},
@@ -67,9 +68,9 @@ try{
   assert.equal(switched.status,'waiting','a delivery from another mode must not block normal matchmaking');
   a.c.fateAuthorityV3Beta.disconnect({forget:true});b.c.fateAuthorityV3Beta.disconnect({forget:true});
   let released=false;
-  // Node's test WebSocket can take roughly 30 seconds to finish its close
-  // handshake under full-suite load; the production forfeit grace is unchanged.
-  for(let i=0;i<160;i++){
+  // Node's test WebSocket can take roughly 30 seconds per peer to finish its
+  // close handshake; the production forfeit grace is unchanged.
+  for(let i=0;i<280;i++){
     const current=await jsonRequest('/api/warfront/state',{authorization:`Bearer ${token('alpha')}`});
     if(!current.state.zones[2].activeMatch){assert.equal(current.state.zones[2].a,null);assert.equal(current.state.zones[2].b,null);released=true;break;}
     await delay(250);

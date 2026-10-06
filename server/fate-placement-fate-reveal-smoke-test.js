@@ -77,8 +77,8 @@ assert.match(
 
 assert.match(
   core,
-  /function preparePlacementFateReveal[\s\S]*source\._wciBonus[\s\S]*createdAt:Date\.now\(\)/,
-  'the pre-placement value must match the Fate shown in hand and carry a stable placement timestamp'
+  /function preparePlacementFateReveal[\s\S]*source\.fate \?\? inst\.fate[\s\S]*createdAt:Date\.now\(\)/,
+  'the placement reveal starts from printed Fate and carries a stable placement timestamp'
 );
 assert.match(
   snapshot,
@@ -136,6 +136,6 @@ assert.strictEqual(greatOakResult._placementFateReveal.fromValue, 8, 'a Great Oa
 assert.strictEqual(greatOakResult._placementFateReveal.genericSoundRequested, true, 'Great Oak consolidation Fate must request the delayed Fate-gain sound');
 const handBoostResult = {id:'35', fate:8, currentFate:10};
 prepareRuntime.preparePlacementFateReveal(handBoostResult, {id:'35', fate:8, currentFate:8, _wciBonus:true}, 'set');
-assert.strictEqual(handBoostResult._placementFateReveal.fromValue, 10, 'bonuses already visible in hand must remain part of the initial displayed Fate');
+assert.strictEqual(handBoostResult._placementFateReveal.fromValue, 8, 'bonuses already visible in hand must animate from printed Fate on placement');
 
 console.log('Placement Fate reveal smoke test passed.');

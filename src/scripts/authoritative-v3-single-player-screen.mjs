@@ -661,11 +661,12 @@ export class FateAuthoritativeV3SinglePlayerScreen {
       const type = String(event?.type || '').toUpperCase();
       if(type === 'EFFECT_ACTIVATED' || type === 'EFFECT_REACTED'){
         const source = this.findCard(type === 'EFFECT_REACTED' ? event.reactionIid : event.sourceIid);
+        if(type === 'EFFECT_ACTIVATED' && String(source?.id || '') === '18') this.window.playFateReactionSfx?.(true, source);
         if(source && event?.suppressActivationCinematic !== true && String(source.id || '') !== '66' && typeof this.window.showEffectActivationCinematic === 'function'){
           try{ this.window.showEffectActivationCinematic(this.presentationCard(source), {remote:Number(event.playerIndex) !== Number(this.view?.playerIndex), source:'authoritative-v3-single-player-event', sfx:type === 'EFFECT_REACTED' ? false : undefined, broadcast:false}); }catch(_error){}
         }
         if(type === 'EFFECT_REACTED' && typeof this.window.playSfx === 'function'){
-          this.window.playSfx(String(event?.mode || '').toUpperCase() === 'SUPPRESS' ? 'effectSuppressed' : 'effectNegated');
+          this.window.playFateReactionSfx(String(event?.mode || '').toUpperCase() === 'SUPPRESS', source);
         }
       }
       if(type === 'SOVIET_GRENADIERS_TARGET_LINKED'){

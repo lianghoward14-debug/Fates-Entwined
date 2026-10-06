@@ -1,4 +1,6 @@
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,400&display=swap');
+@font-face{font-family:'Cinzel';font-style:normal;font-weight:400 900;font-display:swap;src:url('../../assets/fonts/cinzel-variable.ttf') format('truetype')}
+@font-face{font-family:'Crimson Pro';font-style:normal;font-weight:200 900;font-display:swap;src:url('../../assets/fonts/crimson-pro-variable.ttf') format('truetype')}
+@font-face{font-family:'Crimson Pro';font-style:italic;font-weight:200 900;font-display:swap;src:url('../../assets/fonts/crimson-pro-italic-variable.ttf') format('truetype')}
 *{box-sizing:border-box;margin:0;padding:0;}
 :root{
   --bg:#0d0d12;--bg2:#141420;--bg3:#1c1c2c;--border:#2a2a42;--bhi:#5050a0;

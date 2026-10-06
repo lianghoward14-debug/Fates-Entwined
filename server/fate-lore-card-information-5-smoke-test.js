@@ -63,6 +63,6 @@ assert.match(loreText, /slug:'johnathan-kirby', title:'Johnathan Kirby', pfpId:'
 assert.match(loreText, /'Place of Birth':'Irvine, United States'/);
 assert.match(loreText, /Relationships:'Zsofia Szocs, Felicyta Janowicz, Květka Svoboda'/);
 assert.match(loreText, /Object\.assign\(DOCUMENT_EXACT_BODIES, window\.CARD_INFORMATION_5_LORE_BODIES \|\| \{\}\)/);
-assert.match(indexText, /09a-card-information-5-lore\.js\?v=1784293501[\s\S]*09-challenger-lore\.js\?v=1784293501/);
+assert.match(indexText, /09a-card-information-5-lore\.js\?v=1784293501[\s\S]*09-challenger-lore\.js\?v=20261006-ja-lore-preview/);
 
 console.log('Card Information-5 lore smoke passed');

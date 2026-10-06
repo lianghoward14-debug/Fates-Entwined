@@ -6340,9 +6340,7 @@
       }catch(error){ console.warn('Phase 7 set cinematic failed open', error); }
       if(!shown && typeof window.playCardSetAudio === 'function') window.playCardSetAudio(card);
       if(shown) await phase7WaitForPresentationIdle({minQuietMs:100, timeoutMs:9000});
-      if(['45','35','46','88','41','55','85','36','bh17','100','bh18','bh03'].includes(String(card.id || '')) && typeof window.showEffectActivationCinematic === 'function') {
-        await window.showEffectActivationCinematic(card,{source:'phase7-passive-character-placement',remote:true});
-      }
+      // The set cinematic owns the passive signature and its single banner.
       phase7RecordPresentationStage('cinematic:end', {type:'CARD_SET', cardIid:String(card.iid || ''), shown});
     }
   }
@@ -6845,6 +6843,7 @@
       }
       if(type === 'EFFECT_ACTIVATED'){
         const sourceCardId = String(event?.semanticSourceCardId || source?.id || '').toLowerCase();
+        if(sourceCardId === '18') window.playFateReactionSfx?.(true, source);
         if(sourceCardId === 'bh16'){
           const matchingStatusEvent = events.find(function(candidate){
             const status = candidate?.status || {};
@@ -6909,8 +6908,9 @@
           window.showSantiagoDiscardBanner(discardTarget);
         }
         const fx = window.FateV2CardMotionFx;
-        if(targetLocation?.zone === 'board' && fx && typeof fx.flyBoardCard === 'function'){
-          resultMotionStarted = !!fx.flyBoardCard(discardTarget, targetLocation.z, targetLocation.r, targetLocation.c, 'discard') || resultMotionStarted;
+        const discardPosition = targetLocation?.zone === 'board' ? targetLocation : event.previousBoardPosition;
+        if(discardPosition && fx && typeof fx.flyBoardCard === 'function'){
+          resultMotionStarted = !!fx.flyBoardCard(discardTarget, discardPosition.z, discardPosition.r, discardPosition.c, 'discard') || resultMotionStarted;
         }else if(targetLocation?.zone === 'hand' && fx && typeof fx.sendHandCardToDiscard === 'function'){
           resultMotionStarted = !!fx.sendHandCardToDiscard(discardTarget, targetLocation.playerIndex, targetLocation.index) || resultMotionStarted;
         }else if(fx && typeof fx.discardCard === 'function'){
@@ -6990,7 +6990,7 @@
         const reaction = phase7FindAnyCard(event?.reactionIid);
         if(typeof window.playSfx === 'function'){
           const isLydia = String(event?.reactionKind || '').toUpperCase() === 'LYDIA' || String(reaction?.id || '') === '56';
-          window.playSfx(!isLydia && String(event?.mode || '').toUpperCase() === 'SUPPRESS' ? 'effectSuppressed' : 'effectNegated');
+          window.playFateReactionSfx(!isLydia && String(event?.mode || '').toUpperCase() === 'SUPPRESS', reaction);
         }
         if(window.toast) toast((reaction?.name || 'An Improvisor') + ' interrupted the effect.');
         return;
@@ -7085,7 +7085,9 @@
             if(pairedProjectedTarget) pairedProjectedTarget._suppressNextFatePulse = true;
           }
         }
-        if(!isBh15AuraFollowUp && !pairedOverlayQueued) phase7ShowExactEffectOverlay(view, event, target, eventIndex, resultFeedbackFrameAt);
+        const fateOverlayShown = !isBh15AuraFollowUp && !pairedOverlayQueued
+          && phase7ShowExactEffectOverlay(view, event, target, eventIndex, resultFeedbackFrameAt);
+        if(fateOverlayShown && baseFateAfter > fateBefore) fateOptions.suppressMotionAudio = true;
         if(highTSourceIids.length && highTBonus > 0 && typeof window.queueHighTPotencyOverlay === 'function'){
           window.queueHighTPotencyOverlay(target, highTSourceIids, {
             startValue:baseFateAfter,
@@ -7128,6 +7130,7 @@
           }else if(typeof fateFx.fateChangeAtLocation === 'function'){
             fateMotionShown = !!fateFx.fateChangeAtLocation(target, pos, fateBefore, baseFateAfter, fateOptions);
           }
+          const fateRecipeShown = fateMotionShown;
           // The VFX director can reject a new recipe while the preceding
           // result overlay is still retiring.  The Fate number is independent
           // production feedback and must never disappear with that recipe.
@@ -7167,7 +7170,8 @@
             if(projectedTarget) projectedTarget._suppressNextFatePulse = true;
           }
           if(fateMotionShown){
-            if(exactOverlayDescriptor && typeof window.playResolvedFateChangeSfx === 'function') {
+            if(!fateRecipeShown && !(fateOverlayShown && baseFateAfter > fateBefore)
+              && typeof window.playResolvedFateChangeSfx === 'function') {
               window.playResolvedFateChangeSfx(target, fateBefore, baseFateAfter, phase7FindAnyCard(event.sourceIid)?.owner ?? event.playerIndex);
             }
             window.fatePhase7PresentationAudit?.fateMotions?.push({

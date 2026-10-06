@@ -38,6 +38,11 @@
   "Alexander the Magnificient": 35
 };
   let active = null;
+  function dismiss(){ if(active) active(); }
+  function consolidationActive(){
+    return (typeof consolidationCinematicIsActive === 'function' && consolidationCinematicIsActive())
+      || !!document.querySelector('.cc-overlay-v2:not(.effect-activation-cinematic),.consolidation-cinematic-overlay');
+  }
   const shown = new Set();
   let shownMatch = null;
   function syncMatch(){
@@ -66,6 +71,8 @@
     };
   }
   function play(card, options = {}){
+    // Every caller, including AI effects and picker fallbacks, shares this gate.
+    if(consolidationActive()){ dismiss(); return null; }
     if(!card || String(card.type || '').toLowerCase() === 'supporter' || window.isHiddenEffectForViewer?.(card)) return null;
     const classes = document.documentElement.classList;
     if(classes.contains('fate-animations-off') || classes.contains('fate-super-performance-mode') || document.body.classList.contains('fate-super-performance-mode')) return null;
@@ -186,5 +193,5 @@
       return function(){out.gain.setTargetAtTime(0,ctx.currentTime,.01);setTimeout(()=>out.disconnect(),40);};
     } catch(e) { return null; }
   }
-  window.FateActivationBanner = {play, pickerConfirmation};
+  window.FateActivationBanner = {play, pickerConfirmation, dismiss};
 })();

@@ -249,7 +249,7 @@ html body #s-game.svg-board-v20-live .codex-v19-land .landscape-supporter-limit{
 #s-game.svg-board-v20-live .codex-v19-landscape-banner>span{display:flex!important;align-items:center!important;justify-content:center!important;padding:0 8px!important;border:0!important;background:transparent!important;color:#77e3e7!important;font:700 10px/1 'Cinzel',serif!important;letter-spacing:.14em!important;text-align:center!important}
 #s-game.svg-board-v20-live .codex-v19-command .codex-v19-land{box-sizing:border-box!important;height:100%!important;min-height:0!important;padding:10px 9px!important;border:0!important;background:transparent!important;flex-direction:column!important;justify-content:center!important;text-align:center!important}
 #s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-kicker{display:none!important}
-#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-name{display:block!important;width:100%!important;max-width:100%!important;margin:0 0 3px!important;overflow:visible!important;overflow-wrap:anywhere!important;font:700 11.5px/1.1 'Cinzel',serif!important;letter-spacing:.03em!important;text-align:center!important;-webkit-line-clamp:unset!important}
+#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-name{display:block!important;width:100%!important;max-width:100%!important;margin:0 0 4px!important;overflow:visible!important;overflow-wrap:anywhere!important;font:700 11.5px/1.1 'Cinzel',serif!important;letter-spacing:.03em!important;text-align:center!important;-webkit-line-clamp:unset!important}
 #s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-desc{display:block!important;width:100%!important;max-width:100%!important;min-width:0!important;margin:0!important;padding:0!important;overflow:visible!important;overflow-wrap:anywhere!important;border:0!important;box-shadow:none!important;background:none!important;font:italic 10px/1.22 Georgia,serif!important;letter-spacing:0!important;-webkit-line-clamp:unset!important;text-align:center!important}
 #s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-note{display:block!important;width:100%!important;max-width:100%!important;min-width:0!important;margin:3px 0 0!important;padding:0!important;overflow:visible!important;overflow-wrap:anywhere!important;border:0!important;box-shadow:none!important;background:none!important;font:700 9.5px/1.15 'Cinzel',serif!important;letter-spacing:.015em!important;-webkit-line-clamp:unset!important;text-align:center!important}
 
@@ -259,7 +259,7 @@ html body #s-game.svg-board-v20-live .codex-v19-land .landscape-supporter-limit{
   font-family:Georgia,"Times New Roman",serif!important;
 }
 #s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-name{
-  margin:2px 0 5px!important;
+  margin:2px 0 4px!important;
   font-family:Georgia,"Times New Roman",serif!important;
   font-size:12px!important;
   font-weight:750!important;
@@ -1029,7 +1029,7 @@ html body.in-game #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-c
 }
 
 /* Final active-landscape typography authority. */
-#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-name{margin:0 0 3px!important;font:700 11.5px/1.1 'Cinzel',serif!important;letter-spacing:.03em!important;}
+#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-name{margin:0 0 4px!important;font:700 11.5px/1.1 'Cinzel',serif!important;letter-spacing:.03em!important;}
 #s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-desc{font:italic 10px/1.22 Georgia,serif!important;letter-spacing:0!important;}
 #s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-note{margin:3px 0 0!important;font:700 9.5px/1.15 'Cinzel',serif!important;letter-spacing:.015em!important;}
 
@@ -1039,7 +1039,7 @@ html body.in-game #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-c
   top:4px!important;
 }
 #s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-panel.landscape-id-igb22 .landscape-name{
-  margin-bottom:5px!important;
+  margin-bottom:4px!important;
   font-size:9.5px!important;
   line-height:1.16!important;
 }
@@ -1059,7 +1059,7 @@ html body.in-game #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-c
   top:4px!important;
 }
 #s-game.svg-board-v20-live.landscape-id-igb22 .codex-v19-command .codex-v19-land .landscape-name{
-  margin-bottom:5px!important;
+  margin-bottom:4px!important;
   font-size:10px!important;
   line-height:1.16!important;
 }
@@ -1095,7 +1095,7 @@ html body.in-game #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-c
 }
 #s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-panel.landscape-id-igb17 .landscape-name{
   flex:0 0 auto!important;
-  margin:0 0 2px!important;
+  margin:0 0 4px!important;
   font-size:10.5px!important;
   line-height:1.05!important;
   overflow:visible!important;

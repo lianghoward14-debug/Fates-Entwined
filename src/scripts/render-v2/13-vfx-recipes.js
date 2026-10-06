@@ -482,6 +482,7 @@
   }
 
   function fateGain(payload){
+    if(payload && payload.suppressMotionAudio) return [];
     return [
       P().soundCue({cue:'fate_gain', startOffset:90})
     ];

@@ -897,7 +897,7 @@ In both Polish and international media, the Second Polish-Lithuanian Army was re
     return String(text || '').split(/\n{2,}/).map(part=>part.trim()).filter(Boolean).map(part=>`<p>${esc(part)}</p>`).join('');
   }
   function loreTaglineText(text){
-    return String(text || '').trim().replace(/[.。]+$/g, '');
+    return String(text || '').trim();
   }
   function firstFact(facts, keys){
     for(const key of keys){
@@ -924,7 +924,8 @@ In both Polish and international media, the Second Polish-Lithuanian Army was re
   }
   function renderCharacterCard(page, openFn){
     const aff = affById(page.section);
-    const summary = page.summary || page.body || '';
+    // Keep a complete paragraph for localization; CSS clamps the preview.
+    const summary = String(page.summary || page.body || '').split(/\n\s*\n/)[0].trim();
     const mode = openFn || 'tab';
     return `
       <button class="ch-lore-character-card" type="button" data-lore-page-id="${esc(page.id)}" data-lore-open="${esc(mode)}" style="--lore-accent:${esc(aff.color)};">
@@ -932,7 +933,7 @@ In both Polish and international media, the Second Polish-Lithuanian Army was re
         <span class="ch-lore-card-copy">
           <span class="ch-lore-card-aff"><img src="${esc(aff.img)}" alt="">${esc(aff.title)}</span>
           <b>${esc(page.title)}</b>
-          <small>${esc(summary).slice(0, 160)}</small>
+          <small>${esc(summary)}</small>
         </span>
       </button>`;
   }

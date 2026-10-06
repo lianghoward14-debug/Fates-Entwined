@@ -1,3 +1,4 @@
+import {TEMPORARILY_RETIRED_CARD_IDS as retiredCardIds} from '../../card-availability.mjs';
 const REGISTRY = Object.freeze({
   '07':{
     timings:['WHEN_SET', 'DECK_SET'],
@@ -1924,7 +1925,7 @@ export function hasTiming(cardId, timing, state = null){
 
 // Keep retired implementations registered for reactivation and regression tests,
 // while preventing them from entering authoritative multiplayer decks.
-const TEMPORARILY_RETIRED_CARD_IDS = new Set(['101', '102', '103']);
+const TEMPORARILY_RETIRED_CARD_IDS = new Set(retiredCardIds);
 
 export function multiplayerEligibleCardIds(){
   return Object.keys(REGISTRY)

@@ -429,8 +429,9 @@
       delete card._moraleSupporterExpiryTurns;
       delete card._moraleSupporterExpiryStartedTurn;
       state.board[entry.z][entry.r][entry.c] = null;
-      if(typeof window.fatePushDiscard === 'function') window.fatePushDiscard(Number(player), card, {sound:false});
-      else if(typeof fatePushDiscard === 'function') fatePushDiscard(Number(player), card, {sound:false});
+      const discardOptions = {sound:false,sourceLocation:{zone:'board',z:entry.z,r:entry.r,c:entry.c}};
+      if(typeof window.fatePushDiscard === 'function') window.fatePushDiscard(Number(player), card, discardOptions);
+      else if(typeof fatePushDiscard === 'function') fatePushDiscard(Number(player), card, discardOptions);
       if(typeof window.toast === 'function') window.toast((card.name || 'Supporter') + ' discarded itself after two turns at low Morale.');
     });
     if(expired.length){
@@ -709,7 +710,7 @@
     const state = legacyGameState();
     if(!state || !entry?.card || state.board?.[entry.z]?.[entry.r]?.[entry.c] !== entry.card) return false;
     state.board[entry.z][entry.r][entry.c] = null;
-    if(typeof fatePushDiscard === 'function') fatePushDiscard(Number(pending.targetPlayerIndex), entry.card);
+    if(typeof fatePushDiscard === 'function') fatePushDiscard(Number(pending.targetPlayerIndex), entry.card, {sourceLocation:{zone:'board',z:entry.z,r:entry.r,c:entry.c}});
     else state.players[Number(pending.targetPlayerIndex)].discard.push(entry.card);
     if(typeof applyContinuousEffects === 'function') applyContinuousEffects();
     if(typeof renderEffectResolutionForPlayer === 'function') renderEffectResolutionForPlayer(Number(pending.chooserPlayerIndex), {hand:false,piles:true,scores:true,topbar:true});

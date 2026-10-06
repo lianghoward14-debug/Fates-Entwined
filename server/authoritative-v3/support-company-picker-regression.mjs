@@ -38,6 +38,15 @@ for(const mode of ['singleplayer','multiplayer']) for(const player of [0,1]) for
  sandbox.window=sandbox;
  vm.createContext(sandbox);vm.runInContext(ui+'\n'+pickerWrapper+'\n'+bridge,sandbox);
  for(const ability of ['call','desperate']){
+  state.activePlayer=1-player;
+  sandbox.openSupportCompany(ability,player);
+  assert(picker,ability+' can be browsed on opponent turn');
+  assert.equal(picker.opts.canSelect(),false,'opponent turn prevents selection');
+  const beforeBrowse=submissions;
+  await picker.confirm([picker.choices[0]]);
+  assert.equal(submissions,beforeBrowse,'off-turn confirmation cannot submit');
+  state.activePlayer=player;
+  assert.equal(picker.opts.canSelect(),true,'existing picker unlocks on own turn');
   sandbox.openSupportCompany(ability,player);
   assert(picker,ability+' opens the picker');
   assert.equal(picker.opts.allowCancel,true);

@@ -106,6 +106,7 @@ export function projectStateForPlayer(state, playerIndex){
     baseSupportersPerTurn:state.baseSupportersPerTurn,
     supportersSetThisTurn:cloneSerializable(state.supportersSetThisTurn),
     supportCompanyUses:cloneSerializable(state.supportCompanyUses || [0, 0]),
+    supportCompanyPool:cloneSerializable(state.supportCompanyPool || []),
     supportersSetForCapThisTurn:cloneSerializable(state.supportersSetForCapThisTurn || state.supportersSetThisTurn || [0, 0]),
     supportersSetTotal:cloneSerializable(state.supportersSetTotal),
     supporterEffectsActivated:cloneSerializable(state.supporterEffectsActivated),

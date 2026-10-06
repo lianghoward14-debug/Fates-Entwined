@@ -26,6 +26,8 @@ const context = {
   playSfxDeferred:type=>sounds.push(type), playCardSoundDeferred:()=>{},
 };
 vm.createContext(context);
+vm.runInContext(section(adapter, '  function isCardOverlayPulseSource(', '  function scheduleLowMoraleSupporterPulse('), context);
+vm.runInContext(section(adapter, '  function isPersistentOverlayAnimationFrame(', '  function isHighTAnimationFrame('), context);
 vm.runInContext(section(helpers, 'function isHighTSourceCardActive(', 'function updateOpponentHandLabelDensity('), context);
 vm.runInContext(section(adapter, '  function isHighTAnimationFrame(', '  function drawCardVisual('), context);
 context.scheduleHighTBeat();

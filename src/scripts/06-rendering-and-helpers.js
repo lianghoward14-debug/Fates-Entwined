@@ -1667,7 +1667,7 @@ function positionHandEffectTooltip(ev, explicitMarker) {
   const pickerMarker = !!(marker && marker.classList && marker.classList.contains('picker-effect-marker'));
   const deckPickerMarker = pickerMarker && !marker.classList.contains('hand-limit-picker-effect-marker');
   const card = marker && marker.closest
-    ? marker.closest(pickerMarker ? '.visual-mc,.board-target-card,.hand-limit-card' : '.hc')
+    ? marker.closest(pickerMarker ? '.visual-mc,.board-target-card,.hand-limit-card,.ledger-card' : '.hc')
     : null;
   let rect = card && card.getBoundingClientRect ? card.getBoundingClientRect() : null;
   if(!rect && pickerMarker && marker?.classList?.contains('canvas-picker-effect-marker')){
@@ -1722,6 +1722,8 @@ function showHandEffectTooltip(ev, explicitMarker) {
   if(!source) return;
   if(marker.classList?.contains('picker-effect-marker') && typeof removeHoverPreview === 'function') removeHoverPreview();
   const portal = getHandEffectTooltipPortal();
+  if(marker.closest?.('#ledger-archive')) portal.style.setProperty('z-index','2147483001','important');
+  else portal.style.removeProperty('z-index');
   portal.innerHTML = source.innerHTML;
   portal.classList.add('is-visible');
   positionHandEffectTooltip(ev, marker);
@@ -7049,25 +7051,27 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
   if(hideCard || !card || typeof G === 'undefined' || !G) return '';
   const inMatch = !!document.getElementById('s-game')?.classList.contains('active');
   if(!inMatch) return '';
-  if(String(card.id || '') === 'bh05' && card._bh05CopiedCardId) {
-    card = Object.assign({}, card._bh05CopiedTrackerState || {}, card, {id:String(card._bh05CopiedCardId)});
-  }
+  // Keep the live copying instance for counters, ownership, and board queries.
+  const trackerId = String(card._whisperCopiedEffectId
+    || (typeof getFrenchFusiliersCopiedPassiveId === 'function' && getFrenchFusiliersCopiedPassiveId(card))
+    || (String(card.id || '') === 'bh05' && (card._bh05CopiedPassiveId || card._bh05CopiedCardId))
+    || card.id || '');
   const owner = (card.owner === 0 || card.owner === 1) ? card.owner : viewerP;
   if(owner !== 0 && owner !== 1) return '';
   let label = '';
   let value = '';
   let sub = '';
 
-  if(String(card.id || '')==='84'){
+  if(trackerId==='84'){
     label='Flower Picking';
     value=typeof isFlowerPickingEligible==='function' && isFlowerPickingEligible(owner)?'Eligible':'Not eligible';
     sub='Original deck must contain no Draw effects';
-  } else if(['34','35','65'].includes(String(card.id || ''))) {
+  } else if(['34','35','65'].includes(trackerId)) {
     const inflicted = Math.max(0, Math.floor(Number(card._moraleDamageInflicted ?? card.counters?.moraleDamageInflicted) || 0));
     label = 'Morale Damage Inflicted';
     value = String(inflicted);
     sub = 'Total This Match';
-  } else if(card.id === '88') {
+  } else if(trackerId === '88') {
     let charCount = 0;
     if(typeof forEachBoardCard === 'function') {
       forEachBoardCard(function(cell){
@@ -7077,32 +7081,32 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
     label = 'Characters Controlled';
     value = String(charCount);
     sub = '+2 Fate Each';
-  } else if(card.id === '89') {
+  } else if(trackerId === '89') {
     const counts = Array.isArray(G._supporterEffectsActivatedP) ? G._supporterEffectsActivatedP : [0,0];
     const used = Math.max(0, Number(counts[owner]) || 0);
     label = 'Supporter Effects';
     value = used + ' / 10';
     sub = used < 10 ? 'Bonus Active' : 'Bonus Inactive';
-  } else if(card.id === '41') {
+  } else if(trackerId === '41') {
     const manual = Math.max(0, Number(Array.isArray(G.damageDoneP) ? G.damageDoneP[owner] : 0) || 0);
     const continuous = getContinuousFateReductionCountForDetail(owner);
     const total = manual + continuous;
     label = 'Fate Reductions';
     value = String(total);
     sub = continuous ? manual + ' Direct + ' + continuous + ' Continuous' : 'Opponent Fate Reduced';
-  } else if(card.id === '85') {
+  } else if(trackerId === '85') {
     const opponentSets = typeof getSupportersSetCountForPlayer === 'function'
       ? getSupportersSetCountForPlayer(1 - owner)
       : Math.max(0, Number(Array.isArray(G.supportersSetP) ? G.supportersSetP[1 - owner] : 0) || 0);
     label = 'Opponent Supporters Placed';
     value = String(opponentSets);
     sub = '+1 Fate Each';
-  } else if(card.id === 'bh18') {
+  } else if(trackerId === 'bh18') {
     const total=Math.max(0,Number(card._bh18FateReduced??card.counters?.bh18FateReduced)||0);
     label='Zone Fate Reduced';
     value=String(total);
     sub='−3 per applied reduction · '+Math.floor(total/3)+' triggers';
-  } else if(card.id === '36') {
+  } else if(trackerId === '36') {
     const pos = typeof getBoardCardPosition === 'function' ? getBoardCardPosition(card) : null;
     if(pos) {
       const reductions = Math.max(0, Math.floor(Math.abs(Number(G.fateModifiers?.['deterrance_z' + pos.z] || 0)) / 4));
@@ -7110,44 +7114,44 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
       value = String(reductions);
       sub = 'Zone ' + (pos.z + 1) + ', -' + (reductions * 4) + ' total Fate';
     }
-  } else if(card.id === '40') {
+  } else if(trackerId === '40') {
     const uses = Math.max(0, Number(card.usesLeft == null ? 2 : card.usesLeft) || 0);
     label = 'Hard Times Uses';
     value = (2 - uses) + ' / 2';
     sub = uses + ' Empowerment' + (uses === 1 ? '' : 's') + ' Remaining';
-  } else if(card.id === '56') {
+  } else if(trackerId === '56') {
     const uses = Math.max(0, Math.min(3, Number(card.usesLeft == null ? 3 : card.usesLeft) || 0));
     label = 'Berknomaly Uses';
     value = (3 - uses) + ' / 3';
     sub = uses + ' Negation' + (uses === 1 ? '' : 's') + ' Remaining';
-  } else if(card.id === '67') {
+  } else if(trackerId === '67') {
     const uses = Math.max(0, Number(card.usesLeft == null ? (card._seculesUsed ? 0 : 1) : card.usesLeft) || 0);
     label = 'Negation Uses';
     value = (1 - uses) + ' / 1';
     sub = uses ? 'Ready to Negate' : 'Effect Expended';
-  } else if(card.id === '100') {
+  } else if(trackerId === '100') {
     const triggers = Math.max(0, Number(card._wintertideTriggerCount) || 0);
     label = 'Snow on the Carpathians:';
     value = triggers + ' Trigger' + (triggers === 1 ? '' : 's');
     sub = '+' + (triggers * 2) + ' Fate gained this match';
-  } else if(card.id === '99') {
+  } else if(trackerId === '99') {
     const fx = Array.isArray(G._blameGameEffects) ? G._blameGameEffects[owner] : null;
     const turns = fx && fx.active ? Math.max(0, Number(fx.turnsLeft) || 0) : 0;
     label = 'The Blame Game';
     value = turns ? turns + ' Turn' + (turns === 1 ? '' : 's') : 'Inactive';
     sub = turns ? 'Supporters count as Characters' : 'Activate to classify Supporters as Characters';
-  } else if(String(card.id || '') === '81') {
+  } else if(trackerId === '81') {
     const counts = Array.isArray(G._wojciechLastTurnPlacementCounts) ? G._wojciechLastTurnPlacementCounts : [0, 0];
     const opponentPlacements = Math.max(0, Math.floor(Number(counts[1 - owner]) || 0));
     label = 'Opponent Sets / Consolidations';
     value = String(opponentPlacements);
     sub = 'Previous turn - ' + opponentPlacements + ' Pierogi Counter' + (opponentPlacements === 1 ? '' : 's');
-  } else if(String(card.id || '') === 'bh02') {
+  } else if(trackerId === 'bh02') {
     const triggers = Math.max(0, Math.floor(Number(card._joieProcCount) || 0));
     label = 'Thousand Reel Stare Triggers';
     value = String(triggers);
     sub = formatJoieDrawEffectsActivated(triggers);
-  } else if(String(card.id || '') === 'bh08') {
+  } else if(trackerId === 'bh08') {
     const triggers = Math.max(0, Math.floor(Number(card._bh08ProcCount) || 0));
     const sourcePos = typeof getBoardCardPosition === 'function' ? getBoardCardPosition(card) : null;
     const potencyBoost = sourcePos && typeof getWhisperAuraPotencyBoost === 'function'
@@ -7156,12 +7160,12 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
     label = 'Effects Negated / Suppressed';
     value = String(triggers);
     sub = '+' + (2 + potencyBoost) + ' Fate Granted Per Trigger';
-  } else if(String(card.id || '') === 'bh22') {
+  } else if(trackerId === 'bh22') {
     const recovered = Math.max(0, Math.floor(Number(card._moraleRecoveredFromSquare ?? card.counters?.moraleRecoveredFromSquare) || 0));
     label = 'Morale Recovered';
     value = String(recovered);
     sub = 'From A Moonlit Shore This Match';
-  } else if(String(card.id || '') === '71') {
+  } else if(trackerId === '71') {
     const active = Array.isArray(G._fortCalvinActive)
       ? G._fortCalvinActive.find(function(w){ return w && String(w.sourceIid || '') === String(card.iid || ''); })
       : null;
@@ -7177,10 +7181,10 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
   }
 
   if(!label) return '';
-  const trackerClass = String(card.id || '') === '81'
+  const trackerClass = trackerId === '81'
     ? ' cd-wojciech-turn-tracker'
-    : (String(card.id || '') === '71' ? ' cd-fort-calvin-tracker' : '');
-  const trackerOwner = String(card.id || '') === '81' ? ' data-wojciech-owner="' + owner + '"' : '';
+    : (trackerId === '71' ? ' cd-fort-calvin-tracker' : '');
+  const trackerOwner = trackerId === '81' ? ' data-wojciech-owner="' + owner + '"' : '';
   return '<div class="cd-live-tracker' + trackerClass + '"' + trackerOwner + '>' +
     '<span class="cd-live-tracker-kicker">Match Tracker</span>' +
     '<span class="cd-live-tracker-label">' + escapeHtml(label) + '</span>' +
@@ -7203,7 +7207,8 @@ function refreshWojciechInformationBanners() {
   });
 }
 
-function buildFrenchFusiliersCopyBannerHTML(copiedPassiveName, copiedPassiveEffect) {
+function buildFrenchFusiliersCopyBannerHTML(copiedPassiveName, copiedPassiveEffect, visual) {
+  if(copiedPassiveEffect && visual && String(visual.effect || "").includes(String(copiedPassiveEffect))) return "";
   if(!copiedPassiveName) return '';
   return '<div class="cd-live-tracker french-fusiliers-copy-banner">' +
     '<span class="cd-live-tracker-kicker">Copied Effect</span>' +
@@ -7213,7 +7218,9 @@ function buildFrenchFusiliersCopyBannerHTML(copiedPassiveName, copiedPassiveEffe
   '</div>';
 }
 
-function buildTaylorCopyBannerHTML(card) {
+function buildTaylorCopyBannerHTML(card, visual) {
+  // The main text already contains Taylor's resolved copied ability.
+  if(visual && !visual.isHidden && String(visual.effect || "").trim()) return "";
   if(!(card && String(card.id || '') === 'bh05' && card._bh05CopiedCardId)) return '';
   const copiedName = String(card._bh05CopiedCardName || 'Copied Card');
   const copiedAbility = String(card._bh05CopiedAbility || 'Copied Effect');
@@ -7412,7 +7419,7 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
   const moscowTenureBanner = !hideCard ? buildMoscowSupporterTenureHTML(card) : '';
   const copiedPassiveName = (!hideCard && String(card.id || '') === '37') ? (card._copiedPassiveName || card.copiedPassiveName || '') : '';
   const copiedPassiveEffect = (!hideCard && String(card.id || '') === '37') ? (card._copiedPassiveEffect || card.copiedPassiveEffect || '') : '';
-  const copiedPassiveBanner = buildFrenchFusiliersCopyBannerHTML(copiedPassiveName, copiedPassiveEffect) + (!hideCard ? buildWhisperTokenCopyBannerHTML(card) + buildTaylorCopyBannerHTML(card) : '');
+  const copiedPassiveBanner = buildFrenchFusiliersCopyBannerHTML(copiedPassiveName, copiedPassiveEffect, visual) + (!hideCard ? buildWhisperTokenCopyBannerHTML(card) + buildTaylorCopyBannerHTML(card, visual) : '');
   const pierogiHandTurns = (!hideCard && fromHand && typeof isWojciechPierogiCounter === 'function' && isWojciechPierogiCounter(card))
     ? Math.max(0, Number(card._pierogiHandTurnsRemaining ?? 6))
     : null;
@@ -7887,6 +7894,7 @@ function showModal(title, bodyHtml, actions, opts) {
     return false;
   }
   const effectModal = shouldUseCardEffectModal(titleStr, bodyHtml, actions);
+  if(effectModal && deferPickerUntilAnimationFinishes(()=>showModal(title, bodyHtml, actions, opts))) return;
   // Online matches use a different heading, but this is the same concede
   // decision and must share the shipping single-player confirmation chrome.
   const endGameModal = /^(?:End Game\?|Leave Online Match\?)$/i.test(titleStr);
@@ -8100,6 +8108,26 @@ function pickAnyBoardCard(owner, callback) {
   });
 }
 
+// Choice UI must wait for the complete presentation, even for immediate prompts.
+function deferPickerUntilAnimationFinishes(open){
+  const game = typeof G !== 'undefined' ? G : null;
+  if(!game) return false;
+  const now = Date.now();
+  const wait = Math.max(0,
+    (Number(game._coordinatorSignatureUntil) || 0)-now,
+    (Number(game._effectActivationPresentationLockUntil) || 0)-now,
+    typeof getInteractionAnimationDelayMs === 'function' ? getInteractionAnimationDelayMs() : 0,
+    typeof effectActivationPredecessorRemaining === 'function' ? effectActivationPredecessorRemaining() : 0,
+    typeof _effectActivationCinematicQueue !== 'undefined' && (_effectActivationCinematicShowing || _effectActivationCinematicQueue.length) ? 80 : 0);
+  if(wait <= 0) return false;
+  game._deferredCardPickers = (Number(game._deferredCardPickers) || 0)+1;
+  setTimeout(function(){
+    game._deferredCardPickers = Math.max(0,game._deferredCardPickers-1);
+    if(typeof G !== 'undefined' && G === game) open();
+  },Math.max(16,wait));
+  return true;
+}
+
 function pickCardInZone(z, prompt, callback, filter=null, onCancel=null, sourceCard=null) {
   const viewerP = G.currentPlayer;
   const entries=[];
@@ -8132,6 +8160,7 @@ function getBoardTargetPickerRowLabel(rowIndex, viewerP) {
 }
 
 function showBoardTargetPicker(opts, onConfirm) {
+  if(deferPickerUntilAnimationFinishes(()=>showBoardTargetPicker(opts, onConfirm))) return;
   const interactionWait = opts?.immediate === true
     ? 0
     : (typeof getInteractionAnimationDelayMs === 'function' ? getInteractionAnimationDelayMs() : 0);
@@ -8388,6 +8417,7 @@ function showBoardTargetPicker(opts, onConfirm) {
 
 // Zone-shaped picker: shows the real zone with ownership rows and cell slots.
 function showZonePicker(z, prompt, entries, maxCount, viewerP, onConfirm, filter, onCancel, sourceCard, minCount=1) {
+  if(deferPickerUntilAnimationFinishes(()=>showZonePicker(z, prompt, entries, maxCount, viewerP, onConfirm, filter, onCancel, sourceCard, minCount))) return;
   const wait = String(sourceCard?.id || '') === '12' ? 0 : (typeof getInteractionAnimationDelayMs === 'function' ? getInteractionAnimationDelayMs() : getPlacementUiDelayMs());
   if(wait > 0){
     setTimeout(()=>showZonePicker(z, prompt, entries, maxCount, viewerP, onConfirm, filter, onCancel, sourceCard, minCount), wait);
@@ -8529,6 +8559,7 @@ function pickCardsFromHand(player, maxCount, prompt, callback) {
 
 // Image-based card picker with pagination
 function pickCardsVisual(cards, opts, onConfirm) {
+  if(deferPickerUntilAnimationFinishes(()=>pickCardsVisual(cards, opts, onConfirm))) return;
   opts = opts || {};
   if(!opts._characterBannerConfirm) {
     const source = opts.sourceCard || (typeof CARDS !== 'undefined' && CARDS.find(card=>String(card.id)===String(opts.searchSourceCardId || '')));
@@ -8861,6 +8892,7 @@ function pickCardsVisual(cards, opts, onConfirm) {
       (function(_c, _entry){ el.oncontextmenu = function(ev){ ev.preventDefault(); ev.stopPropagation(); removeHoverPreview(); inspectPickerCardDetail(_c, _entry); }; })(c, positionEntries && positionEntries[i]);
       (function(_i, _el){
         _el.onclick=()=>{
+          if(typeof opts.canSelect === 'function' && !opts.canSelect()) return;
           if(_el.classList.contains('sel')){
             _el.classList.remove('sel');
             selected=selected.filter(x=>x!==_i);
@@ -8895,6 +8927,7 @@ function pickCardsVisual(cards, opts, onConfirm) {
   document.getElementById('modal-body').appendChild(body);
   if(pickerCanvas) {
     pickerCanvas.onclick = function(ev) {
+      if(typeof opts.canSelect === 'function' && !opts.canSelect()) return;
       const hit = hitCanvasCard(ev);
       if(!hit) return;
       const idx = hit.index;
@@ -8948,6 +8981,7 @@ function pickCardsVisual(cards, opts, onConfirm) {
   ok.className='btn sm pri';ok.textContent=opts.confirmLabel||'Confirm';
   if(minCount > 0){ ok.disabled = true; ok.style.opacity = '.4'; }
   ok.onclick=()=>{
+    if(typeof opts.canSelect === 'function' && !opts.canSelect()) return;
     if(minCount > 0 && selected.length < minCount){ toast('You must select at least '+minCount+' card(s)'); return; }
     closeModal({cardChoiceResolved:true});onConfirm(selected.map(i=>cards[i]));
     opts._characterBannerConfirm?.();
@@ -9210,6 +9244,7 @@ function showAffiliationPicker(callback) {
 
 // Visual affiliation picker with 4 icon squares (used by Duncan Heyward)
 function showAffiliationPickerVisual(callback, sourceCard, confirmCharacterBanner) {
+  if(deferPickerUntilAnimationFinishes(()=>showAffiliationPickerVisual(callback, sourceCard, confirmCharacterBanner))) return;
   confirmCharacterBanner = confirmCharacterBanner || window.FateActivationBanner?.pickerConfirmation(sourceCard);
   const wait = (typeof getInteractionAnimationDelayMs === 'function' ? getInteractionAnimationDelayMs() : (typeof getPlacementUiDelayMs === 'function' ? getPlacementUiDelayMs() : 0));
   if(wait > 0){ setTimeout(()=>showAffiliationPickerVisual(callback, sourceCard, confirmCharacterBanner), wait); return; }
@@ -9260,6 +9295,7 @@ function showAffiliationPickerVisual(callback, sourceCard, confirmCharacterBanne
 
 
 function showZonePickerVisual(options, callback) {
+  if(deferPickerUntilAnimationFinishes(()=>showZonePickerVisual(options, callback))) return;
   options = options || {};
   // This shared modal is also used by card, affiliation, and online prompt
   // pickers. Always restore the single-player zone-picker shell first so an
@@ -9993,7 +10029,7 @@ function showCardInfoOverlay(card) {
   var rarityLabel = getCardRarityLabel(visual.rarity);
   var copiedPassiveName = (String(card.id || '') === '37') ? (card._copiedPassiveName || card.copiedPassiveName || '') : '';
   var copiedPassiveEffect = (String(card.id || '') === '37') ? (card._copiedPassiveEffect || card.copiedPassiveEffect || '') : '';
-  var copiedPassiveBanner = buildFrenchFusiliersCopyBannerHTML(copiedPassiveName, copiedPassiveEffect) + buildWhisperTokenCopyBannerHTML(card) + buildTaylorCopyBannerHTML(card);
+  var copiedPassiveBanner = buildFrenchFusiliersCopyBannerHTML(copiedPassiveName, copiedPassiveEffect, visual) + buildWhisperTokenCopyBannerHTML(card) + buildTaylorCopyBannerHTML(card, visual);
   var trackerHtml = buildCardDetailTrackerHTML(card, typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : 0, false);
   var lowMoraleExpiryBanner = buildLowMoraleSupporterWarningHTML(card);
   var moscowTenureBanner = buildMoscowSupporterTenureHTML(card);
@@ -10509,6 +10545,8 @@ function showConsolidationCinematic(card, opts) {
     return true;
   }
   _consolidationCinematicShowing = true;
+  // Clear any earlier effect banner before the consolidation becomes visible.
+  window.FateActivationBanner?.dismiss();
   var catalogCard = (typeof CARDS !== 'undefined' && Array.isArray(CARDS))
     ? CARDS.find(function(item){ return item && String(item.id || '') === String(card.id || ''); })
     : null;
@@ -10693,12 +10731,13 @@ function showConsolidationCinematic(card, opts) {
     if(!document.querySelector('.cc-overlay-v2')) document.body.classList.remove('cinematic-lock');
     _consolidationCinematicShowing = false;
     _lastConsolidationCinematicEndedAt = Date.now();
-    if(card.type === 'Improvisor' || (['Coordinator','Dauntless'].includes(card.type) && typeof hasAuthoritativeWhenSetEffect === 'function' && !hasAuthoritativeWhenSetEffect(card))) {
+    // Coordinators never enter the generic activation cinematic, including
+    // those with WHEN_SET rules (Rozsi, Makenna, Duncan and Louis).
+    if(card.type === 'Improvisor' || card.type === 'Coordinator' || (card.type === 'Dauntless' && typeof hasAuthoritativeWhenSetEffect === 'function' && !hasAuthoritativeWhenSetEffect(card))) {
       const signaturePlayed = card.type === 'Coordinator'
         ? window.FateSignatureActivationFx?.playCoordinator(card,{sfx:opts.playSfx !== false})
         : window.FateSignatureActivationFx?.playPlacement(card,{sfx:opts.playSfx !== false});
-      // Rozsi Youth's approved animation and banner run in its placement effect cinematic.
-      if(!signaturePlayed && String(card.id || '') !== '88') window.FateActivationBanner?.play(card, {sfx:opts.playSfx !== false});
+      if(!signaturePlayed) window.FateActivationBanner?.play(card, {sfx:opts.playSfx !== false});
     }
     if(cinematicDedupKey) {
       _consolidationCinematicPendingKeys.delete(cinematicDedupKey);

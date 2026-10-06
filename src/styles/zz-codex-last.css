@@ -29586,3 +29586,30 @@ html body #s-challenger .ch-store-unopened-market .ch-store-unopened-title{
     max-height:calc((100dvh - 340px) / 1.1)!important;
   }
 }
+
+/* The inventory, not its clipped outer panel, owns scrolling at every size. */
+html body #s-challenger .ch-store-unopened-market{
+  display:flex!important;flex-direction:column!important;min-height:0!important;
+}
+html body #s-challenger .ch-store-unopened-market .ch-store-unopened-head{
+  flex:0 0 auto!important;
+}
+html body #s-challenger .ch-store-unopened-market .ch-store-unopened-title{
+  display:flex!important;flex-direction:column!important;flex-wrap:nowrap!important;align-content:normal!important;flex:1 1 0px!important;
+  height:0!important;min-height:0!important;max-height:100%!important;
+  position:static!important;overflow-y:auto!important;overflow-x:hidden!important;
+  padding:0 6px 8px 0!important;scrollbar-width:none!important;
+  scrollbar-gutter:auto!important;touch-action:pan-y!important;
+}
+html body #s-challenger .ch-store-unopened-market .ch-store-unopened-title>button{
+  flex:0 0 auto!important;
+}
+html body #s-challenger .ch-store-unopened-market .ch-store-unopened-title::-webkit-scrollbar{
+  display:none!important;width:0!important;height:0!important;
+}
+html body #s-challenger .ch-store-unopened-market .ch-store-unopened-title::-webkit-scrollbar-thumb{
+  background:#b88d2d;border-radius:4px;
+}
+@media(max-width:1180px),(max-height:719px){
+  html body #s-challenger .ch-store-unopened-market{height:260px!important;max-height:260px!important;flex:none!important;}
+}

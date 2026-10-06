@@ -96,6 +96,8 @@ const FATE_SAMPLE_SFX = {
   fateLose: {src:'soundeffects/codex-redesign/fate_loss_dull_drop.wav', gain:1.25},
   effectSuppressed: {src:'soundeffects/codex-redesign/effect_order_mark.wav', gain:0.7},
   effectNegated: {src:'soundeffects/codex-redesign/reaction_interrupt_sting.wav', gain:0.78},
+  suppressionImpact: {src:'soundeffects/codex-redesign/suppression_impact.wav', gain:0.9},
+  negateImpact: {src:'soundeffects/codex-redesign/negate_impact.wav', gain:0.88},
   landscapePulse: {src:'soundeffects/codex-redesign/effect_order_mark.wav', gain:0.82},
   landscapeMajor: {src:'soundeffects/codex-redesign/level_up_compact_fanfare.wav', gain:0.86},
   effect: {src:'soundeffects/codex-redesign/effect_order_mark.wav', gain:0.88},
@@ -133,6 +135,12 @@ const FATE_SAMPLE_SFX = {
   whisperConsolidation: {src:'setvoicelines/whisper.mp3', gain:0.95}
 };
 const _fateSampleAudioCache = new Map();
+// Keep the established Carpathian reaction audio, including copied effects.
+window.playFateReactionSfx = function(suppressed, source){
+  const ids=[source?.id,source?._copiedPassiveId,source?._bh05CopiedCardId,source?._whisperCopiedEffectId];
+  const snow=ids.some(id=>/^\d+$/.test(String(id || '')) && Number(id)>=80 && Number(id)<=100);
+  playSfx(snow ? (suppressed?'effectSuppressed':'effectNegated') : (suppressed?'suppressionImpact':'negateImpact'));
+};
 let _lastWhisperConsolidationSfxAt = 0;
 
 function getCharacterSetSfxType(cardOrType) {
@@ -448,9 +456,39 @@ function playWhisperTokenTone(effectiveVol) {
   } catch(e) {}
 }
 
+// Short, rising mechanical chimes are driven by actual odometer frames. No
+// looping audio or timers can outlive a stopped/hidden counting animation.
+let _lastFateCountTickAt = -Infinity;
+function playFateCountTick(progress, remainingMs, decreasing) {
+  if(_masterVol <= 0 || _sfxVol <= 0 || remainingMs <= 0) return;
+  const time = Date.now();
+  if(time - _lastFateCountTickAt < 45) return;
+  try {
+    if(localStorage.getItem('fateAudioMuted') === '1' || localStorage.getItem('fateMute') === '1') return;
+    const ctx = getAudioCtx();
+    const now = ctx.currentTime;
+    const duration = Math.min(.095, remainingMs / 1000);
+    const tone = ctx.createOscillator();
+    const gain = ctx.createGain();
+    tone.type = 'triangle';
+    const phase = Math.max(0, Math.min(1, progress));
+    tone.frequency.setValueAtTime(decreasing ? 920 - phase * 480 : 640 + phase * 560, now);
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(_masterVol * _sfxVol * .12, now + Math.min(.004, duration / 3));
+    gain.gain.linearRampToValueAtTime(0, now + duration);
+    tone.connect(gain);
+    gain.connect(getSfxBus(ctx).input);
+    tone.onended = function(){ tone.disconnect(); gain.disconnect(); };
+    tone.start(now);
+    tone.stop(now + duration);
+    _lastFateCountTickAt = time;
+  } catch(e) {}
+}
+window.playFateCountTick = playFateCountTick;
+
 function playSfx(type) {
   if(_masterVol<=0) return;
-  if(type === 'effectNegated'){
+  if(type === 'effectNegated' || type === 'negateImpact'){
     const nowMs = Date.now();
     if(nowMs - _lastEffectNegatedSfxAt < 320) return;
     _lastEffectNegatedSfxAt = nowMs;

@@ -1,5 +1,6 @@
 (function(){'use strict';if(window.FateSignatureActivationFx)return;
 const studies={
+"bh15":["bh15","Hsei-Ling","The Chinese MacArthur","Cardinal convergence","approved","#a8c9b4",2000],
 "bh03":["bh03","Ali, The Indomitable","He, Who is Unyielding","Unbreakable — three arrow strikes","ali_unbreakable","#b7cdd5",2000],
 "77":["77","Duncan Heyward","A Hundred Lives of Men","Canyon river","approved","#cbb6a3",2000],
 "100":["100","Felicyta and Květka (Youth)","Wintertide","Snowfall in the mountain pines","approved","#add7e6",2000],
@@ -192,14 +193,17 @@ function dispose(){if(disposed)return;disposed=true;signatureSound?.stop();cance
  function tick(now){if(disposed)return;if(!overlay.isConnected){dispose();return}try{t=clamp((now-start)/Math.max(1,Number(options?.duration)||study[6]));draw();if(t<1)raf=requestAnimationFrame(tick)}catch(e){dispose();overlay.replaceChildren(...previous)}}
 resize();addEventListener('resize',resize);return{start(){if(started||disposed)return;started=true;start=performance.now();if(options?.sfx!==false)playSignatureSound(id);raf=requestAnimationFrame(tick)},dispose}}
 function playPlacement(card,options={}){
- if(String(card?.id||'')!=='89')return false;
+ // Placement owns both the banner and the signature. Do not split passive
+ // cards between a banner here and a second activation in gameplay/replay.
+ if(['40','56','67','86','bh16'].includes(String(card?.id||'')))return false;
+ if(!studies[String(card?.id||'')] || !['Dauntless','Improvisor'].includes(card?.type))return false;
  return playCoordinator(card,{...options,placement:true});
 }
 function playCoordinator(card,options={}){
- if(!(options.placement===true && String(card?.id||'')==='89') && !['01','bh07','bh11','10','19','bh12','11','bh02','bh08','57','12','23','15','34','77'].includes(String(card?.id||'')))return false;
+ if(!(options.placement===true && studies[String(card?.id||'')] && ['Dauntless','Improvisor'].includes(card?.type)) && !['01','bh07','bh11','10','19','bh12','11','bh02','bh08','57','12','23','15','34','77'].includes(String(card?.id||'')))return false;
  if(card.faceDown || (typeof window.isHiddenEffectForViewer==='function' && window.isHiddenEffectForViewer(card)))return false;
  if(document.documentElement.classList.contains('fate-animations-off') || document.documentElement.classList.contains('fate-super-performance-mode') || document.hidden)return false;
- const overlay=document.createElement('div');overlay.style.cssText='position:fixed;inset:0;pointer-events:none;z-index:12990';overlay.setAttribute('aria-hidden','true');
+ const overlay=document.createElement('div');overlay.style.cssText='position:fixed;inset:0;pointer-events:none;z-index:999998;opacity:1;visibility:visible';overlay.setAttribute('aria-hidden','true');
  const fx=mount(overlay,card,{duration:2000,sfx:options.sfx!==false});if(!fx)return false;
  document.body.appendChild(overlay);
  const state=typeof G!=='undefined'?G:null,until=Date.now()+2000;

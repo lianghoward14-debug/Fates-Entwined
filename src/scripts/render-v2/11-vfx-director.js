@@ -1389,7 +1389,7 @@
     const effectsCtx = opts.effectsCtx || null;
     const particleCtx = opts.particleCtx || null;
     const topEffectsCtx = opts.topEffectsCtx || null;
-    const aboveBoard = p => !!(topEffectsCtx && (p.consolidationStyle || ['PLAY_CARD','DECK_TO_BOARD','SET_CONFIRM','SET_DRAG_LAND'].includes(p.recipeType)));
+    const aboveBoard = p => !!(topEffectsCtx && (p.fracture || p.consolidationStyle || ['PLAY_CARD','DECK_TO_BOARD','SET_CONFIRM','SET_DRAG_LAND'].includes(p.recipeType)));
     if(effectsCtx){
       const shake = activeScreenShakeOffset();
       effectsCtx.save();

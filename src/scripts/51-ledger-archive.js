@@ -6,6 +6,7 @@
     if(!active) return;
     const previous = active;
     active = null;
+    if(typeof hideHandEffectTooltip === 'function') hideHandEffectTooltip();
     previous.root.remove();
     previous.focus?.focus?.();
     previous.resolve(null);
@@ -14,6 +15,11 @@
 
   window.openLedgerArchive = function(cards, options = {}){
     if(active?.key === options.key && options.key) return active.promise;
+    if(typeof deferPickerUntilAnimationFinishes === 'function'){
+      let resume;
+      const pending = new Promise(resolve=>{ resume = resolve; });
+      if(deferPickerUntilAnimationFinishes(()=>resume(window.openLedgerArchive(cards,options)))) return pending;
+    }
     closeArchive();
     const ordered = cards.slice(0,5);
     const original = ordered.slice();
@@ -47,6 +53,7 @@
       if(focus) list.children[to].querySelector('button:not(:disabled)')?.focus();
     }
     function render(){
+      if(typeof hideHandEffectTooltip === 'function') hideHandEffectTooltip();
       list.replaceChildren();
       ordered.forEach((card,index)=>{
         const item = document.createElement('article');
@@ -75,6 +82,19 @@
           controls.append(button);
         });
         item.append(badge,img,name,controls);
+        const presentation = typeof hydratePickerCardPresentation === 'function'
+          ? hydratePickerCardPresentation(card) : Object.assign({},base || {},card);
+        if(typeof buildHandEffectMarkerHTML === 'function'){
+          const holder = document.createElement('div');
+          holder.innerHTML = buildHandEffectMarkerHTML(presentation,'picker-effect-marker ledger-effect-marker');
+          const marker = holder.firstElementChild;
+          if(marker){
+            marker.draggable = false;
+            marker.addEventListener('pointerdown',event=>event.stopPropagation());
+            marker.addEventListener('dragstart',event=>{event.preventDefault();event.stopPropagation();});
+            item.append(marker);
+          }
+        }
         if(options.readOnly) controls.remove();
         item.ondragstart = event=>{ dragging = index; event.dataTransfer.setData('text/plain',String(index)); event.dataTransfer.effectAllowed = 'move'; item.classList.add('is-dragging'); };
         item.ondragend = ()=>{ dragging = null; item.classList.remove('is-dragging'); };
@@ -82,6 +102,7 @@
         item.ondrop = event=>{ event.preventDefault(); if(dragging !== null) move(dragging,index,false); dragging = null; };
         list.append(item);
       });
+      window.bindPickerEffectMarkers?.(list);
     }
     root.querySelector('.ledger-reset').onclick = ()=>{ if(!submitting){ ordered.splice(0,ordered.length,...original); render(); announce.textContent = 'Original order restored.'; } };
     confirm.onclick = async function(){
@@ -113,7 +134,7 @@
     root.addEventListener('keydown',event=>{
       if(event.key === 'Escape'){ event.preventDefault(); event.stopPropagation(); return; }
       if(event.key !== 'Tab') return;
-      const buttons = [...root.querySelectorAll('button:not(:disabled)')];
+      const buttons = [...root.querySelectorAll('button:not(:disabled),[role="button"][tabindex="0"]')];
       const first = buttons[0], last = buttons[buttons.length-1];
       if(event.shiftKey && document.activeElement === first){ event.preventDefault(); last?.focus(); }
       else if(!event.shiftKey && document.activeElement === last){ event.preventDefault(); first?.focus(); }

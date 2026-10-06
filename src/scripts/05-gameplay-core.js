@@ -70,7 +70,7 @@ function getCardRuntimeEffectId(card) {
 }
 
 function isTriggeredFateCoordinator(card) {
-  return !!card && cardHasEffectType(card, 'Coordinator')
+  return !!card && (cardHasEffectType(card, 'Coordinator') || String(card.id) === 'bh05')
     && ['15','bh02','bh08'].includes(String(card._whisperCopiedEffectId || getCardRuntimeEffectId(card)));
 }
 
@@ -607,7 +607,7 @@ function resolveBlackRoseBombAt(card,z,r,c,player){
   G.blockedCells=G.blockedCells.filter(b=>b!==trap);
   if(G.board?.[z]?.[r]?.[c]===card)G.board[z][r][c]=null;
   card._blackRoseBombed=true;
-  if(typeof fatePushDiscard==='function')fatePushDiscard(player,card);else G.players[player].discard.push(card);
+  if(typeof fatePushDiscard==='function')fatePushDiscard(player,card,{sourceLocation:{zone:'board',z,r,c}});else G.players[player].discard.push(card);
   const cell=document.querySelector('.cell[data-z="'+z+'"][data-r="'+r+'"][data-c="'+c+'"]');
   const rect=cell?.getBoundingClientRect();
   const blast=document.createElement('div');blast.className='black-rose-explosion';blast.style.left=(rect?rect.left+rect.width/2:innerWidth/2)+'px';blast.style.top=(rect?rect.top+rect.height/2:innerHeight/2)+'px';document.body.appendChild(blast);setTimeout(()=>blast.remove(),1000);
@@ -1140,7 +1140,7 @@ function commitWhisperLandscapeConversion(player, sourceEntry, handCards) {
   if(!token) return false;
   G.board[sourceEntry.z][sourceEntry.r][sourceEntry.c] = null;
   if(G.selectedBoardCard && String(G.selectedBoardCard.iid || '') === String(liveSource.iid || '')) G.selectedBoardCard = null;
-  fatePushDiscard(player, liveSource, {sound:false});
+  fatePushDiscard(player, liveSource, {sound:false,sourceLocation:{zone:'board',z:sourceEntry.z,r:sourceEntry.r,c:sourceEntry.c}});
   hand.push(token);
   ensureWhisperLandscapeUses()[player] = 1;
   if(typeof playDiscardSfx === 'function') playDiscardSfx();
@@ -6224,7 +6224,6 @@ async function waitForEffectPresentationBeforeChoice() {
   const presenter = window.FateActionPresentation;
   if(presenter && typeof presenter.waitForIdle === 'function') {
     await presenter.waitForIdle({minQuietMs:110, timeoutMs:7600});
-    return;
   }
   const wait = typeof getInteractionAnimationDelayMs === 'function'
     ? getInteractionAnimationDelayMs()
@@ -6568,9 +6567,8 @@ async function resolveWhenSetEffect(inst, z, r, c, opts = {}) {
     if(inst._effectNegatedByReaction) { markInitialEffectResolved(inst); return; }
   }
   // When-set effects fire automatically
-  if(['45','35','46','88','41','55','85','36','bh17','100','bh18','bh03'].includes(String(id)) && !_hasWhenSet && !G._onlineRoomCode && opts.skipActivationCinematic !== true && typeof playEffectActivationCinematic === 'function') {
-    await playEffectActivationCinematic(inst,z,r,c,{source:'passive-character-placement'});
-  }
+  // Passive placement signatures run with their banner at the end of the set
+  // cinematic. Replaying them here produces a second banner for the same set.
   if(_hasWhenSet && !isInitiatorWithEffect) {
     await runWhenSetEffect(inst,z,r,c,{fromSet:true, skipActivationCinematic:opts.skipActivationCinematic === true});
   }
@@ -7701,6 +7699,24 @@ function isFlowerKingBlessedCard(card, z, r, c) {
 }
 window.isFlowerKingBlessedCard = isFlowerKingBlessedCard;
 
+function resolvePanaceaMilitia(card, z, cp) {
+  return new Promise(function(resolve){
+    const opened = pickCardInZone(z, 'In Defense of Pacifica: select a Coordinator with a triggered Fate-gain effect:', function(target){
+      const inherited = Math.max(0, Number(target && target._triggeredFateHistoryTotal) || 0);
+      modifyFate(card, inherited, 'permanent', cp);
+      card._bh23InheritedCoordinatorIid = String(target.iid || '');
+      card._bh23InheritedFate = inherited;
+      card.effectUsedInitial = true;
+      toast(inherited > 0 ? 'Panacea Militia inherits ' + inherited + ' Fate from ' + target.name + '.' : target.name + ' has not generated Fate yet.');
+      renderEffectResolutionForPlayer(cp, {hand:false});
+      resolve();
+    }, function(target){
+      return !!target && !target.faceDown && target.owner === cp && isTriggeredFateCoordinator(target);
+    }, resolve, card);
+    if(opened === false) { toast('No eligible Coordinator is in this zone.'); resolve(); }
+  });
+}
+
 async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
   if((['33','47'].includes(String(id || '')) || pressureCardReworkTimingActive())
     && new Set(['20','33','47','64']).has(String(id || ''))
@@ -7708,6 +7724,9 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
     window.recordLegacyMoralePressureCardSet(inst, {resolveWhenSetEffects:true});
   }
   switch(id) {
+    case 'bh23':
+      await resolvePanaceaMilitia(inst, z, cp);
+      break;
     case 'bh24': {
       const morale = G && G._moralePressure && Array.isArray(G._moralePressure.morale) ? G._moralePressure.morale : null;
       if(morale){
@@ -8208,7 +8227,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       }));
       toDiscard.forEach(({card:dc,r:dr,c:dc2})=>{
         G.board[z][dr][dc2] = null;
-        fatePushDiscard(cp, dc);
+        fatePushDiscard(cp, dc, {sourceLocation:{zone:'board',z,r:dr,c:dc2}});
       });
       if(totalFate>0){
         modifyFate(inst, totalFate, 'permanent');
@@ -8314,7 +8333,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
         pickCardFromAnyZone('The Last Mohican: select any card on the field to discard.',function(target,tz,tr,tc){
           if(!target)return;
           if(typeof discardBoardCard==='function') discardBoardCard(target,tz,tr,tc);
-          else {G.board[tz][tr][tc]=null;fatePushDiscard(target.owner,target);}
+          else {G.board[tz][tr][tc]=null;fatePushDiscard(target.owner,target,{sourceLocation:{zone:'board',z:tz,r:tr,c:tc}});}
           renderEffectResolutionForPlayer(cp,{hand:false,piles:true,topbar:true});
         },function(target){
           if(!target) return false;
@@ -8369,7 +8388,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
         adjCards.forEach(({card:ac,z:az,r:ar,c:ac2})=>{
           if(ac.owner===opp && (typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(ac, opp) : ac.type==='Supporter') && !(typeof isTargetImmuneToEffectOwner === 'function' ? isTargetImmuneToEffectOwner(ac, cp) : (typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(ac)))){
             G.board[az][ar][ac2]=null;
-            fatePushDiscard(opp, ac);
+            fatePushDiscard(opp, ac, {sourceLocation:{zone:'board',z:az,r:ar,c:ac2}});
             gained++;
             log(cp===0?'p1':'p2',`Alondra discarded ${ac.name}`);
           }
@@ -8715,6 +8734,9 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
       // relying on the generic Supporter/when-set switch below.
       activateHighTForTurn(card, cp);
       break;
+    case 'bh13':
+      await resolveSmartInvestments(card, cp);
+      break;
     case 'bh04':
       chooseDestructionOfParadiseType(card, z, cp);
       break;
@@ -8755,21 +8777,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
       if(typeof highlightJaimeHealingSquare === 'function') highlightJaimeHealingSquare(card);
       break;
     case 'bh23': {
-      const opened = pickCardInZone(z, 'In Defense of Pacifica: select a Coordinator with a triggered Fate-gain effect:', function(target){
-        const inherited = Math.max(0, Number(target && target._triggeredFateHistoryTotal) || 0);
-        const before = Math.max(0, Number(card.currentFate ?? card.fate) || 0);
-        modifyFate(card, inherited, 'permanent', cp);
-        card._bh23InheritedCoordinatorIid = String(target && target.iid || '');
-        card._bh23InheritedFate = inherited;
-        card.effectUsedInitial = true;
-        toast(inherited > 0
-          ? 'Panacea Militia inherits ' + inherited + ' Fate from ' + target.name + '.'
-          : target.name + ' has not generated Fate yet.');
-        renderEffectResolutionForPlayer(cp, {hand:false});
-      }, function(target){
-        return !!target && target.owner === cp && isTriggeredFateCoordinator(target);
-      }, null, card);
-      if(opened === false) toast('No eligible Coordinator is in this zone.');
+      await resolvePanaceaMilitia(card, z, cp);
       break;
     }
     case 'bh24': {
@@ -9422,7 +9430,11 @@ function canUseManualCharacterEffect(card) {
     G.pendingInteraction
   )) return false;
   if(id === '102') return !card._blackRoseUsed;
-  if(id === '40') return Number(card.usesLeft || 0) > 0;
+  if(id === '40') {
+    const armed = Array.isArray(G.erbsActive) ? G.erbsActive[card.owner] : G.erbsActive;
+    return Number(card.usesLeft || 0) > 0 && !armed
+      && !(Array.isArray(card.statuses) && card.statuses.includes('NEXT_DRAW_GAINS_6'));
+  }
   if(id === '20') {
     return Number(card.usesLeft == null ? 2 : card.usesLeft) > 0
       && card.effectUsedThisTurn !== true;
@@ -9562,10 +9574,7 @@ function findBoardPositionForCard(card) {
 function preparePlacementFateReveal(inst, sourceCard, mode) {
   if(!inst) return inst;
   const source = sourceCard || inst;
-  let fromValue = Math.max(0, Number(source.currentFate ?? source.fate ?? inst.fate ?? 0) || 0);
-  if(source._wciBonus && !(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(source))) {
-    fromValue += 2;
-  }
+  const fromValue = Math.max(0, Number(source.fate ?? inst.fate ?? 0) || 0);
   inst._placementFateReveal = {
     fromValue,
     mode:String(mode || 'set'),
@@ -10278,6 +10287,25 @@ function playResolvedFateChangeSfx(card, beforeValue, afterValue, sourceOwner) {
   if(after === before) return;
   if(typeof playSfx !== 'function') return;
   const now = Date.now();
+  // Generic gains wait for the same presentation gate as their badge change.
+  // Paired overlays keep ownership of their cue and never enter this path.
+  const blockedUntil = after > before && typeof window.getFateFeedbackPresentationBlockUntil === 'function'
+    ? Number(window.getFateFeedbackPresentationBlockUntil()) || 0 : 0;
+  if(blockedUntil > now) {
+    const game = G;
+    const pendingKey = String(card.iid || card.id || 'card');
+    const pendingGains = game._pendingResolvedFateGainSfx || (game._pendingResolvedFateGainSfx = {});
+    const previous = pendingGains[pendingKey];
+    if(previous) clearTimeout(previous.timer);
+    const pending = {before:previous ? previous.before : before, after, timer:null};
+    pendingGains[pendingKey] = pending;
+    pending.timer = setTimeout(function(){
+      if(G !== game || pendingGains[pendingKey] !== pending) return;
+      delete pendingGains[pendingKey];
+      playResolvedFateChangeSfx(card, pending.before, pending.after, sourceOwner);
+    }, Math.max(24, blockedUntil - now + 24));
+    return;
+  }
   if(!G._lastFateChangeSfxAt) G._lastFateChangeSfxAt = {};
   const key = String(card.iid || card.id || 'card') + ':' + (after > before ? 'gain:' + before + '>' + after : 'lose');
   if(now - (G._lastFateChangeSfxAt[key] || 0) < 90) return;
@@ -11091,8 +11119,8 @@ function checkWin() {
     isDraw=winner<0;
     drawByFate=String(G._canonicalAiResult.outcome.reason || '').includes('FATE');
   }
-  // Morale defeat is immediate; the zone-control reveal belongs to turn-limit results.
-  if(depleted.length === 0 && !G._skipFinalZoneReveal && !G._finalZoneRevealActive && typeof showFinalZoneReveal === 'function'){
+  // Every completed match reveals board control before opening its result screen.
+  if(!G._skipFinalZoneReveal && !G._finalZoneRevealActive && typeof showFinalZoneReveal === 'function'){
     G._finalZoneRevealActive = true;
     stopTurnTimer();
     if(typeof renderGame === 'function') renderGame({board:true, scores:true, topbar:true});

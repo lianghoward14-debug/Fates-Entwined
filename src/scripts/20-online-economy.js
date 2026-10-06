@@ -1320,7 +1320,7 @@
           <span class="pdx-art" data-public-deck-art="${esc(d.id)}">${faceImg ? `<img src="${faceImg}" alt="" decoding="async" loading="eager" fetchpriority="low" draggable="false">` : '<span>Deck</span>'}</span>
           <span class="pdx-info">
             <span class="pdx-author"><span>By ${esc(d.username)}</span><em class="pdx-date">${esc(dateLabel)}</em></span>
-            <strong class="pdx-deck-name${deckNameClass}" title="${esc(deckName)}">${esc(deckName)}</strong>
+            <strong translate="no" class="pdx-deck-name${deckNameClass}" title="${esc(deckName)}">${esc(deckName)}</strong>
             <span class="pdx-desc">${esc(d.description || 'No description yet.')}</span>
             <span class="pdx-rating">
               <span class="pdx-rating-score">${rating.toFixed(1)}</span>
@@ -1432,7 +1432,7 @@
         </aside>
         <main class="pd-detail-summary">
           <div class="pd-author">Shared by ${esc(d.username)}</div>
-          <h2>${esc(d.name || 'Shared Deck')}</h2>
+          <h2 translate="no">${esc(d.name || 'Shared Deck')}</h2>
           <div class="pd-detail-metrics">
             <span><b>${d.totalCards || (d.ids || []).length}</b><em>Total Cards</em></span>
             <span><b>${d.uniqueCards || uniqueCards.length}</b><em>Unique Cards</em></span>
@@ -1589,12 +1589,12 @@
       : '<div class="rd-empty">No comments yet. Be the first!</div>';
     const html = '<div class="rd-window">'
       + '<div class="rd-window-top"></div>'
-      + '<div class="rd-compact-head"><span>Rate &amp; Discuss</span><em>' + esc(d.name || 'Shared Deck') + '</em></div>'
+      + '<div class="rd-compact-head"><span>Rate &amp; Discuss</span><em translate="no">' + esc(d.name || 'Shared Deck') + '</em></div>'
       + '<section class="rd-rating-section">'
       +   '<div class="rd-rating-art">' + rateArtHtml + '</div>'
       +   '<div class="rd-rating-copy">'
       +     '<div class="rd-kicker">Rate &amp; Review</div>'
-      +     '<h2>' + esc(d.name || 'Shared Deck') + '</h2>'
+      +     '<h2 translate="no">' + esc(d.name || 'Shared Deck') + '</h2>'
       +     '<p>' + esc(deckDesc) + '</p>'
       +     '<div class="rd-deck-meta"><span>' + uniqueCount + ' unique cards</span><span>' + (d.ids || []).length + ' total cards</span></div>'
       +   '</div>'
@@ -1641,7 +1641,7 @@
     const unique = new Set(d.ids || []).size;
     const body = document.getElementById('modal-body');
     body.innerHTML = '<div class="public-import-choice">'
-      + '<div class="public-import-choice-head"><span>Import Destination</span><h2>' + esc(d.name || 'Shared Deck') + '</h2><p>Choose where this public deck should land.</p></div>'
+      + '<div class="public-import-choice-head"><span>Import Destination</span><h2 translate="no">' + esc(d.name || 'Shared Deck') + '</h2><p>Choose where this public deck should land.</p></div>'
       + '<div class="public-import-choice-meta"><span><b>' + total + '</b><em>cards</em></span><span><b>' + unique + '</b><em>unique</em></span></div>'
       + '<div class="public-import-choice-grid">'
       +   '<button type="button" class="public-import-option public-import-option-challenger" data-dest="challenger">'

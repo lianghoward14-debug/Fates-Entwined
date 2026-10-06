@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Hsei-Ling • Animation samples</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#10151b;color:#eee8df;font:15px/1.5 Arial,sans-serif}main{max-width:1250px;margin:auto;padding:34px 24px}h1,h2{font-family:Georgia,serif;font-weight:400}h1{margin:0;font-size:32px}h2{margin:16px 18px 6px;font-size:22px}.eyebrow{color:#efd29a;font-size:11px;letter-spacing:2px;text-transform:uppercase}.intro{color:#adb5ba;margin:8px 0 24px}.samples{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}article{border:1px solid #354047;background:#141b22}canvas{display:block;width:100%;aspect-ratio:700/430;background:radial-gradient(ellipse at center,#1c2a30,#0c121a)}article p{margin:0 18px 20px;color:#a9b7b9;font-size:13px;min-height:40px}button,select{background:#202c33;color:#efd29a;border:1px solid #54625f;border-radius:4px;padding:9px 15px;font:inherit;cursor:pointer}.controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:22px 0}.controls label{display:flex;gap:12px;align-items:center}input{accent-color:#b1c9b4;width:200px}footer{margin-top:30px;border-top:1px solid #354047;padding-top:20px;color:#adb5ba}#test-status{font-size:13px} @media(max-width:750px){.samples{grid-template-columns:1fr}main{padding:22px 16px}}
+</style><link rel="stylesheet" href="../src/styles/activation-relay.css"></head><body><main>
+<div class="eyebrow">The Chinese MacArthur</div><h1>Hsei-Ling</h1><p class="intro">Cardinal convergence selected · installed for Hsei-Ling · jade and gold line art · two seconds each</p>
+<section class="samples">
+<article><canvas data-variant="wave-sides" width="700" height="430" aria-label="Paired flanks animation"></canvas><h2>Paired flanks</h2><p>Two aligned cards arrive from the left, then two from the right. Straight, parallel lanes.</p></article>
+<article><canvas data-variant="wave-rows" width="700" height="430" aria-label="Stacked approach animation"></canvas><h2>Stacked approach</h2><p>Two cards descend together, followed by two rising from below. Even spacing throughout.</p></article>
+<article><canvas data-variant="wave-cross" width="700" height="430" aria-label="Cardinal convergence animation"></canvas><h2>Cardinal convergence</h2><p>Left and right converge first, then top and bottom. All four paths meet the center axes.</p></article>
+</section>
+<div class="controls"><button id="toggle">Pause</button><button id="replay">Replay all</button><label>Frame <input id="frame" type="range" min="0" max="1000" value="0"></label></div>
+<footer><div class="eyebrow">Repaired placement presentations</div><p>Phil now has a royal ascending fanfare and crown bell. Select Phil and play to hear it with his animation.</p><div class="controls"><select id="card" aria-label="Card animation"></select><button id="play-card">Play card presentation</button></div><p id="test-status" aria-live="polite"></p></footer>
+</main>
+<script src="hsei-ling-animation-samples.js"></script>
+<script src="../src/scripts/render-v2/19-approved-activation-art.js"></script>
+<script src="../src/scripts/render-v2/19-approved-activation-sfx.js"></script>
+<script src="../src/scripts/render-v2/19-signature-activation-fx.js"></script>
+<script src="../src/scripts/render-v2/22-activation-banner.js"></script>
+<script>
+const G={};
+let sampleAudio;const _masterVol=.7,_sfxVol=.8;
+function getAudioCtx(){sampleAudio ||= new AudioContext();sampleAudio.resume();return sampleAudio;}
+function getSfxBus(ac){return {input:ac.destination};}
+
+const cards=[['bh15','Hsei-Ling','Improvisor','The Chinese MacArthur'],['34','Rozsi Szocs','Coordinator','Hungarian Dance'],['46','Phil','Dauntless','The Monarchist Manifesto'],['35','Alexander the Magnificient','Dauntless'],['36','Marie L’amboure','Improvisor'],['41','Jimmy','Dauntless'],['45','Chingachlook','Dauntless'],['55','Bobby Jones','Dauntless'],['85','Felicyta Janowicz (Specters)','Dauntless'],['100','Felicyta and Květka (Youth)','Dauntless'],['bh03','Ali, The Indomitable','Improvisor'],['bh17','Jakob Eltzholtz','Improvisor'],['bh18','Jimmy (Post-Cynthia Hug)','Improvisor'],['88','Rozsi Szocs (Youth)','Dauntless'],['89','Zsofia Szocs (Youth)','Dauntless'],['40','Christopher Erbs','Improvisor'],['56','Lydia','Improvisor'],['67','Mr. Secules','Improvisor'],['86','Boleslaw Kopewicz','Improvisor'],['bh16','Li-Hua (Battle-Ready)','Improvisor']];
+const select=document.getElementById('card');cards.forEach(([id,name])=>select.add(new Option(name,id)));select.value='bh15';
+let paused=false,start=performance.now(),progress=0;
+const slider=document.getElementById('frame'),toggle=document.getElementById('toggle');
+function draw(){document.querySelectorAll('[data-variant]').forEach(canvas=>HseiLingAnimationSamples.draw(canvas.getContext('2d'),canvas.dataset.variant,progress));}
+function tick(now){if(!paused){progress=Math.min(1,((now-start)%2600)/2000);slider.value=Math.round(progress*1000);draw();}requestAnimationFrame(tick);}requestAnimationFrame(tick);
+toggle.onclick=()=>{paused=!paused;toggle.textContent=paused?'Play':'Pause';if(!paused)start=performance.now()-progress*2000;};
+document.getElementById('replay').onclick=()=>{start=performance.now();paused=false;toggle.textContent='Pause';};
+slider.oninput=()=>{paused=true;toggle.textContent='Play';progress=slider.value/1000;draw();};
+document.getElementById('play-card').onclick=()=>{
+ const [id,name,type,ability]=cards.find(c=>c[0]===select.value),button=document.getElementById('play-card');
+ const placementOnly=['40','56','67','86','bh16'].includes(id);
+ if(placementOnly){FateActivationBanner.play({id,name,type,ability:ability||'Activate Effect'},{sfx:false});}
+ const played=!placementOnly&&FateSignatureActivationFx[type==='Coordinator'?'playCoordinator':'playPlacement']({id,name,type,ability:ability||'Activate Effect',iid:'preview-'+id},{sfx:id==='46'});
+ document.querySelectorAll('.fate-relay-skin img').forEach(img=>{img.src='../'+img.getAttribute('src');});
+ button.disabled=played;document.getElementById('test-status').textContent=played?'Playing '+name+' — one banner and one animation.':placementOnly?'Banner only on placement; animation is reserved for activation.':'Animation unavailable with the current motion settings.';
+ setTimeout(()=>button.disabled=false,2100);
+};
+</script></body></html>

@@ -9,7 +9,7 @@ app.whenReady().then(async () => {
  const win = new BrowserWindow({show:false, webPreferences:{contextIsolation:true, sandbox:true}});
  try {
   await win.loadFile(path.join(root, '.tmp', 'localization-test.html'));
-  for (const file of ['53-japanese-content.js','53-japanese-catalog.js','53-japanese-lore.js','54-localization.js']) await win.webContents.executeJavaScript(fs.readFileSync(path.join(root,'src/scripts',file),'utf8'));
+  for (const file of ['53-japanese-content.js','53-japanese-catalog.js','53-japanese-lore.js','53-japanese-warfront.js','54-localization.js']) await win.webContents.executeJavaScript(fs.readFileSync(path.join(root,'src/scripts',file),'utf8'));
   const result = await win.webContents.executeJavaScript(`(async () => {
    const check = (ok, message) => { if (!ok) throw new Error(message); };
    const tick = () => new Promise(resolve => setTimeout(resolve, 30));
@@ -22,6 +22,10 @@ app.whenReady().then(async () => {
    check(document.getElementById('nested').childElementCount === 1, 'nested markup preserved');
    const dynamic = document.createElement('div'); dynamic.textContent = 'End Turn'; document.body.append(dynamic); await tick();
    check(dynamic.textContent === 'ターン終了', 'dynamic insertion');
+   check(FateI18n.t('WAR ENDS IN') === '終戦まで', 'Warfront clock label');
+   check(FateI18n.t('Tripoli Breakwater') === 'トリポリ防波堤', 'Warfront zone name');
+   check(FateI18n.t('First Alliance Triumph') === '同盟初勝利章', 'medal name');
+   check(FateI18n.t('The Pineapple Man and conqueror of dawn.') === 'パイナップルマンと夜明けの征服者。', 'lore subtitle');
    dynamic.textContent = 'Turn 7/20'; await tick();
    check(dynamic.textContent === 'ターン 7/20', 'dynamic update');
    document.getElementById('title-language-btn').click();
@@ -43,7 +47,7 @@ app.whenReady().then(async () => {
   })()`);
   await win.reload();
   await new Promise(resolve => win.webContents.once('did-finish-load', resolve));
-  for (const file of ['53-japanese-content.js','53-japanese-catalog.js','53-japanese-lore.js','54-localization.js']) await win.webContents.executeJavaScript(fs.readFileSync(path.join(root,'src/scripts',file),'utf8'));
+  for (const file of ['53-japanese-content.js','53-japanese-catalog.js','53-japanese-lore.js','53-japanese-warfront.js','54-localization.js']) await win.webContents.executeJavaScript(fs.readFileSync(path.join(root,'src/scripts',file),'utf8'));
   const persisted = await win.webContents.executeJavaScript(`FateI18n.getLanguage() === 'ja' && document.getElementById('label').textContent === 'フリープレイ'`);
   if (!persisted) throw new Error('Reload persistence failed');
   fs.writeFileSync(path.join(root,'.tmp','localization-test-result.txt'), result + '\nPASS: preference restored after reload');

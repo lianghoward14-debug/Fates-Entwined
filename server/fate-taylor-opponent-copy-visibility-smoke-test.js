@@ -15,10 +15,10 @@ assert.match(online,
   /without exposing the source pile or iid/,
   'Taylor projection must document the hidden-information boundary');
 assert.match(rendering,
-  /function buildTaylorCopyBannerHTML\(card\)[\s\S]{0,600}_bh05CopiedPrintedEffect/,
+  /function buildTaylorCopyBannerHTML\(card, visual\)[\s\S]{0,900}_bh05CopiedPrintedEffect/,
   'Taylor card information must render the publicly projected copied effect');
 assert.match(rendering,
-  /!hideCard \? buildWhisperTokenCopyBannerHTML\(card\) \+ buildTaylorCopyBannerHTML\(card\) : ''/,
+  /!hideCard \? buildWhisperTokenCopyBannerHTML\(card\) \+ buildTaylorCopyBannerHTML\(card, visual\) : ''/,
   'either player must receive Taylor copy details when the board card is visible');
 
 console.log('Taylor opponent copy visibility smoke test passed.');

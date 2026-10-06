@@ -109,6 +109,6 @@ assert.match(taylorBanner, /Copied Effect/);
 assert.match(taylorBanner, /Cook Islands Duelist/);
 assert.match(taylorBanner, /Blade Dance/);
 assert.equal(sandbox.build({id:'bh05'}), '');
-assert.equal((renderer.match(/buildTaylorCopyBannerHTML\(card\)/g) || []).length, 3, 'both card-detail routes must include Taylor\'s copied-effect tracker');
+assert.equal((renderer.match(/buildTaylorCopyBannerHTML\(card, visual\)/g) || []).length, 3, 'both card-detail routes must include Taylor\'s copied-effect tracker');
 
 console.log('Reported card UI and rework regression smoke test passed');

@@ -347,6 +347,12 @@ function getLandscapeFateCapForZone(z) {
 
 function getLandscapeTotalFate(player) {
   if (typeof G === 'undefined' || !G || !Array.isArray(G.board)) return 0;
+  // Pella races use scored Fate, including zone-wide reductions and bonuses.
+  if (G.landscapeId === 'igb20' && typeof getZoneScore === 'function') {
+    return G.board.reduce(function(total, zone, z){
+      return total + (Array.isArray(zone) ? Math.max(0, Number(getZoneScore(z, player)) || 0) : 0);
+    }, 0);
+  }
   let total = 0;
   G.board.forEach(function(zone, z){
     if (!Array.isArray(zone)) return;
@@ -1099,6 +1105,7 @@ function getSupportReinforcementValue(card) {
 }
 
 function activateUsMarinesSuppressionEffect(player, opponent, options) {
+  window.playFateReactionSfx?.(true, {id:'18'});
   options = options || {};
   G.oppSuppressedNextTurn = true;
   G.suppressTarget = opponent;
@@ -1370,7 +1377,7 @@ function fatePushDiscard(playerIndex, cardOrCards, options = {}) {
     }
   } catch(e) {}
   if(options.animate !== false && window.FateV2CardMotionFx?.discardCard){
-    discarded.forEach(function(card){ window.FateV2CardMotionFx.discardCard(card, playerIndex, options.source ? {zone:options.source} : null); });
+    discarded.forEach(function(card){ window.FateV2CardMotionFx.discardCard(card, playerIndex, options.sourceLocation || (options.source ? {zone:options.source} : null)); });
   }
   if(options.sound !== false) playDiscardSfx({count:discarded.length});
   return true;
@@ -1405,7 +1412,10 @@ function getSetEffectModalDelayMs() {
 }
 
 function getInteractionAnimationDelayMs() {
-  return Math.max(getPlacementUiDelayMs(), getCinematicUiDelayMs(), getSetEffectModalDelayMs());
+  const game = typeof G !== 'undefined' ? G : null;
+  return Math.max(getPlacementUiDelayMs(), getCinematicUiDelayMs(), getSetEffectModalDelayMs(),
+    (Number(game?._coordinatorSignatureUntil) || 0)-Date.now(),
+    (Number(game?._effectActivationPresentationLockUntil) || 0)-Date.now());
 }
 
 function runAfterPlacementAnimation(callback, extraDelay = 0) {
@@ -1547,6 +1557,7 @@ function resetMatchTransientState() {
   G._riveraActiveEffects = {};
   G._seenHandIids = new Set();
   G._skipFinalZoneReveal = false;
+  G._endgameResolved = false;
   G._finalZoneRevealActive = false;
   G._finalZoneRevealTimers = [];
   G._skipImprovisorCheck = false;

@@ -3,7 +3,54 @@
 const names=[["01","Felicyta Janowicz","The eagle claims the crown","#fff0ef"],["bh07","Agent-K","The core goes live","#b5c8f2"],["bh11","Felicyta Janowicz (University)","The sealed accord","#f3e7e4"],["45","Chingachlook","Sunset over the mountains","#c6baaa"],["22","Isaac Perez","Excited nucleus","#77b8ff"],["02","Anicka Konvicka","The starlit orbit","#a9d8f4"],["86","Boleslaw Kopewicz","Cascading fireworks","#eab2ec"],["bh04","Anicka Konvicka (Selva Island)","Eye of the maelstrom","#8fd9ed"],["bh20","Makenna (Bird Cult)","Three birds in flight","#acd9ed"],["bh19","Abed","Double charge","#b9dfa1"],["bh01","Anicka Konvicka (Voyager)","A voyage at sunrise","#a4dede"],["14","Alondra Hopkins","Clear the perimeter","#eea697"],["bh09","Alondra Hopkins (Mercenary)","Spear orbit","#eea697"],["66","Mark Menz","The seal of allegiance","#beb5ef"],["87","Květka Svoboda (Ukulele)","The written melody","#c7dfa1"],["67","Mr. Secules","You just said nothing","#efa899"],["bh21","Oktai","The high desert sun","#e9b77a"],["38","Jake","The perfect stack","#edbd82"],["bh22","Jaime","The healing crescent","#a1d7ee"],["56","Lydia","Sever the spell","#ef6571"],["bh05","Taylor","The unfolding double","#b6a9ec"],["bh13","Hugh Roberts","The gilded portfolio","#b7dfa7"],["61","Maria Song","Precise Shot","#ff929b"],["13","Johnathan Kirby","Signed Christmas Charter","#ecd09a"],["43","Mark Kemper","An impossible elephant","#f1c68d"],["51","Rivera","The binding promise","#7ed6c0"],["81","Wojciech","Fold, crimp, scatter","#f3cc8b"],["83","Sebastyen Janowicz","Pillars of Visegrad","#efa7ae"],["90","Wojciech (Fisherman)","The constellation net","#80d9d4"],["21","Henry Dong","Break the chain","#ee847c"],["29","Dylan Kirby","Wings of the free world","#89bfff"],["30","Santiago","The piercing tide","#fa8e83"],["84","Květka Svoboda (Youth)","Winter butterfly garden","#c6e9a0"],["99","Rozsi and Zsofia (Youth)","The accusation scales","#d4acfa"],["07","Maja Kaminska","Tank advance","#b6d9de"],["82","Felicyta Janowicz (Youth)","Winter in glass","#a6dfff"],["bh06","Achille Laurent","Three adaptive tokens","#a9c9ef"],["bh16","Li-Hua (Battle-Ready)","Blade-driven tearing sweeps","#82cfff"],["bh10","Francisek","A passenger from the catalog","#b4dddf"],["bh14","Chloe Kirk","One declaration, many cards","#a3c8f4"],["10","Post-Modernist Dylan","Six fragments collapse","#c99ae9"],["19","Květka Svoboda","The bridge over the Vltava","#a0d5bc"],["bh12","Louis LeJeune","The seven-petal coronation","#b5d790"],["35","Alexander the Magnificient","The shield and growing laurels","#e2af79"],["88","Rozsi Szocs (Youth)","A Carpathian winter tale","#a9c8e9"],["11","Anne Stone","Three treaties fall into place","#99d5d0"],["46","Phil","The crowned empire rises","#c0a5e4"],["41","Jimmy","The fractured reflection","#d393a7"],["89","Zsofia Szocs (Youth)","The frost-set tiara","#d1b0e4"],["55","Bobby Jones","The four-arm spiral galaxy","#a5bde9"],["85","Felicyta Janowicz (Specters)","Three ghosts rise","#b0d6dc"],["36","Marie L’amboure","Three shields lock together","#afc7be"],["bh02","Joie","Instagram comes into focus","#dc9bbb"],["bh08","Maja Kaminska (University)","The smirk breaks into laughter","#e2b68d"],["57","Jeremiah Jones","The alpine clockwork","#b5c0e3"],["12","Makenna","The winged military insignia","#b3c59d"],["23","Cathy","The geometric fan unfolds","#d9aac9"],["15","Zsofia Szocs","The embroidered rosette blooms","#daa6ba"],["34","Rozsi Szocs","The Hungarian dancing silhouettes","#d88b94"],["bh17","Jakob Eltzholtz","The battering ram strikes","#bfaddf"],["77","Duncan Heyward","Canyon river","#cbb6a3"],["100","Felicyta and Květka (Youth)","Snowfall in the mountain pines","#add7e6"],["bh18","Jimmy (Post-Cynthia Hug)","Rage","#f0a083"]];
 const cardPalettes={"13":["#edb052","#ffdf9b"],"14":["#d68c9d","#ead1c0"],"17":["#b9d675","#f3e8b8"],"21":["#db6871","#ead4bb"],"22":["#e4c659","#a7d9f1"],"29":["#8cacd2","#ecbfc3"],"30":["#cedee4","#e5a48f"],"38":["#ed9e60","#eccc8e"],"39":["#dbc477","#92cbbd"],"40":["#bfc575","#e6a367"],"43":["#81b5df","#d2e6f5"],"45":["#d7b196","#edbe7d"],"48":["#ae99dc","#a2d2e6"],"51":["#88d19d","#d8edac"],"56":["#719ce8","#eed075"],"66":["#cbd170","#eece9c"],"67":["#b89de2","#d7e4fc"],"81":["#b5cd8a","#efd4a1"],"82":["#8bb8df","#e1efff"],"83":["#a8c878","#dfddb0"],"87":["#cf9dcd","#e8c58e"],"90":["#78acd1","#bae0db"],"99":["#e1a581","#f0d29e"],"01":["#fff1ee","#e25b65"],"bh11":["#f2ede8","#c74858"],"bh07":["#b4c4f0","#80d2db"],"02":["#77d6e3","#d9f1f2"],"03":["#e1ac56","#e7d1b3"],"04":["#b594ed","#e5c9ff"],"07":["#799feb","#d3e3f6"],"08":["#edce61","#a9d3f0"],"bh04":["#8faec9","#dcb184"],"bh05":["#d296ad","#e0bea5"],"bh06":["#8faeee","#dca6a2"],"bh09":["#b8d48e","#e6d9a6"],"bh10":["#8abea1","#ccd4b1"],"bh13":["#d2ad7a","#eed6a3"],"bh14":["#8caaeb","#bddff1"],"bh16":["#82cfff","#b2bff5"],"bh20":["#c2dbea","#e8ce9e"],"bh22":["#b8a1ec","#92cde9"]};
 const clamp=x=>Math.max(0,Math.min(1,x)),seg=(t,a,b)=>clamp((t-a)/(b-a)),ease=x=>1-(1-clamp(x))**3,PI=Math.PI,TAU=PI*2;
+  function drawHseiLing(ctx,t,w=700,h=430){
+    const variant='wave-cross';
+    const clamp=x=>Math.max(0,Math.min(1,x)),seg=(a,b)=>clamp((t-a)/(b-a)),ease=x=>1-(1-clamp(x))**3;
+    const a=ease(seg(0,.13))*(1-ease(seg(.83,1))),q=ease(seg(.08,.65));
+    const jade='#a8c9b4',gold='#efd29a',ice='#d2e8e0',TAU=Math.PI*2;
+    ctx.clearRect(0,0,w,h);ctx.save();ctx.translate(w/2,h/2);ctx.scale(Math.min(w/460,h/300),Math.min(w/460,h/300));
+    function line(points,color=jade,alpha=a,width=1.4){
+      ctx.save();ctx.globalAlpha=alpha;ctx.strokeStyle=color;ctx.lineWidth=width;ctx.shadowColor=color;ctx.shadowBlur=7;ctx.beginPath();
+      points.forEach((p,i)=>i?ctx.lineTo(...p):ctx.moveTo(...p));ctx.stroke();ctx.shadowBlur=0;ctx.globalAlpha=alpha*.7;ctx.lineWidth=.65;ctx.stroke();ctx.restore();
+    }
+    function curve(fn,u=1,color=jade,alpha=a,width=1.4){line(Array.from({length:61},(_,i)=>fn(i/60*u)),color,alpha,width);}
+    function ring(x,y,rx,ry,color=jade,alpha=a){curve(v=>[x+Math.cos(v*TAU)*rx,y+Math.sin(v*TAU)*ry],1,color,alpha);}
+    function star(x,y,r=4,alpha=a){line([[x-r,y],[x+r,y]],gold,alpha);line([[x,y-r],[x,y+r]],gold,alpha);}
+    function arrow(x,y,angle,alpha=a){ctx.save();ctx.translate(x,y);ctx.rotate(angle);line([[-10,-6],[0,0],[-10,6]],gold,alpha,2);ctx.restore();}
+    function sparks(x,y,p){for(let j=0;j<12;j++){const z=j*2.4,r=68*ease(p);star(x+Math.cos(z)*r,y+Math.sin(z)*r,2,a*Math.sin(p*Math.PI));}}
+    if(['wave-sides','wave-rows','wave-cross'].includes(variant)){
+      // Symmetric lanes terminate outside the central frame; icons never overlap.
+      const box=(x,y,hw,hh,c=jade,alpha=a)=>line([[x-hw,y-hh],[x+hw,y-hh],[x+hw,y+hh],[x-hw,y+hh],[x-hw,y-hh]],c,alpha,1.7);
+      box(0,0,29,43,gold);box(0,0,22,35,jade,a*.55);
+      const boost=ease(seg(.58,.8));
+      line([[-12,1],[0,-10],[12,1]],ice,a,2);
+      line([[-12,16-5*boost],[0,5-5*boost],[12,16-5*boost]],gold,a*boost,2);
+      let lanes;
+      if(variant==='wave-sides')lanes=[[-1,-26,0],[-1,26,0],[1,-26,1],[1,26,1]].map(([side,y,wave])=>({sx:side*128,sy:y,ex:side*52,ey:y,wave}));
+      else if(variant==='wave-rows')lanes=[[-16,-1,0],[16,-1,0],[-16,1,1],[16,1,1]].map(([x,side,wave])=>({sx:x,sy:side*111,ex:x,ey:side*66,wave}));
+      else lanes=[{sx:-130,sy:0,ex:-52,ey:0,wave:0},{sx:130,sy:0,ex:52,ey:0,wave:0},{sx:0,sy:-112,ex:0,ey:-66,wave:1},{sx:0,sy:112,ex:0,ey:66,wave:1}];
+      for(const lane of lanes){
+        const begin=.08+lane.wave*.27,p=Math.max(0,Math.min(1,(t-begin)/.36)),move=ease(p);
+        const alpha=a*(1-ease(Math.max(0,(p-.72)/.28)));
+        const x=lane.sx+(lane.ex-lane.sx)*move,y=lane.sy+(lane.ey-lane.sy)*move;
+        line([[lane.sx,lane.sy],[lane.ex,lane.ey]],jade,a*.18);
+        box(x,y,10,14,jade,alpha);
+        // Identical centered rank marks keep every reserve card upright.
+        line([[x-5,y+2],[x,y-3],[x+5,y+2]],gold,alpha,1.4);
+        const hit=Math.max(0,Math.min(1,(t-(begin+.26))/.2));
+        const edgeX=lane.ex===0?0:Math.sign(lane.ex)*29,edgeY=lane.ey===0?0:Math.sign(lane.ey)*43;
+        if(variant==='wave-sides')line([[Math.sign(lane.ex)*29,lane.ey-8],[Math.sign(lane.ex)*29,lane.ey+8]],gold,a*Math.sin(hit*Math.PI),2.5);
+        else if(variant==='wave-rows')line([[lane.ex-7,Math.sign(lane.ey)*43],[lane.ex+7,Math.sign(lane.ey)*43]],gold,a*Math.sin(hit*Math.PI),2.5);
+        else if(lane.ex)line([[edgeX,-9],[edgeX,9]],gold,a*Math.sin(hit*Math.PI),2.5);
+        else line([[-9,edgeY],[9,edgeY]],gold,a*Math.sin(hit*Math.PI),2.5);
+      }
+      const finish=seg(.68,.96);box(0,0,33+9*finish,47+9*finish,gold,a*Math.sin(finish*Math.PI)*.4);
+    }
+    ctx.restore();
+  }
+
 function draw(ctx,id,t,w=700,h=430){
+if(String(id)==='bh15')return drawHseiLing(ctx,t,w,h);
 ctx.clearRect(0,0,w,h);ctx.save();ctx.translate(w/2,h/2);ctx.scale(Math.min(w/460,h/300),Math.min(w/460,h/300));
 const color=cardPalettes[id]?.[0]||names.find(n=>n[0]===id)[3],gold=cardPalettes[id]?.[1]||'#efd29a',a=ease(seg(t,0,.13))*(1-ease(seg(t,.83,1))),q=ease(seg(t,.1,.65));
 function line(pts,c=color,alpha=a,width=1.4,close=false){ctx.save();ctx.globalAlpha=alpha;ctx.strokeStyle=c;ctx.lineWidth=width;ctx.shadowColor=c;ctx.shadowBlur=7;ctx.beginPath();pts.forEach((p,i)=>i?ctx.lineTo(...p):ctx.moveTo(...p));if(close)ctx.closePath();ctx.stroke();ctx.shadowBlur=0;ctx.globalAlpha=alpha*.7;ctx.lineWidth=.65;ctx.stroke();ctx.restore();}
@@ -461,6 +508,6 @@ for(let j=0;j<3;j++)curve(v=>[(j-1)*75-12+24*v,21-3*Math.sin(v*PI)],1,'#e7f6ff',
 }
 ctx.restore();
 }
-window.FateApprovedActivationArt={handles:id=>names.some(n=>n[0]===String(id)),draw};
+window.FateApprovedActivationArt={handles:id=>String(id)==='bh15'||names.some(n=>n[0]===String(id)),draw};
 })();
 

@@ -15,11 +15,14 @@ const fx = window.FateV2CardMotionFx;
 assert(fx.flyBoardCard({iid:'removed',owner:1},0,0,0,'discard'));
 assert.deepEqual({...calls.at(-1).payload.fromRect},rect,'removed board cards use the cell position');
 for(const owner of [0,1]) for(const zone of ['hand','deck']){
-  assert(fx.discardCard({iid:zone+owner,owner},owner,{zone}));
-  assert(calls.at(-1).payload.fromRect.w > 0,zone+' discard has visible geometry for either player');
+  assert.equal(fx.discardCard({iid:zone+owner,owner},owner,{zone}),false,
+    'hidden or missing source must never create a miniature discard');
 }
-assert(fx.sendHandCardToDiscard({iid:'hidden',faceDown:true},1,0));
-assert.equal(calls.at(-1).payload.card.faceDown,true,'hidden card identity stays hidden');
+assert.equal(fx.sendHandCardToDiscard({iid:'hidden',faceDown:true},1,0),false);
+map.handCards.push({iid:'visible',rect:{x:100,y:680,w:130,h:180}});
+map.piles.push({pile:'discard',playerIndex:0,rect});
+assert(fx.sendHandCardToDiscard({iid:'visible',owner:0},0,0));
+assert.equal(calls.at(-1).payload.fromRect.h,180,'visible hand retains its full size');
 const helpers = read('00-structural-helpers.js');
 const start = helpers.indexOf('function fatePushDiscard(');
 const end = helpers.indexOf('window.isEnhancedVisualFxEnabled',start);
@@ -31,6 +34,9 @@ pushCtx.fatePushDiscard(1,[{id:'1',iid:'a'},{id:'2',iid:'b'}]);
 assert.equal(count,2,'each card in a batch animates');
 pushCtx.fatePushDiscard(0,{id:'3'},{animate:false});
 assert.equal(count,2,'board/consolidation motion is not duplicated');
+pushCtx.window.FateV2CardMotionFx=fx;
+pushCtx.fatePushDiscard(0,{id:'32',iid:'already-removed',owner:0},{sourceLocation:{zone:'board',z:0,r:0,c:0}});
+assert.deepEqual({...calls.at(-1).payload.fromRect},rect,'discard helper preserves explicit source after board removal');
 const core = read('05-gameplay-core.js');
 const turnStart = core.indexOf('function endTurn(opts)');
 const turnEnd = core.indexOf('function showPassTurn(',turnStart);

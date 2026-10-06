@@ -6,7 +6,7 @@ const handler=source.slice(source.indexOf('window.joinWarEventZone='),source.ind
 async function run(){
   let resolve,requests=0,timer,refreshes=0,simulation=false;
   const messages=[];
-  const c={simulationSession:false,window:{toast:true,FateOnline:{flyApiRequest:()=>{requests++;return new Promise(r=>resolve=r);}}},toast:m=>messages.push(m),state:{status:'enrollment',zones:[{id:'front',a:null,b:null}]},deploymentPending:null,selectedTeam:'a',TEAMS:{a:{},b:{}},lifecycle(){},me:()=>({uid:'me'}),meta:()=>({name:'Front'}),localStorage:{getItem:()=>simulation},storageKey:x=>x,SIMBACKUP:'sim',save(){},rerender(){},warSfx(){},remoteEligible:()=>true,AbortController,setTimeout:fn=>{timer=fn;return 1;},clearTimeout(){},pullRemoteState:()=>{refreshes++;},Date};
+  const c={simulationSession:false,window:{toast:true,FateOnline:{flyApiRequest:()=>{requests++;return new Promise(r=>resolve=r);}}},toast:m=>messages.push(m),state:{status:'enrollment',zones:[{id:'front',a:null,b:null}]},deploymentPending:null,selectedTeam:'a',TEAMS:{a:{},b:{}},lifecycle(){},me:()=>({uid:'me'}),meta:()=>({name:'Front'}),localStorage:{getItem:()=>simulation},storageKey:x=>x,SIMBACKUP:'sim',save(){},rerender(){},warSfx(){},remoteEligible:()=>true,AbortController,setTimeout:fn=>{timer=fn;return 1;},clearTimeout(){},warfrontRequest:()=>{refreshes++;return Promise.resolve({state:null});},Date};
   c.seat=uid=>c.state.zones[0].a?.uid===uid?{zone:c.state.zones[0],team:'a'}:null;
   c.adoptRemoteState=s=>{c.state=s;};
   c.score=()=>({played:0});vm.createContext(c);vm.runInContext(source.slice(source.indexOf('function warCanDeploy('),source.indexOf('function miniSeat('))+handler,c);

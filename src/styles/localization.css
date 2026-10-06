@@ -19,6 +19,28 @@
 /* Share the authored typography and layout in both languages. The body font
    already includes Japanese serif fallbacks; localization changes text only. */
 html[lang="ja"] body { font-family: var(--font-body); }
+/* Japanese ranks need their natural glyph width, including translated lines. */
+html[lang="ja"] body #modal .profile-view-badges .rank-badge {
+  width:max-content!important;
+  inline-size:max-content!important;
+  height:auto!important;
+  min-height:38px;
+  overflow:visible!important;
+}
+html[lang="ja"] body #modal .profile-view-badges .rank-badge-label {
+  width:max-content!important;
+  inline-size:max-content!important;
+  max-width:none!important;
+  overflow:visible!important;
+  transform:none!important;
+  line-height:1.5!important;
+}
+/* Both lore browsers truncate visually after localization, never in source. */
+html body #fate-lore-window-overlay .ch-lore-card-copy small {
+  display:-webkit-box;
+  -webkit-line-clamp:3;
+  -webkit-box-orient:vertical;
+}
 html[lang="ja"] :is(button, input, select, textarea, .logo-sub, .title-btn, .modal, .ch-tab) {
   /* Keep each control's existing font and letter spacing. */
   line-break: strict;

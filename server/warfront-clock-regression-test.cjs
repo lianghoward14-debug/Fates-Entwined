@@ -24,5 +24,5 @@ const war=fs.readFileSync('src/scripts/47-challenger-war-event.js','utf8');
 const stats={durationMs:10000,consolidations:3,fateDifferential:5};
 sandbox.state={zones:[{a:{uid:'a'},b:{uid:'b'},matches:[{winnerTeam:'a',playerStats:{a:stats}},{winnerTeam:'a',forfeitSweep:true,playerStats:{a:stats}}]}]};
 vm.runInContext(war.slice(war.indexOf('function telemetry()'),war.indexOf('\nfunction duration')),sandbox);
-assert.equal(vm.runInContext('telemetry().length',sandbox),2,'only completed game contributes two player records');
+assert.equal(vm.runInContext('telemetry().length',sandbox),1,'only the completed game winner contributes commendation telemetry');
 console.log('Warfront consumed-clock and forfeit regression tests passed');

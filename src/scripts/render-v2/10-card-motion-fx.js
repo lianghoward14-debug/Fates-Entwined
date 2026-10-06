@@ -319,7 +319,8 @@
   }
 
   function sendHandCardToDiscard(card, owner, handIndex, opts){
-    const fromRect = anyHandRectByIid(card && card.iid) || (Number(owner) === Number(currentViewer()) ? handSlotRect(handIndex) : opponentHandSlotRect(handIndex, owner)) || fallbackHandRect(owner);
+    if(Number(owner) !== Number(currentViewer())) return false;
+    const fromRect = handCardRectByIid(card && card.iid) || handSlotRect(handIndex);
     const toRect = pileRect(owner, 'discard') || pileRect(null, 'discard');
     if(!fromRect || !toRect) return false;
     return play('HAND_DISCARD', Object.assign({iid:card && card.iid, card, fromRect, toRect}, opts || {}));
@@ -327,15 +328,17 @@
 
   function discardCard(card, owner, location){
     const source = location || {};
+    if(source.zone === 'deck') return false;
     const map = hitMap();
     const boardHit = (map && Array.isArray(map.cards) ? map.cards : []).find(function(item){
       return card && card.iid != null && String(item.iid) === String(card.iid);
     });
     if(source.zone === 'board') return flyBoardCard(card, source.z, source.r, source.c, 'discard');
     const fromRect = (boardHit && boardHit.rect)
-      || anyHandRectByIid(card && card.iid)
-      || (source.zone === 'deck' ? pileRect(owner, 'deck') : null)
-      || fallbackHandRect(owner);
+      || (Number(owner) === Number(currentViewer()) ? handCardRectByIid(card && card.iid) : null);
+    // Hidden and already-removed cards have no visible source to fracture.
+    // Never invent a miniature card at a pile or a fallback hand position.
+    if(!fromRect) return false;
     const toRect = pileRect(owner, 'discard') || fromRect;
     return play('DISCARD_CARD', {iid:card && card.iid, card, fromRect, toRect});
   }

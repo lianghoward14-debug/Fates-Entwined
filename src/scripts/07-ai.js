@@ -4650,7 +4650,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       let gained = 0;
       targets.forEach(t=>{
         G.board[t.z][t.r][t.c] = null;
-        fatePushDiscard(opp, t.card);
+        fatePushDiscard(opp, t.card, {sourceLocation:{zone:'board',z:t.z,r:t.r,c:t.c}});
         gained++;
       });
       if(gained) {
@@ -4771,9 +4771,8 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       if(opps.length){
         opps.sort((a,b)=>aiOpponentCardDecisionFate(b.card,z)-aiOpponentCardDecisionFate(a.card,z));
         const t = opps[0];
-        G.board[z][t.r][t.c]=null;
-        fatePushDiscard(opp, t.card);
-        log('p2', `AI: MINAE discarded ${t.card.name}`);
+        discardBoardCard(t.card, z, t.r, t.c);
+        if(G.board[z][t.r][t.c] !== t.card) log('p2', `AI: MINAE discarded ${t.card.name}`);
       } break;
     }
     case '18':
@@ -5104,7 +5103,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       G.board[z].forEach((row,ri)=>row.forEach((cell,ci)=>{
         if(cell&&cell.owner===cp&&cell.type!=='Supporter'&&cell.type!=='Dauntless'&&cell.type!=='Coordinator'&&cell.iid!==inst.iid){td.push({r:ri,c:ci,card:cell});tf+=(cell.currentFate||cell.fate);}
       }));
-      td.forEach(x=>{G.board[z][x.r][x.c]=null;fatePushDiscard(cp, x.card);});
+      td.forEach(x=>{G.board[z][x.r][x.c]=null;fatePushDiscard(cp, x.card,{sourceLocation:{zone:'board',z,r:x.r,c:x.c}});});
       if(tf>0) modifyFate(inst,tf,'permanent');
       inst._canMoveOncePerTurn=true; break;
     }
@@ -5169,10 +5168,7 @@ async function aiResolveAutomaticBoardEffects() {
     if(!candidate) return;
     const {card,z,r,c} = candidate;
     attempted.add(card);
-    if(typeof playEffectActivationCinematic === 'function') {
-      await playEffectActivationCinematic(card,z,r,c,{source:'ai-automatic-character'});
-    }
-    await aiRunEffect(card,z,r,c);
+    await aiRunEffect(card,z,r,c,{source:'ai-automatic-character'});
   }
 }
 
@@ -5233,11 +5229,6 @@ async function aiActivateEffects() {
     if(!automaticEffect && Math.random() < settings.skipEffectChance){
       log('p2',`AI skipped ${card.name}'s effect`);
       continue;
-    }
-    if(typeof canUseManualCharacterEffect === 'function'
-      && canUseManualCharacterEffect(card)
-      && typeof playEffectActivationCinematic === 'function') {
-      await playEffectActivationCinematic(card, z, r, c, {source:'ai-manual-character'});
     }
     await aiRunEffect(card, z, r, c);
     await aiResolveAutomaticBoardEffects();
@@ -5332,7 +5323,7 @@ async function aiRunSupporterBoardAbility(card, z, r, c) {
 
 }
 
-async function aiRunEffect(card, z, r, c) {
+async function aiRunEffect(card, z, r, c, options = {}) {
   if(G.currentPlayer !== G.aiPlayer || !canUseManualCharacterEffect(card)
     || G.board?.[z]?.[r]?.[c] !== card
     || (typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(card))) return;
@@ -5349,8 +5340,14 @@ async function aiRunEffect(card, z, r, c) {
   // Admission must happen before the first await. AI scheduling can revisit the
   // same pending effect while reactions or presentation are still resolving.
   if(card._aiEffectResolutionInFlight) return;
+  if(effectId === '40' && !aiShouldActivateOptionalDrawEffect(cp, card, {drawPhase:false, manualActivation:true})) return;
   card._aiEffectResolutionInFlight = true;
   try {
+    if(typeof playEffectActivationCinematic === 'function') {
+      await playEffectActivationCinematic(card, z, r, c, {source:options.source || 'ai-manual-character'});
+    }
+    if(G.currentPlayer !== cp || G.board?.[z]?.[r]?.[c] !== card
+      || !canUseManualCharacterEffect(card)) return;
     if(card.type==='Initiator' && !G._suppressEffectPrompt){
       const affectedOwners = typeof getCharacterEffectAffectedOwners === 'function'
         ? getCharacterEffectAffectedOwners(card, z, r, c, cp, opp)
@@ -5564,10 +5561,9 @@ async function aiRunEffect(card, z, r, c) {
       }
       break;
     }
-    case '40': { // Christopher Erbs: arm the next draw for +6 Fate
+    case '40': { // Christopher Erbs: arm the next draw for +7 Fate
       if(!Array.isArray(G.erbsActive)) G.erbsActive = [false, false];
       if((card.usesLeft || 0) <= 0 || G.erbsActive[cp]) break;
-      if(!aiShouldActivateOptionalDrawEffect(cp, card, {drawPhase:false, manualActivation:true})) break;
       card.usesLeft--;
       G.erbsActive[cp] = true;
       log('p2','AI: Christopher Erbs empowered the next drawn card');

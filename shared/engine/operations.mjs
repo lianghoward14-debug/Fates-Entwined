@@ -686,6 +686,7 @@ function discardCard(ctx, operation){
     cardIid:card.iid,
     owner,
     previousZone:entry.zone,
+    ...(entry.zone === 'board' ? {previousBoardPosition:{z:entry.z,r:entry.r,c:entry.c}} : {}),
     ...(revealedOnDiscard ? {revealedOnDiscard:true} : {}),
     ...(operation.revealDiscard === true ? {cardId:String(card.id || ''), cardName:String(card.name || 'Card')} : {}),
     sourceIid:operation.sourceIid || null,

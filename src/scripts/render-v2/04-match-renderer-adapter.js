@@ -93,6 +93,7 @@
   let recentFateNumbersByKey = new Map();
   let deferredFateNumbersByKey = new Map();
   let nextFateNumberId = 1;
+  const fateOdometersByIid = new Map();
   let stableBoardViewport = null;
   const zoneScroll = {};
   let renderScale = 1;
@@ -642,6 +643,7 @@
   }
 
   function clearFateNumberPresentations(){
+    fateOdometersByIid.clear();
     Array.from(fateNumberNodesByKey.keys()).forEach(clearFateNumberPresentation);
     fateNumberNodesByKey.clear();
     fateNumberTimersByKey.clear();
@@ -804,34 +806,9 @@
     });
     clearFateNumberPresentation(key);
 
-    const target = fateNumberTargetRect(p);
-    const fallbackW = Math.max(1, board.clientWidth || 960);
-    const x = (target ? Number(target.x) + Number(target.w) - Math.max(4, Number(target.w) * .08) : fallbackW / 2) - 10;
-    const fontSize = target ? Math.max(16, Math.min(25, Math.round(Number(target.w) * .20))) : 20;
-    const y = target ? Math.max(4, Number(target.y) - Math.max(18, Number(target.h) * .11)) : 28;
-    const duration = Math.max(640, Math.min(2531, Number(p.visualDuration) || 1860));
-    const node = document.createElement('div');
-    node.className = 'fate-number-pop ' + (delta < 0 ? 'is-loss' : 'is-gain');
-    node.dataset.fateNumberId = String(nextFateNumberId++);
-    node.dataset.fateTargetKey = key;
-    node.dataset.fateTransition = eventSignature;
-    node.dataset.fateDelta = String(delta);
-    if(authorityEventKey) node.dataset.fateAuthorityEvent = authorityEventKey;
-    node.textContent = signature;
-    node.style.left = Math.round(x) + 'px';
-    node.style.top = Math.round(y) + 'px';
-    node.style.fontSize = fontSize + 'px';
-    node.style.animationDuration = duration + 'ms';
-    fateNumberNodesByKey.set(key, node);
-    layer.appendChild(node);
-    const finish = function(){
-      if(fateNumberNodesByKey.get(key) === node) clearFateNumberPresentation(key);
-      node.removeEventListener('animationend', finish);
-    };
-    node.addEventListener('animationend', finish, {once:true});
-    fateNumberTimersByKey.set(key, setTimeout(finish, duration + 120));
-    renderCounters.fateNumberPresentations++;
-    renderCounters.fateNumberMainThreadFramesAvoided += Math.ceil(duration / 16.67);
+    // Changes are presented by the existing badge as its visible value changes.
+    // Keep event deduplication and deferral, but never create a second number.
+    scheduleRender('fate-odometer');
     return true;
   }
 
@@ -1226,6 +1203,20 @@
   }
 
   function coordinatorFatePresentationVisual(card, visual){
+    const iid = getCardIid(card);
+    const placementPending = iid ? deferredPlacementFatePulseByIid.get(iid) : null;
+    const live = iid && typeof window.findBoardCardByIid === 'function' ? window.findBoardCardByIid(iid) : null;
+    const meta = (live && live._placementFateReveal) || (card && card._placementFateReveal);
+    const completedAt = iid ? Number(completedPlacementFateRevealAtByIid.get(iid)) || 0 : 0;
+    // Placement artwork can paint before the board observer registers its
+    // timer. Hold printed Fate from that very first paint until the reveal
+    // callback actually releases it, including extensions to the cinematic.
+    const placementHeld = placementPending || (meta && (!completedAt || completedAt < Number(meta.createdAt || 0)) ? meta : null);
+    if(placementHeld) {
+      const base = Number(card.fate);
+      const from = Number.isFinite(base) ? base : Number(placementHeld.fromValue);
+      return Object.assign({}, visual || {}, {displayFate:String(from),currentFate:from,_placementFateHeld:true});
+    }
     const stagedFate = card && typeof window.getSequentialFateDisplayValue === 'function'
       ? window.getSequentialFateDisplayValue(card)
       : (card && card._sequentialFateDisplayActive && Number.isFinite(Number(card._sequentialFateDisplayValue)) ? Number(card._sequentialFateDisplayValue) : null);
@@ -1235,13 +1226,9 @@
         currentFate:Number(stagedFate)
       });
     }
-    const iid = getCardIid(card);
-    const placementPending = iid ? deferredPlacementFatePulseByIid.get(iid) : null;
     const coordinatorPending = iid ? deferredCoordinatorFatePulseByIid.get(iid) : null;
-    const pending = placementPending && Date.now() < Number(placementPending.until || 0)
-      ? placementPending
-      : coordinatorPending;
-    if(!pending || Date.now() >= Number(pending.until || 0)) return visual;
+    const pending = coordinatorPending;
+    if(!pending) return visual;
     return Object.assign({}, visual || {}, {
       displayFate:String(pending.fromValue),
       currentFate:pending.fromValue
@@ -1250,6 +1237,13 @@
 
   function drawFateBadge(ctx, visual, r, card){
     visual = coordinatorFatePresentationVisual(card, visual);
+    const iid = getCardIid(card);
+    const deferred = deferredFateNumbersByKey.get('iid:' + iid);
+    if(deferred && deferred.payload && Number(deferred.payload.delta) !== 0
+      && visual && !visual._placementFateHeld && !visual.isHidden && /^\d+$/.test(String(visual.displayFate))) {
+      const before = deferred.payload.fromValue != null ? deferred.payload.fromValue : deferred.payload.before;
+      if(Number.isFinite(Number(before))) visual = Object.assign({}, visual, {displayFate:String(before), currentFate:Number(before)});
+    }
     const fate = visual && visual.displayFate != null ? String(visual.displayFate) : '';
     if(!fate) return;
     const bh21Concealed = fate.indexOf('bh21-concealed-fate-icon') >= 0;
@@ -1287,6 +1281,7 @@
     ctx.stroke();
 
     if(bh21Concealed){
+      fateOdometersByIid.delete(iid);
       ctx.strokeStyle='#ffd84a';ctx.lineWidth=Math.max(2,badgeH*.09);ctx.shadowColor='rgba(255,216,74,.9)';ctx.shadowBlur=Math.max(9,badgeH*.4);
       ctx.beginPath();ctx.ellipse(cx,cy,badgeW*.27,badgeH*.20,0,0,Math.PI*2);ctx.stroke();
       ctx.beginPath();ctx.arc(cx,cy,Math.max(2,badgeH*.09),0,Math.PI*2);ctx.fillStyle='#ffd84a';ctx.fill();
@@ -1298,11 +1293,118 @@
     ctx.textBaseline = 'middle';
     ctx.shadowColor = accentGlow;
     ctx.shadowBlur = Math.max(12, badgeH * .46);
-    ctx.fillText(localizeCanvasText(label), cx, cy + badgeH * .04);
+    // Holding a presentation value is not a Fate change. Do not animate the
+    // temporary base or let an earlier preview count survive the hold.
+    if(visual._placementFateHeld) {
+      fateOdometersByIid.set(iid, {to:Number(label),from:Number(label),start:nowMs(),duration:0});
+    }
+    const rolling = !visual._placementFateHeld && drawFateOdometer(ctx, iid, label, cx, cy + badgeH * .04, badgeH, badgeW, card);
+    if(!rolling) drawSettledFateDigits(ctx, label, cx, cy + badgeH * .04, badgeW);
     ctx.shadowColor = 'rgba(0,0,0,.85)';
     ctx.shadowBlur = 1.5;
-    ctx.fillText(localizeCanvasText(label), cx, cy + badgeH * .04);
+    if(!rolling) drawSettledFateDigits(ctx, label, cx, cy + badgeH * .04, badgeW);
     ctx.restore();
+  }
+
+  function fateDigitLayout(ctx, label, digits){
+    // Use the final centered text's actual glyph positions. No extra slots,
+    // synthetic tracking, or font changes when the rolling digits settle.
+    const measure = text => ctx.measureText(localizeCanvasText(text)).width;
+    const left = -measure(label) / 2;
+    const extra = digits - label.length;
+    return Array.from({length:digits}, function(_, i){
+      const index = i - extra;
+      if(index < 0) return left + (index + .5) * measure('0');
+      return left + measure(label.slice(0, index + 1)) - measure(label[index]) / 2;
+    });
+  }
+
+  function drawSettledFateDigits(ctx, label, cx, cy, width){
+    ctx.fillText(localizeCanvasText(label), cx, cy);
+  }
+
+  function drawFateOdometer(ctx, iid, label, cx, cy, height, width, card){
+    const value = /^\d+$/.test(label) ? Number(label) : NaN;
+    if(!iid || !Number.isSafeInteger(value)) {
+      fateOdometersByIid.delete(iid);
+      return false;
+    }
+    const now = nowMs();
+    let state = fateOdometersByIid.get(iid);
+    const reduced = animationsOff() || (typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    if(reduced) {
+      fateOdometersByIid.set(iid, {to:value, from:value, start:now, duration:0});
+      return false;
+    }
+    if(!state) {
+      // A newly visible board card may already carry hand/deck modifications
+      // (for example Hugh's +7 on Mailman). Seed the first roll from printed
+      // Fate rather than treating the boosted first snapshot as settled.
+      const base = card && card.fate != null ? Number(card.fate) : NaN;
+      const initial = Number.isSafeInteger(base) && base >= 0 ? base : value;
+      state = {to:initial, from:initial, start:now, duration:0};
+      fateOdometersByIid.set(iid, state);
+      if(initial === value) return false;
+    }
+    if(state.to !== value) {
+      // Continue from the visible amount, unless a reversal needs the previous
+      // target to preserve the direction of the new change.
+      const progress = state.duration ? Math.min(1, (now - state.start) / state.duration) : 1;
+      const shown = Math.floor(state.from + (state.to - state.from) * (1 - Math.pow(1 - progress, 3)));
+      const decreasing = value < state.to;
+      const base = Number(card && card.fate);
+      const from = decreasing ? Math.max(shown, value + 1)
+        : Number.isSafeInteger(base) && base >= 0 && base < value ? base : Math.min(shown, value - 1);
+      state = {from, to:value, start:now, duration:1100, decreasing};
+      fateOdometersByIid.set(iid, state);
+    }
+    const progress = state.duration ? Math.min(1, (now - state.start) / state.duration) : 1;
+    if(progress >= 1) { state.duration = 0; state.from = state.to; return false; }
+    const eased = 1 - Math.pow(1 - progress, 3);
+    if(typeof window.playFateCountTick === 'function') {
+      const live = (typeof window.findBoardCardByIid === 'function' && window.findBoardCardByIid(iid)) || card;
+      const flash = live && live._effectFlash;
+      const overlayActive = flash && Date.now() < Number(flash.at) + Number(flash.duration || 1200);
+      const blocked = typeof window.getFateFeedbackPresentationBlockUntil === 'function'
+        && Number(window.getFateFeedbackPresentationBlockUntil()) > Date.now();
+      const interval = 55 + progress * 75;
+      // Gain ticks follow the visible count even during overlay audio.
+      const soundAllowed = !state.decreasing || (!overlayActive && !blocked);
+      if(soundAllowed && (state.lastTick == null || now - state.lastTick >= interval)) {
+        window.playFateCountTick(eased, Math.min(100, state.duration * (1 - progress)), state.decreasing);
+        state.lastTick = now;
+      }
+    }
+    const digits = Math.max(String(state.from).length, String(state.to).length);
+    const layout = fateDigitLayout(ctx, label, digits);
+    const step = height * .82;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(cx - width / 2 + 2, cy - step / 2, width - 4, step);
+    ctx.clip();
+    ctx.shadowBlur = 1.5;
+    // Only the rolling glyphs turn red. The settled badge uses its base-Fate
+    // comparison again, including green when a loss still leaves a bonus.
+    if(state.decreasing) {
+      ctx.fillStyle = '#ff6060';
+      ctx.shadowColor = 'rgba(255,96,96,.78)';
+    }
+    for(let i = 0; i < digits; i++) {
+      const place = Math.pow(10, digits - i - 1);
+      const start = Math.floor(state.from / place);
+      const end = Math.floor(state.to / place);
+      const position = start + (end - start) * eased;
+      const whole = state.decreasing ? Math.ceil(position) : Math.floor(position);
+      const offset = (position - whole) * step;
+      const x = cx + layout[i];
+      const text = n => place > 1 && n === 0 ? '' : String(n % 10);
+      ctx.fillText(localizeCanvasText(text(whole)), x, cy - offset);
+      const direction = state.decreasing ? -1 : 1;
+      ctx.fillText(localizeCanvasText(text(whole + direction)), x, cy - offset + direction * step);
+    }
+    ctx.restore();
+    enqueueRender('fate-odometer', DIRTY_BOARD_CARDS);
+    return true;
   }
 
   function getTimeline(){
@@ -1500,6 +1602,9 @@
     const hadPreviousBoard = lastBoardCardIids.size > 0;
     const previousBoardCardIids = lastBoardCardIids;
     lastBoardCardIids = currentBoardCardIids;
+    fateOdometersByIid.forEach(function(_state, iid){
+      if(!currentBoardCardIids.has(iid)) fateOdometersByIid.delete(iid);
+    });
     Array.from(lastSupporterAuraPresentationByIid.keys()).forEach(function(iid){
       if(!currentBoardCardIids.has(iid)) lastSupporterAuraPresentationByIid.delete(iid);
     });
@@ -3009,15 +3114,22 @@
   // with a gameplay commit must still rebuild state, even with the same mask.
   function isCardOverlayPulseSource(source){
     return String(source || '').toLowerCase().split('+').every(function(part){
-      return part === 'low-morale-supporter-pulse' || part === 'high-t-beat';
+      return part === 'low-morale-supporter-pulse' || part === 'high-t-beat' || part === 'fate-odometer';
     });
   }
   function scheduleLowMoraleSupporterPulse(){
     if(lowMoralePulseTimer || typeof setTimeout !== 'function') return;
     lowMoralePulseTimer = setTimeout(function(){
       lowMoralePulseTimer = 0;
-      if(ownsBoard() && isActiveMatchScreen()) scheduleRender('low-morale-supporter-pulse');
+      // Keep pulses independent of deferred gameplay redraws.
+      if(ownsBoard() && isActiveMatchScreen()) renderFromGameState({source:'low-morale-supporter-pulse', dirtyMask:DIRTY_BOARD_CARDS});
     }, 180);
+  }
+
+  function isPersistentOverlayAnimationFrame(source, mask){
+    return isCardOverlayPulseSource(source)
+      && mask === DIRTY_BOARD_CARDS
+      && !!(lastReport && lastReport.available && lastLayout && lastSnapshot && lastCanvasMetrics);
   }
 
   function isHighTAnimationFrame(source, mask){
@@ -5759,7 +5871,7 @@
     const sourceLower = String(source || '').toLowerCase();
     const actionAnimating = isActionAnimationActive();
     const actionHandHover = sourceLower.indexOf('hand-hover') >= 0;
-    const forbiddenMask = actionHandHover || isHighTAnimationFrame(sourceLower, dirtyMask) ? 0 : forbiddenActionDirtyMask(dirtyMask);
+    const forbiddenMask = actionHandHover || isPersistentOverlayAnimationFrame(sourceLower, dirtyMask) ? 0 : forbiddenActionDirtyMask(dirtyMask);
     if(actionAnimating && forbiddenMask && !isActionCommitRenderAllowed()){
       deferActionDirtyRender(source || 'action-active-render', dirtyMask);
       const compositorOnly = drawActionCompositorOnlyFrame(layers, source || 'action-forbidden-render', dirtyMask, started);
@@ -6334,13 +6446,13 @@
         renderCounters.hoverDuringActionSkips++;
         return;
       }
-      const forbiddenMask = srcLower.indexOf('hand-hover') >= 0 || isHighTAnimationFrame(srcLower, nextMask) ? 0 : forbiddenActionDirtyMask(nextMask);
+      const forbiddenMask = srcLower.indexOf('hand-hover') >= 0 || isPersistentOverlayAnimationFrame(srcLower, nextMask) ? 0 : forbiddenActionDirtyMask(nextMask);
       if(forbiddenMask) {
         deferActionDirtyRender(src, nextMask);
         return;
       }
     }
-    if(!isHighTAnimationFrame(srcLower, nextMask) && srcLower.indexOf('hand-hover') < 0 && srcLower.indexOf('post-action-deferred') < 0 && !isActionAnimationActive() && wasActionAnimatingRecently(180) && heavyActionDirtyMask(nextMask)) {
+    if(!isPersistentOverlayAnimationFrame(srcLower, nextMask) && srcLower.indexOf('hand-hover') < 0 && srcLower.indexOf('post-action-deferred') < 0 && !isActionAnimationActive() && wasActionAnimatingRecently(180) && heavyActionDirtyMask(nextMask)) {
       const age = msSinceLastActionAnimation();
       schedulePostActionRender(src, nextMask, Math.max(24, 180 - (Number.isFinite(age) ? age : 0)));
       return;

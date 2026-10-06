@@ -81,6 +81,8 @@ result = reduceCommand(
 assert.equal(result.ok, true);
 assert.equal(result.state.board[0][0][0], null);
 assert(result.state.players[1].discard.some(card=>card.iid === minaeTarget.iid));
+assert.deepEqual(result.events.find(event=>event.type==='CARD_DISCARDED' && event.cardIid===minaeTarget.iid).previousBoardPosition,
+  {z:0,r:0,c:0}, 'discard animation retains the original square after canonical removal');
 assert(result.events.some(event=>
   event.type === 'CARD_DISCARDED'
   && event.cardIid === minaeTarget.iid

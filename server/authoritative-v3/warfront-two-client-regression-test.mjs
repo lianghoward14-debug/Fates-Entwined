@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import vm from 'node:vm';
+import warfrontMaps from '../../shared/warfront-maps.js';
 import http from 'node:http';
 
 const dir=fs.mkdtempSync(path.join(os.tmpdir(),'warfront-two-client-'));
@@ -35,12 +36,12 @@ try{
   }
   function client(uid){
     const data=new Map(),timers=new Map(),events={},toasts=[];let nextTimer=0;
-    let html='',writes=0;const pane={get innerHTML(){return html;},set innerHTML(value){html=value;writes++;},get writes(){return writes;},classList:{contains:()=>true}};
-    const c={console,Date,Math,JSON,AbortController,CustomEvent:class{constructor(type,options){this.type=type;this.detail=options?.detail;}},
+    let html='',writes=0;const pane={get innerHTML(){return html;},set innerHTML(value){html=value;writes++;},get writes(){return writes;},classList:{contains:()=>true},style:{setProperty(){}}};
+    const c={console,Date,Math,JSON,URL,AbortController,CustomEvent:class{constructor(type,options){this.type=type;this.detail=options?.detail;}},
       localStorage:{getItem:k=>data.get(k)||null,setItem:(k,v)=>data.set(k,v),removeItem:k=>data.delete(k)},
-      document:{readyState:'loading',hidden:false,addEventListener(){},getElementById:()=>null,querySelector:selector=>selector.startsWith('#ch-content >')?pane:null},
+      document:{readyState:'loading',hidden:false,baseURI:'http://localhost/',addEventListener(){},getElementById:()=>null,querySelector:selector=>selector.startsWith('#ch-content >')?pane:null},
       setTimeout:(fn,ms)=>{timers.set(++nextTimer,{fn,ms});return nextTimer;},clearTimeout:id=>timers.delete(id),setInterval:()=>1,clearInterval(){},toast:m=>toasts.push(m)};
-    c.window=c;c.FATE_ONLINE={user:{uid},profile:{displayName:uid}};c.USER_PROFILE={username:uid};c.toast=m=>toasts.push(m);
+    c.window=c;c.FateWarfrontMaps=warfrontMaps;c.FATE_ONLINE={user:{uid},profile:{displayName:uid}};c.USER_PROFILE={username:uid};c.toast=m=>toasts.push(m);
     c.FateOnline={flyApiRequest:(route,options)=>request(uid,route,options)};
     c.addEventListener=(name,fn)=>{events[name]=fn;};c.dispatchEvent=()=>{};
     vm.createContext(c);
@@ -86,7 +87,9 @@ try{
     await a.war.push();await Promise.all([a.war.pull(),b.war.pull()]);same('shared result '+i);
   }
   assert.equal(b.state().zones[2].matches.length,5);
-  assert.equal(b.state().zones[2].matches[0].replay.actions.length,1);
+  const replayKey=b.state().zones[2].matches[0].replay.storageKey;
+  assert(replayKey,'shared state references the durable replay');
+  assert.equal((await request('bravo','/api/warfront/replays/'+encodeURIComponent(replayKey))).replay.actions.length,1);
   // A saved simulation backup does not opt a newly opened client out of live state.
   b.data.set('fate_war_simulation_backup_v1','{}');await b.war.pull();same('old simulation marker cannot disable polling');b.data.delete('fate_war_simulation_backup_v1');
   const liveReport=JSON.parse(JSON.stringify(a.war.archive('command')));

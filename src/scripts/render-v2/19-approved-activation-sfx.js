@@ -24,7 +24,8 @@
  '35':[['wind',.05,.46,310],['metal',.36,.44,270],['hit',.78,.3,140],['metal',1.04,.49,430],['wind',1.38,.48,700]],
  '88':[['paper',.04,.43,940],['wind',.27,.83,1250],['metal',.7,.48,790],['ping',1.09,.4,1040],['wind',1.35,.56,1200]],
  '11':[['paper',.04,.47,820],['paper',.28,.45,1080],['paper',.53,.42,1320],['hit',.97,.27,260],['paper',1.25,.51,930]],
- '46':[['rumble',.04,.6,85],['hit',.32,.35,105],['hit',.56,.34,125],['hit',.81,.37,145],['metal',1.06,.51,270],['wind',1.37,.5,460]],
+ // Phil: ascending royal fifths as the pillars rise, then a crown bell.
+ '46':[['royal',.08,.5,196],['royal',.36,.5,246.94],['royal',.64,.55,293.66],['crown',1.08,.84,587.33]],
  '10':[['rise',.07,1.02,105],['crack',.43,.45,230],['crack',.72,.42,290],['hit',1.29,.35,62],['wind',1.41,.5,420]],
  '19':[['water',.04,.75,440],['water',.51,.82,570],['water',1.03,.78,670],['ping',.93,.35,870],['ping',1.36,.4,1060]],
  'bh12':[['wind',.08,.5,720],['rise',.28,.77,540],['rise',.57,.69,670],['ping',1.12,.45,980],['wind',1.35,.53,1120]],
@@ -164,7 +165,7 @@
       '15':'harp','34':'dance',
       '55':'space','85':'specter','36':'chain','bh02':'mechanism','bh08':'chuckle','57':'mechanism','12':'wing','23':'harp',
       '41':'glass','89':'ice',
-      '35':'blade','88':'ice','11':'parchment','46':'stone',
+      '35':'blade','88':'ice','11':'parchment',
       '10':'implosion','19':'river','bh12':'garden',
       '01':'wing','bh07':'circuit','bh11':'parchment','03':'wood','04':'chain','07':'engine','08':'glitch',
       '13':'writing','14':'blade','17':'glass','21':'chain','22':'circuit','27':'parchment','29':'wing','30':'blade',
@@ -174,8 +175,11 @@
       'bh10':'chauffeur','bh13':'coin','bh14':'stamp','bh16':'blade','bh19':'charge','bh20':'wing','bh21':'sand','bh22':'harp'
     };
     const preserveOriginal=['06','27','84','86','45','29'].includes(String(id));
-    const theme=preserveOriginal?null:themes[String(id)];
-    const materialGain={dance:2.5,specter:2.5,chuckle:3,garden:3,writing:4,eraser:4,cloth:3.8,circuit:5,charge:5,origami:2.2,parchment:2.5,wind:2.2,flutter:3.3,rope:2.3,net:2.3,dough:2.1,sailing:2.5,maelstrom:2.2,wing:1.7,engine:1.5,chauffeur:2.2,chain:1.8,blade:1.4,sizzle:2,sand:1.8,glitch:2,rifle:1.3,wood:1.4};
+    // Only these non-Carpathian cards receive the new material voices. The
+    // existing scores, generators and mix for IDs 80–100 stay untouched.
+    const diverseThemes={'03':'woodblock','08':'radio','13':'pencil','15':'plucked','21':'ratchet','34':'mallet','40':'anvil','48':'sonar','bh06':'relay','bh13':'coins'};
+    const theme=preserveOriginal?null:(diverseThemes[String(id)] || themes[String(id)]);
+    const materialGain={woodblock:1.5,radio:1.8,pencil:2.5,plucked:1.4,ratchet:2,mallet:1.4,anvil:1.2,sonar:1.3,coins:2,relay:2,dance:2.5,specter:2.5,chuckle:3,garden:3,writing:4,eraser:4,cloth:3.8,circuit:5,charge:5,origami:2.2,parchment:2.5,wind:2.2,flutter:3.3,rope:2.3,net:2.3,dough:2.1,sailing:2.5,maelstrom:2.2,wing:1.7,engine:1.5,chauffeur:2.2,chain:1.8,blade:1.4,sizzle:2,sand:1.8,glitch:2,rifle:1.3,wood:1.4};
     if(theme)out.gain.setValueAtTime(Math.min(1,volume)*.72*(materialGain[theme]||1)*(String(id)==='77'?1.8:1),now);
     function materialVoice(material,at,dur,f,level,role){
       dur=Math.min(dur,1.94-at);if(dur<=0)return;
@@ -188,7 +192,27 @@
         phase+=Math.PI*2*f/ac.sampleRate;
         const strike=Math.exp(-sec*38),swell=Math.sin(Math.PI*u),flutter=.2+.8*Math.sin(sec*Math.PI*(material==='flutter'?28:7))**2;
         let sample=0;
-        if(material==='dance'){
+        if(material==='woodblock'){
+          sample=(Math.sin(phase*.65)*.65+Math.sin(phase*1.47)*.23)*Math.exp(-sec*28)+low*2*strike;
+        }else if(material==='radio'){
+          const gate=Math.floor(sec*23)%3!==0?1:.08;
+          sample=(Math.sin(phase*(1+.16*Math.floor(sec*18)))*.27+high*.14)*gate*Math.exp(-sec*6);
+        }else if(material==='pencil'){
+          sample=high*.42*(.1+.9*Math.sin(sec*37)**12)*swell+Math.sin(phase*2.1)*.08*strike;
+        }else if(material==='plucked'){
+          sample=(Math.sin(phase)*.45+Math.sin(phase*2)*.2+Math.sin(phase*3)*.08)*Math.exp(-sec*10)+high*.12*strike;
+        }else if(material==='ratchet'||material==='relay'){
+          const pulse=Math.exp(-((sec*(material==='ratchet'?19:8))%1)*24);
+          sample=(high*.3+Math.sin(phase*1.73)*.25)*pulse*Math.exp(-sec*5)+Math.sin(phase*.25)*.22*strike;
+        }else if(material==='mallet'){
+          sample=(Math.sin(phase)*.5+Math.sin(phase*2.76)*.22+Math.sin(phase*5.4)*.08)*Math.exp(-sec*9);
+        }else if(material==='anvil'){
+          sample=(Math.sin(phase)*.35+Math.sin(phase*2.41)*.25+Math.sin(phase*5.17)*.13)*Math.exp(-sec*7)+n*strike*.3;
+        }else if(material==='sonar'){
+          sample=Math.sin(phase*(1+.07*u))*.55*Math.exp(-sec*5)*Math.min(1,sec*90);
+        }else if(material==='coins'){
+          sample=(Math.sin(phase*2.3)*.28+Math.sin(phase*3.91)*.2)*Math.exp(-sec*18)+high*.18*strike;
+        }else if(material==='dance'){
           sample=(Math.sin(phase)+Math.sin(phase*2)*.28+Math.sin(phase*3)*.13)*.28*swell*(.7+.3*Math.sin(sec*18));
           sample+=low*2*Math.exp(-sec*22);
         }else if(material==='specter'){
@@ -248,7 +272,7 @@
 
     // A continuous moving texture swells into the visual's main action and
     // breathes with repeating motion. Its filter opens, then settles at release.
-    const profile=motion[String(id)];
+    const profile=String(id)==='46'?null:motion[String(id)];
     if(profile){
       const [material,pitch,peak,pulses,pan]=profile;
       const source=ac.createBufferSource(),filter=ac.createBiquadFilter(),gain=ac.createGain(),stereo=ac.createStereoPanner();
@@ -272,6 +296,15 @@
       source.connect(filter);filter.connect(gain);gain.connect(stereo);stereo.connect(out);source.start(now);source.stop(now+1.985);
     }
     for(const [kind,at,dur,f] of score){
+      if(kind==='royal'){
+        tone('triangle',f*.99,f,at,dur,.24);
+        tone('sine',f*1.5,f*1.5,at+.015,dur-.015,.16);
+        tone('sine',f*.5,f*.5,at,dur,.22);continue;
+      }
+      if(kind==='crown'){
+        [1,2,3.01].forEach((n,j)=>tone('sine',f*n,f*n,at+j*.009,dur-j*.009,.27/(j+1)));
+        tone('triangle',196,196,at,.66,.15);continue;
+      }
       if(theme){materialVoice(theme,at,dur,f,.8,kind);continue;}
       if(kind==='hit'){tone('sine',f*2.4,f*.6,at,dur,.8);noise(at,Math.min(.14,dur),900,.3,'lowpass');}
       else if(kind==='crack'){noise(at,dur,f,.9);tone('triangle',210,65,at,dur,.36);}
@@ -325,4 +358,3 @@
   }
   window.FateApprovedActivationSfx={play,schedule,handles:id=>Object.hasOwn(cues,String(id)),ids:Object.keys(cues)};
 })();
-

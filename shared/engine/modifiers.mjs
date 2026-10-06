@@ -24,7 +24,7 @@ function rejection(code, reason, details = {}){
 }
 
 export function isTriggeredFateCoordinator(state, card){
-  return effectiveCardType(state, card) === 'Coordinator'
+  return (effectiveCardType(state, card) === 'Coordinator' || String(card?.id) === 'bh05')
     && ['15','bh02','bh08'].includes(runtimeRuleId(card));
 }
 

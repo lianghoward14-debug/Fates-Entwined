@@ -61,3 +61,10 @@
 #ledger-archive .ledger-confirm{background:linear-gradient(#d7bd70,#9c7c35);border-color:#ecd98f;color:#091318;text-shadow:0 1px #fff7c966}
 #ledger-archive .ledger-confirm:hover:not(:disabled){background:linear-gradient(#efda94,#b79545);color:#050a0d}
 @media(max-width:700px){#ledger-archive .ledger-panel{padding:24px 18px 20px}#ledger-archive header{margin:-24px -18px 18px;padding:24px 18px 20px}#ledger-archive .ledger-panel:before{display:none}}
+
+/* Shared card modifier icon, positioned over the art rather than the order badge. */
+#ledger-archive .ledger-effect-marker{position:absolute;top:43px;right:15px;left:auto;width:22px;height:22px;z-index:4;cursor:help}
+#ledger-archive .ledger-effect-marker .hand-effect-marker-icon{display:flex;align-items:center;justify-content:center;width:100%;height:100%;border-radius:50%;font:900 13px/1 Georgia,serif;color:#daf4ff;background:rgba(8,10,16,.94);border:1px solid rgba(118,210,255,.78);box-shadow:0 2px 6px #0006}
+#ledger-archive .ledger-effect-marker:focus-visible{outline:2px solid #efd29a;outline-offset:3px;border-radius:50%}
+/* Tooltip contents are a source for the body-level portal, never inline text. */
+#ledger-archive .ledger-effect-marker .hand-effect-tooltip{display:none!important}
