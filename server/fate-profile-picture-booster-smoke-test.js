@@ -16,12 +16,14 @@ function pngDimensions(relativePath) {
 }
 
 const profileSource = read('src/scripts/03-profile-and-progression.js');
+const cardSource = read('src/scripts/01-data-and-state.js');
+const profilePickerSource = read('src/scripts/08-audio-and-meta-ui.js');
 const challengerSource = read('src/scripts/09-challenger-mode.js');
 const challengerV2Source = read('src/scripts/09-challenger-v2.js');
 const indexSource = read('index.html');
 const finalCss = read('src/styles/zz-codex-last.css');
 
-assert.match(profileSource, /const PFP_CATALOG_SIZE = 125;/, 'profile booster catalog must include the 25 Brave Horizons portraits');
+assert.match(profileSource, /const PFP_CATALOG_SIZE = 132;/, 'profile booster catalog must include card portraits through card 107');
 assert.match(profileSource, /length:PFP_CATALOG_SIZE/, 'profile booster pool must use the full profile-picture catalog');
 assert.match(profileSource, /n<=PFP_CATALOG_SIZE/, 'owned profile normalization must retain every catalog ID');
 assert.match(challengerSource, /generateProfilePack\(\)[\s\S]*grantProfilePictures\(pack\)/, 'store booster must draw and grant from the shared profile pool');
@@ -31,6 +33,11 @@ assert.match(finalCss, /profile-pack-art[\s\S]*aspect-ratio:5\/7[\s\S]*object-fi
 assert.match(finalCss, /profile-pack-full-art[\s\S]*aspect-ratio:591\/453[\s\S]*object-fit:contain/, 'profile picture rewards must retain their complete landscape artwork');
 assert.match(challengerV2Source, /generateProfilePack\(\)[\s\S]*grantProfilePictures\(pack\)/, 'alternate store renderer must draw and grant from the shared profile pool');
 assert.match(indexSource, /03-profile-and-progression\.js\?v=\d+/, 'profile pool release and preset order polish must be cache-busted');
+assert.match(cardSource, /id:'100',pfpId:100/);
+for(const [cardId, pfpId] of [[101,126],[102,127],[103,128],[104,129],[105,130],[106,131],[107,132]]) {
+  assert.match(cardSource, new RegExp(`id:'${cardId}',pfpId:${pfpId}`), `card ${cardId} must point to its profile booster portrait`);
+}
+assert.match(profilePickerSource, /id >= 126 && id <= 132/, 'new card portraits must use their direct art in the profile picker');
 
 for(let id = 80; id <= 100; id += 1) {
   const cardPath = `${id}.png`;
@@ -53,4 +60,11 @@ for(let id = 101; id <= 125; id += 1) {
   assert.deepStrictEqual(pngDimensions(pfpPath), {width:591, height:453}, `${pfpPath} must match the profile art crop template`);
 }
 
-console.log('fate profile picture booster smoke passed (pfp1-pfp125)');
+for(const [pfpId, cardId, extension] of [[126,101,'svg'],[127,102,'svg'],[128,103,'svg'],[129,104,'png'],[130,105,'png'],[131,106,'png'],[132,107,'svg']]) {
+  const portraitPath = `pfp/card-${cardId}-portrait.${extension}`;
+  assert(fs.existsSync(path.join(root, portraitPath)), `${portraitPath} must exist`);
+}
+assert.match(profileSource, /id >= 126 && id <= 128[\s\S]*card-\$\{id-25\}-portrait\.svg/);
+assert.match(profileSource, /id >= 129 && id <= 131[\s\S]*card-\$\{id-25\}-portrait\.png/);
+
+console.log('fate profile picture booster smoke passed (pfp1-pfp132)');

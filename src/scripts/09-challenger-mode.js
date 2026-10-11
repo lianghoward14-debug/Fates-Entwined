@@ -652,14 +652,14 @@ const AI_ONLY_RANDOM_DECKS = [
   {
     id: 'ai_endless_sea',
     baseStrategy: 'ai_endless_sea',
-    name: 'The Endless Sea',
-    description: 'React to opposing threats with efficient searches, Fate reduction and removal, build Li-Hua Eventide pressure, and protect valuable plays with Havano.',
-    theme: 'AI Only - Reactive Eventide',
+    name: 'The Endless Seas',
+    description: 'Build a wide Eventide supporter field, use Pirate searches to extend development, and patiently save Li-Hua activations for a large payoff. Protect the swarm with Colombo Thug, Morale recovery and Havano.',
+    theme: 'AI Only - Eventide Supporter Swarm',
     faceCardId: 'bh16',
-    displayCardIds: ['bh16','61','bh04','30'],
-    ids: ['bh16','bh16','bh16','07','74','74','74','06','06','06','27','27','27','75','75','75','79','79','79','bh04','bh04','31','31','31','30','30','30','28','28','28','09','09','09','bh09','bh09','61','61','49','49','49'],
+    displayCardIds: ['74','31','bh04','30'],
+    ids: ['bh16','bh16','bh16','74','74','74','06','06','06','27','27','27','75','75','75','79','79','79','31','31','31','30','30','30','28','28','28','bh04','bh04','bh04','53','53','53','52','52','52','02','33','33','33'],
     enabled: true,
-    sourcePublicDeckId: 'nNbfvYwsoDfnvTHQhK4lwN5a2B22_1788961696435'
+    sourcePublicDeckId: 'nNbfvYwsoDfnvTHQhK4lwN5a2B22_1791360504856'
   },
   {
     "id": "ai_last_mohicans_ledger",
@@ -3581,7 +3581,7 @@ function openSellPfpModal(){
 }
 
 function listPfpForSale(pfpId){
-  pfpId = Math.max(1, Math.min(125, parseInt(pfpId, 10) || 0));
+  pfpId = Math.max(1, Math.min(PFP_CATALOG_SIZE, parseInt(pfpId, 10) || 0));
   if(!pfpId) return;
   closeModal();
   showModal('Set Price',`

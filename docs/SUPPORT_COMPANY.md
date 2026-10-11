@@ -14,6 +14,32 @@ Support Company appears in the in-match deck window, including the developer dec
 
 Each match randomly samples 10 distinct Supporters and 5 distinct characters from the eligible catalog (excluding star-rarity, retired, and temporarily disabled cards). Both abilities use this same pool for the whole match. The authoritative state saves it for reconnects and enforces membership in single-player and multiplayer. Canceling or reopening does not reroll the pool or spend a use; only selecting a card and confirming spends it.
 
+## AI recruitment decisions
+
+Call to Arms is a saved tactical resource, not a scheduled opening action. The
+search values keeping it according to personality, remaining turns, current
+hand, deck composition, board control, Morale pressure, available draw engines,
+placement capacity, and the active hand limit. It can spend early to repair a
+weak hand, but a supplied opening or safe lead makes waiting more attractive.
+
+Offer ranking separately considers reinforcement shortages, unaffordable
+characters, duplicate copies, affiliation fit, missing pieces in recognized
+combo plans, visible removal targets, protection needs, discard recovery,
+resource exhaustion, and opportunities to contest a losing zone. Personality
+weights reach offer ordering throughout the search: interaction-focused AIs
+prefer answers, combo personalities favor missing pieces, and cautious AIs
+place more value on preserving flexibility. These are estimates; the engine
+still simulates the real deployment and card effects before choosing an action.
+
+Only the AI's own card composition and public opposing board inform these
+preferences. They do not inspect the opponent's hidden cards or upcoming draw
+order. Decision traces include recruitment score reasons and reserve value.
+Desperate Reinforcement retains its separate win-or-rescue safeguard.
+
+Run `node server/authoritative-v3/recruitment-nuance-regression.mjs` and
+`node server/authoritative-v3/support-company-ai-regression.mjs` for targeted
+coverage, including actual opening decisions and local offer selection.
+
 ## Animation review
 
 Run `node tools/support-company-preview-server.cjs`, then open

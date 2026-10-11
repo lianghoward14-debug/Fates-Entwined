@@ -43,6 +43,7 @@ function aiOpponentCardDecisionFate(card, z){
 }
 
 function aiChooseReaction(reactions, actionData){
+  if(actionData?.card?.faceDown || actionData?.hiddenSource)return null;
   const candidates = Array.isArray(reactions) ? reactions.slice() : [];
   if(!candidates.length) return null;
   const intelligence = aiIntelligence();
@@ -265,6 +266,9 @@ async function runAITurn() {
     try {
       const settings = getAIDifficultySettings();
       aiObserveOpponentAndPlan();
+      if(!aiTurnTimeExpired() && typeof activateTwilightRecoveryLandscape === 'function') {
+        activateTwilightRecoveryLandscape({auto:true, playerIndex:G.aiPlayer});
+      }
       if(!aiTurnTimeExpired() && typeof activateWhisperOfTheHeartLandscape === 'function') {
         await activateWhisperOfTheHeartLandscape({auto:true, playerIndex:G.aiPlayer});
       }
@@ -284,6 +288,7 @@ async function runAITurn() {
       if(G._aiAborted || G._aiAbort) { G._aiRunning = false; return; }
       if(G.currentPlayer !== G.aiPlayer || G.turn !== aiTurnNumber || G._aiTurnToken !== aiTurnToken) { G._aiRunning = false; return; }
       const hand = G.players[G.aiPlayer].hand;
+      if(typeof window.tryAiSupportCompany==='function' && await window.tryAiSupportCompany(G.aiPlayer))continue;
       const canSetPolishFromDeck = G.players[G.aiPlayer].deck.some(c=>c.id==='28') && !G._polishUsedThisTurn;
       const canSetMajaFromDeck = G.players[G.aiPlayer].deck.some(c=>c.id==='07');
       if(hand.length===0 && !canSetPolishFromDeck && !canSetMajaFromDeck) break;
@@ -1247,6 +1252,80 @@ function aiLearnedMoveBonus(move) {
 }
 
 // Evaluate a move's immediate value
+// Evaluate offered cards using the same legal placements and deck strategy as
+// normal local play. The temporary hand is restored synchronously, before UI
+// work or an awaited animation can observe it.
+function aiRankSupportCompanyOffers(offers, ability='call', cost=0){
+  const cp=G.aiPlayer, original=G.players[cp].hand;
+  aiClearZoneScoreCache();
+  const existingMoves=aiGenerateAllMoves();
+  const baseline=Math.max(0,...existingMoves.map(move=>aiEvaluateMove(move)));
+  const morale=Number(G._moralePressure?.morale?.[cp] || 0);
+  const timing=typeof window!=='undefined' ? window.FateAIRecruitmentTiming : null;
+  const board=(G.board || []).flat(3).filter(Boolean);
+  const ownBoard=board.filter(c=>Number(c.controller ?? c.owner)===cp);
+  const enemyBoard=board.filter(c=>Number(c.controller ?? c.owner)!==cp && !c.faceDown);
+  const ownScores=[0,1,2].map(z=>aiCachedZoneScore(z,cp));
+  const enemyScores=[0,1,2].map(z=>aiCachedZoneScore(z,1-cp));
+  const intelligence=aiIntelligence();
+  const recruitment={...G.players[cp],hand:original,ownBoard,enemyBoard,
+    placements:typeof isSupporterHardCapReached==='function' && isSupporterHardCapReached(cp)?0:
+      Math.max(0,Number(G.maxSupportsPerTurn ?? 2)+Number(G.extraSupportsThisTurn || 0)-Number(G.supportsPlacedThisTurn || 0)),
+    open:(G.board || []).reduce((n,zone)=>n+zone.reduce((count,row,r)=>count+
+      (r===(cp===0?0:2)?0:row.filter(c=>!c).length),0),0),
+    margins:ownScores.map((v,z)=>v-enemyScores[z]),morale:morale || 200,
+    incoming:intelligence?.moraleCycleDamage(ownScores,enemyScores).incoming || 0,
+    reinforcement:ownBoard.filter(c=>c.type==='Supporter' && !['62','76'].includes(String(c.id)))
+      .reduce((n,c)=>n+(Number(c.reinforcement) || (c.id==='09'?2:1)),0),
+    handLimit:typeof getActiveHandLimit==='function'?getActiveHandLimit(cp):12,
+    drawAvailable:(G.players[cp].deck || []).length>0 && (G.board || []).some((zone,z)=>zone.some((row,r)=>row.some((card,c)=>
+      card && Number(card.controller ?? card.owner)===cp && !card.faceDown && intelligence?.profileCard?.(card)?.draw
+      && typeof canShowBoardActivateEffect==='function' && canShowBoardActivateEffect(card,z,r,c,cp)))),
+    turn:G.turn,maxTurns:G.maxTurns,style:G._selectedAI?.style || 'balanced'};
+  const reserve=timing?.callToArmsReserveValue(recruitment) || 0;
+  const ranked=[];
+  const values=new Map();
+  try{
+    for(const offer of offers){
+      if(!values.has(offer.card.id)){
+        const card={...offer.card,iid:'ai-support-preview',owner:cp,controller:cp,currentFate:Number(offer.card.fate)||0,faceDown:false};
+        G.players[cp].hand=[...original,card];
+        const moves=aiGenerateAllMoves().filter(move=>move.card===card);
+        let value=-Infinity;
+        for(const move of moves){
+          let score=aiEvaluateMove(move);
+          if(ability==='call'){
+            score+=timing?.assessRecruitment ? timing.assessRecruitment(card,{...recruitment,playable:true}).score
+              : timing?.recruitmentDeckFit(card,[...original,...(G.players[cp].deck || [])]) || 0;
+            score-=baseline+reserve;
+          }
+          if(ability==='desperate'){
+            if(morale-cost<=0)continue;
+            const intelligence=aiIntelligence();
+            if(!intelligence)continue;
+            if(intelligence){
+              const own=[0,1,2].map(z=>aiCachedZoneScore(z,cp));
+              const enemy=[0,1,2].map(z=>aiCachedZoneScore(z,1-cp));
+              const before=intelligence.moraleCycleDamage(own,enemy).incoming;
+              const winsBefore=own.filter((score,z)=>score>enemy[z]).length;
+              own[move.z]+=aiProjectedMoveFate(move);
+              for(const t of move.tributes || [])own[t.z]-=Number(t.card.currentFate ?? t.card.fate ?? 0);
+              if(intelligence.moraleCycleDamage(own,enemy).incoming>=morale-cost)continue;
+              const winningFinish=Number(G.turn)>=Number(G.maxTurns) && winsBefore<2 && own.filter((score,z)=>score>enemy[z]).length>=2;
+              if(before<morale && !winningFinish)continue;
+            }
+            score-=cost*1.5+baseline;
+          }
+          value=Math.max(value,score);
+        }
+        values.set(offer.card.id,value);
+      }
+      ranked.push({...offer,score:values.get(offer.card.id)});
+    }
+  }finally{G.players[cp].hand=original;aiClearZoneScoreCache();}
+  return ranked.sort((a,b)=>b.score-a.score);
+}
+
 function aiEvaluateMove(move) {
   let score = 0;
   if(move.type==='place'){
@@ -3662,6 +3741,8 @@ async function aiDoPlace(choice) {
   const commitAiPlace = function(){
     if(!isFaceDownCard(inst)) inst._onlineSetResolutionPending = true;
     G.board[choice.z][choice.r][choice.c] = inst;
+    const bombed = typeof resolveBlackRoseBombAt === 'function' && resolveBlackRoseBombAt(inst,choice.z,choice.r,choice.c,cp);
+    if(bombed){sourceList.splice(idx,1);renderGame({board:true,hand:true,piles:true,blocks:true,topbar:true});return;}
     if(!placementCountsAsConsolidated && typeof window.recordLegacyMoralePressureCardSet === 'function') {
       window.recordLegacyMoralePressureCardSet(inst);
     }
@@ -3819,6 +3900,8 @@ async function aiDoConsolidate(choice) {
     } finally {
       G.board[target.z][target.r][target.c] = inst;
     }
+    const bombed = typeof resolveBlackRoseBombAt === 'function' && resolveBlackRoseBombAt(inst,target.z,target.r,target.c,cp);
+    if(bombed){hand.splice(idx,1);renderGame({board:true,hand:true,piles:true,blocks:true,topbar:true});return;}
     if(typeof markCardSetTurn === 'function') markCardSetTurn(inst, cp);
     if(typeof consumeAdministrativeBloatForPlayer === 'function') consumeAdministrativeBloatForPlayer(cp);
     if(typeof applyCrushingMomentumAfterConsolidation === 'function') applyCrushingMomentumAfterConsolidation(inst, cp);
@@ -4021,10 +4104,10 @@ async function aiTriggerWhenSet(inst, z, r, c) {
 
   switch(id) {
     case '103': {
-      const morale=G?._moralePressure?.morale;
-      const before=Math.max(0,Number(morale?.[cp])||0);
-      const amount=Math.min(30,Math.floor(Math.max(0,before-30)/15)*15);
-      if(amount>=15){morale[cp]=before-amount;await drawCard(cp,amount/15,{activatedDrawEffect:true,effectSource:inst});}
+      const targets=[];
+      forEachBoardCard(function(target,tz,tr,tc){if(Number(target.owner)===Number(cp)&&getEffectiveFate(target,tz)>=7)targets.push({card:target,z:tz,r:tr,c:tc});});
+      for(const target of targets)discardBoardCard(target.card,target.z,target.r,target.c);
+      if(typeof window.resolveHopliteCallToArms==='function')await window.resolveHopliteCallToArms(inst,cp);
       markInitialEffectResolved(inst);
       break;
     }
@@ -4367,13 +4450,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       if(added) log('p2',`AI: Kirby searched ${added} supporters`);
       break;
     }
-    case '21': { // Henry Dong: choose adjacent suppression squares
-      if(typeof activateHenryDongSuppression === 'function') {
-        const applied = await activateHenryDongSuppression(inst, z, r, c, {auto:true});
-        if(applied) log('p2', 'AI: Henry Dong selected adjacent suppression squares');
-      }
-      break;
-    }
+    case '21': break; // Henry's discard-pile Fate bonus is passive.
     case '77': { // Duncan Heyward: declare affiliation — ALWAYS pick third_great_war for Free World deck
       // Count affiliation presence on board to pick the best declaration
       const affCounts = {};

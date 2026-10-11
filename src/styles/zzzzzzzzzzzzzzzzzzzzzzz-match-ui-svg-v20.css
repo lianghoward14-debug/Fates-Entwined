@@ -1082,7 +1082,7 @@ html body.in-game #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-c
   padding-bottom:1px!important;
   overflow:visible!important;
 }
-#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-panel.landscape-id-igb17{
+#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-panel:is(.landscape-id-igb17,.landscape-id-igb4){
   box-sizing:border-box!important;
   display:flex!important;
   height:100%!important;
@@ -1093,28 +1093,28 @@ html body.in-game #fate-corner-dock.game-chat-dock #ingame-chat-widget .ingame-c
   padding:2px 0!important;
   overflow:visible!important;
 }
-#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-panel.landscape-id-igb17 .landscape-name{
+#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-panel:is(.landscape-id-igb17,.landscape-id-igb4) .landscape-name{
   flex:0 0 auto!important;
   margin:0 0 4px!important;
   font-size:10.5px!important;
   line-height:1.05!important;
   overflow:visible!important;
 }
-#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-panel.landscape-id-igb17 .landscape-desc{
+#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-panel:is(.landscape-id-igb17,.landscape-id-igb4) .landscape-desc{
   flex:0 1 auto!important;
   max-width:100%!important;
   font-size:8px!important;
   line-height:1.08!important;
   overflow:visible!important;
 }
-#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-panel.landscape-id-igb17 .landscape-whisper-action{
+#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-panel:is(.landscape-id-igb17,.landscape-id-igb4) .landscape-whisper-action{
   flex:0 0 20px!important;
   width:100%!important;
   min-height:20px!important;
   margin:3px 0 0!important;
   overflow:visible!important;
 }
-#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-panel.landscape-id-igb17 .landscape-whisper-button{
+#s-game.svg-board-v20-live .codex-v19-command .codex-v19-land .landscape-panel:is(.landscape-id-igb17,.landscape-id-igb4) .landscape-whisper-button{
   box-sizing:border-box!important;
   min-height:20px!important;
   max-height:20px!important;

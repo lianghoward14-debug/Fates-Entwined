@@ -1,0 +1,16 @@
+const fs=require('fs');
+const dir='C:/Users/user/.codex/visualizations/2026/10/10/01a1261a-c6f4-71d3-93f1-804afddf0c49/';
+const base=fs.readFileSync('artifacts/anne-107/activation-samples.js','utf8');
+const draw=base.slice(0,base.indexOf(' if(v===0)'))+fs.readFileSync('artifacts/anne-107/activation-chess-motifs.js','utf8')+'\n c.restore();\n}\nwindow.AnneRevolutionChess={draw};\n})();';
+fs.writeFileSync('artifacts/anne-107/activation-chess-samples.js',draw);
+let html=fs.readFileSync(dir+'anne-six-more-animations.html','utf8');
+html=html.replaceAll('anne-six-more','anne-chess-three').replace('Replay all six','Replay all three');
+const oldDraw=fs.readFileSync('artifacts/anne-107/activation-six-samples.js','utf8');
+html=html.replace(oldDraw,draw).replaceAll('AnneRevolutionMore','AnneRevolutionChess');
+html=html.replace(/const titles=\[.*?\];/,"const titles=['J · Pawn to queen','K · The knight’s gambit','L · United advance'];");
+html=html.replace(/const descriptions=\[.*?\];/,"const descriptions=['A pawn advances to the far rank and transforms into a queen.','An L-shaped plan lights up, then a knight leaps to the marked square.','Two supporting pawns advance before the queen moves through the centre.'];");
+html=html.replace('fromCharCode(68+i)','fromCharCode(74+i)').replaceAll('Array(6)','Array(3)').replaceAll('.72)', '.78)').replace('times[i]=.72','times[i]=.78');
+fs.writeFileSync(dir+'anne-chess-animation-variations.html',html);
+let check=fs.readFileSync('tools/anne-animation-samples-check.cjs','utf8').replaceAll('anne-revolution-animation-samples.html','anne-chess-animation-variations.html').replaceAll('animation-samples.png','animation-chess-samples.png').replaceAll('animation-samples-mobile.png','animation-chess-samples-mobile.png');
+fs.writeFileSync('tools/anne-chess-animation-check.cjs',check);
+console.log('Created three chess variations, '+Buffer.byteLength(html)+' bytes');

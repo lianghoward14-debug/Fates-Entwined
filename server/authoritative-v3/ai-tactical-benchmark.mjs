@@ -69,6 +69,7 @@ check('Visible reaction is searched and hidden hand is not consulted',()=>{
 });
 check('Supporter setup precedes consolidation payoff',()=>{
   let state = fixture([['47','67'],['05']]);
+  state.supportCompanyUses=[2,2]; // Isolate the existing hand's setup/payoff.
   state.turn = 5;
   let result = plan(state);
   assert.equal(result.command.type,'SET_CARD','develop reinforcement before spending it');
@@ -81,6 +82,7 @@ check('Supporter setup precedes consolidation payoff',()=>{
 });
 check('Avoid incoming lethal using South Wind protection',()=>{
   let state = fixture([['20','05'],['05']],{gameSettings:{healthPressureSeals:true}});
+  state.supportCompanyUses=[2,2]; // Test the shield rather than reserve removal.
   state.turn = 3;
   const shield = place(state,0,'20',0);
   place(state,1,'05',1).currentFate = 40;

@@ -9,12 +9,20 @@ import {turnActionHorizon} from './turn-horizon.mjs';
 export function diverseCommands(commands, limit) {
   const buckets = new Map();
   const exact=new Set();
+  const supportCards=new Set();
   for (const command of commands) {
     const signature=stableStringify(command);
     if(exact.has(signature))continue;
     exact.add(signature);
     const p = command.payload || {};
-    const key = [command.type,p.cardIid || p.sourceIid || p.reactionIid || '',
+    // Evaluate several distinct offers, without letting duplicate categories
+    // or the entire catalog crowd ordinary moves out of a bounded search.
+    if(command.type==='SUPPORT_COMPANY'){
+      const offer=`${p.ability}:${p.cardId}`;
+      if(supportCards.has(offer) || supportCards.size>=3)continue;
+      supportCards.add(offer);
+    }
+    const key = [command.type,p.cardIid || p.sourceIid || p.reactionIid || p.cardId || '',
       p.choice || p.cancel || '',p.selectedIid || p.targetIid || '',
       [...(p.selectedIids || [])].sort().join(',')].join(':');
     if (!buckets.has(key)) buckets.set(key, []);
@@ -41,6 +49,17 @@ export function diverseCommands(commands, limit) {
       result.push(group[round]); added=true;
     }
     if (!added) break;
+  }
+  // Paid recruitment starts with a negative Morale delta. Keep an offer in
+  // the search even on a crowded board so its deployment can prove a rescue
+  // or win; immediate ordering alone cannot justify that payment.
+  if(limit>=3){
+    const offers=groups.filter(group=>group[0].type==='SUPPORT_COMPANY').slice(0,limit>=6?2:1).map(group=>group[0]);
+    for(const offer of offers){
+      if(result.includes(offer))continue;
+      const index=result.findLastIndex(c=>c.type!=='END_TURN' && !offers.includes(c));
+      if(index>=0)result[index]=offer;
+    }
   }
   return result;
 }
@@ -116,7 +135,7 @@ export function searchWorld(world, player, {nodeBudget=480,maxSteps=16,width=6,r
     trace.generated+=legal.length;
     // Reserve work for continuations; hundreds of placements must not consume
     // the whole budget before a single opponent reaction can be examined.
-    const priority=createCommandOrderer(state,current);
+    const priority=createCommandOrderer(state,current,current===player?personality:undefined);
     const ranked=legal.map(command=>({command,priority:priority(command)}))
       .sort((a,b)=>b.priority-a.priority).map(item=>item.command);
     const branchWidth=steps===0 ? width : resolving || current!==player || steps<3 ? 2 : 1;

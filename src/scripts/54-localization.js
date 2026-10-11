@@ -3,15 +3,17 @@
   const storageKey = 'fate_language';
   const normalize = value => String(value).replace(/\s+/g, ' ').trim();
   const key = value => normalize(value).toLowerCase();
-  const pairs = [...(window.FateJapaneseContent || []), ...Object.entries(window.FateJapaneseCatalog || {}), ...(window.FateJapaneseLore || [])];
-  const catalog = new Map(pairs.filter(([en]) => !/ZXQ\d+QXZ/.test(en)).map(([en, ja]) => [key(en), ja]));
-  const reverse = new Map(pairs.filter(([en]) => !/ZXQ\d+QXZ/.test(en)).map(([en, ja]) => [key(ja), en]));
+  const japanesePairs = [...(window.FateJapaneseContent || []), ...Object.entries(window.FateJapaneseCatalog || {}), ...(window.FateJapaneseLore || [])];
+  const chinesePairs = window.FateChineseContent || [];
+  let pairs = japanesePairs;
+  let catalog = new Map(pairs.filter(([en]) => !/ZXQ\d+QXZ/.test(en)).map(([en, ja]) => [key(en), ja]));
+  const reverse = new Map([...japanesePairs, ...chinesePairs].filter(([en]) => !/ZXQ\d+QXZ/.test(en)).map(([en, ja]) => [key(ja), en]));
   const cache = new Map();
   const originals = new WeakMap();
   const attributes = new WeakMap();
   const missing = new Set();
   const escaped = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const templates = pairs.filter(([en]) => /ZXQ\d+QXZ/.test(en)).map(([en, ja]) => {
+  const makeTemplates = pairs => pairs.filter(([en]) => /ZXQ\d+QXZ/.test(en)).map(([en, ja]) => {
     const ids = [];
     const chunks = normalize(en).split(/(ZXQ\d+QXZ)/g);
     const literal = chunks.filter(s => !/^ZXQ\d+QXZ$/.test(s)).join('');
@@ -21,11 +23,14 @@
     }).join('');
     return { regex:new RegExp('^' + pattern + '$', 'i'), ids, ja, weight:literal.length };
   }).filter(t => t.weight >= 5).sort((a, b) => b.weight - a.weight);
-  const protectedSelector = '[translate="no"],[data-no-translate],[contenteditable],#title-language-btn,.tp-name,.pb-name,.profile-name,.social-friend-name,.social-online-card-name,.social-dm-name,.social-dm-text,.social-dm-header-name,.ingame-chat-name,.wc-msg-text,.wc-msg-name,.party-member-copy > strong,.social-online-info > div:first-child,.card-flavor,.card-info-flavor,#s-campaign-intro';
-  const excluded = 'script,style,textarea,input,' + protectedSelector;
+  let templates = makeTemplates(pairs);
+  const baseProtectedSelector = '[translate="no"],[data-no-translate],[contenteditable],#title-language-btn,#title-chinese-btn,.tp-name,.pb-name,.profile-name,.social-friend-name,.social-online-card-name,.social-dm-name,.social-dm-text,.social-dm-header-name,.ingame-chat-name,.wc-msg-text,.wc-msg-name,.party-member-copy > strong,.social-online-info > div:first-child';
+  let protectedSelector = baseProtectedSelector;
+  let excluded;
+
   const attributeNames = ['title', 'aria-label', 'placeholder', 'alt'];
   let language = 'en';
-  try { language = localStorage.getItem(storageKey) === 'ja' ? 'ja' : 'en'; } catch (_) {}
+  try { language = ['ja', 'zh-CN'].includes(localStorage.getItem(storageKey)) ? localStorage.getItem(storageKey) : 'en'; } catch (_) {}
   function translatedCore(core, depth) {
     const direct = catalog.get(key(core));
     if (direct) return direct;
@@ -52,12 +57,21 @@
   }
   function translate(value) {
     const source = String(value == null ? '' : value);
-    if (language !== 'ja' || !/[a-z]/i.test(source)) return source;
+    if (language === 'en' || !/[a-z]/i.test(source)) return source;
     if (cache.has(source)) return cache.get(source);
     const core = source.trim();
     let result = translatedCore(core, 0);
     if (!result) {
-      const patterns = [
+      const patterns = language === 'zh-CN' ? [
+        [/^Turn (\d+)(\/\d+)?$/i, (_, n, total) => '回合 ' + n + (total || '')],
+        [/^(?:Zone|Realm|Front) ([IVX\d]+)$/i, (_, n) => '区域 ' + n],
+        [/^Player (\d+) Wins!$/i, (_, n) => '玩家' + n + '获胜！'],
+        [/^Pass to Player (\d+)$/i, (_, n) => '交给玩家' + n],
+        [/^P(\d+) Deck$/i, (_, n) => '玩家' + n + '的卡组'],
+        [/^(\d+)\s*\/\s*(\d+) cards$/i, (_, n, max) => n + ' / ' + max + ' 张'],
+        [/^Controls (\d+) of (\d+) Zones$/i, (_, n, total) => '控制' + total + '个区域中的' + n + '个'],
+        [/^Version (.+)$/i, (_, version) => '版本 ' + version]
+      ] : [
         [/^Turn (\d+)(\/\d+)?$/i, (_, n, total) => 'ターン ' + n + (total || '')],
         [/^(?:Zone|Realm|Front) ([IVX\d]+)$/i, (_, n) => 'ゾーン ' + n],
         [/^Player (\d+) Wins!$/i, (_, n) => 'プレイヤー' + n + 'の勝利！'],
@@ -114,7 +128,7 @@
     }
   }
   const observer = new MutationObserver(records => {
-    if (language !== 'ja') return;
+    if (language === 'en') return;
     observer.disconnect();
     try {
       const roots = new Set();
@@ -125,7 +139,7 @@
     } finally { observe(); }
   });
   function observe() {
-    if (language === 'ja') observer.observe(document.body, { subtree:true, childList:true, characterData:true, attributes:true, attributeFilter:attributeNames });
+    if (language !== 'en') observer.observe(document.body, { subtree:true, childList:true, characterData:true, attributes:true, attributeFilter:attributeNames });
   }
   // Translated headings can wrap differently. Fit the shared store column
   // from its physical viewport position rather than a fixed header allowance.
@@ -143,7 +157,7 @@
     const scale = Number(getComputedStyle(column.closest('.ch-store-v3') || column).zoom) || 1;
     const height = Math.max(0, Math.min(
       (window.innerHeight - rect.top - 24) / scale,
-      (window.innerHeight - 300 - Math.max(0, rect.top - 277) - (language === 'ja' ? 36 : 0)) / scale
+      (window.innerHeight - 300 - Math.max(0, rect.top - 277) - (language !== 'en' ? 36 : 0)) / scale
     ));
     const value = height.toFixed(2) + 'px';
     if (column.style.height !== value) {
@@ -161,6 +175,19 @@
   document.fonts?.ready.then(scheduleLayout);
   function apply() {
     observer.disconnect(); cache.clear(); missing.clear();
+    // Restore authored text before changing catalogs, including Chinese-only
+    // story sections that Japanese intentionally leaves in English.
+    const nextLanguage = language;
+    language = 'en';
+    protectedSelector = baseProtectedSelector;
+    excluded = 'script,style,textarea,input,' + protectedSelector;
+    visit(document.body);
+    language = nextLanguage;
+    protectedSelector = baseProtectedSelector + (language === 'ja' ? ',.card-flavor,.card-info-flavor,#s-campaign-intro' : '');
+    excluded = 'script,style,textarea,input,' + protectedSelector;
+    pairs = language === 'zh-CN' ? chinesePairs : japanesePairs;
+    catalog = new Map(pairs.filter(([en]) => !/ZXQ\d+QXZ/.test(en)).map(([en, text]) => [key(en), text]));
+    templates = makeTemplates(pairs);
     document.documentElement.lang = language;
     visit(document.body);
     const button = document.getElementById('title-language-btn');
@@ -168,6 +195,13 @@
       button.textContent = language === 'ja' ? 'English' : '日本語'; button.lang = language === 'ja' ? 'en' : 'ja';
       button.setAttribute('aria-label', language === 'ja' ? 'Switch to English' : '日本語に切り替える');
       button.setAttribute('aria-pressed', String(language === 'ja'));
+    }
+    const chineseButton = document.getElementById('title-chinese-btn');
+    if (chineseButton) {
+      chineseButton.textContent = language === 'zh-CN' ? 'English' : '简体中文';
+      chineseButton.lang = language === 'zh-CN' ? 'en' : 'zh-CN';
+      chineseButton.setAttribute('aria-label', language === 'zh-CN' ? 'Switch to English' : '切换为简体中文');
+      chineseButton.setAttribute('aria-pressed', String(language === 'zh-CN'));
     }
     observe();
     window.FateCardTextureCache?.clear?.();
@@ -179,9 +213,10 @@
     t:translate, sourceText,
     getLanguage:() => language,
     report:() => ({language, messages:catalog.size, templates:templates.length, missing:Array.from(missing)}),
-    setLanguage(next) { if (next !== 'en' && next !== 'ja') return; language = next; try { localStorage.setItem(storageKey, language); } catch (_) {} apply(); },
+    setLanguage(next) { if (!['en', 'ja', 'zh-CN'].includes(next)) return; language = next; try { localStorage.setItem(storageKey, language); } catch (_) {} apply(); },
     toggle() { this.setLanguage(language === 'ja' ? 'en' : 'ja'); }
   });
   document.getElementById('title-language-btn')?.addEventListener('click', () => window.FateI18n.toggle());
+  document.getElementById('title-chinese-btn')?.addEventListener('click', () => window.FateI18n.setLanguage(language === 'zh-CN' ? 'en' : 'zh-CN'));
   apply();
 })();

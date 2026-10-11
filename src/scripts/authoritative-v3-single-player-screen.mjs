@@ -213,8 +213,7 @@ export class FateAuthoritativeV3SinglePlayerScreen {
   autoEndTimedOutTurn(){
     if(this.turnTimerAutoEnd || !this.view || this.view.state.outcome) return;
     if(this.view.state.activePlayer !== this.view.playerIndex) return;
-    const command = this.view.legalCommands?.find(item=>item.type === 'END_TURN');
-    if(!command) return;
+    const command = {type:'END_TURN',payload:{expirePickers:true}};
     this.turnTimerAutoEnd = true;
     this.window.toast?.("Time's up! Turn auto-ended.");
     const result = this.submit(command);
@@ -224,7 +223,7 @@ export class FateAuthoritativeV3SinglePlayerScreen {
   syncTurnTimer(view){
     const state = view?.state;
     const humanTurn = state && !state.outcome && state.activePlayer === view.playerIndex;
-    const paused = !!state?.pendingPrompt || !!state?.pendingHandLimit;
+    const paused = false;
     if(!humanTurn){
       this.stopTurnTimer();
       return;
@@ -461,7 +460,24 @@ export class FateAuthoritativeV3SinglePlayerScreen {
     return null;
   }
 
-  submit(command){
+  submit(command, options = {}){
+    if(command?.type === 'DISCARD_CARD' && !options.discardConfirmed && this.window.confirmCardDiscard){
+      this.window.confirmCardDiscard(this.findCard(command.payload?.targetIid),
+        ()=>this.submit(command, {...options, discardConfirmed:true}));
+      return {ok:false, awaitingConfirmation:true};
+    }
+    if(command?.type === 'END_TURN' && !options.skipEffectWarning && !this.turnTimerAutoEnd){
+      const effects = (this.view?.legalCommands || []).filter(item=>item.type === 'ACTIVATE_EFFECT' && item.deferredPicker)
+        .filter(item=>{
+          const card=this.findCard(item.payload.sourceIid);
+          return String(card?.id)!=='107' || Number(card.counters?.anneLastActivatedTurn ?? -1)!==Number(this.view?.state?.turn);
+        })
+        .map(item=>({name:this.findCard(item.payload.sourceIid)?.name || 'Card', label:'Activate Effect'}));
+      if(effects.length && this.window.showEndTurnEffectWarning){
+        this.window.showEndTurnEffectWarning(effects, ()=>this.submit(command, {...options, skipEffectWarning:true}));
+        return {ok:false, awaitingConfirmation:true};
+      }
+    }
     const result = this.adapter.dispatchLegalCommand(command);
     if(result && typeof result.then === 'function'){
       return result.then(resolved=>this.finishSubmit(resolved)).catch(error=>{
@@ -550,7 +566,7 @@ export class FateAuthoritativeV3SinglePlayerScreen {
       const currentKey = `prompt:${String(prompt?.promptId || '')}`;
       if(currentKey !== key || Number(prompt?.playerIndex) !== Number(this.view?.playerIndex)) return;
       const modal = this.document.getElementById('modal');
-      const mounted = modal?.classList.contains('on')
+      const mounted = this.document.querySelector('.sc-royal-overlay')?.dataset?.promptKey === key || modal?.classList.contains('on')
         && String(modal.dataset?.fateV3SinglePlayerPromptKey || '') === key
         && !!modal.querySelector('.visual-picker-body');
       if(!mounted){
@@ -567,13 +583,14 @@ export class FateAuthoritativeV3SinglePlayerScreen {
     const prompt = view?.state?.pendingPrompt;
     const ownsPrompt = Number(prompt?.playerIndex) === Number(view?.playerIndex);
     if(!ownsPrompt || !['CARD_SELECTION', 'HAND_SELECTION'].includes(String(prompt?.type || ''))){
+      if(this.visualPromptKey) this.window.closeModal?.({cardChoiceResolved:true,forceHandLimitClose:true,authoritativeHandLimitResolved:true,deferQueuedModals:true});
       this.clearVisualPromptGuard();
       this.visualPromptKey = '';
       return false;
     }
     const key = `prompt:${String(prompt.promptId || '')}`;
     const modal = this.document.getElementById('modal');
-    const mounted = modal?.classList.contains('on')
+    const mounted = this.document.querySelector('.sc-royal-overlay')?.dataset?.promptKey === key || modal?.classList.contains('on')
       && String(modal.dataset?.fateV3SinglePlayerPromptKey || '') === key
       && !!modal.querySelector('.visual-picker-body');
     if(this.visualPromptKey === key && mounted) return true;
@@ -589,6 +606,7 @@ export class FateAuthoritativeV3SinglePlayerScreen {
     const sourceDefinition = this.cardDefinitions.get(String(source?.id || '')) || {};
     this.visualPromptKey = key;
     this.window.pickCardsVisual(cards, {
+      promptKey:key,
       title:source?.name ? `Resolve ${source.name}` : 'Resolve Effect',
       subtitle:minimum === maximum ? `Select exactly ${minimum}` : `Select ${minimum} to ${maximum}`,
       minCount:minimum,
@@ -645,6 +663,7 @@ export class FateAuthoritativeV3SinglePlayerScreen {
 
   presentEvents(events = [], metadata = {}){
     for(const event of events){
+      this.window.presentJoseLongGameEvent?.(event, `${this.view?.state?.matchId}:${metadata.revision}:${event.cardIid}:${event.value}`, this.findCard(event.cardIid), this.view?.state);
       if(event?.type === 'SUPPORT_COMPANY_USED') this.window.presentSupportCompanyUse?.(event,
         `${this.view?.state?.matchId}:${metadata.revision}:${event.playerIndex}:support`);
     }
@@ -662,7 +681,7 @@ export class FateAuthoritativeV3SinglePlayerScreen {
       if(type === 'EFFECT_ACTIVATED' || type === 'EFFECT_REACTED'){
         const source = this.findCard(type === 'EFFECT_REACTED' ? event.reactionIid : event.sourceIid);
         if(type === 'EFFECT_ACTIVATED' && String(source?.id || '') === '18') this.window.playFateReactionSfx?.(true, source);
-        if(source && event?.suppressActivationCinematic !== true && String(source.id || '') !== '66' && typeof this.window.showEffectActivationCinematic === 'function'){
+        if(source && !(String(source.id)==='105' && event.timing==='OPPONENT_CONSOLIDATION') && event?.suppressActivationCinematic !== true && String(source.id || '') !== '66' && typeof this.window.showEffectActivationCinematic === 'function'){
           try{ this.window.showEffectActivationCinematic(this.presentationCard(source), {remote:Number(event.playerIndex) !== Number(this.view?.playerIndex), source:'authoritative-v3-single-player-event', sfx:type === 'EFFECT_REACTED' ? false : undefined, broadcast:false}); }catch(_error){}
         }
         if(type === 'EFFECT_REACTED' && typeof this.window.playSfx === 'function'){
@@ -1121,6 +1140,18 @@ export class FateAuthoritativeV3SinglePlayerScreen {
       bar.appendChild(actions);
     }
     actions.replaceChildren();
+    if(this.view.state.pendingPrompt?.title==='Call to Arms' && this.window.getSupportCompanyPresentationDelayMs?.()>0){
+      this.visibleActions=[];
+      if(hint)hint.textContent='Resolving effect';
+      if(!this.supportCompanyPresentationTimer){
+        const matchId=this.view.state.matchId;
+        this.supportCompanyPresentationTimer=setTimeout(()=>{
+          this.supportCompanyPresentationTimer=null;
+          if(this.view?.state?.matchId===matchId)this.renderActions();
+        },80);
+      }
+      return;
+    }
     if(this.view.state.outcome){
       this.visibleActions = [];
       this.renderOutcome(actions, hint);

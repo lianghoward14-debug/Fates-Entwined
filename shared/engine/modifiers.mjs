@@ -95,16 +95,7 @@ export function isEffectSourceSuppressed(state, value){
       && Number(status.remainingTargetTurns) > 0)) return true;
   if(!entry || effectiveCardType(state, card) !== 'Coordinator') return false;
   if(isEffectImmutable(card) || isImmuneToOpponentEffects(card, state)) return false;
-  return squareStatuses(state, entry, 'COORDINATOR_SUPPRESSED').some(status=>{
-    if(Number(status.blockedPlayer) !== controllerOf(card)) return false;
-    const source = findBoardCard(state, status.sourceIid);
-    return !!source
-      && runtimeRuleId(source.card) === '21'
-      && source.z === entry.z
-      && Math.abs(source.r-entry.r) + Math.abs(source.c-entry.c) === 1
-      && controllerOf(source.card) !== controllerOf(card)
-      && !source.card.statuses?.includes('EFFECTS_SUPPRESSED');
-  });
+  return false;
 }
 
 export function activeAuraSource(state, entry){
@@ -147,6 +138,7 @@ function sovietGrenadierTarget(state, sourceEntry){
   return boardEntries(state).find(target=>
     String(target.card.iid || '') === targetIid
     && target.z === sourceEntry.z
+    && controllerOf(target.card) === controllerOf(sourceEntry.card)
     && effectiveCardType(state, target.card) === declaredType
     && Math.abs(target.r - sourceEntry.r) + Math.abs(target.c - sourceEntry.c) === 1
   ) || null;
@@ -180,7 +172,7 @@ export function effectiveFate(state, entryOrCard){
     ? entryOrCard
     : findCard(state, entryOrCard?.iid);
   const card = entry?.card || entryOrCard;
-  if(!card || entry?.zone !== 'board' || card.contributesFate === false) return 0;
+  if(!card || entry?.zone !== 'board' || (card.faceDown && card.contributesFate === false)) return 0;
   const hiddenFate = card.faceDown && card.contributesFate !== true;
   const stored = hiddenFate ? 0 : Math.max(0, Number(card.currentFate) || 0);
   const targetController = controllerOf(card);
@@ -196,7 +188,7 @@ export function effectiveFate(state, entryOrCard){
   const derived = !hiddenFate && activeAuraSource(state, entry) && selfId === '41'
     ? Math.max(0, Number(state.fateReductionEffectUses[targetController] || 0) * 3 + permanentAdjustment)
     : stored;
-  let modifier = 0;
+  let modifier = activeAuraSource(state, entry) && selfId === '21' ? 2 * state.players[targetController].discard.length : 0;
   {
     const honorGuardActive=boardEntries(state).some(source=>controllerOf(source.card)===targetController&&runtimeRuleId(source.card)==='25'&&activeAuraSource(state,source));
     const sameAffAdjacent=boardEntries(state).some(peer=>peer.z===entry.z&&!isEffectImmutable(peer.card)&&controllerOf(peer.card)===targetController&&String(peer.card.iid)!==String(card.iid)&&String(peer.card.affiliation||'')===String(card.affiliation||'')&&Math.abs(peer.r-entry.r)+Math.abs(peer.c-entry.c)===1);
@@ -212,6 +204,10 @@ export function effectiveFate(state, entryOrCard){
       continue;
     }
     if(sourceController !== targetController) continue;
+    if(sourceId === '106' && !source.card.faceDown){
+      const longGameTier = Math.floor(Math.max(0, Number(source.card.counters?.joseFieldTurns) || 0) / 3);
+      if(longGameTier > 0) modifier += longGameTier + coordinatorAuraPotencyBoost(state, source);
+    }
     if(sourceId === '01'
       && Math.abs(source.r - entry.r) + Math.abs(source.c - entry.c) === 1){
       modifier += (4 + coordinatorAuraPotencyBoost(state, source)) * adjacencyMultiplier;
@@ -453,18 +449,7 @@ export function isImmuneToOpponentEffects(card, state = null){
   if(!card) return false;
   if(['bh01', '76'].includes(String(card.id || ''))) return true;
   if((card.statuses || []).includes('IMMUNE_TO_OPPONENT_EFFECTS')) return true;
-  if(!state) return false;
-  const target = findBoardCard(state, card.iid);
-  if(!target) return false;
-  return boardEntries(state).some(source=>
-    source.z === target.z
-    && source.card.iid !== card.iid
-    && controllerOf(source.card) === controllerOf(card)
-    && runtimeRuleId(source.card) === '101'
-    && Math.abs(source.r-target.r) <= 1
-    && Math.abs(source.c-target.c) <= 1
-    && !isEffectSourceSuppressed(state, source)
-  );
+  return false;
 }
 
 export function isEffectImmutable(card){

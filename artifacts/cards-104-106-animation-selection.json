@@ -1,0 +1,35 @@
+{
+  "104": {
+    "character": "Rivera",
+    "selectedSample": "104O",
+    "title": "Palms of Caribbea — sea breeze",
+    "source": "revolution-banner-round-five.js",
+    "row": 0,
+    "variant": 2,
+    "durationMs": 2000,
+    "status": "integrated with motion-matched sound",
+    "soundPreview": "caribbea-selected/104.wav"
+  },
+  "105": {
+    "character": "Jorge Alvarez",
+    "selectedSample": "105J",
+    "title": "Rise Together — single resolve",
+    "source": "revolution-banner-round-four.js",
+    "row": 1,
+    "variant": 0,
+    "durationMs": 2000,
+    "status": "integrated with motion-matched sound",
+    "soundPreview": "caribbea-selected/105.wav"
+  },
+  "106": {
+    "character": "Jose Garcia",
+    "selectedSample": "106D",
+    "title": "Sands of patience",
+    "source": "revolution-banner-round-two.js",
+    "row": 2,
+    "variant": 0,
+    "durationMs": 2000,
+    "status": "integrated with motion-matched sound",
+    "soundPreview": "caribbea-selected/106.wav"
+  }
+}

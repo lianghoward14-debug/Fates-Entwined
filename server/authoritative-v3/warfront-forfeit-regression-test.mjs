@@ -54,8 +54,12 @@ const abandoned={...actor,state:{...locked,aiTakeoverSeats:[0,1],warfrontAiSeats
 await step(abandoned);
 assert.equal(abandoned.state.phase,'ended','old AI-only continuations stop without another search');
 assert.equal(abandoned.state.outcome.winner,1,'recovery preserves the concession star winner');
-for(let n=0;n<100 && actor.state.activePlayer===0&&!actor.state.outcome;n++) assert(await step(actor),'AI must produce a command');
-assert(actor.state.activePlayer===1 || actor.state.outcome,'takeover AI must end its turn');
+for(let n=0;n<100 && actor.state.activePlayer===0&&!actor.state.outcome;n++){
+  const result=await step(actor);
+  if(!result && actor.state.pendingPrompt?.playerIndex===1) break;
+  assert(result,'AI must produce a command unless the human opponent has a pending reaction');
+}
+assert(actor.state.activePlayer===1 || actor.state.outcome || actor.state.pendingPrompt?.playerIndex===1,'takeover AI must end its turn or yield to the human opponent reaction');
 
 // Force a natural board result in which the AI side wins. Competitive winner
 // remains the human, and completing the continuation permits commendations.

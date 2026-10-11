@@ -22,7 +22,8 @@ const sandbox = {
 vm.runInNewContext(fs.readFileSync(path.join(root,'src/scripts/render-v2/19-approved-activation-art.js'),'utf8'),sandbox);
 vm.runInNewContext(source, sandbox);
 const api = sandbox.window.FateSignatureActivationFx;
-assert.equal(api.approved.length, 70);
+added.push('101','102','103');
+assert.equal(api.approved.length, 73);
 assert.deepEqual([...api.approved].sort(), [...added,...existing].sort());
 for(const id of api.approved) {
   const entry = data.slice(data.indexOf(`{id:'${id}'`));
@@ -59,4 +60,4 @@ for(const id of added){
   const silent=api.mount(overlay,{id},{sfx:false});silent.start();silent.dispose();assert.equal(soundStarts,before+1,'sfx:false prevents the new cue');
 }
 for(const id of ['61','39'])assert.equal(api.durationFor({id}),0,`${id} must not play a rejected/retired centered draft`);
-console.log('PASS: all 70 registered character animations render, finish at 2000 ms, and respect performance/reduced-motion settings; other existing signatures preserved.');
+console.log('PASS: all 73 registered character animations render, finish at 2000 ms, and respect performance/reduced-motion settings; other existing signatures preserved.');

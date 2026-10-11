@@ -219,13 +219,14 @@
     return false;
   }
 
-  function flyBoardCard(card, z, r, c, kind){
+  function flyBoardCard(card, z, r, c, kind, opts){
     const motionKind = String(kind || 'discard').toLowerCase();
     const fromRect = rectForBoardTarget(z, r, c);
     const owner = card && card.owner != null ? card.owner : currentViewer();
     const toRect = pileRect(owner, 'discard') || pileRect(null, 'discard') || fromRect;
-    if(motionKind === 'destroy') return play('DESTROY_CARD', {card, iid:card && card.iid, fromRect, toRect});
-    return play('DISCARD_CARD', {card, iid:card && card.iid, fromRect, toRect});
+    const payload=Object.assign({card, iid:card && card.iid, fromRect, toRect},opts||{});
+    if(motionKind === 'destroy') return play('DESTROY_CARD', payload);
+    return play('DISCARD_CARD', payload);
   }
 
   function flipBoardCard(card, z, r, c){

@@ -80,7 +80,8 @@
     const expansion = /^bh0?(\d+)$/i.exec(id);
     const numeric = Number(id);
     const mapped = expansion && Number(expansion[1]) <= 25 ? 100 + Number(expansion[1]) : numeric > 0 && numeric <= 100 ? numeric : null;
-    const pfp = card.pfpId || mapped || portraits[card.name];
+    const pfp = ({'101':126,'102':127,'103':128,'104':129,'105':130,'106':131,'107':132})[id] || card.pfpId || mapped || portraits[card.name];
+    const dedicatedPortrait = id === '107' ? 'pfp/card-107-portrait.svg?v=20261010' : ['104','105','106'].includes(id) ? 'pfp/card-'+id+'-portrait.png?v=20261009' : '';
     if(!pfp && !card.img) return null;
     syncMatch();
     shown.add(key(card));
@@ -95,13 +96,13 @@
     if(reduced) banner.classList.add('reduced-motion');
     const image = document.createElement('img');
     image.alt = '';
-    image.src = id === 'whisper17'
+    image.src = dedicatedPortrait || card.cinematicPortrait || (id === 'whisper17'
       ? 'pfp/pfp-shizuku.png'
       : Number(id) === 56
         ? 'pfp/pfp56-portrait.png'
         : pfp
           ? (typeof PFP_PATH === 'function' ? PFP_PATH(pfp, 'square') : 'pfp/pfp'+pfp+'.png')
-          : card.img;
+          : card.img);
     image.onerror = function(){ image.remove(); };
     const skin = document.createElement('div');
     skin.className = 'fate-relay-skin';
@@ -193,5 +194,5 @@
       return function(){out.gain.setTargetAtTime(0,ctx.currentTime,.01);setTimeout(()=>out.disconnect(),40);};
     } catch(e) { return null; }
   }
-  window.FateActivationBanner = {play, pickerConfirmation, dismiss};
+  window.FateActivationBanner = {play, pickerConfirmation, dismiss, isActive:()=>!!active};
 })();

@@ -107,7 +107,7 @@
     const maxMorale = Math.max(1, Number(system.maxMorale) || 200);
     return {
       maxMorale,
-      morale:[0,1].map(player=>clamp(system.morale[player], 0, maxMorale)),
+      morale:[0,1].map(player=>Math.max(0, Number(system.morale[player]) || 0)),
       shields:[0,1].map(player=>Math.max(0, Number(system.shields && system.shields[player]) || 0)),
       pressure:[0,1].map(player=>Math.max(0, Number(system.pressure && system.pressure[player]) || 0))
     };
@@ -211,7 +211,7 @@
     const opponent = 1-player;
     const style = moraleStyleProfile(opts.style);
     const missing = Math.max(0, system.maxMorale-system.morale[player]);
-    const directHeal = Math.min(missing, profile.moraleHeal);
+    const directHeal = profile.moraleHeal;
     const directDamage = Math.min(system.morale[opponent], profile.moraleDamage);
     const cycle = moraleCycleDamage(opts.ownScores, opts.enemyScores);
     const cycleWeight = moraleCycleWeight(opts.turn, opts.landscapeId);

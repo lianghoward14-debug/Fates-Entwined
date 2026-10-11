@@ -131,7 +131,7 @@ state.effectStack.push({
   waitingFor:'ZONE_SELECTION',
   program:[{kind:'SELECT_ZONE', local:'zone'}]
 });
-assert.equal(actor.turnTimeoutCommand(), null, 'turn timeout pauses while a server prompt owns input');
+assert.equal(actor.turnTimeoutCommand().command.payload.expirePickers, true, 'turn timeout closes a pending picker');
 
 // Santa Anna resolves the discard cost and +4 Fate atomically.
 state = stateFor('igb16', 'P4LAND-IGB16');

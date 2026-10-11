@@ -276,9 +276,9 @@
     return 3 + (Number(g.extraRows && g.extraRows[z]) || 0);
   }
 
-  function getBlock(g, z, r, c){
+  function getBlock(g, z, r, c, viewer){
     const blocks = g && Array.isArray(g.blockedCells) ? g.blockedCells : [];
-    return blocks.find(function(b){ return b && b.z === z && b.r === r && b.c === c; }) || null;
+    return blocks.find(function(b){ return b && b.z === z && b.r === r && b.c === c && (b.type !== 'blackRoseBomb' || Number(b.owner) === Number(viewer)); }) || null;
   }
 
   function getBaseExtraCols(g, z, r){
@@ -307,7 +307,7 @@
         for(let c = 0; c < totalCols; c++){
           const card = sourceRow[c] || null;
           if(card) cardCount++;
-          const block = getBlock(g, z, r, c);
+          const block = getBlock(g, z, r, c, viewer);
           const markSafe = isMarkSafeSquare(g, z, r, c);
           cells.push({
             z,

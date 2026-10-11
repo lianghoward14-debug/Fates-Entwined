@@ -525,19 +525,20 @@
       if(String(event?.type || '').toUpperCase() !== 'MORALE_HEALED' || event._moraleHealFateConverted === true) return;
       event._moraleHealFateConverted = true;
       const player = Number(event.playerIndex);
-      const gain = Math.floor(Math.max(0, Number(event.amount) || 0) * 25 / 100);
+      const gain = Math.floor(Math.max(0, Number(event.amount) || 0) / 3);
+      const sourceZone = event.sourceZone ?? legacyBoardEntries(state).find(entry=>String(entry.card?.iid)===String(event.sourceIid))?.z;
       if(!gain || (player !== 0 && player !== 1)) return;
       legacyBoardEntries(state).forEach(function(entry){
         const card = entry.card;
-        // Retained for the next card that receives this effect. No current card
-        // is assigned, so the old card-101 behavior remains dormant.
-        const moraleConversionCardIds = [];
+        // Jorge's conversion only follows healing originating in his zone.
+        const moraleConversionCardIds = ['101'];
         const assignedId = moraleConversionCardIds.find(function(id){
           return typeof cardActsAsPassive === 'function' ? cardActsAsPassive(card,id) : String(card?.id || '') === id;
         });
-        if(Number(card?.owner) !== player || !assignedId || legacySuppressed(entry)) return;
+        if(sourceZone == null || Number(entry.z)!==Number(sourceZone) || Number(card?.owner) !== player || !assignedId || card.faceDown || legacySuppressed(entry)) return;
         if(typeof modifyFate === 'function') modifyFate(card, gain, 'permanent', player, {sourceIid:String(card.iid || ''),reason:'MORALE_HEAL_FATE_CONVERSION'});
         else card.currentFate = Math.max(0, Number(card.currentFate ?? card.fate) || 0) + gain;
+        if(typeof window.flashCardEffect === 'function') window.flashCardEffect(card,'jorge_pineapple',{label:'El Viaje Del Hombre Piña'});
       });
     });
     renderMoralePressureHud(state._moralePressure);
@@ -560,9 +561,10 @@
       after:after,
       sourceIid:opts.sourceIid?String(opts.sourceIid):null
     };
-    ['overlayTargetIid','semanticSourceCardId','reason','sourcePlayerIndex'].forEach(function(key){
+    ['overlayTargetIid','semanticSourceCardId','reason','sourcePlayerIndex','sourceZone'].forEach(function(key){
       if(opts[key]!==undefined&&opts[key]!==null&&opts[key]!=='')event[key]=opts[key];
     });
+    if(event.sourceIid || event.semanticSourceCardId) window.FateAnnePlanning?.notify('MORALE',opts.sourcePlayerIndex ?? player);
     return refreshLegacyMoralePressure({announce:true,events:[event]});
   }
 
@@ -654,7 +656,7 @@
 
     if(resolveWhenSetEffects){
       if(String(card.id||'')==='33'){
-        const before=Number(system.morale[player]||0);system.morale[player]=Math.min(Number(system.maxMorale||200),before+16);
+        const before=Number(system.morale[player]||0);system.morale[player]=before+16;
         if(system.morale[player]>before) events.push({type:'MORALE_HEALED',playerIndex:player,amount:system.morale[player]-before,before:before,after:system.morale[player],sourceIid:String(card.iid||'')});
       }
       if(String(card.id||'')==='47'){
@@ -820,7 +822,7 @@
         const whisperRozsi=String(source._whisperCopiedEffectId||'')==='34';
         if(((typeof cardActsAsPassive==='function'?cardActsAsPassive(source,'34'):id==='34')||whisperRozsi)&&source._moraleAffiliation){
           const affected=allEntries.filter(function(target){return Number(target.card.owner)===owner&&(whisperRozsi||Number(target.z)===Number(entry.z))&&String(target.card.aff||target.card.affiliation||'')===String(source._moraleAffiliation);});
-          sourceDamage=affected.length*3;
+          sourceDamage=affected.length*2;
           affectedIids=affected.map(function(target){return String(target.card&&target.card.iid||'');}).filter(Boolean);
         }else if(id==='35'){
           const fate=typeof getEffectiveFate==='function'?getEffectiveFate(source,entry.z):Number(source.currentFate??source.fate??0);
@@ -850,16 +852,6 @@
       for(let owner=0;owner<2;owner+=1)damage[1-owner]+=outgoing[owner];
     }
     const bh18ZoneFateReductions=[];
-    for(let player=0;player<2;player+=1){
-      if(Math.max(0,Number(damage[player])||0)<=0)continue;
-      entries.filter(function(entry){return Number(entry.card.owner)===player&&String(entry.card.id||'')==='bh18';}).forEach(function(entry){
-        const key=['bh18',String(entry.card.iid||entry.card.id),String(system.cycle||0),'p'+String(1-player),'z'+String(entry.z)].join('_');
-        if(!state.fateModifiers||typeof state.fateModifiers!=='object')state.fateModifiers={};
-        state.fateModifiers[key]=Number(state.fateModifiers[key]||0)-3;
-        entry.card._bh18FateReduced=(Number(entry.card._bh18FateReduced)||0)+3;
-        bh18ZoneFateReductions.push({sourceIid:String(entry.card.iid||''),sourceCardId:'bh18',sourceController:player,playerIndex:1-player,zone:Number(entry.z),value:-3,reason:'GENESIS_OF_ALL_INCELDOM'});
-      });
-    }
     events.push({
       type:'MORALE_CYCLE_RESOLVED',
       zoneResults:zoneResults,
@@ -906,7 +898,7 @@
       for(let player=0;player<2;player+=1){
         const before=Math.max(0,Number(system.morale[player])||0);
         const requested=Math.max(0,Number(state.players?.[player]?.hand?.length||0)*2);
-        const after=Math.min(Number(system.maxMorale||200),before+requested);
+        const after=before+requested;
         const amount=after-before;
         system.morale[player]=after;
         if(amount)events.push({type:'MORALE_HEALED',playerIndex:player,amount:amount,before:before,after:after,sourceIid:'landscape:igb23',semanticSourceCardId:'igb23',reason:'SHORES_OF_LA_HELENA'});
@@ -918,13 +910,13 @@
       if((player!==0&&player!==1)||!card)return;
       const fate=typeof getEffectiveFate==='function'?getEffectiveFate(card,Number(block.z)):Number(card.currentFate??card.fate??0);
       const before=Math.max(0,Number(system.morale[player])||0);
-      const after=Math.min(Number(system.maxMorale||200),before+Math.max(0,Number(fate)||0));
+      const after=before+Math.max(0,Number(fate)||0);
       const amount=after-before;
       if(!amount)return;
       system.morale[player]=after;
       const source=entries.map(function(entry){return entry.card;}).find(function(entryCard){return String(entryCard.iid||'')===String(block.sourceIid||'');});
       if(source)source._moraleRecoveredFromSquare=Math.max(0,Number(source._moraleRecoveredFromSquare)||0)+amount;
-      events.push({type:'MORALE_HEALED',playerIndex:player,amount:amount,before:before,after:after,sourceIid:block.sourceIid,overlayTargetIid:String(card.iid||''),semanticSourceCardId:'bh22',reason:'A_MOONLIT_SHORE'});
+      events.push({type:'MORALE_HEALED',playerIndex:player,amount:amount,before:before,after:after,sourceZone:Number(block.z),sourceIid:block.sourceIid,overlayTargetIid:String(card.iid||''),semanticSourceCardId:'bh22',reason:'A_MOONLIT_SHORE'});
     });
     const lowMoraleDiscard = resolveLegacyMoraleLowHandDiscard(Number(endingPlayer));
     if(lowMoraleDiscard) events.push(lowMoraleDiscard);

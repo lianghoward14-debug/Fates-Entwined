@@ -44,7 +44,10 @@ export function openingProgramChoiceAvailable(state, frame, program){
   for(let instructionIndex = 0; instructionIndex < program.length; instructionIndex += 1){
     const instruction = program[instructionIndex];
     if(!instruction) continue;
-    if(instruction.kind === 'REQUIRE_NO_DRAW_EFFECTS_IN_ORIGINAL_DECK' && !flowerPickingEligible(state.players[frame.controller])) return false;
+    if(instruction.kind === 'REQUIRE_NO_DRAW_EFFECTS_IN_ORIGINAL_DECK'){
+      if(!flowerPickingEligible(state.players[frame.controller])) return false;
+      continue;
+    }
     const copiedFrame = {...frame, instructionIndex, program, locals:{...(frame?.locals || {})}};
     let eligibleCount = null;
     let minimum = 1;
@@ -204,6 +207,7 @@ export function eligibleCardTargets(state, frame, filter = {}){
     if(filter.excludeRarity && String(entry.card.rarity || '') === String(filter.excludeRarity)) return false;
     if(filter.excludeSource && String(entry.card.iid) === String(frame.sourceIid)) return false;
     if(filter.excludeCardId && String(entry.card.id) === String(filter.excludeCardId)) return false;
+    if(filter.maxCost != null && Number(entry.card.cost || 0) > Number(filter.maxCost)) return false;
     if(filter.ruleTiming && !filter.ruleTimingExceptions?.includes(String(entry.card.id)) && !cardRule(entry.card.id, state)?.timings?.includes(String(filter.ruleTiming))) return false;
     if(filter.copyEffectAvailable){
       const copiedRule = cardRule(entry.card.id, state);

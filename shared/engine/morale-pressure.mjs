@@ -111,19 +111,18 @@ function pushEvent(ctx, event){
   });
 }
 
-// Kept as a reusable implementation for a future card assignment. Keeping the
-// assignment set empty deliberately detaches this mechanic from card 101.
-const MORALE_HEAL_FATE_CONVERSION_CARD_IDS = new Set();
+// Jorge converts one third of healing originating in his current zone.
+const MORALE_HEAL_FATE_CONVERSION_CARD_IDS = new Set(['101']);
 
-function applyMoraleHealFateConversion(ctx, playerIndex, healedAmount){
+function applyMoraleHealFateConversion(ctx, playerIndex, healedAmount, sourceZone){
   const state = ctx?.state;
   const player = Number(playerIndex);
-  const gain = Math.floor(Math.max(0, Number(healedAmount) || 0) * 25 / 100);
+  const gain = Math.floor(Math.max(0, Number(healedAmount) || 0) / 3);
   if(!state || !gain || (player !== 0 && player !== 1)) return [];
   const changes = [];
   for(const entry of boardEntries(state)){
-    if(controllerOf(entry.card) !== player
-      || !MORALE_HEAL_FATE_CONVERSION_CARD_IDS.has(runtimeRuleId(entry.card))
+    if(sourceZone == null || Number(entry.z) !== Number(sourceZone) || controllerOf(entry.card) !== player
+      || entry.card.faceDown || !MORALE_HEAL_FATE_CONVERSION_CARD_IDS.has(runtimeRuleId(entry.card))
       || isEffectSourceSuppressed(state, entry)) continue;
     const before = Math.max(0, Number(entry.card.currentFate ?? entry.card.fate) || 0);
     entry.card.currentFate = before + gain;
@@ -305,7 +304,7 @@ export function modifyMorale(ctx, operation = {}){
     && moraleDamageInflictionBlocked(state, 1 - player);
   const after = damagePrevented
     ? before
-    : Math.max(0, Math.min(Number(system.maxMorale || STARTING_MORALE), before + requestedAmount));
+    : Math.max(0, before + requestedAmount);
   system.morale[player] = after;
   const amount = after - before;
   if(amount < 0 && operation.sourceIid){
@@ -315,8 +314,8 @@ export function modifyMorale(ctx, operation = {}){
       source.counters.moraleDamageInflicted = Math.max(0, Math.floor(Number(source.counters.moraleDamageInflicted) || 0)) + Math.abs(amount);
     }
   }
-  if(amount) pushEvent(ctx, {type:amount > 0 ? 'MORALE_HEALED' : 'MORALE_DAMAGED',playerIndex:player,amount:Math.abs(amount),before,after,sourceIid:operation.sourceIid || null,overlayTargetIid:operation.overlayTargetIid || null,semanticSourceCardId:operation.semanticSourceCardId || undefined,reason:operation.reason || undefined,sound:amount > 0 ? 'morale-heal' : 'morale-damage'});
-  if(amount > 0) applyMoraleHealFateConversion(ctx, player, amount);
+  if(amount) pushEvent(ctx, {type:amount > 0 ? 'MORALE_HEALED' : 'MORALE_DAMAGED',playerIndex:player,amount:Math.abs(amount),before,after,sourceIid:operation.sourceIid || null,sourceController:operation.sourceController,overlayTargetIid:operation.overlayTargetIid || null,semanticSourceCardId:operation.semanticSourceCardId || undefined,reason:operation.reason || undefined,sound:amount > 0 ? 'morale-heal' : 'morale-damage'});
+  if(amount > 0) applyMoraleHealFateConversion(ctx, player, amount, operation.sourceZone ?? findBoardCard(state, operation.sourceIid)?.z);
   return {playerIndex:player,before,after,amount};
 }
 
@@ -631,7 +630,7 @@ function resolveZoneFateMoraleDamage(ctx){
           && (whisperRozsi || target.z === entry.z)
           && cardAffiliation(target.card) === affiliation
         );
-        sourceDamage = affected.length * 3;
+        sourceDamage = affected.length * 2;
         affectedIids = affected.map(target=>String(target.card?.iid || '')).filter(Boolean);
       }else if(id === '35'){
         sourceDamage = Math.floor(Math.max(0, Number(effectiveFate(state, entry)) || 0) / 2);
@@ -670,27 +669,6 @@ function resolveZoneFateMoraleDamage(ctx){
   }
   for(let owner = 0; owner < 2; owner += 1) resolution.damage[1 - owner] += outgoing[owner];
   const bh18ZoneFateReductions = [];
-  for(let player = 0; player < 2; player += 1){
-    if(Math.max(0, Number(resolution.damage[player]) || 0) <= 0) continue;
-    for(const entry of entries.filter(item=>controllerOf(item.card) === player && runtimeRuleId(item.card) === 'bh18')){
-      const status = {
-        statusId:`bh18:${entry.card.iid}:cycle:${Number(system.cycle || 0)}`,
-        type:'ZONE_FATE_MODIFIER',
-        zone:entry.z,
-        playerIndex:1 - player,
-        value:-3,
-        sourceIid:entry.card.iid,
-        sourceController:player,
-        reason:'GENESIS_OF_ALL_INCELDOM'
-      };
-      if(!Array.isArray(state.statuses)) state.statuses = [];
-      state.statuses.push(status);
-      bh18ZoneFateReductions.push(cloneSerializable(status));
-      entry.card.counters=entry.card.counters||{};
-      entry.card.counters.bh18FateReduced=(Number(entry.card.counters.bh18FateReduced)||0)+3;
-      pushEvent(ctx,{type:'STATUS_CREATED',status:cloneSerializable(status)});
-    }
-  }
   pushEvent(ctx, {
     type:'MORALE_CYCLE_RESOLVED',
     zoneResults:cloneSerializable(resolution.zoneResults),
@@ -759,7 +737,7 @@ function resolveZoneFateMoraleDamage(ctx){
     if(!occupant?.card) continue;
     const requested = Math.max(0, Number(effectiveFate(state, occupant)) || 0);
     const before = Number(system.morale[player] || 0);
-    const after = Math.min(Number(system.maxMorale || STARTING_MORALE), before + requested);
+    const after = before + requested;
     const amount = Math.max(0, after - before);
     if(!amount) continue;
     system.morale[player] = after;
@@ -773,7 +751,7 @@ function resolveZoneFateMoraleDamage(ctx){
       sourceIid:status.sourceIid || null,overlayTargetIid:String(occupant.card.iid || ''),
       semanticSourceCardId:'bh22',reason:'A_MOONLIT_SHORE',sound:'morale-heal'
     });
-    applyMoraleHealFateConversion(ctx, player, amount);
+    applyMoraleHealFateConversion(ctx, player, amount, status.z);
   }
   return resolution;
 }
@@ -786,7 +764,7 @@ function healEventide(ctx){
       controllerOf(entry.card) === player
       && cardAffiliation(entry.card) === 'eventide'
     );
-    const amount = Math.min(sources.length, system.maxMorale - Number(system.morale[player] || 0));
+    const amount = sources.length;
     if(!amount) continue;
     const before = Number(system.morale[player] || 0);
     system.morale[player] = before + amount;
@@ -799,7 +777,7 @@ function healEventide(ctx){
       sourceIids:sources.slice(0, amount).map(entry=>String(entry.card.iid)),
       sound:'morale-heal'
     });
-    applyMoraleHealFateConversion(ctx, player, amount);
+    for(let z=0;z<state.board.length;z++) applyMoraleHealFateConversion(ctx, player, sources.filter(entry=>Number(entry.z)===z).length, z);
   }
 }
 
@@ -861,7 +839,7 @@ export function resolveMoralePressureCycle(ctx){
     for(let player = 0; player < 2; player += 1){
       const before = Number(state.moralePressure.morale[player] || 0);
       const requested = Math.max(0, Number(state.players?.[player]?.hand?.length || 0) * 2);
-      const after = Math.min(Number(state.moralePressure.maxMorale || STARTING_MORALE), before + requested);
+      const after = before + requested;
       const amount = after - before;
       state.moralePressure.morale[player] = after;
       if(amount){

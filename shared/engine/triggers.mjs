@@ -1,5 +1,6 @@
 import {boardEntries, controllerOf, findCard} from './selectors.mjs';
 import {zoneScore} from './scoring.mjs';
+import {collectAnneNewPath} from './cards/anne-new-path.mjs';
 import {
   canTarget,
   adjustedTriggeredFateHistoryGain,
@@ -49,7 +50,7 @@ function collectRiveraArrivalBonuses(state, event, operations){
 }
 
 export function collectTriggeredOperations(state, event){
-  const operations = [];
+  const operations = collectAnneNewPath(state, event);
   collectRiveraArrivalBonuses(state, event, operations);
   if(event.type === 'CARD_SET'){
     const placed = boardEntries(state).find(entry=>String(entry.card.iid) === String(event.cardIid));
@@ -422,6 +423,11 @@ export function collectTriggeredOperations(state, event){
     }
   }
   if(event.type === 'TURN_STARTED'){
+    for(const entry of boardEntries(state).filter(item=>runtimeRuleId(item.card)==='106')){
+      const turns = Math.max(0, Number(entry.card.counters?.joseFieldTurns) || 0) + 1;
+      operations.push({type:'SET_CARD_COUNTER',targetIid:entry.card.iid,counterKey:'joseFieldTurns',value:turns,sourceIid:entry.card.iid});
+      if(!entry.card.faceDown && !isEffectSourceSuppressed(state,entry)) operations.push({type:'MODIFY_MORALE',playerIndex:controllerOf(entry.card),amount:-5,sourceIid:entry.card.iid,sourceController:controllerOf(entry.card),semanticSourceCardId:'106',reason:'JOSE_LONG_GAME_COST'});
+    }
     if(state.gameSettings?.pressureCardReworks === true){
       for(const entry of boardEntries(state).filter(item=>runtimeRuleId(item.card)==='65'&&controllerOf(item.card)===Number(event.playerIndex)&&!isEffectSourceSuppressed(state,item))){
         operations.push({type:'MODIFY_MORALE',playerIndex:1-Number(event.playerIndex),amount:-2,sourceIid:entry.card.iid});

@@ -1,0 +1,13 @@
+{
+  "selectedAnimation": "sideways-tumble",
+  "presentation": "over-board",
+  "vignette": true,
+  "heading": "Don Julio",
+  "abilityName": null,
+  "resultLabel": "Rolled {roll}",
+  "resultFace": "large front face must match the authoritative roll",
+  "sequence": "after cinematic banner and animation",
+  "audience": "both players",
+  "previewSource": "plain-dice-motion.html",
+  "integrationStatus": "selected, pending game integration"
+}

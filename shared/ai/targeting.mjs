@@ -1,5 +1,6 @@
 import {cardRule} from '../engine/cards/registry.mjs';
 import {filterLakesMomentum} from './lakes-momentum-heuristics.mjs';
+import {filterEndlessSeaTiming} from './endless-sea-heuristics.mjs';
 import {legalCommandTemplates} from '../engine/legal-commands.mjs';
 import {boardEntries,controllerOf} from '../engine/selectors.mjs';
 import {filterComboPlan} from './combo-plan.mjs';
@@ -7,6 +8,13 @@ import {filterArchiveExpansionTargets} from './archive-expansion-heuristics.mjs'
 import {canUseAsConsolidationTribute,effectiveConsolidationCost,isEffectSourceSuppressed,runtimeRuleId} from '../engine/modifiers.mjs';
 // Strategic restrictions belong to the AI, not the game's legal rules.
 export function filterAiTargets(commands,state,player){
+  const reaction=state.pendingPrompt;
+  if(reaction?.type==='REACTION' && Number(reaction.playerIndex)===Number(player)){
+    const source=boardEntries(state).find(entry=>entry.card.iid===reaction.sourceIid)?.card;
+    if(reaction.hiddenSource===true || source?.faceDown===true){
+      return commands.filter(command=>command.type==='ANSWER_PROMPT' && command.payload?.choice==='DECLINE');
+    }
+  }
   if(!state.pendingPrompt && !state.pendingHandLimit){
     const entries=boardEntries(state);
     // Automatic face-up effects settle before any strategic action. Returning
@@ -32,6 +40,7 @@ export function filterAiTargets(commands,state,player){
     });
   }
   commands=filterLakesMomentum(commands,state,player);
+  commands=filterEndlessSeaTiming(commands,state,player);
   commands=filterArchiveExpansionTargets(commands,state,player);
   commands=chooseWintertideSearch(commands,state,player);
   commands=keepPatienceBurstTogether(commands,state,player);

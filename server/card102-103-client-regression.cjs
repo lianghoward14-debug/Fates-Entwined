@@ -7,6 +7,6 @@ assert(ctx.hasAuthoritativeWhenSetEffect({id:'103'}));
 assert(ctx.canUseManualCharacterEffect({id:'102',type:'Improvisor',faceDown:true}));
 assert(!ctx.canUseManualCharacterEffect({id:'102',type:'Improvisor',_blackRoseUsed:true}));
 const a=core.indexOf("    case '103':",core.indexOf('async function triggerCharacterEffect')),b=core.indexOf("    case 'bh19':",a);
-let drawn=0;Object.assign(ctx,{cp:0,card:{id:'103',iid:'general'},G:{_moralePressure:{morale:[50,100]}},showSangrePorVictoriaMoralePicker:(p,confirm)=>confirm(30),drawCard:async(p,n)=>{drawn+=n},renderHand:()=>{}});
+let called=0,discarded=[];Object.assign(ctx,{cp:0,card:{id:'103',iid:'general'},forEachBoardCard:fn=>[{iid:'high',owner:0,fate:7},{iid:'low',owner:0,fate:6},{iid:'enemy',owner:1,fate:9}].forEach(c=>fn(c,0,1,1)),markInitialEffectResolved:()=>{},getEffectiveFate:c=>c.fate,discardBoardCard:c=>discarded.push(c.iid)});ctx.window.resolveHopliteCallToArms=async()=>called++;
 vm.runInContext("async function run(){switch('103'){"+core.slice(a,b)+'}}',ctx);
-ctx.run().then(()=>{assert.equal(ctx.G._moralePressure.morale[0],20);assert.equal(drawn,2);console.log('Card 102 activation eligibility and card 103 timing/payment/draw passed');}).catch(e=>{console.error(e);process.exitCode=1;});
+ctx.run().then(async()=>{assert.deepEqual(discarded,['high']);assert.equal(called,1);ctx.forEachBoardCard=fn=>fn({iid:'low',owner:0,fate:6},0,1,1);discarded=[];await ctx.run();assert.deepEqual(discarded,[]);assert.equal(called,2,'Call to Arms must still open with no eligible discards');console.log('Anne activation and Santiago legacy Call to Arms with and without eligible discards passed');}).catch(e=>{console.error(e);process.exitCode=1;});

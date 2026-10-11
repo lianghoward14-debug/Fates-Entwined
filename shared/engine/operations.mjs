@@ -8,6 +8,7 @@ import {
   effectiveConsolidationCost,
   inspectOperation,
   isEffectImmutable,
+  isImmuneToOpponentEffects,
   isEffectSourceSuppressed,
   runtimeRuleId,
   structuralCardType
@@ -25,6 +26,7 @@ import {
 } from './selectors.mjs';
 import {nextInt, shuffleInPlace} from './rng.mjs';
 import {collectTriggeredOperations} from './triggers.mjs';
+import {collectAnneNewPath} from './cards/anne-new-path.mjs';
 import {
   recordLandscapeRuleEvent,
   queueLandscapeRuleEventFrame,
@@ -63,9 +65,40 @@ export function emitRuleEvent(ctx, event){
   const followUps = collectTriggeredOperations(ctx.state, event);
   for(const operation of followUps) applyOperation(ctx, operation);
   queueLandscapeRuleEventFrame(ctx.state, event);
+  if(event.type === 'CARD_SET' && event.consolidated === true){
+    const placed = findBoardCard(ctx.state,event.cardIid);
+    if(placed) for(const source of boardEntries(ctx.state)){
+      const type = source.card.counters?.jorgeDeclaredType;
+      if(String(source.card.id) !== '105' || !type || source.card.iid === placed.card.iid
+        || Number(source.card.counters?.jorgeTriggerTurn) !== Number(ctx.state.turn)
+        || controllerOf(source.card) === controllerOf(placed.card)
+        || effectiveCardType(ctx.state,placed.card) !== type || isEffectSourceSuppressed(ctx.state,source)) continue;
+      // Record the trigger without replaying Jorge's declaration presentation.
+      ctx.events.push({type:RULE_EVENT_TYPES.EFFECT_ACTIVATED,sourceIid:source.card.iid,
+        playerIndex:controllerOf(source.card),timing:'OPPONENT_CONSOLIDATION',suppressActivationCinematic:true});
+      ctx.state.effectStack.push({frameId:'jorge-call:'+source.card.iid+':'+placed.card.iid+':'+ctx.state.revision,
+        kind:'CARD_EFFECT',sourceIid:source.card.iid,sourceCardId:'105',sourceType:'Improvisor',
+        controller:controllerOf(source.card),timing:'OPPONENT_CONSOLIDATION',instructionIndex:0,waitingFor:null,locals:{},
+        program:[{kind:'SELECT_HOPLITE_CALL',local:'callCardId',unconditional:true},{kind:'RESOLVE_HOPLITE_CALL',cardId:'$callCardId'}]});
+      delete source.card.counters.jorgeDeclaredType;
+      delete source.card.counters.jorgeTriggerTurn;
+    }
+  }
 }
 
 const emit = emitRuleEvent;
+
+// Some status and morale producers publish presentation events directly.
+// Drain them as well as rule events so every effect family can satisfy Anne.
+export function resolveAnneActionEvents(ctx){
+  const seen=ctx._anneSeenEvents ||= new Set();
+  for(let index=0;index<ctx.events.length;index++){
+    const event=ctx.events[index];
+    if(seen.has(event)) continue;
+    seen.add(event);
+    for(const operation of collectAnneNewPath(ctx.state,event)) applyOperation(ctx,operation);
+  }
+}
 
 function cardSource(ctx, operation){
   return operation.sourceIid ? findCard(ctx.state, operation.sourceIid)?.card || null : null;
@@ -356,6 +389,10 @@ function setCard(ctx, operation){
   if(!card.counters || typeof card.counters !== 'object') card.counters = {};
   card.counters.fieldEnteredTurn = Number(ctx.state.turn) || 0;
   delete card.counters.whenSetResolved;
+  card.counters.joseFieldTurns = 0;
+  delete card.counters.jorgeDeclaredType;
+  delete card.counters.jorgeTriggerTurn;
+  delete card.counters.anneDeclarations;
   ctx.state.board[z][r][c] = card;
   if(String(card.type || '') === 'Supporter'){
     ctx.state.supportersSetTotal[playerIndex] += 1;
@@ -756,6 +793,29 @@ function commitPermanentFate(card, nextValue){
   return {before, after};
 }
 
+// Keep the serialized status/counter names for existing matches. Rivera copies
+// positive gains; he never cancels the original gain or copies his own rider.
+function copyRiveraGain(ctx,targetIid,gain){
+  if(!(gain>0))return;
+  const sources=ctx.state.statuses.filter(status=>status.statusType==='RIVERA_FATE_TRANSFER'
+    && Number(status.playerIndex)===ctx.state.activePlayer
+    && Number(status.activeFromTurn)<=ctx.state.turn && Number(status.remainingTargetTurns)>0);
+  const seen=new Set();
+  for(const status of sources){
+    if(String(status.sourceIid)===String(targetIid) || seen.has(status.sourceIid))continue;
+    const source=findBoardCard(ctx.state,status.sourceIid);
+    if(!source || isEffectSourceSuppressed(ctx.state,source))continue;
+    seen.add(status.sourceIid);
+    changeFate(ctx,{type:'MODIFY_FATE',targetIid:status.sourceIid,amount:gain,
+      sourceIid:status.sourceIid,sourceController:status.sourceController,
+      permanentFateGain:false,reason:'RIVERA_FATE_TRANSFER',semanticSourceCardId:'104'},false);
+    source.card.counters ||= {};
+    source.card.counters.riveraFateTransferred=Math.max(0,Number(source.card.counters.riveraFateTransferred)||0)+gain;
+    ctx.events.push({type:'CARD_COUNTER_SET',cardIid:source.card.iid,counterKey:'riveraFateTransferred',
+      value:source.card.counters.riveraFateTransferred,sourceIid:source.card.iid});
+  }
+}
+
 function changeFate(ctx, operation, absolute){
   const targetIids = fateTargetIids(operation);
   if(!targetIids.length) return {cardIids:[], changes:[]};
@@ -798,7 +858,7 @@ function changeFate(ctx, operation, absolute){
       throw operationError('INVALID_FATE', 'gameplay Fate must remain an integer');
     }
     const targetController = controllerOf(entry.card);
-    const chineseMacArthurSources = !isEffectImmutable(entry.card) && transformed > beforeStored
+    const chineseMacArthurSources = operation.reason !== 'RIVERA_FATE_TRANSFER' && !isEffectImmutable(entry.card) && transformed > beforeStored
       && String(operation.reason || '').toUpperCase() !== 'CHINESE_MACARTHUR_BONUS'
       ? boardEntries(ctx.state).filter(sourceEntry=>
           controllerOf(sourceEntry.card) === targetController
@@ -811,7 +871,13 @@ function changeFate(ctx, operation, absolute){
     const chineseMacArthurPresentationSourceIids = chineseMacArthurSources.flatMap(sourceEntry=>
       [String(sourceEntry.card.iid || '')]
     );
+    const gain = transformed + chineseMacArthurBonus - beforeStored;
     commitPermanentFate(entry.card, transformed + chineseMacArthurBonus);
+    if(operation.reason === 'ANNE_NEW_PATH'){
+      entry.card.counters ||= {};
+      entry.card.counters.anneFateGained=Number(entry.card.counters.anneFateGained||0)+Math.max(0,gain);
+    }
+    if(operation.reason!=='RIVERA_FATE_TRANSFER')copyRiveraGain(ctx,targetIid,gain);
     const after = entry.zone === 'board'
       ? effectiveFate(ctx.state, findCard(ctx.state, targetIid))
       : Math.max(0, Number(entry.card.currentFate) || 0);
@@ -822,6 +888,7 @@ function changeFate(ctx, operation, absolute){
       after,
       amount:after - before,
       sourceIid:operation.sourceIid || null,
+      sourceController:operation.sourceController,
       semanticSourceCardId:operation.semanticSourceCardId || undefined,
       reason:operation.reason || '',
       presentationDelayMs:Math.max(0, Number(operation.presentationDelayMs) || 0),
@@ -945,16 +1012,6 @@ function transferCards(ctx, operation){
   const entries = targetIids.map(iid=>findCard(ctx.state, iid));
   if(entries.some(entry=>!entry)) throw operationError('CARD_NOT_FOUND', 'a transferred card no longer exists');
   entries.filter(entry=>entry.zone==='board').forEach(entry=>assertZoeFieldDepartureAllowed(ctx.state,entry));
-  if(ctx.state.landscapeId === 'igb4'
-    && destinationPile !== 'discard'
-    && entries.some(entry=>entry.zone === 'discard')){
-    ctx.events.push({
-      type:'TRANSFER_BLOCKED',
-      reason:'LANDSCAPE_IGB4_DISCARD_RECOVERY_BLOCK',
-      targetIids
-    });
-    return {transferredIids:[], blocked:true};
-  }
   const searchedDeck = entries.some(entry=>entry.zone === 'deck');
   const transferred = [];
   for(const iid of targetIids){
@@ -1912,16 +1969,6 @@ function randomTransferCards(ctx, operation){
   if(!['deck', 'discard'].includes(sourcePile)){
     throw operationError('INVALID_SOURCE', 'random transfer source must be deck or discard');
   }
-  if(ctx.state.landscapeId === 'igb4' && sourcePile === 'discard'){
-    ctx.events.push({
-      type:'TRANSFER_BLOCKED',
-      reason:'LANDSCAPE_IGB4_DISCARD_RECOVERY_BLOCK',
-      playerIndex,
-      sourcePile,
-      destinationPile
-    });
-    return {selectedIids:[], sourcePile, destinationPile, blocked:true};
-  }
   if(!['hand', 'deckTop', 'deckBottom', 'deckRandom'].includes(destinationPile)){
     throw operationError('INVALID_DESTINATION', 'random transfer destination is invalid');
   }
@@ -2184,6 +2231,7 @@ function applyChineseMacArthurToDerivedAuraGains(ctx, beforeSnapshot){
       const potency = 1; // Hsei-Ling's rider is not explicitly permanent.
       const bonus = item.sources.length * potency;
       commitPermanentFate(item.entry.card, Math.max(0, Number(item.entry.card.currentFate) || 0) + bonus);
+      copyRiveraGain(ctx,item.entry.card.iid,bonus);
       const after = Math.max(0, Number(effectiveFate(ctx.state, findCard(ctx.state, item.entry.card.iid))) || 0);
       emit(ctx, {
         type:RULE_EVENT_TYPES.FATE_CHANGED,
@@ -2271,6 +2319,19 @@ export function applyOperation(ctx, operation){
     ctx._operationDepth = depth;
   }
   if(depth === 0 && beforeSnapshot) applyChineseMacArthurToDerivedAuraGains(ctx, beforeSnapshot);
+  if(depth===0 && beforeSnapshot){
+    const gains=boardEntries(ctx.state).map(entry=>{
+      const stored=Math.max(0,Number(entry.card.currentFate)||0);
+      const previous=beforeSnapshot.get(String(entry.card.iid)) || {stored,effective:stored};
+      // Exclude printed/previously held Fate on arrival and permanent gains
+      // already handled above. Only newly acquired continuous bonuses count.
+      return {iid:entry.card.iid,gain:effectiveFate(ctx.state,entry)-previous.effective-(stored-previous.stored)};
+    });
+    for(const {iid,gain} of gains)copyRiveraGain(ctx,iid,gain);
+    if(gains.some(item=>item.gain !== 0)){
+      for(const followUp of collectAnneNewPath(ctx.state,{type:'ANNE_FATE_EFFECT',sourceIid:operation.sourceIid || null,sourceController:operation.sourceController})) applyOperation(ctx,followUp);
+    }
+  }
   if(suppressedBefore && !ctx._emittingHenrySuppression){
     const newlySuppressed = boardEntries(ctx.state).filter(entry=>
       !suppressedBefore.has(entry.card.iid)
@@ -2292,5 +2353,6 @@ export function applyOperation(ctx, operation){
     }finally{ctx._emittingHenrySuppression=false;}
   }
   if(depth === 0) refreshMoralePressure(ctx);
+  if(depth === 0) resolveAnneActionEvents(ctx);
   return result;
 }

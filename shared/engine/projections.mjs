@@ -1,6 +1,11 @@
 import {cloneSerializable} from './serialization.mjs';
 import {effectiveFate, isEffectSourceSuppressed} from './modifiers.mjs';
 import {zoneScore} from './scoring.mjs';
+import {flowerPickingStatus} from './cards/flower-picking.mjs';
+
+function flowerPickingProjection(state, card){
+  return String(card.id) === '84' ? {flowerPickingStatus:flowerPickingStatus(state, card)} : {};
+}
 
 function hiddenSource(state, iid, viewer){
   const source = state.board.flat(2).find(card=>card && String(card.iid) === String(iid));
@@ -14,7 +19,7 @@ function boardProjection(state, viewer){
       iid:card.iid, owner:card.owner, controller:card.controller, faceDown:true, hidden:true,
       name:'Face-down card', img:'back.png', statuses:[], counters:{}, _authoritativeFate:fate
     };
-    const projected = {...cloneSerializable(card), _authoritativeFate:fate};
+    const projected = {...cloneSerializable(card), ...flowerPickingProjection(state, card), _authoritativeFate:fate};
     projected.statuses ||= [];
     if(isEffectSourceSuppressed(state, {card, z, r, c}) && !projected.statuses.includes('EFFECTS_SUPPRESSED')) projected.statuses.push('EFFECTS_SUPPRESSED');
     return projected;
@@ -51,7 +56,8 @@ function promptProjection(prompt, viewerIndex, state){
     promptId:prompt.promptId,
     type:prompt.type,
     playerIndex:prompt.playerIndex,
-    waitingForOpponent:true
+    waitingForOpponent:true,
+    ...(prompt.context==='JORGE_CALL_TO_ARMS'?{context:'JORGE_CALL_TO_ARMS'}:{})
   };
 }
 
@@ -70,10 +76,10 @@ function publicPlayer(player){
   };
 }
 
-function privatePlayer(player){
+function privatePlayer(player, state){
   return {
     ...publicPlayer(player),
-    hand:cloneSerializable(player.hand)
+    hand:player.hand.map(card=>({...cloneSerializable(card), ...flowerPickingProjection(state, card)}))
   };
 }
 
@@ -123,11 +129,11 @@ export function projectStateForPlayer(state, playerIndex){
     aiTakeoverSeats:cloneSerializable(state.aiTakeoverSeats || []),
     warfrontForfeit:cloneSerializable(state.warfrontForfeit || null),
     moralePressure:cloneSerializable(state.moralePressure ?? null),
-    players:state.players.map((player, index)=>
-      index === viewer || state.landscapeId === 'igb12'
-        ? privatePlayer(player)
-        : publicPlayer(player)
-    ),
+    players:state.players.map((player, index)=>({
+      ...(index === viewer || state.landscapeId === 'igb12' ? privatePlayer(player, state) : publicPlayer(player)),
+      ...(index === viewer ? {remainingDeck:cloneSerializable(player.deck).sort((a,b)=>
+        String(a.id).localeCompare(String(b.id), 'en', {numeric:true}) || String(a.iid).localeCompare(String(b.iid)))} : {})
+    })),
     board:boardProjection(state, viewer),
     zoneScores:state.board.map((_, z)=>[zoneScore(state,z,0), zoneScore(state,z,1)]),
     geometry:geometryProjection(state,viewer),
@@ -177,7 +183,7 @@ export function projectStateForSpectator(state, teammateIndex = null){
     turnTimerSeconds:state.turnTimerSeconds,
     landscapeState:cloneSerializable(state.landscapeState ?? null),
     moralePressure:cloneSerializable(state.moralePressure ?? null),
-    players:state.players.map((player,index)=>index === teammateIndex ? privatePlayer(player) : publicPlayer(player)),
+    players:state.players.map((player,index)=>index === teammateIndex ? privatePlayer(player, state) : publicPlayer(player)),
     board:boardProjection(state, viewer),
     zoneScores:state.board.map((_,z)=>[zoneScore(state,z,0),zoneScore(state,z,1)]),
     geometry:geometryProjection(state,viewer),
@@ -202,6 +208,7 @@ export function projectEvents(events, playerIndex){
       && (!event.hiddenSource || Number(event.sourceController) === Number(playerIndex))
       && !(String(event.semanticSourceCardId||'')==='102'
         && String(event.type||'')!=='HIDDEN_BOMB_EXPLODED'
+        && !(event.type==='CARD_DISCARDED' && event.reason==='THE_BLACK_ROSE_BOMB')
         && Number(event.sourceController) !== Number(playerIndex)))
     .map(event=>{
       const clone = cloneSerializable(event);

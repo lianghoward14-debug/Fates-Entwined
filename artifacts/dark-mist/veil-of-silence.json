@@ -1,0 +1,10 @@
+{
+  "id": "concept-veil-of-silence",
+  "name": "Veil of Silence",
+  "type": "Supporter",
+  "status": "theoretical-preview-only",
+  "effect": "For the rest of your turn, conceal your actions from your opponent. Effects resolve normally, but no action cinematics, activation effects, or visible card changes are shown to them. At the end of your turn, clear the mist and reveal the current field together, without replaying concealed animations.",
+  "presentation": "Cover the controller's field and cards as seen by the opponent. The controller retains their normal view. Freeze the opponent-visible field snapshot before subsequent actions; never allow mist transparency to reveal live updates.",
+  "pendingDesign": ["Fate value and cost", "Treatment of mandatory opponent decisions and shared outcomes"],
+  "variants": ["Rolling charcoal", "Midnight tendrils", "Ink eclipse"]
+}

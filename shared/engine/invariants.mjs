@@ -171,9 +171,7 @@ export function collectInvariantViolations(state){
           violations.push(issue(`moralePressure.${field}`, 'must contain two non-negative integer values'));
         }
       }
-      if(Array.isArray(system.morale) && system.morale.some(value=>value > Number(system.maxMorale || 0))){
-        violations.push(issue('moralePressure.morale', 'cannot exceed maxMorale'));
-      }
+      // maxMorale is the starting baseline; healing may exceed it.
       for(const field of ['ledger','generated']){
         if(!Array.isArray(system[field]) || system[field].length !== 2 || system[field].some(value=>!Array.isArray(value))){
           violations.push(issue(`moralePressure.${field}`, 'must contain two contribution arrays'));

@@ -1,5 +1,13 @@
 (function(){'use strict';if(window.FateSignatureActivationFx)return;
 const studies={
+'107':['107','Anne Stone (Revolutionary)','Strategy of a Revolution','Knight’s Gambit','approved','#99d5ba',2000],
+'104':['104','Rivera (Revolutionary)','A Brighter Future','Palms of Caribbea — sea breeze','approved','#8fc9dd',2000],
+'105':['105','Jorge Alvarez (Revolutionary)','A Caribbea for All','Rise Together — single resolve','approved','#d4b47b',2000],
+'106':['106','Jose Garcia','The Long Game','Sands of patience','approved','#baa7d9',2000],
+
+'101':['101','Jorge Alvarez (El Hombre Piña)','El Viaje Del Hombre Piña','Pineapple sunrise','approved','#b7dfa7',2000],
+'102':['102','Anne Stone (Anarchist)','The Black Rose','Old-fashioned bomb','approved','#d393a7',2000],
+'103':['103','Santiago Alvarez (General)','Sangre Por Victoria','Blood on the blade','approved','#ee847c',2000],
 "bh15":["bh15","Hsei-Ling","The Chinese MacArthur","Cardinal convergence","approved","#a8c9b4",2000],
 "bh03":["bh03","Ali, The Indomitable","He, Who is Unyielding","Unbreakable — three arrow strikes","ali_unbreakable","#b7cdd5",2000],
 "77":["77","Duncan Heyward","A Hundred Lives of Men","Canyon river","approved","#cbb6a3",2000],
@@ -93,7 +101,7 @@ function frame(x,y,w,h,col,a){line([[x,y],[x+w,y],[x+w,y+h],[x,y+h]],col,a,1.5,t
 function draw(){const d=study,k=d[4],col=cardPalettes[id]?.[0]||d[5],gold=cardPalettes[id]?.[1]||'#efd29a',x=W/2,y=H*.50,s=Math.min(82,W*.235)*(["03","27","48"].includes(id)?1.45:1),a=ease(seg(t,0,.2))*(1-ease(seg(t,.8,1))),u=ease(seg(t,.08,.58));ctx.clearRect(0,0,W,H);
 
 if(false){ring(x,y,s*.7,s*.7,col,.65);txt('ACTIVATE EFFECT',x,y+5,18,gold);return;}
-if(window.FateApprovedActivationArt?.handles(id)){window.FateApprovedActivationArt.draw(ctx,id,t,W,H);return;}
+if(window.FateApprovedActivationArt?.handles(id)){window.FateApprovedActivationArt.draw(ctx,id,t,W,H,options);return;}
 glow(x,y,s*1.9,col,a*.13);
 if(k==='ali_unbreakable'){
 ctx.save();ctx.translate(x,y);ctx.scale(1.3,1.3);
@@ -200,8 +208,8 @@ function playPlacement(card,options={}){
  return playCoordinator(card,{...options,placement:true});
 }
 function playCoordinator(card,options={}){
- if(!(options.placement===true && studies[String(card?.id||'')] && ['Dauntless','Improvisor'].includes(card?.type)) && !['01','bh07','bh11','10','19','bh12','11','bh02','bh08','57','12','23','15','34','77'].includes(String(card?.id||'')))return false;
- if(card.faceDown || (typeof window.isHiddenEffectForViewer==='function' && window.isHiddenEffectForViewer(card)))return false;
+ if(!(options.placement===true && studies[String(card?.id||'')] && ['Dauntless','Improvisor'].includes(card?.type)) && !['106','01','bh07','bh11','10','19','bh12','11','bh02','bh08','57','12','23','15','34','77'].includes(String(card?.id||'')))return false;
+ if(typeof window.isHiddenEffectForViewer==='function' ? window.isHiddenEffectForViewer(card) : card.faceDown)return false;
  if(document.documentElement.classList.contains('fate-animations-off') || document.documentElement.classList.contains('fate-super-performance-mode') || document.hidden)return false;
  const overlay=document.createElement('div');overlay.style.cssText='position:fixed;inset:0;pointer-events:none;z-index:999998;opacity:1;visibility:visible';overlay.setAttribute('aria-hidden','true');
  const fx=mount(overlay,card,{duration:2000,sfx:options.sfx!==false});if(!fx)return false;

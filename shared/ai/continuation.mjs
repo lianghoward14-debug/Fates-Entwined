@@ -29,7 +29,7 @@ export function completeContinuation(initial,player,{budget=48,personality,rootT
   function settle(s,allowance,depth){
     const leaf=()=>({state:s,score:evaluatePosition(s,player,personality),variation:[]});
     if(!pendingOf(s) || s.outcome || allowance<1 || depth<1)return leaf();
-    const actor=actorOf(s),priority=createCommandOrderer(s,actor);
+    const actor=actorOf(s),priority=createCommandOrderer(s,actor,actor===player?personality:undefined);
     const ranked=filterAiTargets(legalCommandTemplates(s,actor),s,actor).filter(c=>c.type!=='CONCEDE')
       .map(command=>({command,score:priority(command)}))
       .sort((a,b)=>b.score-a.score).map(row=>row.command);
@@ -72,12 +72,12 @@ export function completeContinuation(initial,player,{budget=48,personality,rootT
     let legal=filterAiTargets(legalCommandTemplates(state,actor),state,actor).filter(c=>c.type!=='CONCEDE');
     const end=legal.find(c=>c.type==='END_TURN');
     if(!pending && actions>=Math.min(maxActions,turnActionHorizon(legal)) && end)legal=[end];
-    const priority=createCommandOrderer(state,actor);
+    const priority=createCommandOrderer(state,actor,actor===player?personality:undefined);
     const ranked=legal.map(command=>({command,priority:priority(command)})).sort((a,b)=>b.priority-a.priority);
     const selected=[],families=new Set();
     for(const {command} of ranked){
       const p=command.payload || {};
-      const family=[command.type,p.cardIid || p.sourceIid || p.reactionIid || '',p.choice || '',p.selectedIid || p.targetIid || '',
+      const family=[command.type,p.cardIid || p.sourceIid || p.reactionIid || p.cardId || '',p.choice || '',p.selectedIid || p.targetIid || '',
         [...(p.selectedIids || [])].sort().join(','),p.destination?.z ?? ''].join(':');
       if(families.has(family))continue;
       families.add(family);selected.push(command);

@@ -52,8 +52,8 @@ function ruleForCard(card, state){
   return cardRule(card?.id, state);
 }
 
-function supporterActivationAvailable(state, card, playerIndex){
-  if(landscapeSupporterEffectLimitReached(state, card, playerIndex)) return false;
+function supporterActivationAvailable(state, card, playerIndex, resuming = false){
+  if(!resuming && landscapeSupporterEffectLimitReached(state, card, playerIndex)) return false;
   if(effectiveCardType(state, card) !== 'Supporter') return true;
   const block = state.statuses.find(status=>
     status?.type === 'TIMED_PLAYER_STATUS'
@@ -333,7 +333,7 @@ export function legalCommandTemplates(state, playerIndex){
       const preview = placementPreview(state, player, card, destination);
       if(!openingChoiceAvailable(preview.state, preview.card, player, 'WHEN_SET')) continue;
       commands.push({type:'SET_CARD', payload:{cardIid:card.iid, destination}});
-      if(String(card.id||'')==='102') commands.push({type:'SET_CARD',payload:{cardIid:card.iid,destination,faceDown:true}});
+      if(['102','104','105','107'].includes(String(card.id||''))) commands.push({type:'SET_CARD',payload:{cardIid:card.iid,destination,faceDown:true}});
     }
   }
   const moraleAllowsConsolidation = moraleConsolidationsUsed(state, player) < moraleConsolidationLimit(state, player);
@@ -425,7 +425,7 @@ export function legalCommandTemplates(state, playerIndex){
           && Number(status.zone) === destination.z
           && Number(status.remaining || 0) > 0
         );
-        if(permission||String(card.id||'')==='102'){
+        if(permission||['102','104','105','107'].includes(String(card.id||''))){
           commands.push({
             type:'CONSOLIDATE_CARD',
             payload:{
@@ -462,7 +462,14 @@ export function legalCommandTemplates(state, playerIndex){
     }
     const rule = ruleForCard(entry.card, state);
     const hiddenWhenSet = entry.card.faceDown === true && !entry.card.counters?.whenSetResolved && rule?.timings?.includes('WHEN_SET');
-    if((rule?.timings?.includes('ACTIVATE') || hiddenWhenSet)
+    const deferredPicker = (state.deferredPickerEffects || []).some(item=>item.turn === state.turn
+      && item.controller === player && item.frame.sourceIid === entry.card.iid);
+    if(deferredPicker && !isEffectSourceSuppressed(state, entry)
+      && !zoneActionBlock(state, player, entry.z) && supporterActivationAvailable(state, entry.card, player, true)){
+      commands.push({type:'ACTIVATE_EFFECT', cardId:runtimeRuleId(entry.card), manualOnly:true,
+        deferredPicker:true, payload:{sourceIid:entry.card.iid}});
+    }
+    if(!deferredPicker && (rule?.timings?.includes('ACTIVATE') || hiddenWhenSet)
       && rule.program
       && !isEffectSourceSuppressed(state, entry)
       && !zoneActionBlock(state, player, entry.z)){
@@ -513,6 +520,13 @@ export function legalCommandTemplates(state, playerIndex){
         for(const destination of openBoardDestinations(state)){
           commands.push({type:'MOVE_CARD', payload:{cardIid:entry.card.iid, destination}});
         }
+      }
+    }
+  }
+  if(state.landscapeId === 'igb4' && Number(state.landscapeState.twilightRecoveryUses?.[player] || 0) < 1){
+    for(const card of state.players[player].discard){
+      if(['Initiator','Coordinator','Dauntless','Improvisor'].includes(String(card.type))){
+        commands.push({type:'ACTIVATE_LANDSCAPE', payload:{targetIid:card.iid}});
       }
     }
   }

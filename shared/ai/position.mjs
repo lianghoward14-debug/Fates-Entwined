@@ -7,6 +7,8 @@ import {cardRule} from '../engine/cards/registry.mjs';
 import {resourcePotential} from './resources.mjs';
 import {majaResponsePotential} from './maja-heuristics.mjs';
 import {contestedSpaceValue} from './contested-space.mjs';
+import {callToArmsReserveValue} from './recruitment-timing.mjs';
+import {recruitmentContext} from './recruitment-context.mjs';
 
 // This forecasts a calculation on the current board, not the opponent's next
 // turn. Callers must not interpret it as forced lethal. Uses the real rules,
@@ -59,6 +61,9 @@ export function evaluatePosition(state, player, preferences=personalityFor()) {
   // Excess Fate has diminishing territorial value. Actual Morale damage is
   // evaluated separately below, so a large lead still matters when damaging.
   let score = territorialValue(report.margins,late);
+  if(Number(state.supportCompanyUses?.[player] || 0)===0){
+    score+=callToArmsReserveValue(recruitmentContext(state,player,preferences,report));
+  }
   score += contestedSpaceValue(state,player)*preferences.zones;
   const wins = report.margins.filter(v=>v>0).length;
   const losses = report.margins.filter(v=>v<0).length;

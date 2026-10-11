@@ -18,6 +18,12 @@ const sample = ()=>JSON.parse(JSON.stringify(serverContext.turnClockMessage(acto
 assert.equal(sample().remainingMs, 180000);
 now += 5000;
 assert.equal(sample().remainingMs, 175000);
+actor.state.pendingPrompt = {promptId:'picker'};
+assert.equal(sample().paused, false, 'an open picker must not pause the server clock');
+now += 1000;
+assert.equal(sample().remainingMs,174000);
+actor.state.pendingPrompt = null;
+now -= 1000;
 
 function browser(){
   let mono = 0;

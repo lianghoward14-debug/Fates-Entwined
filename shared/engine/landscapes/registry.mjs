@@ -2,7 +2,7 @@ const LANDSCAPE_RULES = Object.freeze({
   igb1:{kind:'NO_EFFECT'},
   igb2:{kind:'TURN_CONSOLIDATION_REWARD', resolutionTurn:14, amount:24},
   igb3:{kind:'CONSOLIDATION_ZONE_FATE_BONUS', amount:4, beforeTurn:10},
-  igb4:{kind:'DISCARD_RECOVERY_BLOCK'},
+  igb4:{kind:'CHARACTER_DISCARD_RECOVERY', oncePerGame:true},
   igb5:{kind:'LEADER_SET_FATE_BONUS', amount:2},
   igb6:{kind:'CARD_SET_FATE_BONUS', affiliation:'reality', amount:3},
   igb7:{kind:'EVENTIDE_MOVEMENT'},

@@ -3,7 +3,7 @@ import {createInitialState, reduceCommand, cardRule, isImmuneToOpponentEffects} 
 import {command} from './test-helpers.mjs';
 
 const definitions=[
-  {id:'101',name:'Jorge Alvarez (El Hombre Piña)',ability:'El Viaje Del Hombre Piña',type:'Coordinator',aff:'eventide',fate:10,cost:2,rarity:'star'},
+  {id:'101',name:'Jorge Alvarez (El Hombre Piña)',ability:'El Viaje Del Hombre Piña',type:'Coordinator',aff:'eventide',fate:10,cost:2,rarity:'square'},
   {id:'05',name:'Friendly Card',type:'Supporter',aff:'third_great_war',fate:1,cost:0}
 ];
 const state=createInitialState({matchId:'card-101',seed:'card-101',handSize:0,activePlayer:0,

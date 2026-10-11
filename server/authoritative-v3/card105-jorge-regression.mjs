@@ -1,0 +1,67 @@
+import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+import {projectEvents} from '../../shared/engine/projections.mjs';
+import {createInitialState,reduceCommand,applyOperation,legalCommandTemplates,projectStateForPlayer} from '../../shared/engine/index.mjs';
+const require=createRequire(import.meta.url),defs=require('../fate-card-catalog.js').getCardCatalog().cards;
+assert.equal(defs.find(c=>c.id==='105').rarity,'triangle');
+for(const owner of [0,1])for(const hidden of [false,true]){
+ let state=createInitialState({matchId:`jorge-${owner}-${hidden}`,seed:'jorge',handSize:99,activePlayer:owner,cardDefinitions:defs,players:[0,1].map(p=>({id:'p'+p,deckIds:['105','32','32','32','32','32','32']}))});
+ let n=0;const row=owner===0?2:0,enemy=1-owner;
+ const source=state.players[owner].hand.find(c=>c.id==='105');
+ const op=o=>applyOperation({state,events:[],ruleEvents:[]},o);
+ op({type:'SET_CARD',playerIndex:owner,cardIid:source.iid,destination:{z:0,r:row,c:0},faceDown:hidden});
+ function send(p,type,payload){const r=reduceCommand(state,{commandId:String(++n),matchId:state.matchId,expectedRevision:state.revision,type,payload},{playerId:'p'+p});assert.equal(r.ok,true,JSON.stringify(r.rejection));state=r.state;return r;}
+ send(owner,'ACTIVATE_EFFECT',{sourceIid:source.iid,userActivated:true});
+ assert.equal(state.pendingPrompt.options.length,4);
+ send(owner,'ANSWER_PROMPT',{promptId:state.pendingPrompt.promptId,choice:'Improvisor'});
+ assert.equal(state.board[0][row][0].faceDown,hidden);
+ const repeat=reduceCommand(state,{commandId:String(++n),matchId:state.matchId,expectedRevision:state.revision,type:'ACTIVATE_EFFECT',payload:{sourceIid:source.iid,userActivated:true}},{playerId:'p'+owner});
+ assert.equal(repeat.ok,false);assert.equal(repeat.rejection.code,'USE_LIMIT_REACHED');
+ send(owner,'END_TURN',{});
+ assert(!legalCommandTemplates(state,owner).some(c=>c.type==='ACTIVATE_EFFECT'));
+ const enemyCard=state.players[enemy].hand.find(c=>c.id==='105');
+ const tribute=state.players[enemy].hand.find(c=>c.id==='32');
+ op({type:'SET_CARD',playerIndex:enemy,cardIid:tribute.iid,destination:{z:1,r:enemy===0?2:0,c:0}});
+ const triggered=send(enemy,'CONSOLIDATE_CARD',{cardIid:enemyCard.iid,tributeIids:[tribute.iid],destination:{z:1,r:enemy===0?2:0,c:0},faceDown:hidden});
+ const activations=triggered.events.filter(e=>e.type==='EFFECT_ACTIVATED' && e.sourceIid===source.iid && e.timing==='OPPONENT_CONSOLIDATION');
+ assert.equal(activations.length,1,'automatic Call to Arms records its trigger');
+ assert.equal(activations[0].suppressActivationCinematic,true,'automatic trigger opens Call to Arms without Jorge presentation');
+ if(hidden)assert(!projectEvents(triggered.events,enemy).some(e=>e.type==='EFFECT_ACTIVATED' && e.sourceIid===source.iid),'hidden trigger remains private');
+ assert.equal(state.pendingPrompt?.title,'Call to Arms');assert.equal(state.pendingPrompt.playerIndex,owner);
+ const waiting=projectStateForPlayer(state,enemy).pendingPrompt;
+ assert.equal(waiting.context,'JORGE_CALL_TO_ARMS');assert.equal(waiting.waitingForOpponent,true);
+ assert.equal(waiting.options,undefined);assert.equal(waiting.sourceIid,undefined);
+ send(owner,'ANSWER_PROMPT',{promptId:state.pendingPrompt.promptId,choice:state.pendingPrompt.options[0].value});
+ assert.equal(state.pendingPrompt.eligibleIids.length,3);
+ assert.equal(projectStateForPlayer(state,enemy).pendingPrompt.context,'JORGE_CALL_TO_ARMS');
+ assert.equal(projectStateForPlayer(state,enemy).pendingPrompt.eligibleCards,undefined);
+ const before=state.players[owner].hand.length;
+ const resolved=send(owner,'ANSWER_PROMPT',{promptId:state.pendingPrompt.promptId,selectedIids:[state.pendingPrompt.eligibleIids[0]]});
+ assert.equal(resolved.events.filter(e=>e.type==='SUPPORT_COMPANY_USED').length,1);
+ for(const viewer of [owner,enemy]){
+  const publicCalls=projectEvents(resolved.events,viewer).filter(e=>e.type==='SUPPORT_COMPANY_USED');
+  assert.equal(publicCalls.length,1,'both players receive completion animation');
+  if(hidden) assert.equal(publicCalls[0].sourceIid,undefined,'hidden source stays private');
+ }
+ assert.equal(state.players[owner].hand.length,before+1);assert.equal(state.pendingPrompt,null);
+ assert.equal(state.board[0][row][0].counters.jorgeDeclaredType,undefined,'declaration is consumed by its first trigger');
+ assert.equal(state.supportCompanyUses[owner],0);
+ const nonMatch=state.players[enemy].hand.find(c=>c.id==='32');
+ op({type:'SET_CARD',playerIndex:enemy,cardIid:nonMatch.iid,destination:{z:2,r:enemy===0?2:0,c:0}});
+ assert.equal(state.effectStack.length,0,'nonmatching Supporters do not trigger');
+ const extra={...state.players[enemy].hand.find(c=>c.id==='32'),iid:state.matchId+':repeat',id:'105',type:'Improvisor',counters:{}};
+ state.players[enemy].hand.push(extra);
+ op({type:'SET_CARD',playerIndex:enemy,cardIid:extra.iid,destination:{z:2,r:enemy===0?2:0,c:1}});
+ assert.equal(state.effectStack.length,0,'ordinary matching placement does not trigger');
+ state.turn+=2;
+ const later={...extra,iid:state.matchId+':later',counters:{}};state.players[enemy].hand.push(later);
+ op({type:'SET_CARD',playerIndex:enemy,cardIid:later.iid,destination:{z:2,r:enemy===0?2:0,c:2},consolidated:true});
+ assert.equal(state.effectStack.length,0,'declaration expires after the next opponent turn');
+ state.effectStack=[];
+ op({type:'DISCARD_CARD',targetIid:source.iid});
+ const returned=state.players[owner].discard.pop();state.players[owner].hand.push(returned);
+ op({type:'SET_CARD',playerIndex:owner,cardIid:returned.iid,destination:{z:0,r:row,c:0}});
+ assert.equal(returned.counters.jorgeDeclaredType,undefined,'re-entry requires a new declaration');
+ assert.equal(returned.counters.effectUses,1,'one-use limit persists after re-entry');
+}
+console.log('PASS Jorge: one use, both seats, hidden activation, one next-turn consolidation trigger, waiting context, private offers, public completion animation and re-entry.');

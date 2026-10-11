@@ -1,0 +1,28 @@
+(function(){
+'use strict';
+const titles=[['Sunrise crest','Gathered fate','Broken horizon'],['Rising standard','United ranks','Call to arms'],['Measured hours','Patient advance','Restoration pulse']];
+function draw(c,r,v,t,w=700,h=430){
+ const cl=x=>Math.max(0,Math.min(1,x)),seg=(a,b)=>cl((t-a)/(b-a)),ease=x=>1-(1-cl(x))**3,TAU=Math.PI*2;
+ const a=ease(seg(0,.18))*(1-ease(seg(.8,1))),u=ease(seg(.08,.62)),col=['#8fc9dd','#d4b47b','#baa7d9'][r],gold='#efd29a';
+ c.clearRect(0,0,w,h);c.save();c.translate(w/2,h/2);c.scale(Math.min(w/460,h/300),Math.min(w/460,h/300));
+ function line(p,color=col,alpha=a,width=1.5){c.save();c.beginPath();p.forEach((p,i)=>i?c.lineTo(...p):c.moveTo(...p));c.strokeStyle=color;c.globalAlpha=cl(alpha*.34);c.lineWidth=width+4;c.shadowColor=color;c.shadowBlur=7;c.stroke();c.globalAlpha=cl(alpha*1.2);c.lineWidth=width;c.shadowBlur=0;c.stroke();c.restore()}
+ function curve(fn,q=1,color=col,alpha=a,width=1.5){line(Array.from({length:61},(_,i)=>fn(q*i/60)),color,alpha,width)}
+ function ring(x,y,rx,ry=rx,color=col,alpha=a){curve(z=>[x+Math.cos(z*TAU)*rx,y+Math.sin(z*TAU)*ry],1,color,alpha)}
+ function star(x,y,s=5,alpha=a){line([[x-s,y],[x+s,y]],gold,alpha);line([[x,y-s],[x,y+s]],gold,alpha)}
+ function box(x,y,alpha=a){line([[x-15,y-22],[x+15,y-22],[x+15,y+22],[x-15,y+22],[x-15,y-22]],col,alpha);star(x,y,5,alpha)}
+ function burst(x,y,p){for(let i=0;i<16;i++){const z=i*2.4,d=70*ease(p);line([[x+Math.cos(z)*d,y+Math.sin(z)*d],[x+Math.cos(z)*(d+5),y+Math.sin(z)*(d+5)]],gold,a*Math.sin(p*Math.PI))}}
+ function sun(x,y,rad){ring(x,y,rad,rad,gold);for(let i=0;i<12;i++){const z=i*TAU/12;line([[x+Math.cos(z)*(rad+9),y+Math.sin(z)*(rad+9)],[x+Math.cos(z)*(rad+20),y+Math.sin(z)*(rad+20)]],col)}}
+ function flag(x,y,q,scale=1){c.save();c.translate(x,y);c.scale(scale,scale);line([[0,65],[0,65-145*q]],gold);const yy=65-145*q;if(q>.01){curve(z=>[z*67,yy+Math.sin(z*6-t*8)*5],1);curve(z=>[z*67,yy+41+Math.sin(z*6-t*8)*5],1);line([[67,yy+Math.sin(6-t*8)*5],[67,yy+41+Math.sin(6-t*8)*5]])}c.restore()}
+ if(r===0&&v===0){line([[-130,44],[130,44]],col,a*.6);const y=48-72*u;curve(z=>[Math.cos(Math.PI+z*Math.PI)*45,y+Math.sin(Math.PI+z*Math.PI)*45],1,gold);line([[-45,y],[45,y]],gold);for(let i=0;i<9;i++){const z=Math.PI+i*Math.PI/8;line([[Math.cos(z)*58,y+Math.sin(z)*58],[Math.cos(z)*(58+23*u),y+Math.sin(z)*(58+23*u)]])}for(let i=0;i<3;i++)line([[-80+i*15,58+i*11],[80-i*15,58+i*11]],col,a*.4);burst(0,-24,seg(.58,.94))}
+ if(r===0&&v===1){sun(0,0,29);for(let i=0;i<6;i++){const angle=i*TAU/6,p=ease(seg(.06+i*.025,.6+i*.025)),d=132-82*p;curve(z=>[Math.cos(angle+z*.5)*(140-90*z),Math.sin(angle+z*.5)*(140-90*z)],p,col,a*.35);star(Math.cos(angle+p*.5)*d,Math.sin(angle+p*.5)*d,6,a*(1-seg(.64,.8)))}ring(0,0,48+30*seg(.62,.88),48+30*seg(.62,.88),gold,a*Math.sin(seg(.62,.88)*Math.PI))}
+ if(r===0&&v===2){const split=ease(seg(.2,.65));for(const s of [-1,1]){c.save();c.translate(s*45*split,25*split);line([[s*8,-9],[s*17,-21],[s*36,-21],[s*45,-9],[s*45,9],[s*36,21],[s*17,21],[s*8,9]],col);c.restore()}const q=ease(seg(.26,.72));c.save();c.translate(0,28-60*q);c.scale(.2+.8*q,.2+.8*q);sun(0,0,30);c.restore();line([[-105,73],[105,73]],col,a*.5);burst(0,0,seg(.3,.8))}
+ if(r===1&&v===0){flag(-20,10,u);line([[-80,79],[-40,70],[25,70],[75,79]],col);for(let i=0;i<3;i++){const q=seg(.4+i*.08,.82+i*.035);line([[-95+20*i,45-20*q],[-85+20*i,35-20*q],[-75+20*i,45-20*q]],gold,a*Math.sin(q*Math.PI))}burst(20,-36,seg(.6,.94))}
+ if(r===1&&v===1){for(let i=0;i<5;i++){const q=ease(seg(.04+i*.06,.42+i*.06)),x=(i-2)*47,y=55*(1-q);box(x,y);line([[x-8,y+31],[x+8,y+31]],gold,a*q)}line([[-110,64],[-110,77],[110,77],[110,64]],gold,a*seg(.5,.7));flag(-10,-55,ease(seg(.4,.75)),.55)}
+ if(r===1&&v===2){const q=ease(seg(.1,.55));c.save();c.rotate(-.24+.24*q);line([[-75,-16],[-20,-16],[57,-52],[57,52],[-20,16],[-75,16],[-75,-16]],gold);line([[-20,-16],[-20,16]],col);line([[-59,17],[-48,49],[-33,49],[-42,17]],col);ring(-75,0,5,16);c.restore();for(let i=0;i<3;i++){const p=seg(.27+i*.12,.65+i*.1);curve(z=>[66+p*25+i*19+Math.cos(-.8+z*1.6)*13,Math.sin(-.8+z*1.6)*(35+i*18)],1,col,a*Math.sin(p*Math.PI),2)}}
+ if(r===2&&v===0){ring(0,0,72);ring(0,0,80,80,gold,a*.45);for(let i=0;i<12;i++){const z=i*TAU/12;line([[Math.sin(z)*60,Math.cos(z)*60],[Math.sin(z)*66,Math.cos(z)*66]],gold)}const z=-TAU*(1-ease(seg(.05,.74)));line([[0,0],[Math.sin(z)*51,-Math.cos(z)*51]],gold,a,2);line([[0,0],[Math.cos(z*.3)*32,Math.sin(z*.3)*32]],col,a,2);ring(0,0,4,4,gold);burst(0,0,seg(.7,.96))}
+ if(r===2&&v===1){for(let j=0;j<4;j++){const y=37+j*15;line([[-95-j*15,y],[95+j*15,y]],col,a*.45)}for(let i=-3;i<=3;i++)line([[i*25,37],[i*43,82]],col,a*.45);const x=-62+100*ease(seg(.12,.72)),y=-7;ring(x,y-30,12,12,gold);curve(z=>[x-9-12*z,y-17+42*z],1,gold);curve(z=>[x+9+12*z,y-17+42*z],1,gold);line([[x-21,y+25],[x+21,y+25],[x+26,y+36],[x-26,y+36],[x-21,y+25]],gold);line([[-63,25],[x-30,25]],col,a*.6);burst(x,30,seg(.69,.96))}
+ if(r===2&&v===2){ring(0,-10,42,42,col);line([[0,-33],[0,13]],gold,a,2);line([[-23,-10],[23,-10]],gold,a,2);for(let i=0;i<3;i++){const x=(i-1)*82,q=ease(seg(.24+i*.09,.72+i*.06));box(x,77,a*q);curve(z=>[x*z,-10+63*z*z],q,col,a*.65);star(x*q,-10+63*q*q,4)}ring(0,-10,42+25*seg(.58,.9),42+25*seg(.58,.9),gold,a*(1-seg(.58,.9)))}
+ c.restore();
+}
+window.RevolutionBannerSamples={draw,titles};
+})();

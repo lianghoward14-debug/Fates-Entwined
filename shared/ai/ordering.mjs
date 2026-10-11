@@ -16,9 +16,10 @@ import {createComboPlanPrior} from './combo-plan.mjs';
 import {createDeckPreservationPrior} from './deck-preservation.mjs';
 import {createArchiveExpansionPrior} from './archive-expansion-heuristics.mjs';
 import {contestedCommandDelta} from './contested-space.mjs';
+import {createSupportCompanyPrior} from './support-company.mjs';
 
 // Build shared indexes once per position, not once per legal placement.
-export function createCommandOrderer(state,player){
+export function createCommandOrderer(state,player,personality='balanced'){
   const entries=boardEntries(state);
   const cards=new Map([...entries.map(e=>e.card),...state.players.flatMap(p=>[...(p.hand || []),...(p.deck || []),...(p.discard || [])])].map(card=>[card.iid,card]));
   const margins=[0,1,2].map(z=>zoneScore(state,z,player)-zoneScore(state,z,1-player));
@@ -39,6 +40,7 @@ export function createCommandOrderer(state,player){
   const deckPreservationPrior=createDeckPreservationPrior(state,player,entries,cards);
   const archiveExpansionPrior=createArchiveExpansionPrior(state,player,entries,cards);
   const lakesMomentumPrior=createLakesMomentumPrior(state,player);
+  let supportCompanyPrior;
   const values=new Map();
   const dependencyValues=new Map();
   function departureValue(iids){
@@ -68,6 +70,7 @@ export function createCommandOrderer(state,player){
   }
   return command=>{
     const p=command.payload || {};
+    if(command.type==='SUPPORT_COMPANY' || (command.type==='ANSWER_PROMPT' && state.pendingPrompt?.title==='Call to Arms'))return (supportCompanyPrior ||= createSupportCompanyPrior(state,player,personality))(command);
     const card=cards.get(p.cardIid || p.sourceIid || p.reactionIid || p.selectedIid || p.targetIid);
     if(command.type==='END_TURN')return -5;
     if(command.type==='ANSWER_PROMPT' && p.choice==='DECLINE')return -2;

@@ -1,5 +1,5 @@
 /* Language selection follows the title audio panel in the menu layout. */
-#title-language-btn {
+:is(#title-language-btn,#title-chinese-btn) {
   position: static;
   grid-column: 1 / -1;
   justify-self: center;
@@ -15,19 +15,19 @@
   font: 600 14px/1.4 'Yu Gothic', Meiryo, sans-serif;
   letter-spacing: .04em;
 }
-#title-language-btn:focus-visible { outline: 2px solid #ffe29a; outline-offset: 4px; }
+:is(#title-language-btn,#title-chinese-btn):focus-visible { outline: 2px solid #ffe29a; outline-offset: 4px; }
 /* Share the authored typography and layout in both languages. The body font
    already includes Japanese serif fallbacks; localization changes text only. */
-html[lang="ja"] body { font-family: var(--font-body); }
+html:is([lang="ja"],[lang="zh-CN"]) body { font-family: var(--font-body); }
 /* Japanese ranks need their natural glyph width, including translated lines. */
-html[lang="ja"] body #modal .profile-view-badges .rank-badge {
+html:is([lang="ja"],[lang="zh-CN"]) body #modal .profile-view-badges .rank-badge {
   width:max-content!important;
   inline-size:max-content!important;
   height:auto!important;
   min-height:38px;
   overflow:visible!important;
 }
-html[lang="ja"] body #modal .profile-view-badges .rank-badge-label {
+html:is([lang="ja"],[lang="zh-CN"]) body #modal .profile-view-badges .rank-badge-label {
   width:max-content!important;
   inline-size:max-content!important;
   max-width:none!important;
@@ -41,13 +41,13 @@ html body #fate-lore-window-overlay .ch-lore-card-copy small {
   -webkit-line-clamp:3;
   -webkit-box-orient:vertical;
 }
-html[lang="ja"] :is(button, input, select, textarea, .logo-sub, .title-btn, .modal, .ch-tab) {
+html:is([lang="ja"],[lang="zh-CN"]) :is(button, input, select, textarea, .logo-sub, .title-btn, .modal, .ch-tab) {
   /* Keep each control's existing font and letter spacing. */
   line-break: strict;
   overflow-wrap: break-word;
 }
 
-html[lang="ja"] .cinematic-subtitle-live { font-family: "Yu Gothic", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif !important; line-height: 1.5 !important; letter-spacing: .02em !important; word-break: normal; line-break: strict; overflow-wrap: anywhere; }
+html:is([lang="ja"],[lang="zh-CN"]) .cinematic-subtitle-live { font-family: "Yu Gothic", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif !important; line-height: 1.5 !important; letter-spacing: .02em !important; word-break: normal; line-break: strict; overflow-wrap: anywhere; }
 
 /* Keep audio and language selection together beneath the title menu. */
 html body #s-title .title-audio-controls{
@@ -59,7 +59,7 @@ html body #s-title .title-audio-controls{
   width:100%!important;
   gap:29px!important;
 }
-html body #s-title #title-language-btn{
+html body #s-title :is(#title-language-btn,#title-chinese-btn){
   position:static!important;
   inset:auto!important;
   transform:none!important;
@@ -79,7 +79,7 @@ html body #s-title #title-language-btn{
   font-weight:500!important;
   letter-spacing:.08em!important;
 }
-html body #s-title #title-language-btn:hover{
+html body #s-title :is(#title-language-btn,#title-chinese-btn):hover{
   border-color:#efcf75!important;
   background:linear-gradient(180deg,rgba(120,91,30,.5),rgba(23,18,9,.9))!important;
 }
@@ -90,3 +90,7 @@ html body #s-title .title-audio-controls :is(#widescreen-toggle-btn,#game-versio
   white-space:nowrap!important;
   line-height:1.2!important;
 }
+
+html body #s-title .title-language-controls { display:flex; flex-wrap:wrap; justify-content:center; gap:12px; order:2; max-width:100%; }
+html[lang="zh-CN"] body { font-family: var(--font-body), "Microsoft YaHei", "PingFang SC", sans-serif; }
+html[lang="zh-CN"] .cinematic-subtitle-live { font-family: "Microsoft YaHei", "PingFang SC", sans-serif !important; }

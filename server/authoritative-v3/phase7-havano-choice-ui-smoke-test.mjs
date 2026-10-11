@@ -10,24 +10,23 @@ vm.runInContext(source.slice(start, end), context);
 const command = (reactionIid, choice)=>({type:'ANSWER_PROMPT', payload:{promptId:'prompt1', reactionIid, choice}});
 const havanoNegate = command('havano1', 'NEGATE');
 const havanoSuppress = command('havano1', 'SUPPRESS');
-const secondHavano = command('havano2', 'SUPPRESS');
+const secondHavano = command('havano2', 'NEGATE');
 const lydia = command('lydia', 'NEGATE');
-const choices = [havanoNegate, havanoSuppress, secondHavano, command('havano2', 'NEGATE'), lydia, command('', 'DECLINE')];
+const choices = [havanoNegate, havanoSuppress, secondHavano, command('havano2', 'SUPPRESS'), lydia, command('', 'DECLINE')];
 const before = JSON.stringify(choices);
 const options = [{reactionIid:'havano1',kind:'HAVANO'}, {reactionIid:'havano2',kind:'HAVANO'}, {reactionIid:'lydia',kind:'LYDIA'}];
 const visible = context.phase7VisibleReactionChoices(choices, {phase:'ACTIVATION', options});
-assert.deepEqual(Array.from(visible), [havanoSuppress, secondHavano, lydia]);
-assert.equal(visible[0], havanoSuppress, 'submit the original legal command, unchanged');
-for(const card of ['Marie', 'Jimmy (Post-Cynthia Hug)']){
+assert.deepEqual(Array.from(visible), [havanoNegate, secondHavano, lydia]);
+assert.equal(visible[0], havanoNegate, 'submit the original legal command, unchanged');
+for(const card of ['Marie', 'Post-Modernist Dylan']){
   const result = context.phase7VisibleReactionChoices([havanoSuppress], {phase:'PASSIVE_TARGET', options});
-  assert.equal(result.length, 1, `${card} offers one suppression response`);
-  assert.equal(result[0], havanoSuppress);
+  assert.equal(result.length, 0, `${card} offers no obsolete suppression response`);
 }
-assert.equal(context.phase7VisibleReactionChoices([havanoSuppress], {phase:'TARGET', options})[0], havanoSuppress);
+assert.equal(context.phase7VisibleReactionChoices([havanoSuppress], {phase:'TARGET', options}).length, 0);
 assert.equal(JSON.stringify(choices), before, 'UI filtering must not mutate command mechanics');
-assert.match(source, /kind === 'HAVANO' \? 'Permanently suppress source'/);
+assert.match(source, /kind === 'HAVANO' \? 'Negate the effect'/);
 assert.equal(context.phase7VisibleReactionChoices([havanoNegate], {phase:'ACTIVATION', options})[0], havanoNegate);
-console.log('Havano choice UI: PASS (one response per card, permanent suppression wording, unchanged commands)');
+console.log('Havano choice UI: PASS (one negate response per card, no suppression response)');
 
 // The authoritative card status must survive conversion into the shipping icon renderer.
 const render = fs.readFileSync(new URL('../../src/scripts/06-rendering-and-helpers.js', import.meta.url), 'utf8');
@@ -41,5 +40,5 @@ context.isCardEffectSuppressed = card=>card.statuses?.includes('EFFECTS_SUPPRESS
 vm.runInContext(source.slice(conversionStart, conversionEnd)+'\n'+render.slice(iconStart,iconEnd),context);
 const card={id:'93',iid:'suppressed-source',type:'Supporter',owner:0,controller:0,statuses:['EFFECTS_SUPPRESSED'],counters:{},baseFate:1,currentFate:1};
 const projected=context.phase7CardToLegacy(card,{statuses:[],board:[[[card]]]});
-assert.equal(context.isCardVisuallySuppressed(projected,0,0,0),true,'Havano suppression reaches the board icon');
-console.log('Havano projected suppression icon: PASS');
+assert.equal(context.isCardVisuallySuppressed(projected,0,0,0),true,'other sources of suppression still reach the board icon');
+console.log('Existing suppression icon: PASS');

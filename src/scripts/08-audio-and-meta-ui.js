@@ -80,6 +80,8 @@ function warmFateSyntheticSfx(types) {
 window.fateWarmSyntheticSfx = warmFateSyntheticSfx;
 
 const FATE_SAMPLE_SFX = {
+  blackRoseExplosion: {src:'soundeffects/codex-redesign/black_rose_explosion.wav?v=20261009-concussive', gain:0.9},
+  blackRoseArm: {src:'soundeffects/codex-redesign/black_rose_arm.wav', gain:0.65},
   menuOpen: {src:'soundeffects/codex-redesign/menu_open_silk_gate.wav', gain:0.92},
   menuClose: {src:'soundeffects/codex-redesign/menu_close_soft_lock.wav', gain:0.88},
   cardSelect: {src:'soundeffects/codex-redesign/card_select_fate_thread.wav', gain:0.82},
@@ -90,6 +92,7 @@ const FATE_SAMPLE_SFX = {
   consolidationModeOff: {src:'soundeffects/codex-redesign/menu_close_soft_lock.wav', gain:0.66},
   discard: {src:'soundeffects/codex-redesign/discard_deck_coffin.wav', gain:0.9},
   discardCard: {src:'soundeffects/codex-redesign/discard_deck_coffin.wav', gain:0.9},
+  jimmyHandShred: {src:'soundeffects/codex-redesign/jimmy_hand_shred.wav', gain:1.25},
   blocked: {src:'soundeffects/codex-redesign/blocked_metal_gate.wav', gain:0.82},
   invalidAction: {src:'soundeffects/codex-redesign/blocked_metal_gate.wav', gain:0.58},
   fateGain: {src:'soundeffects/codex-redesign/fate_gain_gold_tick.wav', gain:0.92},
@@ -126,6 +129,8 @@ const FATE_SAMPLE_SFX = {
   missionComplete: {src:'soundeffects/codex-redesign/level_up_compact_fanfare.wav', gain:0.56},
   spectatorJoin: {src:'soundeffects/codex-redesign/spectator_soft_arrive.wav', gain:0.9},
   levelUp: {src:'soundeffects/codex-redesign/level_up_compact_fanfare.wav', gain:0.9},
+  supportReinforcementReveal: {src:'soundeffects/codex-redesign/call_to_arms_reinforcement_reveal.wav', gain:1},
+  supportCardClaim: {src:'soundeffects/codex-redesign/call_to_arms_card_selected.wav', gain:1},
   characterSet: {src:'soundeffects/codex-redesign/character_heroic_crest.wav', gain:0.9},
   characterSet_Initiator: {src:'soundeffects/codex-redesign/character_initiator_celestial_summon.wav', gain:0.9},
   characterSet_Coordinator: {src:'soundeffects/codex-redesign/character_coordinator_oceanic_arrival.wav', gain:0.9},
@@ -424,6 +429,7 @@ function playCardEffectFlashSfx(kind, options) {
   if(_cardEffectFlashSfxKeys.size > 180) {
     _cardEffectFlashSfxKeys.forEach(function(stamp, storedKey){ if(nowMs - stamp > 15000) _cardEffectFlashSfxKeys.delete(storedKey); });
   }
+  if(cleanKind === 'jose_clock') return !!window.FateApprovedActivationSfx?.play('jose-clock');
   window._fateCardFlashPitchStep = Math.max(0, Number(opts.pitchStep) || 0);
   const effectiveVol = typeof _sfxVol === 'number' ? _sfxVol : 1;
   return playFateOverlayFamilySfx(family, cleanKind, effectiveVol, opts.pitchStep);
@@ -2097,6 +2103,12 @@ window.playEffectActivationClickSfx = playEffectActivationClickSfx;
 //  AUDIO SYSTEM
 // ═══════════════════════════════════════════════════════
 const CARD_SOUNDS = {
+  '107': '107',
+  '106': '106',
+  '105': '105',
+  '104': '104',
+  '101': '101', '103': '103',
+  '102': '102',
   '01': '1set', '02': '2set', '03': '3set', '04': '4set',
   '05': '5set', '06': '6set', '07': '7set', '08': '8set',
   '09': '9set', '10': '10set', '11': '11set', '12': '12set',
@@ -2134,6 +2146,12 @@ const IGB17_BACKGROUND_FILES = Object.freeze([
   'igb17/9.png','igb17/10.png'
 ]);
 const AVAILABLE_CARD_SOUND_FILES = new Set([
+  '107',
+  '106',
+  '105',
+  '104',
+  '101', '103',
+  '102',
   '1set','2set','3set','4set','6set','7set','8set','10set','11set','12set','13set','14set','15set',
   '17set','19set','21set','22set','23set','27set','29set','30set','34set','35set','36set','38set',
   '39set','40set','41set','43set','45set','46set','48set','51set','55set','56set','57set','61set',
@@ -2401,7 +2419,7 @@ function transitionGameLandscape(song, opts = {}) {
     G.landscapeBgNum = bgNum;
     G.landscape = (typeof LANDSCAPES !== 'undefined' && LANDSCAPES) ? LANDSCAPES[G.landscapeId] : null;
     if(!opts.remote) {
-      G._landscapeState = null;
+      G._landscapeState = {id:'', twilightRecoveryUses:G._landscapeState?.twilightRecoveryUses?.slice() || [0, 0]};
       G._landscapeDrawQueue = [];
     }
     G._onlineGameSong = pickedSong;
@@ -2479,12 +2497,13 @@ function playCardSound(cardId) {
   if(AVAILABLE_CARD_SOUND_FILES && !AVAILABLE_CARD_SOUND_FILES.has(soundFile)) return;
   try {
     let src = SET_VOICELINE_PATH(soundFile);
-    const updatedSetVoices = new Set(['11set','14set','15set','17set','35set','40set','61set','bh8']);
-    if(updatedSetVoices.has(soundFile)) src += (src.indexOf('?') >= 0 ? '&' : '?') + (soundFile === 'bh8' ? 'v=20260723a' : 'v=20260615a');
+    const updatedSetVoices = new Set(['2set','11set','14set','15set','17set','35set','40set','61set','bh8']);
+    if(updatedSetVoices.has(soundFile)) src += (src.indexOf('?') >= 0 ? '&' : '?') + (soundFile === '2set' ? 'v=20261008-anicka-replacement' : soundFile === 'bh8' ? 'v=20260723a' : 'v=20260615a');
     const audio = new Audio(src);
     // Normalize voiceline volume - cap at 0.7 to prevent loud clips
     audio.volume = Math.min(0.7, _voiceVol * _masterVol);
-    audio.play().catch(()=>{});
+    const finishChatterVoiceHold = window.FateIdleChatter?.trackVoice(audio);
+    audio.play().catch(()=>{ finishChatterVoiceHold?.(); });
   } catch(e){}
 }
 
@@ -3339,6 +3358,7 @@ function stopProfilePickerObserver() {
 
 function profilePickerThumbSrc(pfpId) {
   const id = Math.max(1, parseInt(pfpId, 10) || 1);
+  if(id >= 126 && id <= 132) return PFP_PATH(id, 'square');
   // Lydia's full portrait was replaced after the thumbnail sheet was built.
   // Use the versioned source so the picker and cropper always show the same art.
   if(id === 56) return PFP_PATH(id, 'square');

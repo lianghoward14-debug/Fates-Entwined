@@ -63,4 +63,6 @@ assert.match(data,/id:'18'[\s\S]{0,300}img:'18\.png\?v=20260907-marines'/);
 assert.match(data,/id:'bh04'[\s\S]{0,350}lose 24 Fate[\s\S]{0,200}img:'bh4\.png\?v=20260907-selva'/);
 assert.match(core,/Math\.floor\(24 \/ targets\.length\)[\s\S]*24 % targets\.length[\s\S]*Math\.floor\(24 \/ count\)/);
 assert.doesNotMatch([data,helpers,ui,online].join('\n'),/usMarinesUses|getUsMarinesUses|canActivateUsMarines|recordUsMarines|Semper Fidelis Uses|activated three times/);
+assert.doesNotMatch(helpers,/playFateReactionSfx\?\.\(true, \{id:'18'\}\)/,'setting 1st US Marines must not play the suppression reaction sound');
+assert.doesNotMatch(online,/sourceCardId === '18'\) window\.playFateReactionSfx/,'authoritative presentation must not add the suppression reaction sound');
 console.log('Marines unlimited-use and Anicka Selva 24-Fate reworks pass in local data/UI and authoritative multiplayer.');

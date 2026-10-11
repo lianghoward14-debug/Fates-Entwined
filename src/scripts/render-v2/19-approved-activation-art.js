@@ -49,7 +49,222 @@ const clamp=x=>Math.max(0,Math.min(1,x)),seg=(t,a,b)=>clamp((t-a)/(b-a)),ease=x=
     ctx.restore();
   }
 
-function draw(ctx,id,t,w=700,h=430){
+
+// Approved October 101-103 artwork; timing and geometry retained from reviewed previews.
+function drawOctoberCards(c,id,t,w,h){
+const k=id==='102'?0:1,TAU=Math.PI*2,col=id==='101'?'#b7dfa7':id==='102'?'#d393a7':'#ee847c',gold='#efd29a';
+const a=ease(seg(t,0,.12))*(1-ease(seg(t,.86,1))),u=ease(seg(t,.04,.3));
+c.clearRect(0,0,w,h);c.save();c.translate(w/2,h/2);
+function line(p,color=col,alpha=a,w=1.6){c.save();c.beginPath();p.forEach((q,i)=>i?c.lineTo(...q):c.moveTo(...q));c.strokeStyle=color;c.globalAlpha=clamp(alpha*.32);c.lineWidth=w+4;c.shadowBlur=7;c.shadowColor=color;c.stroke();c.globalAlpha=clamp(alpha*1.2);c.lineWidth=w;c.shadowBlur=0;c.stroke();c.restore()}
+function curve(fn,color=col,alpha=a,q=1,w=1.6){line(Array.from({length:65},(_,j)=>fn(j/64*q)),color,alpha,w)}
+function ellipse(x,y,rx,ry,color=gold,alpha=a){curve(z=>[x+Math.cos(z*TAU)*rx,y+Math.sin(z*TAU)*ry],color,alpha)}
+function at(x,y,angle,fn){c.save();c.translate(x,y);c.rotate(angle);fn();c.restore()}
+function spark(x,y,q,color=gold,n=22,radius=100){if(q<=0||q>=1)return;for(let j=0;j<n;j++){const z=j*2.39996,r=(.35+j%7/10)*radius*ease(q),l=9*(1-q);line([[x+Math.cos(z)*r,y+Math.sin(z)*r],[x+Math.cos(z)*(r-l),y+Math.sin(z)*(r-l)]],color,a*(1-q),j%5?1.2:2)}}
+
+if(id==='101'){
+const rise=ease(seg(t,.08,.52));
+c.save();c.beginPath();c.rect(-180,-150,360,212);c.clip();
+at(0,64*(1-rise),0,()=>{
+ const rays=ease(seg(t,.35,.7));for(let j=0;j<13;j++){let z=Math.PI+j*Math.PI/12;line([[Math.cos(z)*83,12+Math.sin(z)*83],[Math.cos(z)*(83+36*rays),12+Math.sin(z)*(83+36*rays)]],gold,a*rays,1.8)}
+ c.save();c.beginPath();c.ellipse(0,12,37,48,0,0,TAU);c.clip();for(let j=-5;j<=5;j++){line([[-50,j*18-45],[50,j*18+45]],gold,a*rise*.8);line([[50,j*18-45],[-50,j*18+45]],gold,a*rise*.8)}c.restore();
+ curve(z=>[Math.sin(z*TAU)*37,12+Math.cos(z*TAU)*48],gold,a,rise);
+ for(let j=-2;j<=2;j++){let spread=ease(seg(t,.17,.47));line([[0,-31],[j*18*spread,-37-46*rise],[j*7,-33]],col,a*rise,1.8)}
+});c.restore();for(let j=0;j<3;j++)curve(z=>[-150+300*z,69+j*12+Math.sin(z*11-t*4)*4],col,a*.65,u);
+}else{if(k===0){
+const burn=seg(t,.12,.59),blast=seg(t,.6,.95),q=ease(blast),body=a*(1-seg(t,.6,.65));
+at(0,15,0,()=>{
+c.save();c.globalAlpha=body;c.fillStyle='#10121a';c.beginPath();c.arc(0,0,55,0,TAU);c.fill();c.restore();
+ellipse(0,0,55,55,'#c6b7ce',body);
+curve(z=>[-18+Math.cos(Math.PI+z*.9)*29,-8+Math.sin(Math.PI+z*.9)*29],gold,body*.6);
+at(23,-48,.4,()=>{line([[-11,0],[-11,-17],[11,-17],[11,0]],gold,body,2);ellipse(0,-17,11,3,gold,body)});
+const fuse=z=>[30+46*z,-63-35*Math.sin(z*Math.PI*.72)];
+curve(z=>fuse(z*(1-burn)),gold,body,1,2.4);
+if(t<.6&&burn>0){const p=fuse(1-burn);for(let j=0;j<9;j++){let z=j*TAU/9+t*20,r=7+(j%3)*3;line([[p[0]+Math.cos(z)*3,p[1]+Math.sin(z)*3],[p[0]+Math.cos(z)*r,p[1]+Math.sin(z)*r]],j%2?gold:'#f1a675',a,1.7)}}
+});
+if(blast>0){
+for(let j=0;j<10;j++){let z=j*TAU/10,r=22+91*q;at(Math.cos(z)*r,15+Math.sin(z)*r,z+q*1.2,()=>line([[-9,-8],[7,-11],[13,6],[-9,-8]],j%3?'#b9a8c4':gold,a*(1-blast),2))}
+for(let j=0;j<7;j++){let z=j*2.39996,r=60*q;ellipse(Math.cos(z)*r,15+Math.sin(z)*r,12+30*q,12+27*q,'#bcaabe',a*Math.sin(blast*Math.PI)*.45)}
+ellipse(0,15,20+130*q,20+100*q,gold,a*(1-blast)*.55);
+spark(0,15,blast,gold,42,160);
+}
+}else{
+const enter=ease(seg(t,.03,.24)),red='#d94b62';
+// Single-edged knife, handle high right and tip low left.
+at(0,-14-18*(1-enter),.48,()=>{
+line([[-12,-96],[13,-96],[13,-41],[-12,-41],[-12,-96]],gold,a,2);
+for(let j=0;j<4;j++)line([[-10,-85+j*11],[11,-80+j*11]],'#caa788',a*.8,2);
+line([[-23,-39],[25,-39]],gold,a,3);
+line([[-12,-35],[-12,65],[0,84],[16,48],[17,-35],[-12,-35]],'#c5cbd6',a,2.3);
+line([[10,-30],[9,44],[0,76]],'#e8dfd1',a*.55,1);
+curve(z=>[14-14*z,44+40*z],red,a*ease(seg(t,.2,.39)),1,3.5);
+});
+// Gravity stays vertical after the knife rotates.
+const tipX=-Math.sin(.48)*84,tipY=-14+Math.cos(.48)*84;
+for(let j=0;j<3;j++){
+const start=.3+j*.16,grow=seg(t,start,start+.07),fall=seg(t,start+.07,start+.25);
+if(t<start||fall>=1)continue;
+const x=tipX,y=tipY+fall*fall*66,size=(4+j*.5)*grow;
+c.save();c.globalAlpha=a*(1-seg(fall,.85,1));c.fillStyle=red;c.shadowColor=red;c.shadowBlur=8;c.beginPath();c.moveTo(x,y-size*1.8);c.bezierCurveTo(x-size*.25,y-size*.4,x-size*1.25,y+size*.2,x-size*.7,y+size);c.bezierCurveTo(x,y+size*1.8,x+size*1.3,y+size*.6,x+size*.7,y);c.bezierCurveTo(x+size*.4,y-size*.5,x,y-size,x,y-size*1.8);c.fill();c.restore();
+}
+for(let j=0;j<3;j++){let splash=seg(t,.55+j*.16,.69+j*.16);if(splash>0&&splash<1){ellipse(tipX,tipY+66,3+23*ease(splash),1+4*ease(splash),red,a*(1-splash));for(let n=0;n<5;n++){let z=Math.PI+n*Math.PI/4;line([[tipX+Math.cos(z)*21*splash,tipY+66+Math.sin(z)*14*Math.sin(splash*Math.PI)],[tipX+Math.cos(z)*24*splash,tipY+66+Math.sin(z)*17*Math.sin(splash*Math.PI)]],red,a*(1-splash))}}}
+}
+}
+c.restore();
+}
+
+
+// User-selected banner companions: Sea Breeze, Single Resolve, Sands of Patience.
+function drawCaribbea104(c,t,w=700,h=430){const r=0,v=2;
+ const cl=x=>Math.max(0,Math.min(1,x)),seg=(a,b)=>cl((t-a)/(b-a)),ease=x=>1-(1-cl(x))**3,TAU=Math.PI*2;
+ const a=ease(seg(0,.18))*(1-ease(seg(.8,1))),u=ease(seg(.08,.62)),col=['#8fc9dd','#d4b47b','#baa7d9'][r],gold='#efd29a';
+ c.clearRect(0,0,w,h);c.save();c.translate(w/2,h/2);c.scale(Math.min(w/460,h/300),Math.min(w/460,h/300));
+ function line(p,color=col,alpha=a,width=1.5){c.save();c.beginPath();p.forEach((p,i)=>i?c.lineTo(...p):c.moveTo(...p));c.strokeStyle=color;c.globalAlpha=cl(alpha*.34);c.lineWidth=width+4;c.shadowColor=color;c.shadowBlur=7;c.stroke();c.globalAlpha=cl(alpha*1.2);c.lineWidth=width;c.shadowBlur=0;c.stroke();c.restore()}
+ function curve(fn,q=1,color=col,alpha=a,width=1.5){line(Array.from({length:61},(_,i)=>fn(q*i/60)),color,alpha,width)}
+ function ring(x,y,rx,ry=rx,color=col,alpha=a){curve(z=>[x+Math.cos(z*TAU)*rx,y+Math.sin(z*TAU)*ry],1,color,alpha)}
+ function star(x,y,s=5,alpha=a){line([[x-s,y],[x+s,y]],gold,alpha);line([[x,y-s],[x,y+s]],gold,alpha)}
+ function box(x,y,alpha=a){line([[x-15,y-22],[x+15,y-22],[x+15,y+22],[x-15,y+22],[x-15,y-22]],col,alpha);star(x,y,5,alpha)}
+ function burst(x,y,p){for(let i=0;i<16;i++){const z=i*2.4,d=70*ease(p);line([[x+Math.cos(z)*d,y+Math.sin(z)*d],[x+Math.cos(z)*(d+5),y+Math.sin(z)*(d+5)]],gold,a*Math.sin(p*Math.PI))}}
+ function sun(x,y,rad){ring(x,y,rad,rad,gold);for(let i=0;i<12;i++){const z=i*TAU/12;line([[x+Math.cos(z)*(rad+9),y+Math.sin(z)*(rad+9)],[x+Math.cos(z)*(rad+20),y+Math.sin(z)*(rad+20)]],col)}}
+ function flag(x,y,q,scale=1){c.save();c.translate(x,y);c.scale(scale,scale);line([[0,65],[0,65-145*q]],gold);const yy=65-145*q;if(q>.01){curve(z=>[z*67,yy+Math.sin(z*6-t*8)*5],1);curve(z=>[z*67,yy+41+Math.sin(z*6-t*8)*5],1);line([[67,yy+Math.sin(6-t*8)*5],[67,yy+41+Math.sin(6-t*8)*5]])}c.restore()}
+ function palmTree(side,baseX,baseY,height,lean,delay){
+  const q=ease(seg(.05+delay,.47+delay)),leaf=ease(seg(.25+delay,.66+delay));
+  const tx=side*(baseX-lean),ty=baseY-height;
+  curve(z=>[side*(baseX-lean*z*z),baseY-height*z],q,gold,a,1.7);
+  for(const dir of [-1,1])for(let j=0;j<3;j++){
+   const width=43-j*6,dy=-19+j*16;
+   curve(z=>[tx+dir*width*z*leaf,ty+(dy*z+26*z*z)*leaf],1,col,a*leaf);
+  }
+  for(let j=0;j<2;j++)ring(tx+(j?4:-4),ty+6,3,4,gold,a*leaf);
+ }
+ function sea(y,span){for(let j=0;j<3;j++)curve(z=>[-span+2*span*z,y+j*11+Math.sin(z*TAU*2-t*4+j*.5)*2.4],1,col,a*(.7-j*.18))}
+ if(v===2){
+  // Fronds sway in a sea breeze as a half-sun emerges over the horizon.
+  const sway=Math.sin(t*TAU)*2.6;
+  c.save();c.translate(sway,0);palmTree(-1,82,58,118,19,0);c.restore();
+  c.save();c.translate(sway*.7,0);palmTree(1,83,58,103,10,.08);c.restore();
+  const q=ease(seg(.2,.68)),rad=32*q;
+  curve(z=>[Math.cos(Math.PI+z*Math.PI)*rad,22+Math.sin(Math.PI+z*Math.PI)*rad],1,gold);
+  line([[-49,22],[49,22]],gold,a*.8);
+  for(let j=0;j<7;j++){const z=Math.PI+j*Math.PI/6;line([[Math.cos(z)*(rad+8),22+Math.sin(z)*(rad+8)],[Math.cos(z)*(rad+18),22+Math.sin(z)*(rad+18)]],col,a*q)}
+  for(let j=0;j<3;j++)line([[-(21-j*6),33+j*8],[(21-j*6),33+j*8]],gold,a*q*.6);
+  sea(70,111);
+ }
+c.restore();
+}
+function drawCaribbea105(c,t,w=700,h=430){const r=1,v=0;
+ const cl=x=>Math.max(0,Math.min(1,x)),seg=(a,b)=>cl((t-a)/(b-a)),ease=x=>1-(1-cl(x))**3,TAU=Math.PI*2;
+ const a=ease(seg(0,.18))*(1-ease(seg(.8,1))),u=ease(seg(.08,.62)),col=['#8fc9dd','#d4b47b','#baa7d9'][r],gold='#efd29a';
+ c.clearRect(0,0,w,h);c.save();c.translate(w/2,h/2);c.scale(Math.min(w/460,h/300),Math.min(w/460,h/300));
+ function line(p,color=col,alpha=a,width=1.5){c.save();c.beginPath();p.forEach((p,i)=>i?c.lineTo(...p):c.moveTo(...p));c.strokeStyle=color;c.globalAlpha=cl(alpha*.34);c.lineWidth=width+4;c.shadowColor=color;c.shadowBlur=7;c.stroke();c.globalAlpha=cl(alpha*1.2);c.lineWidth=width;c.shadowBlur=0;c.stroke();c.restore()}
+ function curve(fn,q=1,color=col,alpha=a,width=1.5){line(Array.from({length:61},(_,i)=>fn(q*i/60)),color,alpha,width)}
+ function ring(x,y,rx,ry=rx,color=col,alpha=a){curve(z=>[x+Math.cos(z*TAU)*rx,y+Math.sin(z*TAU)*ry],1,color,alpha)}
+ function star(x,y,s=5,alpha=a){line([[x-s,y],[x+s,y]],gold,alpha);line([[x,y-s],[x,y+s]],gold,alpha)}
+ function box(x,y,alpha=a){line([[x-15,y-22],[x+15,y-22],[x+15,y+22],[x-15,y+22],[x-15,y-22]],col,alpha);star(x,y,5,alpha)}
+ function burst(x,y,p){for(let i=0;i<16;i++){const z=i*2.4,d=70*ease(p);line([[x+Math.cos(z)*d,y+Math.sin(z)*d],[x+Math.cos(z)*(d+5),y+Math.sin(z)*(d+5)]],gold,a*Math.sin(p*Math.PI))}}
+ function sun(x,y,rad){ring(x,y,rad,rad,gold);for(let i=0;i<12;i++){const z=i*TAU/12;line([[x+Math.cos(z)*(rad+9),y+Math.sin(z)*(rad+9)],[x+Math.cos(z)*(rad+20),y+Math.sin(z)*(rad+20)]],col)}}
+ function flag(x,y,q,scale=1){c.save();c.translate(x,y);c.scale(scale,scale);line([[0,65],[0,65-145*q]],gold);const yy=65-145*q;if(q>.01){curve(z=>[z*67,yy+Math.sin(z*6-t*8)*5],1);curve(z=>[z*67,yy+41+Math.sin(z*6-t*8)*5],1);line([[67,yy+Math.sin(6-t*8)*5],[67,yy+41+Math.sin(6-t*8)*5]])}c.restore()}
+ function palm(x,y,scale,q){c.save();c.translate(x,y);c.scale(scale,scale);curve(z=>[13*Math.sin(z*1.7),-104*z],q,gold);const top=13*Math.sin(1.7);for(const s of [-1,1])for(let j=0;j<3;j++){const p=ease(seg(.15+j*.05,.62+j*.04));curve(z=>[top+s*(52-j*8)*z*p,-104+(j*18-21)*z+31*z*z],1,col,a*q)}c.restore()}
+ function waves(y,span=110){for(let j=0;j<3;j++)curve(z=>[-span+span*2*z,y+j*13+Math.sin(z*TAU*2-t*5+j*.6)*3],1,col,a*(.8-j*.2))}
+ function fist(x,y,scale,q){c.save();c.translate(x,y+45*(1-q));c.scale(scale,scale);
+  line([[-27,78],[-27,23],[-48,4],[-48,-19],[-38,-27],[-20,-11]],col,a,2);
+  line([[-20,-11],[-24,-45],[-18,-54],[-6,-54],[0,-46],[0,-20]],gold,a,2);
+  line([[0,-46],[5,-62],[18,-62],[24,-54],[24,-20]],gold,a,2);
+  line([[24,-54],[31,-54],[40,-47],[40,-15]],gold,a,2);
+  line([[40,-42],[48,-39],[52,-30],[52,2],[31,25],[31,78]],col,a,2);
+  line([[-27,63],[31,63]],gold);line([[-20,-10],[9,-14],[23,-3],[12,13],[-4,10]],col);c.restore();
+ }
+ if(r===1&&v===0){
+  // One decisive lift, followed by a tight radial impact.
+  const q=ease(seg(.07,.5));fist(0,0,1,q);
+  for(let i=0;i<9;i++){const z=Math.PI*.85+i*Math.PI*1.3/8,p=ease(seg(.38,.68));line([[Math.cos(z)*88,Math.sin(z)*88],[Math.cos(z)*(88+23*p),Math.sin(z)*(88+23*p)]],gold,a*p)}
+  burst(0,-10,seg(.43,.85));
+ }
+c.restore();
+}
+function drawCaribbea106(c,t,w=700,h=430){const r=2,v=0;
+ const cl=x=>Math.max(0,Math.min(1,x)),seg=(a,b)=>cl((t-a)/(b-a)),ease=x=>1-(1-cl(x))**3,TAU=Math.PI*2;
+ const a=ease(seg(0,.18))*(1-ease(seg(.8,1))),u=ease(seg(.08,.62)),col=['#8fc9dd','#d4b47b','#baa7d9'][r],gold='#efd29a';
+ c.clearRect(0,0,w,h);c.save();c.translate(w/2,h/2);c.scale(Math.min(w/460,h/300),Math.min(w/460,h/300));
+ function line(p,color=col,alpha=a,width=1.5){c.save();c.beginPath();p.forEach((p,i)=>i?c.lineTo(...p):c.moveTo(...p));c.strokeStyle=color;c.globalAlpha=cl(alpha*.34);c.lineWidth=width+4;c.shadowColor=color;c.shadowBlur=7;c.stroke();c.globalAlpha=cl(alpha*1.2);c.lineWidth=width;c.shadowBlur=0;c.stroke();c.restore()}
+ function curve(fn,q=1,color=col,alpha=a,width=1.5){line(Array.from({length:61},(_,i)=>fn(q*i/60)),color,alpha,width)}
+ function ring(x,y,rx,ry=rx,color=col,alpha=a){curve(z=>[x+Math.cos(z*TAU)*rx,y+Math.sin(z*TAU)*ry],1,color,alpha)}
+ function star(x,y,s=5,alpha=a){line([[x-s,y],[x+s,y]],gold,alpha);line([[x,y-s],[x,y+s]],gold,alpha)}
+ function box(x,y,alpha=a){line([[x-15,y-22],[x+15,y-22],[x+15,y+22],[x-15,y+22],[x-15,y-22]],col,alpha);star(x,y,5,alpha)}
+ function burst(x,y,p){for(let i=0;i<16;i++){const z=i*2.4,d=70*ease(p);line([[x+Math.cos(z)*d,y+Math.sin(z)*d],[x+Math.cos(z)*(d+5),y+Math.sin(z)*(d+5)]],gold,a*Math.sin(p*Math.PI))}}
+ function sun(x,y,rad){ring(x,y,rad,rad,gold);for(let i=0;i<12;i++){const z=i*TAU/12;line([[x+Math.cos(z)*(rad+9),y+Math.sin(z)*(rad+9)],[x+Math.cos(z)*(rad+20),y+Math.sin(z)*(rad+20)]],col)}}
+ function flag(x,y,q,scale=1){c.save();c.translate(x,y);c.scale(scale,scale);line([[0,65],[0,65-145*q]],gold);const yy=65-145*q;if(q>.01){curve(z=>[z*67,yy+Math.sin(z*6-t*8)*5],1);curve(z=>[z*67,yy+41+Math.sin(z*6-t*8)*5],1);line([[67,yy+Math.sin(6-t*8)*5],[67,yy+41+Math.sin(6-t*8)*5]])}c.restore()}
+ if(r===2&&v===0){
+  // Sand drains into a patient hourglass; the lower chamber fills.
+  line([[-43,-70],[43,-70]],gold,a,2);line([[-43,70],[43,70]],gold,a,2);
+  for(const s of [-1,1])curve(z=>[s*(35*Math.abs(2*z-1)**.7+2),-62+124*z],1,col);
+  const q=ease(seg(.08,.75));line([[-25*(1-q),-42+32*q],[25*(1-q),-42+32*q]],gold);
+  for(let i=0;i<6;i++){const y=58-i*5,hw=(27-i*4)*q;line([[-hw,y],[hw,y]],gold,a*q)}
+  for(let i=0;i<7;i++){const y=((t*130+i*9)%57);star(0,y,1.1,a*(1-seg(.7,.85)))}
+  burst(0,45,seg(.68,.96));
+ }
+c.restore();
+}
+
+function drawHenryForged(c,t,w=700,h=430){const v=0;const seg=(x,y)=>clamp((t-x)/(y-x)),a=ease(seg(0,.16))*(1-ease(seg(.83,1))),gold='#efd29a',red='#ed777b';c.clearRect(0,0,w,h);c.save();c.translate(w/2,h/2);c.scale(Math.min(w/460,h/300),Math.min(w/460,h/300));
+function line(pts,color=gold,alpha=a,width=1.6){c.save();c.beginPath();pts.forEach((p,i)=>i?c.lineTo(...p):c.moveTo(...p));c.lineJoin='round';c.lineCap='round';c.strokeStyle=color;c.shadowColor=color;c.shadowBlur=7;c.globalAlpha=alpha*.28;c.lineWidth=width+3;c.stroke();c.shadowBlur=0;c.globalAlpha=alpha;c.lineWidth=width;c.stroke();c.restore()}
+function curve(fn,q=1,color=gold,alpha=a,width=1.6){line(Array.from({length:65},(_,i)=>fn(q*i/64)),color,alpha,width)}
+function star(x,y,r,alpha=a){line(Array.from({length:11},(_,i)=>{const z=-Math.PI/2+i*Math.PI/5,rad=i%2?r*.43:r;return[x+Math.cos(z)*rad,y+Math.sin(z)*rad]}),red,alpha,1.8)}
+function hammer(q){c.save();c.translate(-55*(1-q),-45*(1-q));c.rotate(-.55*(1-q));
+ // Build a conventional T-shaped hammer, then tilt the whole tool. The head
+ // stays perpendicular to the shaft rather than extending along it.
+ c.translate(-23,-31);c.rotate(-Math.PI/4);
+ line([[-6,10],[-6,98],[6,98],[6,10]],gold,a,2.2);
+ line([[-29,-12],[29,-12],[29,10],[-29,10],[-29,-12]],gold,a,2.2);
+ line([[-20,-11],[-20,9]],gold,a*.55,1);
+ line([[20,-11],[20,9]],gold,a*.55,1);
+ c.restore()}
+function sickle(q){c.save();c.translate(62*(1-q),22*(1-q));c.rotate(.7*(1-q));
+ const outer=z=>{const ang=-2.15+z*4.1;return[7+Math.cos(ang)*53,-10+Math.sin(ang)*53]};
+ const inner=z=>{const ang=1.95-z*3.35;return[5+Math.cos(ang)*38,-15+Math.sin(ang)*38]};
+ curve(outer,1,gold,a,2);const end=outer(1);line([end,[-46,72],[-56,63],[-24,29]],gold,a,2);curve(inner,1,gold,a,2);line([inner(1),outer(0)],gold,a,2);c.restore()}
+function emblem(q,scale=1){c.save();c.scale(scale,scale);sickle(q);hammer(q);c.restore()}
+function sparks(p){for(let j=0;j<20;j++){const z=j*2.4,r=20+95*ease(p);line([[Math.cos(z)*r,Math.sin(z)*r],[Math.cos(z)*(r+7*(1-p)),Math.sin(z)*(r+7*(1-p))]],j%3?gold:red,a*Math.sin(p*Math.PI),1)}}
+if(v===0){const q=ease(seg(.08,.52));emblem(q);sparks(seg(.48,.87));const p=seg(.52,.87);curve(z=>[Math.cos(z*TAU)*(65+53*p),Math.sin(z*TAU)*(65+53*p)],1,red,a*(1-p)*.5);star(0,-99,15,a*ease(seg(.48,.7)))}
+if(v===1){const q=ease(seg(.06,.54));c.save();c.translate(0,45*(1-q));line([[-112,110],[-112,-104]],gold);curve(z=>[-112+229*z,-87+Math.sin(z*TAU-t*5)*9],q,red,a,2);curve(z=>[-112+229*z,73+Math.sin(z*TAU-t*5)*9],q,red,a,2);if(q>.99)line([[117,-87+Math.sin(TAU-t*5)*9],[106,-5],[117,73+Math.sin(TAU-t*5)*9]],red);c.save();c.translate(-3,-3);emblem(ease(seg(.17,.63)),.72);c.restore();star(-83,-61,11,a*q);c.restore()}
+if(v===2){const q=ease(seg(.08,.58));emblem(q,.8);for(const s of [-1,1]){curve(z=>[s*(20+70*Math.sin(z*1.55)),94-164*z],q,red);for(let j=0;j<8;j++){const p=ease(seg(.13+j*.05,.38+j*.05)),z=(j+.4)/8,x=s*(20+70*Math.sin(z*1.55)),y=94-164*z;line([[x,y],[x-s*19*p,y-21*p],[x-s*19*p,y-7*p],[x,y]],gold,a*p);line([[x,y],[x+s*14*p,y-20*p],[x+s*17*p,y-5*p],[x,y]],gold,a*p)}}star(0,-103,18,a*ease(seg(.46,.7)));const p=ease(seg(.5,.77));line([[-57*p,100],[0,89],[57*p,100]],red,a*p,2)}
+c.restore()}
+function drawAnneKnightsGambit(c,t,w=700,h=430){
+ const clamp=x=>Math.max(0,Math.min(1,x)),seg=(a,b)=>clamp((t-a)/(b-a)),ease=x=>1-(1-clamp(x))**3;
+ const a=ease(seg(0,.14))*(1-ease(seg(.82,1))),jade='#99d5ba',gold='#efd29a';
+ c.clearRect(0,0,w,h);c.save();c.translate(w/2,h/2);let scale=Math.min(w/350,h/255);c.scale(scale,scale);
+ function line(p,col=jade,alpha=a,width=1.5){c.save();c.beginPath();p.forEach((p,i)=>i?c.lineTo(...p):c.moveTo(...p));c.lineJoin='round';c.lineCap='round';c.strokeStyle=col;c.globalAlpha=clamp(alpha*.3);c.lineWidth=width+4;c.shadowColor=col;c.shadowBlur=8;c.stroke();c.globalAlpha=clamp(alpha);c.lineWidth=width;c.shadowBlur=0;c.stroke();c.restore()}
+ function curve(fn,q=1,col=jade,alpha=a){line(Array.from({length:65},(_,i)=>fn(q*i/64)),col,alpha)}
+ function burst(x,y,p){for(let i=0;i<12;i++){let z=i*2.4,d=15+55*ease(p);line([[x+Math.cos(z)*d,y+Math.sin(z)*d],[x+Math.cos(z)*(d+4),y+Math.sin(z)*(d+4)]],gold,a*Math.sin(p*Math.PI))}}
+ // Approved Knight's Gambit: a planned L-route, knight leap, and landing sparks.
+ const board=(x,y)=>[(x-2.5)*(32+5*y),-2+19*y];
+ const boardAlpha=a*ease(seg(.01,.2));
+ for(let n=0;n<=5;n++){
+  line([board(n,0),board(n,5)],jade,boardAlpha*.3,1);
+  line([board(0,n),board(5,n)],jade,boardAlpha*.3,1);
+ }
+ function tile(x,y,alpha=a){line([board(x-.5,y-.5),board(x+.5,y-.5),board(x+.5,y+.5),board(x-.5,y+.5),board(x-.5,y-.5)],gold,alpha,1.5)}
+ function knight(x,y,size=1,alpha=a){c.save();c.translate(x,y);c.scale(size,size);line([[-21,0],[24,0],[20,-10],[-18,-10],[-21,0]],gold,alpha);line([[-16,-11],[-13,-28],[0,-41],[-16,-37],[-22,-44],[-8,-59],[-7,-69],[2,-64],[11,-61],[19,-46],[21,-27],[16,-11]],gold,alpha);line([[-8,-51],[-4,-51]],jade,alpha,2);c.restore()}
+ {
+  // The L-shaped route is drawn before the knight leaps to its destination.
+  const start=board(1.5,3.5),corner=board(1.5,1.5),end=board(3.5,1.5),q=ease(seg(.31,.7));
+  const plan=ease(seg(.08,.37));
+  if(plan<.5)line([start,[start[0]+(corner[0]-start[0])*plan*2,start[1]+(corner[1]-start[1])*plan*2]],jade,a*.7);
+  else line([start,corner,[corner[0]+(end[0]-corner[0])*(plan-.5)*2,corner[1]+(end[1]-corner[1])*(plan-.5)*2]],jade,a*.7);
+  tile(3.5,1.5,a*ease(seg(.2,.4)));
+  const x=start[0]+(end[0]-start[0])*q,y=start[1]+(end[1]-start[1])*q-44*Math.sin(q*Math.PI);
+  knight(x,y,.9);burst(end[0],end[1]-22,seg(.69,.97));
+ }
+
+
+ c.restore();
+}
+function draw(ctx,id,t,w=700,h=430,options={}){
+if(String(id)==='107')return drawAnneKnightsGambit(ctx,t,w,h);
+if(String(id)==='21')return drawHenryForged(ctx,t,w,h);
+if(String(id)==='104')return drawCaribbea104(ctx,t,w,h);
+if(String(id)==='105')return drawCaribbea105(ctx,t,w,h);
+if(String(id)==='106')return drawCaribbea106(ctx,t,w,h);
+if(['101','102','103'].includes(String(id)))return drawOctoberCards(ctx,String(id),t,w,h);
 if(String(id)==='bh15')return drawHseiLing(ctx,t,w,h);
 ctx.clearRect(0,0,w,h);ctx.save();ctx.translate(w/2,h/2);ctx.scale(Math.min(w/460,h/300),Math.min(w/460,h/300));
 const color=cardPalettes[id]?.[0]||names.find(n=>n[0]===id)[3],gold=cardPalettes[id]?.[1]||'#efd29a',a=ease(seg(t,0,.13))*(1-ease(seg(t,.83,1))),q=ease(seg(t,.1,.65));
@@ -508,6 +723,6 @@ for(let j=0;j<3;j++)curve(v=>[(j-1)*75-12+24*v,21-3*Math.sin(v*PI)],1,'#e7f6ff',
 }
 ctx.restore();
 }
-window.FateApprovedActivationArt={handles:id=>String(id)==='bh15'||names.some(n=>n[0]===String(id)),draw};
+window.FateApprovedActivationArt={handles:id=>['101','102','103','104','105','106','107'].includes(String(id))||String(id)==='bh15'||names.some(n=>n[0]===String(id)),draw};
 })();
 

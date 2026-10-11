@@ -1,0 +1,158 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="820" viewBox="0 0 1200 820" role="img" aria-labelledby="title desc">
+  <title id="title">Six revised status crest options for cards 104 and 105</title>
+  <desc id="desc">Three Fate transfer icon concepts for A Brighter Future and three declared type icon concepts for A Caribbea for All.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#07111c"/><stop offset=".55" stop-color="#0b1724"/><stop offset="1" stop-color="#040a11"/></linearGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#17283a"/><stop offset="1" stop-color="#0d1825"/></linearGradient>
+    <linearGradient id="gold"><stop stop-color="#fff0a6"/><stop offset=".5" stop-color="#e6c45f"/><stop offset="1" stop-color="#9b6f21"/></linearGradient>
+    <radialGradient id="halo"><stop stop-color="#79ddec" stop-opacity=".18"/><stop offset="1" stop-color="#79ddec" stop-opacity="0"/></radialGradient>
+    <pattern id="grain" width="8" height="8" patternUnits="userSpaceOnUse"><circle cx="1" cy="2" r=".45" fill="#fff" opacity=".05"/><circle cx="6" cy="5" r=".35" fill="#fff" opacity=".035"/></pattern>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="170%"><feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#000" flood-opacity=".55"/></filter>
+
+    <!-- 104 A: streams of Fate curve into a central card -->
+    <symbol id="fate-stream" viewBox="0 0 64 64">
+      <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="24" y="23" width="16" height="29" rx="3" stroke-width="4"/>
+        <path d="M10 13c0 12 6 18 16 21M54 13c0 12-6 18-16 21" stroke-width="4"/>
+        <path d="M9 8l1 5 5-1M55 8l-1 5-5-1" stroke-width="3"/>
+        <path d="M32 7l2.3 4.8 5.3.8-3.8 3.7.9 5.2-4.7-2.4-4.7 2.4.9-5.2-3.8-3.7 5.3-.8z" stroke-width="2.5"/>
+        <path d="M32 20v12M29 37h6M29 43h6" stroke-width="3" opacity=".65"/>
+      </g>
+    </symbol>
+
+    <!-- 104 B: all Fate is magnetically captured -->
+    <symbol id="fate-magnet" viewBox="0 0 64 64">
+      <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18 13v21c0 10 6 17 14 17s14-7 14-17V13" stroke-width="6"/>
+        <path d="M18 13h9v11h-9M37 13h9v11h-9" stroke-width="3"/>
+        <path d="M7 34h11M46 34h11" stroke-width="3" opacity=".55"/>
+        <path d="M7 29l-4 5 4 5M57 29l4 5-4 5" stroke-width="3"/>
+        <path d="M32 27l2.2 4.5 5 .7-3.6 3.5.9 5-4.5-2.4-4.5 2.4.9-5-3.6-3.5 5-.7z" stroke-width="2.6"/>
+      </g>
+    </symbol>
+
+    <!-- 104 C: opposing gains are redirected into Rivera -->
+    <symbol id="fate-redirect" viewBox="0 0 64 64">
+      <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 16h17c12 0 19 7 19 18v9" stroke-width="4"/>
+        <path d="M9 16l7-7M9 16l7 7M45 43l-7-7M45 43l7-7" stroke-width="3.5"/>
+        <path d="M21 49h28" stroke-width="4"/>
+        <path d="M21 49l7-7M21 49l7 7" stroke-width="3.5"/>
+        <path d="M48 12l1.8 3.8 4.2.6-3 2.9.7 4.1-3.7-2-3.7 2 .7-4.1-3-2.9 4.2-.6z" stroke-width="2.3"/>
+      </g>
+    </symbol>
+
+    <!-- 105 A: spoken declaration containing the three types -->
+    <symbol id="type-declare" viewBox="0 0 64 64">
+      <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M10 14h44v31H29L18 54l2-9H10z" stroke-width="4"/>
+        <circle cx="22" cy="29" r="5" stroke-width="3"/>
+        <path d="M34 23l6 11H28z" stroke-width="3"/>
+        <rect x="44" y="24" width="10" height="10" rx="1" stroke-width="3"/>
+      </g>
+    </symbol>
+
+    <!-- 105 B: revolutionary standard carrying the selected types -->
+    <symbol id="type-standard" viewBox="0 0 64 64">
+      <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M17 8v49" stroke-width="4"/>
+        <path d="M19 12h35L46 25l8 13H19z" stroke-width="4"/>
+        <circle cx="29" cy="25" r="4" stroke-width="2.6"/>
+        <path d="M40 20l5 9H35z" stroke-width="2.6"/>
+        <rect x="47" y="21" width="8" height="8" rx="1" stroke-width="2.6"/>
+        <path d="M10 57h17" stroke-width="4"/>
+      </g>
+    </symbol>
+
+    <!-- 105 C: a targeted declaration locks onto one card type -->
+    <symbol id="type-target" viewBox="0 0 64 64">
+      <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M10 23V12h11M54 23V12H43M10 41v11h11M54 41v11H43" stroke-width="4"/>
+        <circle cx="20" cy="32" r="5" stroke-width="3" opacity=".55"/>
+        <path d="M32 25l6 11H26z" stroke-width="3.2"/>
+        <rect x="43" y="27" width="10" height="10" rx="1" stroke-width="3" opacity=".55"/>
+        <path d="M32 14v7M32 43v7" stroke-width="2.8"/>
+      </g>
+    </symbol>
+  </defs>
+
+  <rect width="1200" height="820" fill="url(#bg)"/><rect width="1200" height="820" fill="url(#grain)"/>
+  <text x="58" y="60" fill="#f4df92" font-family="Georgia,serif" font-size="27" font-weight="700" letter-spacing="4">STATUS CREST OPTIONS</text>
+  <text x="58" y="92" fill="#8ba2b9" font-family="Arial,sans-serif" font-size="14" letter-spacing="2">THREE DIRECTIONS EACH · OWNER-VIEW ONLY</text>
+  <line x1="0" y1="120" x2="1200" y2="120" stroke="#dabb62" stroke-opacity=".18"/>
+
+  <!-- section headings -->
+  <g font-family="Arial,sans-serif">
+    <text x="58" y="160" fill="#e7c968" font-size="13" font-weight="700" letter-spacing="2.2">104 · A BRIGHTER FUTURE</text>
+    <text x="630" y="160" fill="#e7c968" font-size="13" font-weight="700" letter-spacing="2.2">105 · A CARIBBEA FOR ALL</text>
+    <text x="58" y="182" fill="#6f879b" font-size="12">Fate gained next turn is transferred to this card</text>
+    <text x="630" y="182" fill="#6f879b" font-size="12">A declared card type can trigger Call to Arms</text>
+  </g>
+
+  <!-- cards -->
+  <g filter="url(#shadow)" font-family="Arial,sans-serif">
+    <g transform="translate(42 210)">
+      <rect width="352" height="244" rx="18" fill="url(#panel)" stroke="#2d5367" stroke-width="2"/>
+      <circle cx="176" cy="91" r="69" fill="url(#halo)"/><circle cx="176" cy="91" r="59" fill="#091521" stroke="#7eb7ff" stroke-width="3"/>
+      <use href="#fate-stream" x="126" y="41" width="100" height="100" color="#b9dcff"/>
+      <text x="176" y="181" text-anchor="middle" fill="#f4e5b8" font-family="Georgia,serif" font-size="18" font-weight="700">A · Fate Streams</text>
+      <text x="176" y="205" text-anchor="middle" fill="#8299ad" font-size="11">multiple gains flow into the card</text>
+      <g transform="translate(121 217)"><rect width="110" height="20" rx="10" fill="#123143" stroke="#4ca8c0"/><text x="55" y="14" text-anchor="middle" fill="#94deea" font-size="9" font-weight="700" letter-spacing="1.2">ACTUAL SIZE ↓</text></g>
+    </g>
+    <g transform="translate(424 210)">
+      <rect width="152" height="244" rx="18" fill="url(#panel)" stroke="#2d5367" stroke-width="2"/>
+      <circle cx="76" cy="91" r="59" fill="#091521" stroke="#7eb7ff" stroke-width="3"/>
+      <use href="#fate-magnet" x="28" y="43" width="96" height="96" color="#b9dcff"/>
+      <text x="76" y="181" text-anchor="middle" fill="#f4e5b8" font-family="Georgia,serif" font-size="17" font-weight="700">B · Capture</text>
+      <text x="76" y="204" text-anchor="middle" fill="#8299ad" font-size="10">Fate magnet</text>
+    </g>
+    <g transform="translate(42 478)">
+      <rect width="534" height="170" rx="18" fill="url(#panel)" stroke="#2d5367" stroke-width="2"/>
+      <circle cx="88" cy="85" r="57" fill="#091521" stroke="#7eb7ff" stroke-width="3"/>
+      <use href="#fate-redirect" x="42" y="39" width="92" height="92" color="#b9dcff"/>
+      <text x="172" y="69" fill="#8da4b7" font-size="11" font-weight="700" letter-spacing="1.8">OPTION C</text>
+      <text x="172" y="98" fill="#f4e5b8" font-family="Georgia,serif" font-size="21" font-weight="700">Redirected Fate</text>
+      <text x="172" y="124" fill="#8299ad" font-size="12">the opponent’s gain bends toward Rivera</text>
+    </g>
+
+    <g transform="translate(624 210)">
+      <rect width="534" height="170" rx="18" fill="url(#panel)" stroke="#2d5367" stroke-width="2"/>
+      <circle cx="88" cy="85" r="57" fill="#091521" stroke="#7eb7ff" stroke-width="3"/>
+      <use href="#type-declare" x="42" y="39" width="92" height="92" color="#b9dcff"/>
+      <text x="172" y="69" fill="#8da4b7" font-size="11" font-weight="700" letter-spacing="1.8">OPTION A</text>
+      <text x="172" y="98" fill="#f4e5b8" font-family="Georgia,serif" font-size="21" font-weight="700">Declared Type</text>
+      <text x="172" y="124" fill="#8299ad" font-size="12">the three types inside a spoken declaration</text>
+    </g>
+    <g transform="translate(624 404)">
+      <rect width="254" height="244" rx="18" fill="url(#panel)" stroke="#2d5367" stroke-width="2"/>
+      <circle cx="127" cy="91" r="59" fill="#091521" stroke="#7eb7ff" stroke-width="3"/>
+      <use href="#type-standard" x="79" y="43" width="96" height="96" color="#b9dcff"/>
+      <text x="127" y="181" text-anchor="middle" fill="#f4e5b8" font-family="Georgia,serif" font-size="17" font-weight="700">B · People’s Standard</text>
+      <text x="127" y="205" text-anchor="middle" fill="#8299ad" font-size="10">revolutionary rally flag</text>
+    </g>
+    <g transform="translate(904 404)">
+      <rect width="254" height="244" rx="18" fill="url(#panel)" stroke="#2d5367" stroke-width="2"/>
+      <circle cx="127" cy="91" r="59" fill="#091521" stroke="#7eb7ff" stroke-width="3"/>
+      <use href="#type-target" x="79" y="43" width="96" height="96" color="#b9dcff"/>
+      <text x="127" y="181" text-anchor="middle" fill="#f4e5b8" font-family="Georgia,serif" font-size="17" font-weight="700">C · Type Target</text>
+      <text x="127" y="205" text-anchor="middle" fill="#8299ad" font-size="10">one chosen type is armed</text>
+    </g>
+  </g>
+
+  <!-- actual status-pill scale previews -->
+  <g transform="translate(42 682)" font-family="Arial,sans-serif">
+    <text x="0" y="0" fill="#6f879b" font-size="10" letter-spacing="1.5">BANNER-SCALE CHECK</text>
+    <g transform="translate(0 18)">
+      <rect width="1116" height="74" rx="15" fill="#0c1825" stroke="#284b60" stroke-width="2"/>
+      <g transform="translate(20 10)"><circle cx="27" cy="27" r="25" fill="#08141f" stroke="#7eb7ff" stroke-width="2.5"/><use href="#fate-stream" x="8" y="8" width="38" height="38" color="#b9dcff"/></g>
+      <g transform="translate(100 10)"><circle cx="27" cy="27" r="25" fill="#08141f" stroke="#7eb7ff" stroke-width="2.5"/><use href="#fate-magnet" x="8" y="8" width="38" height="38" color="#b9dcff"/></g>
+      <g transform="translate(180 10)"><circle cx="27" cy="27" r="25" fill="#08141f" stroke="#7eb7ff" stroke-width="2.5"/><use href="#fate-redirect" x="8" y="8" width="38" height="38" color="#b9dcff"/></g>
+      <line x1="270" y1="12" x2="270" y2="62" stroke="#d6b657" stroke-opacity=".3"/>
+      <g transform="translate(300 10)"><circle cx="27" cy="27" r="25" fill="#08141f" stroke="#7eb7ff" stroke-width="2.5"/><use href="#type-declare" x="8" y="8" width="38" height="38" color="#b9dcff"/></g>
+      <g transform="translate(380 10)"><circle cx="27" cy="27" r="25" fill="#08141f" stroke="#7eb7ff" stroke-width="2.5"/><use href="#type-standard" x="8" y="8" width="38" height="38" color="#b9dcff"/></g>
+      <g transform="translate(460 10)"><circle cx="27" cy="27" r="25" fill="#08141f" stroke="#7eb7ff" stroke-width="2.5"/><use href="#type-target" x="8" y="8" width="38" height="38" color="#b9dcff"/></g>
+      <text x="565" y="33" fill="#93a9bc" font-size="11" font-weight="700" letter-spacing="1.8">PRIVATE STATUS</text>
+      <text x="565" y="55" fill="#f3e9c8" font-family="Georgia,serif" font-size="17" font-weight="700">Choose one direction for each card</text>
+    </g>
+  </g>
+</svg>

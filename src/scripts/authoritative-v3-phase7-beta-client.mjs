@@ -308,12 +308,17 @@ function applyServerMessage(message){
   // particular, a prompt that immediately follows an activated draw can race
   // the client's previous revision.  Consume the server's current projection
   // before the UI is allowed to offer that prompt again.
-  if(message.kind === 'snapshot' || message.kind === 'accepted' || message.kind === 'rejected'){
+  const incomingRevision = Number(message.revision ?? message.state?.revision);
+  const staleProjection = Number.isFinite(incomingRevision) && incomingRevision < revision;
+  if(!staleProjection && (message.kind === 'snapshot' || message.kind === 'accepted' || message.kind === 'rejected')){
+    // Delayed snapshots/acknowledgements must not pair an old search prompt
+    // with the newer revision used by sendCommand. Still settle acknowledgements
+    // below, even when their projection has already been superseded.
     if(message.state) state = clone(message.state);
     if(message.state) updateTakeoverNotice(state,playerIndex);
     if(Array.isArray(message.legalCommands)) legalCommands = clone(message.legalCommands);
     if(Array.isArray(message.privateActionCards)) privateActionCards = clone(message.privateActionCards);
-    revision = Math.max(revision, Number(message.revision || 0) || 0);
+    revision = Math.max(revision, Number.isFinite(incomingRevision) ? incomingRevision : 0);
     if(message.stateHash) stateHash = String(message.stateHash);
     if(message.kind === 'accepted' && Array.isArray(message.events) && message.events.length){
       presentationBatch = {

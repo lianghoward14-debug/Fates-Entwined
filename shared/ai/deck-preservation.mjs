@@ -18,7 +18,7 @@ export const PRESERVATION_PROFILES=[
   {name:'time',signature:['46','95','bh20'],engines:['46','95'],recover:['bh25'],fuel:['08','06','27','bh20','48']},
   {name:'patience',signature:['89','84','bh19','03'],engines:['89'],recover:['64','05'],fuel:['84','03','bh19']},
   {name:'wintertide',signature:['100','88','92'],engines:['100','88','89'],recover:['97','09'],fuel:['06']},
-  {name:'sea',signature:['bh16','bh04','bh09'],engines:['bh16','bh09'],recover:['31','79'],fuel:['06','27','30','bh04','61']},
+  {name:'sea',signature:['bh16','bh04','74','30'],engines:['bh16','53'],recover:['74','33','79'],fuel:['28']},
   {name:'maja',signature:['bh08','67','bh23'],engines:['bh08','56','67'],recover:['18','bh23'],fuel:['06','27']}
   ,{name:'pierogi',signature:['81','62','bh07','bh06'],engines:['bh07','bh01'],recover:['16','18','62'],fuel:['06','68','60']}
   ,{name:'perez',signature:['22','44','95','bh24'],engines:['22','44','95'],recover:['60','74','80'],fuel:['28','05','13','27']}
@@ -72,7 +72,6 @@ export function createDeckPreservationPrior(state,player,entries,cards){
     if(command.type==='DISCARD_CARD'){
       const e=own.find(e=>e.card.iid===(q.targetIid || q.sourceIid));if(e && operational(e))score-=16;
     }
-    if(card?.id==='58' && q.destination && state.landscapeId==='igb4')score-=15;
     return score;
   };
 }

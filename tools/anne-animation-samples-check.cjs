@@ -1,0 +1,21 @@
+const fs=require('fs');
+const {chromium}=require('C:/Users/user/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
+(async()=>{
+const browser=await chromium.launch({headless:true,channel:'msedge'});
+const page=await browser.newPage({viewport:{width:736,height:1050}});
+const errors=[];page.on('pageerror',e=>errors.push(e.message));
+const fragment=fs.readFileSync('C:/Users/user/.codex/visualizations/2026/10/10/01a1261a-c6f4-71d3-93f1-804afddf0c49/anne-revolution-animation-samples.html','utf8');
+await page.setContent('<style>body{background:#15171b;color:#eee;font:14px Arial}.viz-row,.viz-controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap}h3{font-size:14px;font-weight:500}button{padding:8px}</style>'+fragment);
+await page.waitForFunction(()=>[...document.images].every(i=>i.complete&&i.naturalWidth>0));
+await page.screenshot({path:'artifacts/anne-107/animation-samples.png'});
+await page.locator('[data-play="all"]').click();await page.waitForTimeout(700);await page.locator('[data-pause]').click();
+if(await page.locator('[data-pause]').textContent()!=='Resume')throw Error('Pause failed');
+await page.locator('[data-slow]').check();await page.locator('[data-pause]').click();
+await page.waitForTimeout(2600);
+for(let i=0;i<3;i++)await page.locator('[data-play="'+i+'"]').click();
+await page.setViewportSize({width:320,height:1000});await page.waitForTimeout(200);
+if(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth))throw Error('Mobile overflow');
+await page.screenshot({path:'artifacts/anne-107/animation-samples-mobile.png'});
+if(errors.length)throw Error(errors.join('\n'));
+console.log('PASS: portraits, three replays, pause, half speed, 320px layout; '+Buffer.byteLength(fragment)+' bytes');await browser.close();
+})().catch(e=>{console.error(e);process.exit(1)});

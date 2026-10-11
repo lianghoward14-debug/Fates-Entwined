@@ -1,15 +1,46 @@
-import {controllerOf} from '../engine/selectors.mjs';
+import {boardEntries,controllerOf} from '../engine/selectors.mjs';
 import {effectiveFate,isEffectSourceSuppressed,canUseAsConsolidationTribute} from '../engine/modifiers.mjs';
 import {zoneScore} from '../engine/scoring.mjs';
+
+const eventide=c=>(c.affiliation || c.aff)==='eventide';
+const seaDeck=all=>['bh16','bh04','74','30'].every(id=>all.some(c=>c.id===id));
+
+// Priors only order search. Keep scarce activations out of the search until
+// development is complete, except when the last turn demands spending them.
+export function filterEndlessSeaTiming(commands,state,player){
+  if(state.pendingPrompt || state.pendingHandLimit)return commands;
+  const owner=state.players[player],own=boardEntries(state).filter(e=>controllerOf(e.card)===player);
+  const all=[...(owner.hand || []),...(owner.deck || []),...(owner.discard || []),...own.map(e=>e.card)];
+  if(!seaDeck(all))return commands;
+  const cards=new Map(all.map(c=>[c.iid,c]));
+  const count=own.filter(e=>eventide(e.card)).length;
+  const growth=commands.some(c=>['SET_CARD','SET_CARD_FROM_DECK'].includes(c.type)
+    && cards.get(c.payload?.cardIid)?.type==='Supporter' && eventide(cards.get(c.payload.cardIid)));
+  const finalTurn=state.maxTurns-state.turn<=1;
+  const urgent=Number(state.moralePressure?.morale?.[player] ?? 200)<=40;
+  const filtered=commands.filter(c=>{
+    if(c.type!=='ACTIVATE_EFFECT')return true;
+    const e=own.find(e=>e.card.iid===c.payload?.sourceIid && e.card.id==='bh16');
+    if(!e)return true;
+    if(finalTurn)return true;
+    const margin=zoneScore(state,e.z,player)-zoneScore(state,e.z,1-player);
+    const flips=margin<=0 && margin+count>0;
+    if(urgent && flips)return true;
+    if(growth)return false;
+    return flips || count>=(Number(e.card.counters?.effectUses || 0)>0?8:6);
+  });
+  return filtered.length?filtered:commands;
+}
 
 export function createEndlessSeaPrior(state,player,entries,cards){
   const owner=state.players[player],hand=owner.hand || [];
   const own=entries.filter(e=>controllerOf(e.card)===player),enemy=entries.filter(e=>controllerOf(e.card)!==player);
   const all=[...hand,...(owner.deck || []),...(owner.discard || []),...own.map(e=>e.card)];
-  if(!['bh16','bh04','bh09','49','30'].every(id=>all.some(c=>c.id===id)))return ()=>0;
+  if(!seaDeck(all))return ()=>0;
   const live=e=>!e.card.faceDown && !isEffectSourceSuppressed(state,e);
   const margin=z=>zoneScore(state,z,player)-zoneScore(state,z,1-player);
-  const eventides=own.filter(e=>!e.card.faceDown && (e.card.affiliation || e.card.aff)==='eventide').length;
+  // Match the reducer: suppressed and face-down controlled Eventide cards count.
+  const eventides=own.filter(e=>eventide(e.card)).length;
   const pressure=e=>effectiveFate(state,e)+(['bh08','46','100','bh16'].includes(e.card.id)?8:0);
   const source=cards.get(state.pendingPrompt?.sourceIid);
   const sourceEntry=entries.find(e=>e.card.iid===source?.iid);
@@ -19,7 +50,12 @@ export function createEndlessSeaPrior(state,player,entries,cards){
     if(!c)return 0;
     if(c.id==='09')return resources<4?12:4;
     if(c.id==='79')return hand.some(h=>h.id==='79')?2:9;
-    if(c.id==='74')return hand.filter(h=>h.type==='Supporter').length>=2?8:3;
+    if(c.id==='74')return hand.filter(h=>h.type==='Supporter').length>=2?22:12;
+    if(c.id==='33')return Number(state.moralePressure?.morale?.[player] ?? 200)<160?18:9;
+    if(c.id==='53')return own.some(e=>e.card.id==='53' && live(e))?7:12;
+    if(c.id==='52')return enemy.length?10:7;
+    if(c.id==='75')return 10;
+    if(c.id==='02')return own.length>=6?12:3;
     if(c.id==='49')return own.some(e=>e.card.type!=='Supporter') && !own.some(e=>e.card.id==='49' && live(e))?8:2;
     if(c.id==='30')return removalTargets.length?Math.min(12,Math.max(...removalTargets.map(pressure))*.4):0;
     if(c.id==='bh16')return eventides>=3?10:3;
@@ -53,6 +89,9 @@ export function createEndlessSeaPrior(state,player,entries,cards){
     }
     if(p.destination && card){
       const z=Number(p.destination.z);
+      if(card.type==='Supporter')score+=eventide(card)?14:8;
+      if(card.id==='53')score+=own.some(e=>e.z===z && e.card.id==='53' && live(e))?-6:4;
+      if(card.id==='33')score+=Number(state.moralePressure?.morale?.[player] ?? 200)<160?8:0;
       if(card.id==='79' && !state.pendingPrompt?.reactionIid)score-=14;
       if(card.id==='bh16')score+=eventides>=3?7:0;
       if(card.id==='30')score+=enemy.some(e=>e.z===z && e.r===1)?8:-10;
@@ -61,14 +100,15 @@ export function createEndlessSeaPrior(state,player,entries,cards){
     }
     if(command.type==='ACTIVATE_EFFECT' && card?.id==='bh16'){
       const e=own.find(e=>e.card.iid===card.iid);
-      if(e){const m=margin(e.z);score+=eventides===0?-20:m<=0 && m+eventides>0?16:m>10?-6:3;
-        if(hand.some(c=>c.type==='Supporter' && (c.affiliation || c.aff)==='eventide'))score-=4;}
+      if(e){const m=margin(e.z);score+=m<=0 && m+eventides>0?20:eventides>=6?12:-24;
+        if(hand.some(c=>c.type==='Supporter' && eventide(c)) && state.maxTurns-state.turn>1)score-=12;}
     }
     for(const iid of p.tributeIids || []){
       const e=own.find(e=>e.card.iid===iid);if(!e)continue;
       if(e.card.id==='bh16' && Number(e.card.counters?.effectUses || 0)<2)score-=12;
       if(e.card.id==='bh09')score-=Math.min(12,effectiveFate(state,e)*.4);
-      if((e.card.affiliation || e.card.aff)==='eventide' && own.some(x=>x.card.id==='bh16' && live(x)))score-=3;
+      if(eventide(e.card) && all.some(c=>c.id==='bh16' && Number(c.counters?.effectUses || 0)<2))score-=8;
+      if(e.card.id==='28')score+=4;
     }
     // Counter only when the actual pending operation warrants spending reserve.
     if(p.reactionIid && cards.get(p.reactionIid)?.id==='79'){

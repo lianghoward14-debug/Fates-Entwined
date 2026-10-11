@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720" role="img" aria-labelledby="title desc">
+ <title id="title">Rivera convergence and Jorge status icon variants</title>
+ <desc id="desc">Two new convergence variants for Rivera and two new status icon designs for Jorge, using owner-side blue styling.</desc>
+ <defs>
+  <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#07111c"/><stop offset=".6" stop-color="#0b1724"/><stop offset="1" stop-color="#040a11"/></linearGradient>
+  <linearGradient id="panel" y2="1"><stop stop-color="#17283a"/><stop offset="1" stop-color="#0b1723"/></linearGradient>
+  <radialGradient id="iconbg"><stop stop-color="#477abe" stop-opacity=".24"/><stop offset="1" stop-color="#070e1b" stop-opacity=".72"/></radialGradient>
+  <pattern id="grain" width="8" height="8" patternUnits="userSpaceOnUse"><circle cx="1" cy="2" r=".45" fill="#fff" opacity=".05"/><circle cx="6" cy="5" r=".35" fill="#fff" opacity=".03"/></pattern>
+  <filter id="shadow"><feDropShadow dy="7" stdDeviation="8" flood-opacity=".5"/></filter>
+
+  <!-- Rivera D: four gains spiral into a central Fate diamond -->
+  <symbol id="rivera-vortex" viewBox="0 0 64 64"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+   <path d="M9 20c6-8 14-11 23-8M44 9l-12 3 7 10" stroke-width="3.8"/>
+   <path d="M55 44c-6 8-14 11-23 8M20 55l12-3-7-10" stroke-width="3.8"/>
+   <path d="M44 55c8-6 11-14 8-23M55 20l-3 12-10-7" stroke-width="3.8"/>
+   <path d="M20 9c-8 6-11 14-8 23M9 44l3-12 10 7" stroke-width="3.8"/>
+   <path d="M32 21l11 11-11 13-11-13z" stroke-width="4"/>
+   <path d="M32 27v11M27 32h10" stroke-width="2.8" opacity=".75"/>
+  </g></symbol>
+
+  <!-- Rivera E: two streams visibly merge and enter the card -->
+  <symbol id="rivera-merge" viewBox="0 0 64 64"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+   <path d="M8 13h10c9 0 14 5 14 14v5M56 13H46c-9 0-14 5-14 14v5" stroke-width="4"/>
+   <path d="M8 13l6-6M8 13l6 6M56 13l-6-6M56 13l-6 6" stroke-width="3.4"/>
+   <rect x="22" y="32" width="20" height="25" rx="3" stroke-width="4"/>
+   <path d="M32 25v13M27 44h10M27 50h10" stroke-width="3"/>
+   <circle cx="19" cy="25" r="2.5" stroke-width="2.4" opacity=".6"/><circle cx="45" cy="25" r="2.5" stroke-width="2.4" opacity=".6"/>
+  </g></symbol>
+
+  <!-- Jorge D: declared type crosses a tripwire and rings the alarm -->
+  <symbol id="jorge-tripwire" viewBox="0 0 64 64"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+   <path d="M7 39h50" stroke-width="3.5"/>
+   <path d="M14 35l5-9 5 9z" stroke-width="2.8"/><circle cx="32" cy="31" r="5" stroke-width="2.8"/><rect x="42" y="26" width="10" height="10" rx="1" stroke-width="2.8"/>
+   <path d="M25 50h14M28 39c0 5-1 8-3 11h14c-2-3-3-6-3-11" stroke-width="3.5"/>
+   <path d="M23 13c5-6 13-6 18 0M18 9c8-9 20-9 28 0" stroke-width="3" opacity=".8"/>
+   <path d="M32 14v8" stroke-width="3.5"/>
+  </g></symbol>
+
+  <!-- Jorge E: mobilization drum with three type marks -->
+  <symbol id="jorge-drum" viewBox="0 0 64 64"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+   <path d="M15 23h34v27H15zM12 20h40v7H12zM12 47h40v7H12z" stroke-width="3.5"/>
+   <path d="M17 27l30 20M47 27L17 47" stroke-width="2.7" opacity=".7"/>
+   <path d="M13 8l14 15M51 8L37 23" stroke-width="4"/>
+   <circle cx="11" cy="7" r="4" stroke-width="2.7"/><circle cx="53" cy="7" r="4" stroke-width="2.7"/>
+   <circle cx="23" cy="37" r="3" stroke-width="2.2"/><path d="M32 32l4 7h-8z" stroke-width="2.2"/><rect x="39" y="34" width="6" height="6" stroke-width="2.2"/>
+  </g></symbol>
+ </defs>
+ <rect width="1200" height="720" fill="url(#bg)"/><rect width="1200" height="720" fill="url(#grain)"/>
+ <text x="55" y="58" fill="#f4df92" font-family="Georgia,serif" font-size="27" font-weight="700" letter-spacing="4">PRIVATE STATUS CRESTS · ROUND THREE</text>
+ <text x="55" y="89" fill="#91a8bb" font-family="Arial,sans-serif" font-size="14" letter-spacing="2">TWO NEW DIRECTIONS EACH · LIVE OWNER-SIDE BLUE</text>
+ <line y1="116" x2="1200" y2="116" stroke="#dabb62" stroke-opacity=".18"/>
+
+ <g font-family="Arial,sans-serif"><text x="55" y="154" fill="#e7c968" font-size="13" font-weight="700" letter-spacing="2.2">104 · RIVERA · CONVERGENCE VARIANTS</text><text x="625" y="154" fill="#e7c968" font-size="13" font-weight="700" letter-spacing="2.2">105 · JORGE · NEW DIRECTIONS</text></g>
+
+ <g filter="url(#shadow)" font-family="Arial,sans-serif">
+  <g transform="translate(42 180)"><rect width="260" height="350" rx="18" fill="url(#panel)" stroke="#315970" stroke-width="2"/><circle cx="130" cy="112" r="75" fill="url(#iconbg)" stroke="#7eb7ff" stroke-width="3"/><use href="#rivera-vortex" x="69" y="51" width="122" height="122" color="#b9dcff"/><text x="130" y="221" text-anchor="middle" fill="#f3e9c8" font-family="Georgia,serif" font-size="22" font-weight="700">D · Fate Vortex</text><text x="130" y="251" text-anchor="middle" fill="#8da5b9" font-size="11">every direction spirals inward</text><text x="130" y="280" text-anchor="middle" fill="#b9dcff" font-size="10" font-weight="700" letter-spacing="1">CLEAR AT 26PX</text></g>
+  <g transform="translate(318 180)"><rect width="260" height="350" rx="18" fill="url(#panel)" stroke="#315970" stroke-width="2"/><circle cx="130" cy="112" r="75" fill="url(#iconbg)" stroke="#7eb7ff" stroke-width="3"/><use href="#rivera-merge" x="69" y="51" width="122" height="122" color="#b9dcff"/><text x="130" y="221" text-anchor="middle" fill="#f3e9c8" font-family="Georgia,serif" font-size="22" font-weight="700">E · Fate Merge</text><text x="130" y="251" text-anchor="middle" fill="#8da5b9" font-size="11">two streams combine into the card</text><text x="130" y="280" text-anchor="middle" fill="#b9dcff" font-size="10" font-weight="700" letter-spacing="1">DIRECT EFFECT READ</text></g>
+  <g transform="translate(624 180)"><rect width="260" height="350" rx="18" fill="url(#panel)" stroke="#315970" stroke-width="2"/><circle cx="130" cy="112" r="75" fill="url(#iconbg)" stroke="#7eb7ff" stroke-width="3"/><use href="#jorge-tripwire" x="69" y="51" width="122" height="122" color="#b9dcff"/><text x="130" y="221" text-anchor="middle" fill="#f3e9c8" font-family="Georgia,serif" font-size="22" font-weight="700">D · Rally Trigger</text><text x="130" y="251" text-anchor="middle" fill="#8da5b9" font-size="11">a declared type trips the signal</text><text x="130" y="280" text-anchor="middle" fill="#b9dcff" font-size="10" font-weight="700" letter-spacing="1">TRAP + CALL</text></g>
+  <g transform="translate(900 180)"><rect width="260" height="350" rx="18" fill="url(#panel)" stroke="#315970" stroke-width="2"/><circle cx="130" cy="112" r="75" fill="url(#iconbg)" stroke="#7eb7ff" stroke-width="3"/><use href="#jorge-drum" x="69" y="51" width="122" height="122" color="#b9dcff"/><text x="130" y="221" text-anchor="middle" fill="#f3e9c8" font-family="Georgia,serif" font-size="22" font-weight="700">E · Call to Arms</text><text x="130" y="251" text-anchor="middle" fill="#8da5b9" font-size="11">mobilization drum with type marks</text><text x="130" y="280" text-anchor="middle" fill="#b9dcff" font-size="10" font-weight="700" letter-spacing="1">REVOLUTIONARY MOTIF</text></g>
+ </g>
+
+ <g transform="translate(42 570)" font-family="Arial,sans-serif"><text y="0" fill="#6f879b" font-size="10" letter-spacing="1.5">ACTUAL STATUS-BANNER SCALE</text><rect y="18" width="1116" height="94" rx="16" fill="#0b1724" stroke="#315970" stroke-width="2"/>
+  <g transform="translate(25 36)"><circle cx="25" cy="25" r="24" fill="url(#iconbg)" stroke="#7eb7ff" stroke-width="2"/><use href="#rivera-vortex" x="6" y="6" width="38" height="38" color="#b9dcff"/></g><g transform="translate(92 36)"><circle cx="25" cy="25" r="24" fill="url(#iconbg)" stroke="#7eb7ff" stroke-width="2"/><use href="#rivera-merge" x="6" y="6" width="38" height="38" color="#b9dcff"/></g>
+  <line x1="170" y1="31" x2="170" y2="99" stroke="#527086" opacity=".5"/>
+  <g transform="translate(190 36)"><circle cx="25" cy="25" r="24" fill="url(#iconbg)" stroke="#7eb7ff" stroke-width="2"/><use href="#jorge-tripwire" x="6" y="6" width="38" height="38" color="#b9dcff"/></g><g transform="translate(257 36)"><circle cx="25" cy="25" r="24" fill="url(#iconbg)" stroke="#7eb7ff" stroke-width="2"/><use href="#jorge-drum" x="6" y="6" width="38" height="38" color="#b9dcff"/></g>
+  <text x="365" y="52" fill="#91a9bd" font-size="11" font-weight="700" letter-spacing="1.8">OWNER-ONLY STATUS</text><text x="365" y="77" fill="#f3e9c8" font-family="Georgia,serif" font-size="18" font-weight="700">Blue glyph · blue frame · dark radial fill</text>
+ </g>
+</svg>

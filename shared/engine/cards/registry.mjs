@@ -239,29 +239,7 @@ const REGISTRY = Object.freeze({
       }
     ]
   },
-  '21':{
-    timings:['WHEN_SET', 'PASSIVE'],
-    operations:['CREATE_SQUARE_STATUS'],
-    prompts:['BOARD_DESTINATION'],
-    program:[
-      {
-        kind:'SELECT_DESTINATIONS',
-        local:'destinations',
-        min:1,
-        max:2,
-        filter:{sameZone:true, includeOccupied:true, adjacent:true}
-      },
-      {
-        kind:'OPERATION',
-        operation:{
-          type:'CREATE_SQUARE_STATUS',
-          destinations:'$destinations',
-          statusType:'COORDINATOR_SUPPRESSED',
-          blockedPlayer:'$opponent'
-        }
-      }
-    ]
-  },
+  '21':{timings:['PASSIVE'],operations:[],prompts:[]},
   '24':{
     effectLabels:['ADJACENCY_BONUS'],
     timings:['PASSIVE'],
@@ -452,26 +430,10 @@ const REGISTRY = Object.freeze({
     prompts:[],
     triggerSubscriptions:['CARD_DRAWN', 'CARD_TRANSFERRED']
   },
-  '78':{
-    timings:['WHEN_SET'],
-    operations:['CREATE_MATCH_STATUS'],
-    prompts:[],
-    program:[
-      {
-        kind:'OPERATION',
-        operation:{
-          type:'CREATE_MATCH_STATUS',
-          status:{
-            type:'FACE_DOWN_CONSOLIDATION_PERMISSION',
-            playerIndex:'$controller',
-            sourceIid:'$sourceIid',
-            inferSourceZone:true,
-            remaining:1
-          }
-        }
-      }
-    ]
-  },
+  '78':{timings:['WHEN_SET'],operations:[],prompts:['CARD_SELECTION'],program:[
+    {kind:'SELECT_HOPLITE_CALL',local:'callCardId'},
+    {kind:'RESOLVE_HOPLITE_CALL',cardId:'$callCardId'}
+  ]},
   '91':{timings:['HAND_ARRIVAL'],operations:['TRANSFER_CARDS'],prompts:['CARD_SELECTION'],program:[
     {kind:'SELECT_CARDS',local:'targetIid',filter:{locations:['deck'],playerIndex:'controller',mentionsLandscape:true,excludeCardId:'91'}},
     {kind:'OPERATION',operation:{type:'TRANSFER_CARDS',targetIid:'$targetIid',playerIndex:'$controller',destinationPile:'hand'}},
@@ -1482,6 +1444,7 @@ const REGISTRY = Object.freeze({
           locations:['hand', 'deck'],
           playerIndex:'controller',
           excludeCardId:'bh05',
+          maxCost:3,
           copyEffectAvailable:true
         }
       },
@@ -1671,15 +1634,7 @@ const REGISTRY = Object.freeze({
     prompts:[],
     triggerSubscriptions:['CARD_CONSOLIDATED']
   },
-  'bh18':{
-    havanoPassiveEntry:true,
-    effectLabels:['MORALE_CALCULATION_ZONE_FATE_REDUCTION'],
-    timings:['PASSIVE'],
-    operations:['CREATE_MATCH_STATUS'],
-    prompts:[],
-    havanoTargeting:'OPPONENT',
-    triggerSubscriptions:['MORALE_CYCLE_RESOLVED']
-  },
+  'bh18':{timings:['WHEN_SET'],operations:['DISCARD_CARD','DRAW_CARD'],prompts:['REACTION'],havanoTargeting:'OPPONENT',program:[{kind:'JIMMY_HAND_RESET'}]},
   'bh19':{
     effectLabels:['PERMANENT_FATE_GAIN_POTENCY'],
     timings:['WHEN_SET'],
@@ -1769,30 +1724,33 @@ const REGISTRY = Object.freeze({
     prompts:[],
     program:[{kind:'PROC_ZONE_CONDITIONAL_FATE_TRIGGERS',minimumTurn:18}]
   },
-  '101':{
-    timings:['PASSIVE','TURN_BOUNDARY'],
-    effectLabels:['ADJACENT_DIAGONAL_TURN_FATE','ADJACENT_DIAGONAL_OPPONENT_EFFECT_IMMUNITY'],
-    operations:['MODIFY_FATE'],
-    triggerSubscriptions:['TURN_STARTED'],
-    prompts:[],
-    program:[]
-  },
+  '101':{timings:['PASSIVE'],effectLabels:['MORALE_HEAL_FATE_CONVERSION'],operations:['MODIFY_FATE'],prompts:[],program:[]},
   '102':{
     timings:['ACTIVATE'],effectLabels:['HIDDEN_NEXT_OPPONENT_TURN_SQUARE_TRAP','OPTIONAL_FACE_DOWN_ENTRY'],
     operations:['CREATE_SQUARE_STATUS','DISCARD_CARD'],prompts:['BOARD_DESTINATION'],manualOnly:true,maxUses:1,
     program:[
-      {kind:'SELECT_DESTINATION',local:'destination',filter:{includeOccupied:true}},
-      {kind:'OPERATION',operation:{type:'CREATE_SQUARE_STATUS',destination:'$destination',statusType:'HIDDEN_BOMB_TRAP',playerIndex:'$controller',targetPlayer:'$opponent',triggerTurnOffset:1,privateToOwner:true}}
+      {kind:'SELECT_DESTINATIONS',local:'destinations',min:1,max:3,filter:{includeOccupied:true}},
+      {kind:'OPERATION',operation:{type:'CREATE_SQUARE_STATUS',destinations:'$destinations',statusType:'HIDDEN_BOMB_TRAP',playerIndex:'$controller',targetPlayer:'$opponent',triggerTurnOffset:1,privateToOwner:true}}
     ]
   },
+  '104':{timings:['ACTIVATE'],manualOnly:true,maxUses:1,effectLabels:['NEXT_TURN_FATE_TRANSFER','FACE_DOWN_ENTRY'],operations:['CREATE_TIMED_PLAYER_STATUS','MODIFY_FATE'],prompts:[],program:[{kind:'OPERATION',operation:{type:'CREATE_TIMED_PLAYER_STATUS',statusType:'RIVERA_FATE_TRANSFER',playerIndex:'$opponent',targetTurns:1,startsNextTargetTurn:true}}]},
+  '105':{timings:['ACTIVATE'],manualOnly:true,maxUses:1,operations:['SET_CARD_COUNTER'],prompts:['MODAL_CHOICE'],program:[
+    {kind:'CHOOSE_OPTION',local:'declaredType',options:['Initiator','Improvisor','Coordinator','Dauntless'].map(value=>({value,label:value}))},
+    {kind:'OPERATION',operation:{type:'SET_CARD_COUNTER',targetIid:'$sourceIid',counterKey:'jorgeDeclaredType',value:'$declaredType'}},
+    {kind:'ARM_JORGE_NEXT_TURN'}
+  ]},
+  '107':{timings:['ACTIVATE'],manualOnly:true,maxUses:2,operations:['MODIFY_FATE','SET_CARD_COUNTER'],prompts:['MODAL_CHOICE'],program:[
+    {kind:'CHOOSE_OPTION',local:'declaredAction',cancellable:false,options:[
+      {value:'DRAW',label:'Draw'}, {value:'SEARCH',label:'Search'},
+      {value:'FATE',label:'Fate Increase/Decrease'}, {value:'MOVEMENT',label:'Movement'},
+      {value:'STATUS',label:'Status Effect Activation'}, {value:'MORALE',label:'Morale Increase/Decrease'}
+    ]},
+    {kind:'ARM_ANNE_NEXT_TURN'}
+  ]},
+  '106':{timings:['PASSIVE'],effectLabels:['GROWING_ZONE_FATE_AURA'],operations:['MODIFY_MORALE','SET_CARD_COUNTER'],prompts:[],program:[]},
   '103':{
-    timings:['WHEN_SET'],effectLabels:['MORALE_PAYMENT','DRAW_EFFECT'],
-    operations:['MODIFY_MORALE','DRAW_CARD'],prompts:['MODAL_CHOICE'],
-    program:[
-      {kind:'CHOOSE_OPTION',local:'moralePayment',maxByControllerMorale:true,options:[15,30,45,60,75,90,105,120,135,150,165,180,195]},
-      {kind:'OPERATION',operation:{type:'MODIFY_MORALE',playerIndex:'$controller',amount:{multiply:['$moralePayment',-1]},reason:'SANGRE_POR_VICTORIA_COST'}},
-      {kind:'OPERATION',operation:{type:'DRAW_CARD',playerIndex:'$controller',count:{divide:['$moralePayment',15]},activatedEffect:true,reason:'SANGRE_POR_VICTORIA_DRAW'}}
-    ]
+    timings:['WHEN_SET'],effectLabels:['DISCARD_HIGH_FATE_CALL_TO_ARMS'],operations:['DISCARD_CARD'],prompts:['MODAL_CHOICE','CARD_SELECTION'],
+    program:[{kind:'SANTIAGO_CALL_COST'},{kind:'SELECT_HOPLITE_CALL',local:'callCardId',unconditional:true},{kind:'RESOLVE_HOPLITE_CALL',cardId:'$callCardId'}]
   },
   'test-p3-chain':{
     testOnly:true,
@@ -1903,8 +1861,8 @@ const PRESSURE_REWORK_REGISTRY = Object.freeze({
 // Keep authoritative Havano eligibility aligned with the shipping browser
 // metadata. These effects can target the opponent or an opponent-owned card.
 const HAVANO_TARGETING_SOURCE_IDS = new Set([
-  '04','10','14','16','17','18','21','26','30','31','34','36','39','47','50',
-  '52','53','61','62','64','71','72','81','93','97','bh04','bh16','bh18','bh21'
+  '04','14','16','17','18','26','30','31','34','39','47','50',
+  '52','61','62','64','71','72','81','93','97','bh04','bh16','bh18','bh21'
 ]);
 
 export function cardRule(cardId, state = null){
@@ -1913,6 +1871,7 @@ export function cardRule(cardId, state = null){
   if(['20','25','33','34','47','64','73'].includes(id) && PRESSURE_REWORK_REGISTRY[id]) rule = PRESSURE_REWORK_REGISTRY[id];
   else if(state?.gameSettings?.pressureCardReworks === true && PRESSURE_REWORK_REGISTRY[id]) rule = PRESSURE_REWORK_REGISTRY[id];
   else rule = REGISTRY[id] || null;
+  if(rule && ['10','21','35','36','53','65'].includes(id)) return {...rule,havanoTargeting:'NONE',havanoPassiveEntry:false};
   if(rule && HAVANO_TARGETING_SOURCE_IDS.has(id) && rule.havanoTargeting !== 'OPPONENT'){
     return {...rule, havanoTargeting:'OPPONENT'};
   }

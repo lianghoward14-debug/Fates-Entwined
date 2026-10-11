@@ -9,8 +9,8 @@
   // player's cards. Havano consumes this shared registry in both the browser and
   // the authority so the two runtimes cannot silently drift apart.
   const HAVANO_TARGETING_SOURCE_IDS = Object.freeze([
-    '04', '10', '14', '16', '17', '18', '21', '26', '30', '31', '36', '39',
-    '34', '47', '50', '52', '53', '61', '62', '64', '71', '72', '81', '93', '97',
+    '04', '14', '16', '17', '18', '26', '30', '31', '39',
+    '34', '47', '50', '52', '61', '62', '64', '71', '72', '81', '93', '97',
     'bh04', 'bh16', 'bh18','bh21'
   ]);
   const havanoTargetingSources = new Set(HAVANO_TARGETING_SOURCE_IDS);
@@ -18,7 +18,7 @@
   // continuous/automatic damage can begin. Hybrid WHEN_SET cards (such as
   // Rozsi) remain in the activation list above so their normal reaction frame
   // is not bypassed.
-  const HAVANO_PASSIVE_ENTRY_SOURCE_IDS = Object.freeze(['10', '35', '36', '65', 'bh18']);
+  const HAVANO_PASSIVE_ENTRY_SOURCE_IDS = Object.freeze([]);
   const havanoPassiveEntrySources = new Set(HAVANO_PASSIVE_ENTRY_SOURCE_IDS);
 
   const BOARD_ACTIVATION_CLASSES = Object.freeze({

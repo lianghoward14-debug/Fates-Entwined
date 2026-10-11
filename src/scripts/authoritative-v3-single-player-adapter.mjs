@@ -10,6 +10,7 @@ import {resolveOpeningHandArrivals} from '../../shared/engine/reducer.mjs';
 import {chooseStrategicV3AiCommand} from './authoritative-v3-ai-policy.mjs';
 import {AiSearchWorker} from './new-ai-worker-client.mjs';
 import {filterAiTargets} from '../../shared/ai/targeting.mjs';
+import {createCommandOrderer} from '../../shared/ai/ordering.mjs';
 import {FateAuthoritativeV3SinglePlayerScreen} from './authoritative-v3-single-player-screen.mjs?v=20260913-negation-result-sfx';
 
 export const FATE_V3_SINGLE_PLAYER_QUERY_FLAG = 'fateV3SinglePlayer';
@@ -64,7 +65,9 @@ function recoverAiCommand(legal, state, player, finishTurn=false){
   const pass=legal.find(command=>command.type==='END_TURN');
   if(finishTurn && pass)return pass;
   const candidates=filterAiTargets(legal,state,player);
-  return chooseDeterministicV3AiCommand(candidates) || pass || null;
+  const rank=createCommandOrderer(state,player);
+  return candidates.filter(c=>c.type!=='CONCEDE').map(command=>({command,score:rank(command)}))
+    .sort((a,b)=>b.score-a.score)[0]?.command || pass || null;
 }
 
 // The first decision gets the full strategic search. After a command has
@@ -156,6 +159,9 @@ export class FateAuthoritativeV3SinglePlayerAdapter {
   }
 
   dispatchHuman(type, payload = {}, commandId = ''){
+    if(type === 'END_TURN' && payload.expirePickers === true){
+      return this.session.dispatchForPlayer(this.humanPlayerId, type, {expirePickers:true}, commandId);
+    }
     const template = matchingTemplate(
       this.session.legalCommandsFor(this.humanPlayerId),
       type,

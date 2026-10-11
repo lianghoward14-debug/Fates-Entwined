@@ -23,7 +23,8 @@ export function createLandscapeState(landscapeId, rngState){
     handTurnCounts:[0, 0],
     fateThresholdClaims:{},
     outsideDrawEffectClaims:{},
-    oncePerGameUses:[0, 0]
+    oncePerGameUses:[0, 0],
+    twilightRecoveryUses:[0, 0]
   };
 }
 
@@ -280,7 +281,9 @@ export function replaceLandscapeState(state, targetLandscapeId){
     return {previousLandscapeId, landscapeId:targetId, changed:false};
   }
   state.landscapeId = targetId;
+  const twilightRecoveryUses = state.landscapeState?.twilightRecoveryUses?.slice() || [0, 0];
   state.landscapeState = createLandscapeState(targetId, state.rngState);
+  state.landscapeState.twilightRecoveryUses = twilightRecoveryUses;
   if(targetId === 'igb19') initializeLandscapeHandCards(state);
   if(targetId === 'igb20'){
     const totals = [totalFate(state, 0), totalFate(state, 1)];

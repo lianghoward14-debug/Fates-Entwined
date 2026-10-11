@@ -473,12 +473,27 @@
     const p = payload || {};
     const from = payloadRect(p, ['fromRect', 'sourceRect', 'targetRect']);
     const to = payloadRect(p, ['toRect', 'discardRect']) || from;
+    if(p.blackRoseBomb && from){
+      // Give the bomb its own readable silhouette: a short blast recoil, then
+      // a long lateral launch that remains opaque until it clears the board.
+      const direction = center(from).x < (window.innerWidth || 1920) * .5 ? 1 : -1;
+      const recoil = offsetRect(from, -direction * Math.max(18, from.w * .18), -Math.max(20, from.h * .15));
+      const offscreen = Object.assign({}, from, {
+        x: direction > 0 ? (window.innerWidth || 1920) + from.w * 1.35 : -from.w * 2.35,
+        y: Math.max(-from.h * .35, from.y - Math.max(250, (window.innerHeight || 1080) * .30))
+      });
+      return [
+        cardMove({iid:p.iid, card:p.card, fromRect:from, toRect:recoil, startOffset:0, duration:170, easing:'out-quint', path:'direct', rotate:-direction * 12, bank:-direction * 7, scale:1.11, launchSquash:.04, noShadow:false, priority:'high'}),
+        cardMove({iid:p.iid, card:p.card, fromRect:recoil, toRect:offscreen, startOffset:125, duration:790, easing:'in-cubic', path:'s-curve', arc:.56, lift:.42, sideArc:-direction * .18, startRotate:-direction * 12, rotate:direction * 1080, bank:direction * 18, scale:.88, fadeOut:true, noShadow:false, keepInFrame:false, priority:'high'})
+      ];
+    }
     const recoil = from ? offsetRect(from, 0, -Math.max(12, from.h * .12)) : from;
-    return [
+    const list=[
       cardMove({iid:p.iid, card:p.card, fromRect:from, toRect:recoil || from, startOffset:0, duration:142, easing:'out-quint', path:'direct', rotate:6, bank:3.5, scale:1.05, launchSquash:.024, priority:'high'}),
       cardMove({iid:p.iid, card:p.card, fromRect:recoil || from, toRect:to, startOffset:116, duration:360, easing:'in-quart', path:'drop', arc:.22, lift:.10, sideArc:.30, rotate:20, bank:8, scale:1, fadeOut:true, priority:'high'}),
-      P().soundCue({cue:'destroy_card', startOffset:140, priority:'high'})
     ];
+    if(!p.suppressMotionAudio)list.push(P().soundCue({cue:'destroy_card', startOffset:140, priority:'high'}));
+    return list;
   }
 
   function fateGain(payload){

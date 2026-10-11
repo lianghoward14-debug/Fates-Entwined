@@ -10,7 +10,7 @@ const runtime = {
   window:{matchMedia:()=>({matches:reduced}), getFateFeedbackPresentationBlockUntil:()=>blockedUntil},
   Date:{now:()=>now}, G:{}, nowMs:()=>now, animationsOff:()=>false,
   fateOdometersByIid:new Map(), localizeCanvasText:s=>s,
-  enqueueRender:()=>frames++, DIRTY_BOARD_CARDS:4,
+  enqueueRender:()=>frames++, scheduleFateOdometerFrame:()=>frames++, DIRTY_BOARD_CARDS:4,
   playSfx:type=>sounds.push(type),
   setTimeout:fn=>{timers.set(++timerId,fn);return timerId;},
   clearTimeout:id=>timers.delete(id)

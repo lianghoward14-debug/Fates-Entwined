@@ -133,14 +133,6 @@ function reviewedLegacyMismatch(token, postState){
       };
     }
   }
-  if(String(command.cardId || '') === '96'
-    && String(pre.landscapeId || '') === 'igb4'
-    && (pre.players?.[playerIndex]?.discard?.length || 0) > (post.players?.[playerIndex]?.discard?.length || 0)){
-    return {
-      classification:'existing-single-player-defect',
-      rationale:'Legacy Snow Shoveler bypasses Zion Canyon and recovers discarded cards even though the active landscape says discarded cards cannot be recovered; authoritative v3 preserves the landscape prohibition.'
-    };
-  }
   if(Number(pre?._handLimitDiscard?.player) === playerIndex
     && String(command.type || '') !== 'LEGACY_DISCARD_TO_HAND_LIMIT'){
     return {

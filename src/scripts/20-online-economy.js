@@ -265,7 +265,7 @@
     return Array.isArray(USER_PROFILE?.ownedPfps) ? USER_PROFILE.ownedPfps : [];
   }
   function addOwnedPfp(pfpId){
-    pfpId = Math.max(1, Math.min(125, parseInt(pfpId, 10) || 0));
+    pfpId = Math.max(1, Math.min(PFP_CATALOG_SIZE, parseInt(pfpId, 10) || 0));
     if(!pfpId) return [];
     if(typeof grantProfilePictures === 'function') return grantProfilePictures([pfpId]);
     if(!Array.isArray(USER_PROFILE.ownedPfps)) USER_PROFILE.ownedPfps = [];
@@ -273,7 +273,7 @@
     return [pfpId];
   }
   function takeOwnedPfp(pfpId){
-    pfpId = Math.max(1, Math.min(125, parseInt(pfpId, 10) || 0));
+    pfpId = Math.max(1, Math.min(PFP_CATALOG_SIZE, parseInt(pfpId, 10) || 0));
     if(!pfpId) return false;
     if(typeof removeOwnedPfp === 'function') return removeOwnedPfp(pfpId) === true;
     if(!Array.isArray(USER_PROFILE.ownedPfps) || !USER_PROFILE.ownedPfps.some(id=>Number(id) === pfpId)) return false;
@@ -664,7 +664,7 @@
 
   async function listMarketplacePfp(pfpId, price){
     const u = user();
-    const id = Math.max(1, Math.min(125, parseInt(pfpId, 10) || 0));
+    const id = Math.max(1, Math.min(PFP_CATALOG_SIZE, parseInt(pfpId, 10) || 0));
     if(!u){ if(window.toast) toast('Sign in first'); return null; }
     if(!id){ if(window.toast) toast('Profile picture not found'); return null; }
     if(!flyEconomyEnabled() && !canUseFirebase()){ if(window.toast) toast('Online marketplace is not ready'); return null; }
@@ -876,7 +876,7 @@
   };
 
   window.listPfpForSale = function listPfpForSale(pfpId){
-    const id = Math.max(1, Math.min(125, parseInt(pfpId, 10) || 0));
+    const id = Math.max(1, Math.min(PFP_CATALOG_SIZE, parseInt(pfpId, 10) || 0));
     if(!id) return;
     const src = typeof PFP_PATH === 'function' ? PFP_PATH(id, 'square') : `pfp/pfp${id}.png`;
     showModal('List Profile Picture', `

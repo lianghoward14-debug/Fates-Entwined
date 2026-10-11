@@ -371,6 +371,8 @@ function isHowardDevMode() {
 window.isHowardDevMode = isHowardDevMode;
 
 function clearHowardDevMode() {
+  window.clearHowardMistPreview?.();
+  if(typeof G !== 'undefined' && G?._bh21Concealment?.howardDevOnly) G._bh21Concealment=null;
   window.__fateHowardDevMode = false;
   window.__fateHowardDevLaunchPending = false;
   window.__fateHowardDevLaunchToken = null;
@@ -2058,6 +2060,10 @@ function addCardToHand(player, card, options = {}) {
       : ''
   ));
   delete card._fateHandArrivalKind;
+  if(inferredArrivalKind === 'search'){
+    window.FateAnnePlanning?.notify(inferredArrivalKind.toUpperCase(),targetPlayer);
+  }
+  if(String(card.id)==='107') delete card._anneDeclarations;
   if(String(card.id || '') === 'bh05' && card._bh05GeneratedCopy !== true && (inferredArrivalKind === 'draw' || inferredArrivalKind === 'search')) {
     const definition = typeof CARDS !== 'undefined' && Array.isArray(CARDS)
       ? CARDS.find(function(entry){ return entry && String(entry.id || '') === 'bh05'; })

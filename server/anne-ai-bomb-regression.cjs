@@ -1,0 +1,7 @@
+const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');const core=fs.readFileSync('src/scripts/05-gameplay-core.js','utf8'),ai=fs.readFileSync('src/scripts/07-ai.js','utf8');const a=core.indexOf('function resolveBlackRoseBombAt('),b=core.indexOf('\n}',a)+2;
+for(const kind of ['choice','target']){
+const card={iid:'victim',name:'Victim'},pos={z:0,r:1,c:1};let blasts=0;const G={turn:2,board:[[[],[null,card]]],players:[{discard:[]},{discard:[]}],blockedCells:[{type:'blackRoseBomb',z:0,r:1,c:1,targetPlayer:1,triggerTurn:2},{type:'blackRoseBomb',z:1,r:1,c:1,targetPlayer:1,triggerTurn:2}]};const context={G,inst:card,cp:1,idx:0,choice:pos,target:pos,sourceList:[card],hand:[card],playBlackRoseExplosion:()=>blasts++,toast:()=>{},renderGame:()=>{}};vm.createContext(context);vm.runInContext(core.slice(a,b),context);
+const start=ai.indexOf("    const bombed = typeof resolveBlackRoseBombAt === 'function' && resolveBlackRoseBombAt(inst,"+kind+'.z');assert(start>=0);const end=ai.indexOf('\n',ai.indexOf('if(bombed)',start));vm.runInContext('function commit(){'+ai.slice(start,end)+'}\ncommit();',context);
+assert.equal(G.board[0][1][1],null);assert.equal(G.players[1].discard[0],card);assert.equal(G.blockedCells.length,1);assert.equal((kind==='choice'?context.sourceList:context.hand).length,0);assert.equal(card._blackRoseBombed,true);assert.equal(blasts,1);
+}
+console.log('AI set and consolidation bomb hooks: discard, hand removal, independent trap consumption, effect guard and explosion passed');

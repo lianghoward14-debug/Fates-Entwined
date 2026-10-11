@@ -1,0 +1,124 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760" role="img" aria-labelledby="title desc">
+  <title id="title">Fates Entwined private status banner icon samples for cards 102, 104, and 105</title>
+  <desc id="desc">Three dark navy and gold status banners with enlarged line-art icon studies: The Black Rose, A Brighter Future, and A Caribbea for All.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#07111c"/><stop offset=".58" stop-color="#0b1724"/><stop offset="1" stop-color="#040a11"/></linearGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#17283a"/><stop offset="1" stop-color="#0d1825"/></linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fff0a6"/><stop offset=".5" stop-color="#e6c45f"/><stop offset="1" stop-color="#9b6f21"/></linearGradient>
+    <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#b9f3ff"/><stop offset=".45" stop-color="#66cfe2"/><stop offset="1" stop-color="#27869f"/></linearGradient>
+    <radialGradient id="halo"><stop stop-color="#79ddec" stop-opacity=".2"/><stop offset="1" stop-color="#79ddec" stop-opacity="0"/></radialGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="170%"><feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#000" flood-opacity=".55"/></filter>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <pattern id="grain" width="8" height="8" patternUnits="userSpaceOnUse"><circle cx="1" cy="2" r=".45" fill="#fff" opacity=".05"/><circle cx="6" cy="5" r=".35" fill="#fff" opacity=".035"/></pattern>
+
+    <symbol id="icon102" viewBox="0 0 64 64">
+      <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="30" cy="39" r="16.5" stroke-width="4"/>
+        <path d="M27 22v-6h8v7M31 16c0-7 11-5 13-11" stroke-width="4"/>
+        <path d="M46 7l5-3M48 13l6 1M40 5l-1-4" stroke-width="3"/>
+        <path d="M19 36c1-5 4-8 8-10" stroke-width="3" opacity=".45"/>
+      </g>
+    </symbol>
+
+    <symbol id="icon104" viewBox="0 0 64 64">
+      <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="22" y="25" width="20" height="28" rx="3" stroke-width="4"/>
+        <path d="M27 31h10M27 37h10" stroke-width="2.5" opacity=".55"/>
+        <path d="M8 15c8 1 13 5 17 12M56 15c-8 1-13 5-17 12" stroke-width="3.5"/>
+        <path d="M11 10l-3 5 5 3M53 10l3 5-5 3" stroke-width="3"/>
+        <path d="M16 33c3 2 5 4 7 8M48 33c-3 2-5 4-7 8" stroke-width="3" opacity=".7"/>
+        <path d="M32 7l2.6 5.4 6 .9-4.3 4.2 1 6-5.3-2.8-5.3 2.8 1-6-4.3-4.2 6-.9z" stroke-width="2.8"/>
+        <path d="M32 22v8" stroke-width="3.5"/>
+      </g>
+    </symbol>
+
+    <symbol id="icon105" viewBox="0 0 64 64">
+      <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 34V22c0-4 6-4 6 0v8-14c0-4 7-4 7 0v14-12c0-4 7-4 7 0v13-8c0-4 7-4 7 0v15l-7 15H25L15 39c-3-5 3-9 7-5l6 7" stroke-width="3.7"/>
+        <path d="M24 53h18v7H24z" stroke-width="3.2"/>
+        <circle cx="10" cy="15" r="4" stroke-width="2.8"/>
+        <path d="M52 10l5 9H47z" stroke-width="2.8"/>
+        <rect x="7" y="25" width="8" height="8" rx="1" stroke-width="2.8"/>
+        <path d="M16 16h7M45 17h-5M17 29h4" stroke-width="2.4" opacity=".58"/>
+      </g>
+    </symbol>
+  </defs>
+
+  <rect width="1200" height="760" fill="url(#bg)"/>
+  <rect width="1200" height="760" fill="url(#grain)"/>
+  <path d="M0 124H1200M0 706H1200" stroke="#dabb62" stroke-opacity=".18"/>
+  <text x="60" y="64" fill="#f4df92" font-family="Georgia,serif" font-size="28" font-weight="700" letter-spacing="4">PRIVATE STATUS CRESTS</text>
+  <text x="60" y="96" fill="#8ba2b9" font-family="Arial,sans-serif" font-size="15" letter-spacing="2">CARDS 102 · 104 · 105  /  OWNER-VIEW ONLY</text>
+
+  <!-- enlarged icon studies -->
+  <g transform="translate(0 4)">
+    <g transform="translate(190 300)">
+      <circle r="127" fill="url(#halo)"/>
+      <circle r="93" fill="#091521" stroke="#30586b" stroke-width="2"/>
+      <circle r="82" fill="#0e1e2c" stroke="url(#gold)" stroke-width="4"/>
+      <circle r="72" fill="none" stroke="#74cee0" stroke-opacity=".22"/>
+      <svg x="-54" y="-54" width="108" height="108" viewBox="0 0 64 64" color="#e8cd6d"><use href="#icon102" width="64" height="64"/></svg>
+      <circle cx="66" cy="-67" r="22" fill="#08131e" stroke="#5cc6dd" stroke-width="2"/>
+      <path d="M59-68v-5a7 7 0 0 1 14 0v5M57-68h18v14H57z" fill="none" stroke="#8be4f2" stroke-width="2.5" stroke-linejoin="round"/>
+    </g>
+    <g transform="translate(600 300)">
+      <circle r="127" fill="url(#halo)"/>
+      <circle r="93" fill="#091521" stroke="#30586b" stroke-width="2"/>
+      <circle r="82" fill="#0e1e2c" stroke="url(#gold)" stroke-width="4"/>
+      <circle r="72" fill="none" stroke="#74cee0" stroke-opacity=".22"/>
+      <svg x="-54" y="-54" width="108" height="108" viewBox="0 0 64 64" color="#e8cd6d"><use href="#icon104" width="64" height="64"/></svg>
+      <circle cx="66" cy="-67" r="22" fill="#08131e" stroke="#5cc6dd" stroke-width="2"/>
+      <path d="M59-68v-5a7 7 0 0 1 14 0v5M57-68h18v14H57z" fill="none" stroke="#8be4f2" stroke-width="2.5" stroke-linejoin="round"/>
+    </g>
+    <g transform="translate(1010 300)">
+      <circle r="127" fill="url(#halo)"/>
+      <circle r="93" fill="#091521" stroke="#30586b" stroke-width="2"/>
+      <circle r="82" fill="#0e1e2c" stroke="url(#gold)" stroke-width="4"/>
+      <circle r="72" fill="none" stroke="#74cee0" stroke-opacity=".22"/>
+      <svg x="-54" y="-54" width="108" height="108" viewBox="0 0 64 64" color="#e8cd6d"><use href="#icon105" width="64" height="64"/></svg>
+      <circle cx="66" cy="-67" r="22" fill="#08131e" stroke="#5cc6dd" stroke-width="2"/>
+      <path d="M59-68v-5a7 7 0 0 1 14 0v5M57-68h18v14H57z" fill="none" stroke="#8be4f2" stroke-width="2.5" stroke-linejoin="round"/>
+    </g>
+  </g>
+
+  <!-- in-context banners -->
+  <g filter="url(#shadow)">
+    <g transform="translate(42 500)">
+      <rect width="352" height="118" rx="17" fill="url(#panel)" stroke="#2d5367" stroke-width="2"/>
+      <path d="M1 90h350" stroke="#d6b657" stroke-opacity=".22"/>
+      <circle cx="58" cy="55" r="35" fill="#08141f" stroke="#e1c360" stroke-width="3"/>
+      <use href="#icon102" x="32" y="29" width="52" height="52" color="#ead273"/>
+      <text x="108" y="35" fill="#93a9bc" font-family="Arial,sans-serif" font-size="11" font-weight="700" letter-spacing="1.8">THE BLACK ROSE</text>
+      <text x="108" y="60" fill="#f3e9c8" font-family="Georgia,serif" font-size="19" font-weight="700">Bomb Armed</text>
+      <g transform="translate(108 77)"><rect width="92" height="23" rx="11.5" fill="#123143" stroke="#4ca8c0"/><path d="M12 11v-3a4 4 0 0 1 8 0v3M11 11h10v8H11z" fill="none" stroke="#83dceb" stroke-width="1.4"/><text x="29" y="16" fill="#94deea" font-family="Arial,sans-serif" font-size="10" font-weight="700" letter-spacing="1">ONLY YOU</text></g>
+    </g>
+    <g transform="translate(424 500)">
+      <rect width="352" height="118" rx="17" fill="url(#panel)" stroke="#2d5367" stroke-width="2"/>
+      <path d="M1 90h350" stroke="#d6b657" stroke-opacity=".22"/>
+      <circle cx="58" cy="55" r="35" fill="#08141f" stroke="#e1c360" stroke-width="3"/>
+      <use href="#icon104" x="32" y="29" width="52" height="52" color="#ead273"/>
+      <text x="108" y="35" fill="#93a9bc" font-family="Arial,sans-serif" font-size="11" font-weight="700" letter-spacing="1.8">A BRIGHTER FUTURE</text>
+      <text x="108" y="60" fill="#f3e9c8" font-family="Georgia,serif" font-size="19" font-weight="700">Fate Transfer Ready</text>
+      <g transform="translate(108 77)"><rect width="92" height="23" rx="11.5" fill="#123143" stroke="#4ca8c0"/><path d="M12 11v-3a4 4 0 0 1 8 0v3M11 11h10v8H11z" fill="none" stroke="#83dceb" stroke-width="1.4"/><text x="29" y="16" fill="#94deea" font-family="Arial,sans-serif" font-size="10" font-weight="700" letter-spacing="1">ONLY YOU</text></g>
+    </g>
+    <g transform="translate(806 500)">
+      <rect width="352" height="118" rx="17" fill="url(#panel)" stroke="#2d5367" stroke-width="2"/>
+      <path d="M1 90h350" stroke="#d6b657" stroke-opacity=".22"/>
+      <circle cx="58" cy="55" r="35" fill="#08141f" stroke="#e1c360" stroke-width="3"/>
+      <use href="#icon105" x="32" y="29" width="52" height="52" color="#ead273"/>
+      <text x="108" y="35" fill="#93a9bc" font-family="Arial,sans-serif" font-size="11" font-weight="700" letter-spacing="1.8">A CARIBBEA FOR ALL</text>
+      <text x="108" y="60" fill="#f3e9c8" font-family="Georgia,serif" font-size="19" font-weight="700">Call to Arms Ready</text>
+      <g transform="translate(108 77)"><rect width="92" height="23" rx="11.5" fill="#123143" stroke="#4ca8c0"/><path d="M12 11v-3a4 4 0 0 1 8 0v3M11 11h10v8H11z" fill="none" stroke="#83dceb" stroke-width="1.4"/><text x="29" y="16" fill="#94deea" font-family="Arial,sans-serif" font-size="10" font-weight="700" letter-spacing="1">ONLY YOU</text></g>
+    </g>
+  </g>
+
+  <g font-family="Arial,sans-serif" text-anchor="middle">
+    <text x="190" y="665" fill="#e8cc70" font-size="14" font-weight="700" letter-spacing="2">102 · ROSE BOMB</text>
+    <text x="190" y="688" fill="#7f96aa" font-size="12">hidden square trap</text>
+    <text x="600" y="665" fill="#e8cc70" font-size="14" font-weight="700" letter-spacing="2">104 · FATE SIPHON</text>
+    <text x="600" y="688" fill="#7f96aa" font-size="12">next-turn Fate transfer</text>
+    <text x="1010" y="665" fill="#e8cc70" font-size="14" font-weight="700" letter-spacing="2">105 · UNITED CALL</text>
+    <text x="1010" y="688" fill="#7f96aa" font-size="12">declared-type Call to Arms</text>
+  </g>
+  <text x="600" y="735" text-anchor="middle" fill="#526a7d" font-family="Arial,sans-serif" font-size="11" letter-spacing="2">CONCEPT SHEET · STATUS BANNERS APPEAR ONLY TO THEIR OWNER WHILE ACTIVE</text>
+</svg>

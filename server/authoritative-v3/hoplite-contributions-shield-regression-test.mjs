@@ -21,10 +21,10 @@ for(const faceDown of [false,true])for(const contributesFate of [false,true])for
   const result=reduceCommand(state,command(state,'p0',1,'CONSOLIDATE_CARD',{cardIid:card.iid,tributeIids:[tribute.iid],destination:{z:0,r:2,c:0},faceDown,contributesFate,contributesAuras}),{playerId:'p0'});
   assert.equal(result.ok,true,JSON.stringify(result.rejection));state=result.state;
   const placed=state.board[0][2][0];assert.equal(placed.contributesFate,contributesFate);assert.equal(placed.contributesAuras,contributesAuras);
-  assert.equal(effectiveFate(state,placed),contributesFate?5:0);
+  assert.equal(effectiveFate(state,placed),!faceDown||contributesFate?5:0);
   assert.equal(effectiveFate(state,target),contributesAuras?5:1);
-  assert.equal(zoneScore(state,0,0),(contributesFate?5:0)+(contributesAuras?5:1));
-  if(faceDown){const flip=reduceCommand(state,command(state,'p0',2,'FLIP_CARD',{cardIid:placed.iid}),{playerId:'p0'});assert.equal(flip.ok,true);assert.equal(zoneScore(flip.state,0,0),zoneScore(state,0,0));}
+  assert.equal(zoneScore(state,0,0),(!faceDown||contributesFate?5:0)+(contributesAuras?5:1));
+  if(faceDown){const flip=reduceCommand(state,command(state,'p0',2,'FLIP_CARD',{cardIid:placed.iid}),{playerId:'p0'});assert.equal(flip.ok,true);assert.equal(effectiveFate(flip.state,flip.state.board[0][2][0]),5);assert.equal(zoneScore(flip.state,0,0),5+(contributesAuras?5:1));}
 }
 // Activate Shield Wall, advance into the Marines' actual turn-start trigger, then expire it.
 let state=fixture();const shield=put(state,0,'20',0,2,0);const marines=put(state,1,'65',0,0,0);
@@ -71,11 +71,16 @@ for(const faceDown of [false,true])for(const contributesFate of [false,true])for
  const source={id:'19',iid:'local-aura',owner:0,type:'Coordinator',fate:5,currentFate:5,faceDown,contributesFate,contributesAuras};
  const target={id:'01',iid:'local-target',owner:0,type:'Coordinator',fate:2,currentFate:2,contributesAuras:false};
  const context={G:{board:[[[source,target]]]},window:{},cardActsAsPassive:(card,id)=>card.id===id,
+ cardHasEffectType:(card,type)=>card.type===type,
+ cardHasCurrentEffectType:(card,type)=>card.type===type,
+ getWhisperAuraPotencyBoost:()=>0,
  isSupporterEffectSuppressed:()=>false,isCoordinatorSuppressedAt:()=>false,getSuperiorMarksMultiplier:()=>1,
  capEffectiveFateForLandscape:x=>x,capEffectiveFateForPermanentDebuff:(_card,x)=>x,getAdjacentCards:()=>[],
  forEachBoardCard:fn=>{fn(source,0,0,0);fn(target,0,0,1);}};
  vm.createContext(context);vm.runInContext(extract('getEffectiveFate'),context);
- assert.equal(context.getEffectiveFate(source,0),contributesFate?(contributesAuras?8:5):0);
+ assert.equal(context.getEffectiveFate(source,0),!faceDown||contributesFate?(contributesAuras?8:5):0);
  assert.equal(context.getEffectiveFate(target,0),contributesAuras?5:2);
+ source.faceDown=false;
+ assert.equal(context.getEffectiveFate(source,0),contributesAuras?8:5,'Revealing restores local Fate, including received bonuses');
 }
 console.log('Shield Wall damage protection and all eight Hoplite face/Fate/aura choices passed.');

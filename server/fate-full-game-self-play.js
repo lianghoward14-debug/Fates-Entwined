@@ -184,7 +184,7 @@ function applyCardEffect(state, player, card, z, options={}){
     return;
   }
   if(card.id === '58'){
-    if(state.landscape !== 'igb4'){
+    {
       const discard = state.players[player].discard;
       const optionsInDiscard = discard.filter(item=>item.type === 'Supporter').sort((a,b)=>cardValue(b)-cardValue(a));
       if(optionsInDiscard[0]){

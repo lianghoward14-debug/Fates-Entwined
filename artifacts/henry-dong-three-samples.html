@@ -1,0 +1,33 @@
+<div id="henry-three"><div class="viz-controls"><button class="btn btn-primary" id="henry-all">Play all three</button><button class="btn" id="henry-stop">Pause</button></div><div class="viz-grid" id="henry-options"></div></div>
+<style>#henry-three canvas{width:100%;display:block;aspect-ratio:700/430;background:radial-gradient(ellipse,#291c24,#0c121a)}#henry-three .henry-label{margin:10px 0}</style>
+<script>
+(()=>{
+const root=document.getElementById('henry-three'),titles=['Forged in revolution','The red standard','Workers’ crest'],samples=[];
+const clamp=x=>Math.max(0,Math.min(1,x)),ease=x=>1-(1-clamp(x))**3,TAU=Math.PI*2;
+function draw(c,v,t){const seg=(x,y)=>clamp((t-x)/(y-x)),a=ease(seg(0,.16))*(1-ease(seg(.83,1))),gold='#efd29a',red='#ed777b';c.clearRect(0,0,700,430);c.save();c.translate(350,215);c.scale(1.42,1.42);
+function line(pts,color=gold,alpha=a,width=1.6){c.save();c.beginPath();pts.forEach((p,i)=>i?c.lineTo(...p):c.moveTo(...p));c.lineJoin='round';c.lineCap='round';c.strokeStyle=color;c.shadowColor=color;c.shadowBlur=7;c.globalAlpha=alpha*.28;c.lineWidth=width+3;c.stroke();c.shadowBlur=0;c.globalAlpha=alpha;c.lineWidth=width;c.stroke();c.restore()}
+function curve(fn,q=1,color=gold,alpha=a,width=1.6){line(Array.from({length:65},(_,i)=>fn(q*i/64)),color,alpha,width)}
+function star(x,y,r,alpha=a){line(Array.from({length:11},(_,i)=>{const z=-Math.PI/2+i*Math.PI/5,rad=i%2?r*.43:r;return[x+Math.cos(z)*rad,y+Math.sin(z)*rad]}),red,alpha,1.8)}
+function hammer(q){c.save();c.translate(-55*(1-q),-45*(1-q));c.rotate(-.55*(1-q));
+ // Build a conventional T-shaped hammer, then tilt the whole tool. The head
+ // stays perpendicular to the shaft rather than extending along it.
+ c.translate(-23,-31);c.rotate(-Math.PI/4);
+ line([[-6,10],[-6,98],[6,98],[6,10]],gold,a,2.2);
+ line([[-29,-12],[29,-12],[29,10],[-29,10],[-29,-12]],gold,a,2.2);
+ line([[-20,-11],[-20,9]],gold,a*.55,1);
+ line([[20,-11],[20,9]],gold,a*.55,1);
+ c.restore()}
+function sickle(q){c.save();c.translate(62*(1-q),22*(1-q));c.rotate(.7*(1-q));
+ const outer=z=>{const ang=-2.15+z*4.1;return[7+Math.cos(ang)*53,-10+Math.sin(ang)*53]};
+ const inner=z=>{const ang=1.95-z*3.35;return[5+Math.cos(ang)*38,-15+Math.sin(ang)*38]};
+ curve(outer,1,gold,a,2);const end=outer(1);line([end,[-46,72],[-56,63],[-24,29]],gold,a,2);curve(inner,1,gold,a,2);line([inner(1),outer(0)],gold,a,2);c.restore()}
+function emblem(q,scale=1){c.save();c.scale(scale,scale);sickle(q);hammer(q);c.restore()}
+function sparks(p){for(let j=0;j<20;j++){const z=j*2.4,r=20+95*ease(p);line([[Math.cos(z)*r,Math.sin(z)*r],[Math.cos(z)*(r+7*(1-p)),Math.sin(z)*(r+7*(1-p))]],j%3?gold:red,a*Math.sin(p*Math.PI),1)}}
+if(v===0){const q=ease(seg(.08,.52));emblem(q);sparks(seg(.48,.87));const p=seg(.52,.87);curve(z=>[Math.cos(z*TAU)*(65+53*p),Math.sin(z*TAU)*(65+53*p)],1,red,a*(1-p)*.5);star(0,-99,15,a*ease(seg(.48,.7)))}
+if(v===1){const q=ease(seg(.06,.54));c.save();c.translate(0,45*(1-q));line([[-112,110],[-112,-104]],gold);curve(z=>[-112+229*z,-87+Math.sin(z*TAU-t*5)*9],q,red,a,2);curve(z=>[-112+229*z,73+Math.sin(z*TAU-t*5)*9],q,red,a,2);if(q>.99)line([[117,-87+Math.sin(TAU-t*5)*9],[106,-5],[117,73+Math.sin(TAU-t*5)*9]],red);c.save();c.translate(-3,-3);emblem(ease(seg(.17,.63)),.72);c.restore();star(-83,-61,11,a*q);c.restore()}
+if(v===2){const q=ease(seg(.08,.58));emblem(q,.8);for(const s of [-1,1]){curve(z=>[s*(20+70*Math.sin(z*1.55)),94-164*z],q,red);for(let j=0;j<8;j++){const p=ease(seg(.13+j*.05,.38+j*.05)),z=(j+.4)/8,x=s*(20+70*Math.sin(z*1.55)),y=94-164*z;line([[x,y],[x-s*19*p,y-21*p],[x-s*19*p,y-7*p],[x,y]],gold,a*p);line([[x,y],[x+s*14*p,y-20*p],[x+s*17*p,y-5*p],[x,y]],gold,a*p)}}star(0,-103,18,a*ease(seg(.46,.7)));const p=ease(seg(.5,.77));line([[-57*p,100],[0,89],[57*p,100]],red,a*p,2)}
+c.restore()}
+titles.forEach((title,v)=>{const item=document.createElement('div'),cv=document.createElement('canvas'),label=document.createElement('div'),button=document.createElement('button');cv.width=700;cv.height=430;cv.setAttribute('role','img');cv.setAttribute('aria-label','Henry Dong: '+title+' hammer and sickle cinematic animation');label.className='henry-label';label.textContent=String.fromCharCode(65+v)+' · '+title;button.className='btn';button.textContent='Play '+String.fromCharCode(65+v);const s={cv,v,t:.7,playing:false};button.onclick=()=>{s.t=0;s.playing=true};item.append(cv,label,button);root.querySelector('#henry-options').append(item);samples.push(s)});
+root.querySelector('#henry-all').onclick=()=>samples.forEach(s=>{s.t=0;s.playing=true});root.querySelector('#henry-stop').onclick=()=>samples.forEach(s=>s.playing=false);let prev=0;function tick(now){const dt=Math.min(.05,(now-prev)/1000||0);prev=now;samples.forEach(s=>{if(s.playing){s.t+=dt/2;if(s.t>=1){s.t=.7;s.playing=false}}draw(s.cv.getContext('2d'),s.v,s.t)});requestAnimationFrame(tick)}requestAnimationFrame(tick);
+})();
+</script>

@@ -1,0 +1,10 @@
+const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const source=fs.readFileSync('src/scripts/06-rendering-and-helpers.js','utf8');const a=source.indexOf('function requestCharacterSetCinematic('),b=source.indexOf('\n}',a)+2;let shown=0;
+const ctx={_characterSetCinematicKeys:new Set(),_scheduledCharacterSetCinematicCount:0,showConsolidationCinematic:()=>{shown++;return true},setTimeout:fn=>fn(),getConsolidationCinematicTotalMs:()=>1000};vm.createContext(ctx);vm.runInContext(source.slice(a,b),ctx);
+const card={id:'104',iid:'r',type:'Improvisor',rarity:'square'};
+assert.equal(ctx.requestCharacterSetCinematic({...card,faceDown:true},{reveal:true}),false);
+assert.equal(ctx.requestCharacterSetCinematic(card,{}),true);
+assert.equal(ctx.requestCharacterSetCinematic(card,{reveal:true,revealKey:'flip1'}),true,'reveal not suppressed by earlier placement');
+assert.equal(ctx.requestCharacterSetCinematic(card,{reveal:true,revealKey:'flip1'}),false,'same reveal deduplicated');
+assert.equal(ctx.requestCharacterSetCinematic({...card,iid:'supporter',type:'Supporter',rarity:'circle'},{reveal:true,revealKey:'flip2'}),true);
+assert.equal(shown,3);console.log('General face-up reveal cinematic gating/deduplication passed');

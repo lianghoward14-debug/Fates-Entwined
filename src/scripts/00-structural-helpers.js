@@ -279,7 +279,8 @@ function initLandscapeForSong(song) {
       igb20ChoiceResolved: false,
       igb20Declined: false,
       igb20DiscardedIid: null,
-      igb21CatalogUses: [0, 0]
+      igb21CatalogUses: [0, 0],
+      twilightRecoveryUses: G._landscapeState?.twilightRecoveryUses?.slice() || [0, 0]
     };
     if (id === 'igb19' && Array.isArray(G.players)) {
       G.players.forEach(function(player, playerIndex){
@@ -408,7 +409,7 @@ function addFullExtraSafeRowForPlayer(z, player, source, opts = {}) {
 }
 
 function isDiscardRecoveryBlockedByLandscape() {
-  return isLandscapeActive('igb4');
+  return false;
 }
 
 function getRecoverableDiscardCards(player, filter) {
@@ -595,7 +596,7 @@ function isOpponentEffectOnlyImmuneCard(card) {
       const source=G.board[targetPosition.z][r][c];
       if(!source || Number(source.owner)!==Number(owner)) continue;
       const actsAs101=typeof cardActsAsPassive==='function'?cardActsAsPassive(source,'101'):String(source.id||'')==='101';
-      if(actsAs101 && !(typeof isCardEffectSuppressed==='function' && isCardEffectSuppressed(source,targetPosition.z,r,c))) return true;
+      // Jorge no longer grants adjacent immunity.
     }
   }
   return false;
@@ -1105,7 +1106,6 @@ function getSupportReinforcementValue(card) {
 }
 
 function activateUsMarinesSuppressionEffect(player, opponent, options) {
-  window.playFateReactionSfx?.(true, {id:'18'});
   options = options || {};
   G.oppSuppressedNextTurn = true;
   G.suppressTarget = opponent;
@@ -1485,6 +1485,7 @@ function cleanupTransientGameTimers() {
 }
 
 function resetMatchTransientState() {
+  window.FateIdleChatter?.reset();
   if (typeof G === 'undefined' || !G) return;
   cleanupTransientGameTimers();
   G.board = createEmptyBoard();
@@ -1661,7 +1662,6 @@ function closeGameModal() {
 }
 
 function isHiddenEffectForViewer(card) {
-  if(String(card?.id || '')==='102' && Number(card.controller ?? card.owner)!==Number(typeof getPerspectivePlayerIndex==='function'?getPerspectivePlayerIndex():0)) return true;
   if(!card?.faceDown) return false;
   const viewer = typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : 0;
   return Number(card.controller ?? card.owner) !== Number(viewer);

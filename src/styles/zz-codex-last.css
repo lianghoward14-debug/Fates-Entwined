@@ -26781,6 +26781,15 @@ html body #s-game .mp-status-popover .mp-status-entry.opponent .effect-pill-icon
   border-color:rgba(255,122,132,.66)!important;
   background:radial-gradient(circle,rgba(185,64,74,.25),rgba(29,8,13,.74))!important;
 }
+
+/* Owner-private special-card statuses: use the normal local-player blue
+   treatment even though their sources and triggers are concealed. */
+html body #s-game .effect-pill.effect-pill-private-special .effect-pill-icon{
+  color:#b9dcff!important;
+  border-color:rgba(126,183,255,.62)!important;
+  background:radial-gradient(circle,rgba(71,122,190,.24),rgba(7,14,27,.72))!important;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.05),0 0 7px rgba(77,141,225,.16)!important;
+}
 html body #s-game .mp-status-popover .mp-status-entry .effect-pill-icon :is(img,svg){
   display:block!important;width:26px!important;height:26px!important;max-width:26px!important;max-height:26px!important;
 }
@@ -29613,3 +29622,62 @@ html body #s-challenger .ch-store-unopened-market .ch-store-unopened-title::-web
 @media(max-width:1180px),(max-height:719px){
   html body #s-challenger .ch-store-unopened-market{height:260px!important;max-height:260px!important;flex:none!important;}
 }
+.bc.effect-flash-jose_clock{
+ --effect-flash-color:rgba(255,226,150,.99);--effect-flash-glow:rgba(230,177,76,.72);
+ --effect-flash-tint:rgba(155,103,25,.20);--effect-flash-inset:rgba(255,226,150,.13);
+ --effect-flash-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='4.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='32' cy='32' r='22'/%3E%3Cpath d='M32 18v14l10 6'/%3E%3C/g%3E%3C/svg%3E");
+}
+
+/* Caribbea declaration: portrait, warm brass and revolutionary burgundy. */
+html body #modal .modal:has(.jorge-declaration){
+  width:min(620px,calc(100vw - 32px))!important;max-width:620px!important;
+  padding:28px!important;border:1px solid #806544!important;border-radius:16px!important;
+  background:radial-gradient(ellipse at top left,rgba(132,48,50,.25),transparent 65%),#101519!important;
+  box-shadow:0 24px 90px #000b,inset 0 1px 0 #ecd2a01a!important;
+}
+html body #modal .modal:has(.jorge-declaration) #modal-title{
+  background:none!important;border:0!important;padding:0 0 20px!important;
+  color:#e5ca96!important;font-size:1.05rem!important;letter-spacing:.08em!important;
+}
+html body #modal .jorge-declaration{font-family:Georgia,serif;color:#e5ded0;}
+html body #modal .jorge-declaration-hero{display:flex;align-items:center;gap:22px;}
+html body #modal .jorge-declaration-hero img{
+  width:112px;height:132px;object-fit:cover;object-position:center 25%;flex:none;
+  border-radius:9px;border:1px solid #a48352;box-shadow:0 8px 24px #0006;
+}
+html body #modal .jorge-declaration-kicker{font:600 10px/1.5 Arial,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#be9f77;}
+html body #modal .jorge-declaration h3{font-size:27px;line-height:1.15;margin:10px 0;color:#f3e6cc;}
+html body #modal .jorge-declaration p{font-size:14px;line-height:1.6;margin:8px 0 0;color:#c5c2bb;}
+html body #modal .jorge-declaration-rule{margin:22px 0;padding:16px 18px;border-left:2px solid #b87761;background:#ffffff05;border-radius:0 8px 8px 0;}
+html body #modal .jorge-declaration-rule>span{font:600 10px/1.5 Arial,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#cfa98b;}
+html body #modal .jorge-declaration-rule strong{color:#ecd2a0;}
+html body #modal .jorge-declaration-prompt{font:600 11px/1.5 Arial,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:#aaa79e;}
+html body #modal .modal:has(.jorge-declaration) #modal-acts{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px!important;margin:14px 0 0!important;padding:0!important;border:0!important;}
+html body #modal .modal:has(.jorge-declaration) #modal-acts .btn{
+  width:100%!important;min-height:54px;padding:14px 18px!important;margin:0!important;
+  border:1px solid #806544!important;border-radius:8px!important;background:#231f20!important;
+  color:#eadbc0!important;font-size:13px!important;letter-spacing:.05em;box-shadow:none!important;
+  transition:background .15s,border-color .15s,transform .15s;
+}
+html body #modal .modal:has(.jorge-declaration) #modal-acts .btn:hover{background:#593336!important;border-color:#d1aa72!important;transform:translateY(-1px);}
+html body #modal .modal:has(.jorge-declaration) #modal-acts .btn:focus-visible{outline:2px solid #ecd2a0!important;outline-offset:3px;}
+html body #modal .cd-jose-tracker .cd-live-tracker-value,
+html body .card-info-overlay .cd-jose-tracker .cd-live-tracker-value{white-space:normal;}
+html body #modal .cd-jose-tracker :is(.cd-live-tracker-label,.cd-live-tracker-value),
+html body .card-info-overlay .cd-jose-tracker :is(.cd-live-tracker-label,.cd-live-tracker-value){align-self:baseline;}
+@media(max-width:480px){
+ html body #modal .modal:has(.jorge-declaration){padding:18px!important;}
+ html body #modal .jorge-declaration-hero{gap:14px;}
+ html body #modal .jorge-declaration-hero img{width:80px;height:104px;}
+ html body #modal .jorge-declaration h3{font-size:22px;}
+}
+
+/* Anne's planning picker inherits the declaration layout. */
+html body #modal .modal:has(.anne-declaration){border-color:#658a72!important;background:radial-gradient(ellipse at top left,#35564166,transparent 65%),#101a19!important;}
+html body #modal .anne-declaration .jorge-declaration-kicker{color:#9cbda1;}
+html body #modal .anne-declaration .jorge-declaration-rule{border-left-color:#7ba7a0;}
+html body #modal .anne-declaration .jorge-declaration-rule>span{color:#a9c6ae;}
+html body #modal .modal:has(.anne-declaration) #modal-acts .btn{border-color:#557e68!important;background:#1b2d26!important;letter-spacing:0;}
+html body #modal .modal:has(.anne-declaration) #modal-acts .btn:hover{background:#345447!important;border-color:#a3c6ae!important;}
+html body #modal .modal:has(.anne-declaration){max-height:calc(100dvh - 24px)!important;overflow-y:auto!important;}
+html[lang=ja] body #modal .anne-declaration :is(h3,p){line-height:1.65;}

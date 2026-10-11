@@ -1203,6 +1203,14 @@
   }
 
   function coordinatorFatePresentationVisual(card, visual){
+    // Viewer concealment takes precedence over every placement/staged number.
+    // Check live status too: motion ghosts may carry a pre-placement visual.
+    if(visual && !visual.isHidden && (
+      String(visual.displayFate || '').includes('bh21-concealed-fate-icon')
+      || (typeof window.isBh21ViewerConcealed === 'function' && window.isBh21ViewerConcealed())
+    )) return Object.assign({}, visual, {
+      displayFate:'<img class="bh21-concealed-fate-icon" src="assets/ui/bh21-concealed-fate.svg" alt="Fate concealed">'
+    });
     const iid = getCardIid(card);
     const placementPending = iid ? deferredPlacementFatePulseByIid.get(iid) : null;
     const live = iid && typeof window.findBoardCardByIid === 'function' ? window.findBoardCardByIid(iid) : null;
@@ -1248,9 +1256,10 @@
     if(!fate) return;
     const bh21Concealed = fate.indexOf('bh21-concealed-fate-icon') >= 0;
     const deltaState = fateBadgeState(card, visual);
-    const isUp = deltaState === 'up';
-    const isDown = deltaState === 'down';
     const label = visual && visual.isHidden ? '-' : (bh21Concealed ? '' : fate);
+    const decreasing = fateBadgeIsDecreasing(iid, label, card, visual);
+    const isUp = !decreasing && deltaState === 'up';
+    const isDown = decreasing || deltaState === 'down';
     const accent = isUp ? '#7fff90' : isDown ? '#ff6060' : '#f1c40f';
     const accentGlow = isUp ? 'rgba(127,255,144,.82)' : isDown ? 'rgba(255,96,96,.78)' : 'rgba(241,196,15,.76)';
     const badgeH = Math.max(24, Math.min(34, r.w * .255));
@@ -1304,6 +1313,20 @@
     ctx.shadowBlur = 1.5;
     if(!rolling) drawSettledFateDigits(ctx, label, cx, cy + badgeH * .04, badgeW);
     ctx.restore();
+  }
+
+  function fateBadgeIsDecreasing(iid, label, card, visual){
+    if(!iid || visual?.isHidden || visual?._placementFateHeld || !/^\d+$/.test(label)
+      || animationsOff() || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return false;
+    const value = Number(label);
+    if(!Number.isSafeInteger(value)) return false;
+    const state = fateOdometersByIid.get(iid);
+    // Use the same direction as the odometer, including its first frame and
+    // reversals before the previous count has finished.
+    if(state && state.to !== value) return value < state.to;
+    if(state) return !!state.decreasing && state.duration > 0 && nowMs() - state.start < state.duration;
+    const base = card?.fate != null ? Number(card.fate) : NaN;
+    return Number.isSafeInteger(base) && base >= 0 && value < base;
   }
 
   function fateDigitLayout(ctx, label, digits){
@@ -1383,8 +1406,8 @@
     ctx.rect(cx - width / 2 + 2, cy - step / 2, width - 4, step);
     ctx.clip();
     ctx.shadowBlur = 1.5;
-    // Only the rolling glyphs turn red. The settled badge uses its base-Fate
-    // comparison again, including green when a loss still leaves a bonus.
+    // Match the red outline during decreases. Once settled, the badge returns
+    // to its normal base-Fate comparison.
     if(state.decreasing) {
       ctx.fillStyle = '#ff6060';
       ctx.shadowColor = 'rgba(255,96,96,.78)';
@@ -1403,7 +1426,7 @@
       ctx.fillText(localizeCanvasText(text(whole + direction)), x, cy - offset + direction * step);
     }
     ctx.restore();
-    enqueueRender('fate-odometer', DIRTY_BOARD_CARDS);
+    scheduleFateOdometerFrame();
     return true;
   }
 
@@ -2097,6 +2120,20 @@
 
   function drawBlockOverlay(ctx, r, block){
     if(!block) return;
+    if(block.type === 'blackRoseBomb'){
+      // Match Anne's approved outline grenade, never Zoe's lock treatment.
+      ctx.save();
+      const size=Math.min(r.w,r.h)*.68;
+      ctx.translate(r.x+(r.w-size)/2,r.y+(r.h-size)/2);
+      ctx.scale(size/64,size/64);
+      ctx.strokeStyle='#f0d9b0';ctx.lineWidth=4;ctx.lineCap='round';ctx.lineJoin='round';
+      ctx.shadowColor='rgba(219,150,70,.65)';ctx.shadowBlur=8;
+      ctx.beginPath();ctx.arc(29,39,18,0,Math.PI*2);ctx.stroke();
+      ctx.stroke(new Path2D('M26 21v-6h8v7 M30 15C30 7 43 12 43 5'));
+      ctx.lineWidth=3;ctx.stroke(new Path2D('M46 7l5-2 M48 13l5 2 M39 5l-2-3'));
+      ctx.globalAlpha=.45;ctx.stroke(new Path2D('M18 36c0-5 4-9 8-10'));
+      ctx.restore();return;
+    }
     const type = block.type === 'carolyn' ? 'carolyn' : (block.type === 'jaime' ? 'jaime' : 'zoe');
     const isCarolyn = type === 'carolyn';
     const isJaime = type === 'jaime';
@@ -3110,6 +3147,24 @@
 
   let lowMoralePulseTimer = 0;
   let highTBeatTimer = 0;
+  let fateOdometerRaf = 0;
+  let fateOdometerWatchdog = 0;
+  function scheduleFateOdometerFrame(){
+    if(fateOdometerRaf || fateOdometerWatchdog) return;
+    const paint = function(){
+      cancelAnimationFrame(fateOdometerRaf);
+      clearTimeout(fateOdometerWatchdog);
+      fateOdometerRaf = 0;
+      fateOdometerWatchdog = 0;
+      // Do not coalesce this with gameplay commits: consolidation defers those
+      // batches, which otherwise strands an already rolling Fate badge.
+      if(ownsBoard() && isActiveMatchScreen()) {
+        renderFromGameState({source:'fate-odometer', dirtyMask:DIRTY_BOARD_CARDS});
+      }
+    };
+    fateOdometerRaf = requestAnimationFrame(paint);
+    fateOdometerWatchdog = setTimeout(paint, 40);
+  }
   // Only animation-only batches may reuse the last snapshot. A pulse coalesced
   // with a gameplay commit must still rebuild state, even with the same mask.
   function isCardOverlayPulseSource(source){
@@ -3324,6 +3379,7 @@
   }
 
   const CARD_EFFECT_FLASH_PALETTE = Object.freeze({
+    jorge_pineapple:{color:'rgba(255,233,173,.99)',glow:'rgba(236,183,83,.72)',tint:'rgba(145,99,30,.18)'},
     jake_burger:{color:'rgba(255,236,176,.99)',glow:'rgba(235,173,62,.72)',tint:'rgba(139,86,28,.20)'},
     specter_ghost:{color:'rgba(224,239,255,.98)',glow:'rgba(140,184,255,.58)',tint:'rgba(104,126,174,.16)'},
     kvetka_ballad:{color:'rgba(255,202,238,.98)',glow:'rgba(244,94,184,.60)',tint:'rgba(142,42,104,.16)'},
@@ -3334,6 +3390,7 @@
     joie_thousand_reel:{color:'rgba(255,183,232,.99)',glow:'rgba(255,78,190,.66)',tint:'rgba(177,38,126,.18)'},
     boleslaw_exclaim:{color:'rgba(255,226,130,.99)',glow:'rgba(255,150,54,.68)',tint:'rgba(175,86,24,.17)'},
     jimmy_wrath:{color:'rgba(255,92,82,.99)',glow:'rgba(244,67,58,.68)',tint:'rgba(148,29,29,.20)'},
+    jose_clock:{color:'rgba(255,226,150,.99)',glow:'rgba(230,177,76,.72)',tint:'rgba(155,103,25,.20)'},
     alpine_engineer_proc:{color:'rgba(154,222,255,.99)',glow:'rgba(48,156,255,.72)',tint:'rgba(24,88,168,.20)'},
     bh07_overclock:{color:'rgba(146,232,255,.99)',glow:'rgba(58,190,255,.66)',tint:'rgba(24,122,176,.17)'},
     bh08_mischief:{color:'rgba(255,174,229,.99)',glow:'rgba(255,70,190,.66)',tint:'rgba(144,37,136,.18)'},
@@ -3624,7 +3681,21 @@
     const circle = function(x,y,r){ ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.stroke(); };
     const dot = function(x,y,r){ ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill(); };
 
-    if(kind === 'jake_burger') {
+    if(kind === 'jorge_pineapple') {
+      ctx.translate(32,32);
+      ctx.scale(1.3,1.3);
+      ctx.translate(-32,-32);
+      ctx.lineWidth = 3.6;
+      line([[32,20],[20,11],[28,15],[27,6],[33,15],[39,6],[37,15],[46,11],[34,20]],false);
+      ctx.beginPath();ctx.ellipse(32,39,15,20,0,0,Math.PI*2);ctx.stroke();
+      ctx.save();ctx.beginPath();ctx.ellipse(32,39,14,19,0,0,Math.PI*2);ctx.clip();
+      ctx.lineWidth = 2.2;
+      for(let offset=-24;offset<=24;offset+=10){
+        line([[11,22+offset],[53,54+offset]],false);
+        line([[53,22+offset],[11,54+offset]],false);
+      }
+      ctx.restore();
+    } else if(kind === 'jake_burger') {
       ctx.lineWidth = 4;
       line([[10,27],[14,14],[23,8],[32,6],[41,8],[50,14],[54,27]],false);
       line([[10,27],[8,37],[10,48]],false);
@@ -4018,6 +4089,8 @@
     } else if(kind === 'maria_target') {
       circle(32,32,16); circle(32,32,6);
       line([[32,8],[32,19]],false); line([[32,45],[32,56]],false); line([[8,32],[19,32]],false); line([[45,32],[56,32]],false);
+    } else if(kind === 'jose_clock') {
+      ctx.lineWidth = 4.2; circle(32,32,22); line([[32,18],[32,32],[42,38]],false);
     } else if(kind === 'alpine_engineer_proc') {
       // G-01: a clean, centered engineer's gear with no secondary markings.
       ctx.lineWidth = 4.2;
@@ -5371,6 +5444,7 @@
 
     const zones = Array.isArray(layout.zones) ? layout.zones : [];
     const zoneById = {};
+    const bombOverlays = [];
     zones.forEach(function(zone){
       zoneById[String(zone.z)] = zone;
       const zr = rect(zone.rect, originX, originY);
@@ -5426,7 +5500,11 @@
           ctx.lineTo(cr.x + cr.w - 8, cr.y + cr.h - 26);
           ctx.stroke();
           ctx.restore();
-          if(cell.blocked){
+          if(cell.blocked?.type === 'blackRoseBomb'){
+            // Bombs mark the square even when a card occupies it. Paint them
+            // after the cards so the artwork cannot cover the owner's marker.
+            bombOverlays.push({rect:cr, clip:rowClip, block:cell.blocked});
+          }else if(cell.blocked){
             drawBlockOverlay(ctx, cr, cell.blocked);
           }
           if(cell.henrySuppressed){
@@ -5534,6 +5612,14 @@
       const movingSelectionKind = getSelectionTargetKind(item.entry);
       if(movingSelectionKind) drawSquareSelectionCue(ctx, r, movingSelectionKind);
       if(rowClip) ctx.restore();
+    });
+    bombOverlays.forEach(function(overlay){
+      ctx.save();
+      const clip = overlay.clip;
+      roundedPath(ctx, clip.x, clip.y, clip.w, clip.h, 5);
+      ctx.clip();
+      drawBlockOverlay(ctx, overlay.rect, overlay.block);
+      ctx.restore();
     });
     depthSortedCards.forEach(function(entry){
       if(!entry || !entry.card) return;
@@ -6558,6 +6644,16 @@
     return lastHitMap;
   }
 
+  function getSquareViewportRect(z,r,c){
+    if(!ownsBoard()) return null;
+    const cell=(lastHitMap.cells || []).find(cell=>Number(cell.z)===Number(z)&&Number(cell.r)===Number(r)&&Number(cell.c)===Number(c));
+    const box=cell && (cell.cardRect || cell.visualRect || cell.rect);
+    const canvas=document.getElementById(cardCanvasId);
+    const bounds=canvas?.getBoundingClientRect();
+    if(!box || !bounds || !bounds.width || !bounds.height) return null;
+    return {left:bounds.left+box.x,top:bounds.top+box.y,width:box.w,height:box.h};
+  }
+
   function setHoverHit(hit){
     const prev = hoverHit;
     const next = hit || null;
@@ -6700,6 +6796,7 @@
     scheduleVfxFrame,
     presentFateDelta,
     getHitMap,
+    getSquareViewportRect,
     setHoverHit,
     setViewportHoverHit,
     scrollZoneAtClient,

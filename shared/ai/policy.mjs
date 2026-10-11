@@ -6,6 +6,8 @@ import {filterAiTargets} from './targeting.mjs';
 import {personalityFor} from './personality.mjs';
 import {reviewPass} from './pass-review.mjs';
 import {searchBudget} from './search-budget.mjs';
+import {recruitmentContext} from './recruitment-context.mjs';
+import {assessRecruitment} from './recruitment-timing.mjs';
 
 export function planDecision(commands,projection,context={}){
   const state=context.canonicalState;
@@ -37,7 +39,7 @@ export function planDecision(commands,projection,context={}){
   // useful against a threat in sample two must not disappear because the
   // first sampled opponent hand happened to contain no such threat.
   const worlds=Array.from({length:samples},(_,sample)=>sampleWorld(state,player,sample));
-  const orderers=worlds.map(world=>createCommandOrderer(world,player));
+  const orderers=worlds.map(world=>createCommandOrderer(world,player,personality));
   const priorities=new Map(candidates.map(command=>[command,orderers.map(order=>order(command))]));
   const ranked=candidates.map(command=>{
     const values=priorities.get(command);
@@ -69,7 +71,13 @@ export function planDecision(commands,projection,context={}){
     const score=worst<=-900000 ? -2000000+mean : mean*(1-personality.risk)+worst*personality.risk;
     return {...row,mean,worst,score};
   }).sort((a,b)=>b.score-a.score || a.principalVariation.length-b.principalVariation.length || stableStringify(a.command).localeCompare(stableStringify(b.command)));
-  const best=alternatives[0];
+  // Half our Morale is an emergency resource, not ordinary development.
+  // Require evidence across every sampled world, and keep a free alternative
+  // whenever spending merely improves a heuristic score.
+  const paid=row=>row.command.type==='SUPPORT_COMPANY' && row.command.payload?.ability==='desperate';
+  const free=alternatives.find(row=>!paid(row));
+  const best=alternatives.find(row=>!paid(row) || (free && row.score>free.score &&
+    (row.worst>=900000 || (free.scores.every(score=>score<=-900000) && row.worst>-900000))));
   if(!best)return null;
   const sequence=[];
   for(const step of best.principalVariation){if(step.player!==player)break;sequence.push(step.command);if(step.command.type==='END_TURN')break;}
@@ -79,6 +87,13 @@ export function planDecision(commands,projection,context={}){
     completedContinuations:results.reduce((n,r)=>n+(r.trace.completedContinuations || 0),0),
     incompleteContinuations:results.reduce((n,r)=>n+(r.trace.incompleteContinuations || 0),0),
     maxDepth:Math.max(...results.map(r=>r.trace.maxDepth)),alternatives:alternatives.map(({command,score,mean,worst})=>({command,score,mean,worst}))};
+  const recruitmentOptions=alternatives.filter(row=>row.command.type==='SUPPORT_COMPANY');
+  if(recruitmentOptions.length){
+    const recruitment=recruitmentContext(worlds[0],player,personality);
+    trace.recruitment=recruitmentOptions.map(row=>({cardId:row.command.payload.cardId,
+      ability:row.command.payload.ability,...assessRecruitment(
+        state.cardCatalog?.find(c=>String(c.id)===String(row.command.payload.cardId)),recruitment)}));
+  }
   context.onPlanEvaluated?.(alternatives.map(row=>({score:row.score,sequence:row.principalVariation.map(step=>step.command)})));
   context.onDecision?.(trace);
   const exactCommand=candidates.find(command=>stableStringify(command)===stableStringify(best.command));
@@ -110,7 +125,7 @@ export function chooseCommand(commands,projection,context={}){
   // Passing is irreversible for this turn. Verify a shallow pass with a
   // larger bounded search, preserving every strategic target restriction.
   if(plan?.command?.type==='END_TURN' && context.canonicalState && !context.canonicalState.pendingPrompt
-    && commands.some(c=>['SET_CARD','SET_CARD_FROM_DECK','CONSOLIDATE_CARD','ACTIVATE_EFFECT','SET_ADAPTIVE_TOKEN','FLIP_CARD'].includes(c.type))){
+    && commands.some(c=>['SET_CARD','SET_CARD_FROM_DECK','CONSOLIDATE_CARD','ACTIVATE_EFFECT','SET_ADAPTIVE_TOKEN','FLIP_CARD','SUPPORT_COMPANY'].includes(c.type))){
     const currentBudget=Number(context.nodeBudget) || (context.difficulty==='easy'?240:context.difficulty==='extreme'?960:600);
     if(currentBudget<Math.min(600,Number(context.maxNodeBudget)||4000)){
       const checked=planDecision(commands,projection,{...context,nodeBudget:600,width:Math.max(12,Number(context.width)||0),onDecision:undefined,onPlanEvaluated:undefined});

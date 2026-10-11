@@ -71,7 +71,7 @@ assert.equal(state.landscapeState.consolidations[0], 1);
 assert.equal(consolidated.currentFate, 5);
 assert(consolidated.statuses.includes('LANDSCAPE_BONUS:igb3'));
 
-// Zion Canyon blocks every path out of discard, including random recovery.
+// Zion Canyon no longer blocks ordinary card-effect recovery.
 state = makeState('igb4');
 ctx = context(state);
 const discarded = state.players[0].hand.find(card=>card.id === '27');
@@ -83,8 +83,9 @@ let transfer = applyOperation(ctx, {
   destinationPile:'hand',
   sourceController:0
 });
-assert.equal(transfer.blocked, true);
-assert(state.players[0].discard.some(card=>card.iid === discarded.iid));
+assert.notEqual(transfer.blocked, true);
+assert(state.players[0].hand.some(card=>card.iid === discarded.iid));
+applyOperation(ctx, {type:'DISCARD_CARD', targetIid:discarded.iid, sourceController:0});
 transfer = applyOperation(ctx, {
   type:'RANDOM_TRANSFER_CARDS',
   playerIndex:0,
@@ -92,8 +93,8 @@ transfer = applyOperation(ctx, {
   destinationPile:'deckRandom',
   count:1
 });
-assert.equal(transfer.blocked, true);
-assert(state.players[0].discard.some(card=>card.iid === discarded.iid));
+assert.notEqual(transfer.blocked, true);
+assert(state.players[0].deck.some(card=>card.iid === discarded.iid));
 
 // Flowing Currents evaluates the live board leader after the set.
 state = makeState('igb5');

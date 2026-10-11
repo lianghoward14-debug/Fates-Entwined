@@ -506,7 +506,7 @@ function turnClockMessage(actor){
   const entry = turnTimers.get(state.matchId);
   const current = entry?.signature === signature ? entry : null;
   const serverTime = Date.now();
-  const paused = !!(state.pendingPrompt || state.pendingHandLimit || current?.suspended);
+  const paused = !!current?.suspended;
   const active = state.phase === 'main' && !state.outcome;
   const initialMs = actor.turnTimeoutCommand()?.timeoutMs
     || (String(state.landscapeId) === 'igb14' ? 30000 : (Number(state.turnTimerSeconds) || 180) * 1000);
@@ -521,8 +521,7 @@ function turnClockMessage(actor){
 function scheduleAuthorityTimers(actor){
   scheduleTakeover(actor);
   schedulePromptTimer(actor);
-  if(actor.state.pendingPrompt || actor.state.pendingHandLimit) suspendTurnTimer(actor.state.matchId);
-  else scheduleTurnTimer(actor);
+  scheduleTurnTimer(actor);
   // Publish only after the existing scheduler has settled its pause/deadline.
   // This sidecar never enters deterministic state or the presentation queue.
   const clock = turnClockMessage(actor);

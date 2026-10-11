@@ -1,5 +1,6 @@
 import {havanoDestinations} from './havano-destinations.mjs';
-import {resolveSupportCompany} from './support-company.mjs';
+import {resolveSupportCompany, addSupportCompanyCard} from './support-company.mjs';
+import {SUPPORT_COMPANY_CATEGORIES, supportCompanyOffers} from '../support-company.mjs';
 import {
   COMMAND_TYPES,
   ENGINE_VERSION,
@@ -11,6 +12,7 @@ import {
 } from './constants.mjs';
 import {assertInvariants} from './invariants.mjs';
 import {flowerPickingEligible} from './cards/draw-effects.mjs';
+import {flowerPickingBlockReason} from './cards/flower-picking.mjs';
 import {
   activeHandLimit,
   isProtectedHandLimitCard,
@@ -18,6 +20,7 @@ import {
 } from './hand-limits.mjs';
 import {
   effectiveCardType,
+  effectiveFate,
   isTriggeredFateCoordinator,
   coordinatorAuraPotencyBoost,
   adjustedTriggeredFateHistoryGain,
@@ -28,7 +31,7 @@ import {
   structuralCardType,
   zoneActionBlock
 } from './modifiers.mjs';
-import {applyOperation, emitRuleEvent, applySpecialHandArrival} from './operations.mjs';
+import {applyOperation, emitRuleEvent, applySpecialHandArrival, resolveAnneActionEvents} from './operations.mjs';
 import {
   destinationKey,
   eligibleBoardTargets,
@@ -102,13 +105,13 @@ const PAYLOAD_FIELDS = Object.freeze({
   MOVE_CARD:['cardIid', 'destination', 'allowSwap'],
   FLIP_CARD:['cardIid'],
   ACTIVATE_LANDSCAPE:['sourceIid', 'discardIids', 'targetIid', 'cardIds'],
-  SUPPORT_COMPANY:['ability', 'cardId'],
+  SUPPORT_COMPANY:['ability', 'cardId', 'category'],
   DISCARD_CARD:['targetIid', 'sourceIid', 'reason'],
   MODIFY_FATE:['targetIid', 'amount', 'sourceIid', 'reason'],
   ACTIVATE_EFFECT:['sourceIid', 'userActivated'],
   ANSWER_PROMPT:['promptId', 'choice', 'reactionIid', 'selectedIid', 'selectedIids', 'destination', 'destinations', 'zone', 'cancel'],
   DISCARD_TO_HAND_LIMIT:['discardedIids'],
-  END_TURN:[],
+  END_TURN:['expirePickers'],
   CONCEDE:[]
 });
 
@@ -134,6 +137,7 @@ function validateDestination(destination){
 }
 
 function validatePayload(type, payload){
+  if(type === 'END_TURN' && payload.expirePickers !== undefined && typeof payload.expirePickers !== 'boolean') return 'expirePickers must be a boolean';
   if(type === 'SUPPORT_COMPANY' && (!['call','desperate'].includes(payload.ability) || typeof payload.cardId !== 'string')){
     return 'Support Company requires an ability and card ID';
   }
@@ -289,6 +293,7 @@ function resolveOperation(template, frame){
   }
   operation.sourceIid = operation.sourceIid || frame.sourceIid;
   operation.sourceController = frame.controller;
+  operation.activatedCardEffect = ['ACTIVATE','WHEN_SET','COPIED'].includes(frame.timing);
   return operation;
 }
 
@@ -328,6 +333,7 @@ function reconcileSovietGrenadierTargets(state, ctx){
     const candidates = entries.filter(target=>
       String(target.card?.iid || '') !== String(source.card.iid || '')
       && target.z === source.z
+      && controllerOf(target.card) === controllerOf(source.card)
       && effectiveCardType(state, target.card) === declaredType
       && Math.abs(target.r - source.r) + Math.abs(target.c - source.c) === 1
     );
@@ -400,9 +406,9 @@ function activeTimedPlayerStatus(state, statusType, playerIndex){
   ) || null;
 }
 
-function supporterEffectBlock(state, card, playerIndex){
+function supporterEffectBlock(state, card, playerIndex, resuming = false){
   if(isEffectImmutable(card)) return null;
-  if(landscapeSupporterEffectLimitReached(state, card, playerIndex)){
+  if(!resuming && landscapeSupporterEffectLimitReached(state, card, playerIndex)){
     return {
       statusId:`landscape:igb15:p${playerIndex}:turn${state.turn}`,
       statusType:'LANDSCAPE_SUPPORTER_EFFECT_LIMIT',
@@ -670,7 +676,7 @@ function activationReactionOptions(state, frame){
     && Number(state.supportersSetForCapThisTurn?.[opponent] || 0) < MAX_SUPPORTERS_SET_PER_TURN){
     for(const card of state.players[opponent].hand){
       if(cardRule(card.id, state)?.reactionKind === 'HAVANO' && havanoDestinations(state,opponent).length){
-        options.push({reactionIid:card.iid, kind:'HAVANO', modes:['NEGATE', 'SUPPRESS']});
+        options.push({reactionIid:card.iid, kind:'HAVANO', modes:['NEGATE']});
       }
     }
   }
@@ -690,7 +696,7 @@ function targetReactionOptions(state, frame, operation){
   if(Number(state.supportersSetForCapThisTurn?.[targetController] || 0) >= MAX_SUPPORTERS_SET_PER_TURN) return [];
   return state.players[targetController].hand
     .filter(card=>cardRule(card.id, state)?.reactionKind === 'HAVANO' && havanoDestinations(state,targetController).length)
-    .map(card=>({reactionIid:card.iid, kind:'HAVANO', modes:['NEGATE', 'SUPPRESS']}))
+    .map(card=>({reactionIid:card.iid, kind:'HAVANO', modes:['NEGATE']}))
     .sort((a, b)=>a.reactionIid.localeCompare(b.reactionIid));
 }
 
@@ -787,7 +793,35 @@ function openInstructionPrompt(state, frame, instruction, ctx){
     frame.instructionIndex = frame.program.length;
     return true;
   };
+  if(instruction.kind === 'SELECT_HOPLITE_CALL'){
+    const source=findBoardCard(state,frame.sourceIid);
+    const own=source ? zoneScore(state,source.z,frame.controller) : 0;
+    const enemy=source ? zoneScore(state,source.z,1-frame.controller) : 0;
+    if(!instruction.unconditional && (own<10 || enemy<3*own)){frame.instructionIndex=frame.program.length;return false;}
+    const categories=SUPPORT_COMPANY_CATEGORIES.filter(category=>supportCompanyOffers(state.cardCatalog,state.matchId,frame.controller,category.id).length);
+    if(!categories.length){frame.instructionIndex=frame.program.length;return false;}
+    if(!frame.locals.callCategory){
+      frame.waitingFor='MODAL_CHOICE';
+      state.pendingPrompt={promptId:nextId(state,'prompt'),type:PROMPT_TYPES.MODAL_CHOICE,
+        playerIndex:frame.controller,sourceIid:frame.sourceIid,local:'callCategory',
+        ...(frame.sourceCardId==='105'?{context:'JORGE_CALL_TO_ARMS'}:{}),
+        options:categories.map(category=>({value:category.id,label:category.name,nextInstructionIndex:frame.instructionIndex})),
+        cancellable:false,defaultChoice:categories[0].id,timeoutPolicy:'DEFAULT',title:'Call to Arms',prompt:'Choose a category, then take one of three cards.'};
+      return true;
+    }
+    const offerIds=supportCompanyOffers(state.cardCatalog,state.matchId,frame.controller,frame.locals.callCategory);
+    const cards=offerIds.map(id=>state.cardCatalog.find(card=>String(card.id)===id));
+    frame.waitingFor='CARD_SELECTION';
+    state.pendingPrompt={promptId:nextId(state,'prompt'),type:PROMPT_TYPES.CARD_SELECTION,
+      playerIndex:frame.controller,sourceIid:frame.sourceIid,local:instruction.local,
+      ...(frame.sourceCardId==='105'?{context:'JORGE_CALL_TO_ARMS'}:{}),
+      eligibleIids:cards.map(card=>card.id),eligibleCards:cards.map(card=>({...cloneSerializable(card),iid:card.id})),
+      min:1,max:1,cancellable:false,timeoutPolicy:'FIRST_ELIGIBLE',
+      title:'Call to Arms',prompt:'Choose one of these three cards to add to your hand for free.'};
+    return true;
+  }
   if(instruction.kind === 'SELECT_SUPPORTER_CATALOG'){
+
     const cards = state.cardCatalog.filter(card=>card.type === 'Supporter');
     if(!cards.length){frame.instructionIndex=frame.program.length;return false;}
     frame.waitingFor='CARD_SELECTION';
@@ -795,7 +829,7 @@ function openInstructionPrompt(state, frame, instruction, ctx){
       playerIndex:frame.controller,sourceIid:frame.sourceIid,local:instruction.local,
       eligibleIids:cards.map(card=>card.id),eligibleCards:cards.map(card=>({...cloneSerializable(card),iid:card.id})),
       min:1,max:1,cancellable:true,cancelBehavior:'END_EFFECT',timeoutPolicy:'FIRST_ELIGIBLE',
-      title:'Chauffeur — Supporter Catalog',prompt:'Choose a Supporter to add to your hand. Its next set ignores the ordinary Supporter limit, but obeys the global cap.'};
+      title:'Chauffeur — Supporter Catalog',prompt:'Choose a Supporter to add to your hand.'};
     return true;
   }
   if(instruction.kind === 'CHOOSE_OPTION'){
@@ -836,7 +870,7 @@ function openInstructionPrompt(state, frame, instruction, ctx){
       sourceIid:frame.sourceIid,
       options,
       local:instruction.local,
-      cancellable:true,
+      cancellable:instruction.cancellable !== false,
       cancelBehavior:instruction.cancelBehavior || 'END_EFFECT',
       defaultChoice,
       timeoutPolicy:'DEFAULT'
@@ -1107,7 +1141,43 @@ function runEffectStack(state, ctx){
       ctx.events.push({type:'EFFECT_RESOLVED', sourceIid:frame.sourceIid, frameId:frame.frameId});
       continue;
     }
+    if(instruction.kind === 'SANTIAGO_CALL_COST'){
+      const targets=boardEntries(state).filter(entry=>controllerOf(entry.card)===frame.controller && effectiveFate(state,entry)>=7);
+      for(const entry of targets) applyOperation(ctx,{type:'DISCARD_CARD',targetIid:entry.card.iid,sourceIid:frame.sourceIid,sourceController:frame.controller,reason:'SANTIAGO_CALL_TO_ARMS_COST'});
+      frame.instructionIndex++;continue;
+    }
+    if(instruction.kind === 'ARM_ANNE_NEXT_TURN'){
+      const source=findBoardCard(state,frame.sourceIid);
+      if(source){
+        source.card.counters.anneLastActivatedTurn=Number(state.turn);
+        const declarations=source.card.counters.anneDeclarations ||= [];
+        declarations.push({action:frame.locals.declaredAction,turn:Number(state.turn)+1,opponent:1-frame.controller});
+      }
+      frame.instructionIndex++;continue;
+    }
+    if(instruction.kind === 'ARM_JORGE_NEXT_TURN'){
+      const source=findBoardCard(state,frame.sourceIid);
+      if(source) source.card.counters.jorgeTriggerTurn=Number(state.turn)+1;
+      frame.instructionIndex++;continue;
+    }
+    if(instruction.kind === 'RESOLVE_HOPLITE_CALL'){
+      addSupportCompanyCard(ctx,frame.controller,String(resolveValue(instruction.cardId,frame)),{sourceIid:frame.sourceIid,category:frame.locals.callCategory});
+      delete frame.locals.callCategory;
+      frame.instructionIndex++;continue;
+    }
+    if(instruction.kind === 'JIMMY_HAND_RESET'){
+      const opponent=1-frame.controller;
+      const targets=eligibleCardTargets(state,frame,{locations:['hand'],playerIndex:'opponent',targetable:'DISCARD_CARD'});
+      let count=0;
+      for(const iid of targets){
+        applyOperation(ctx,{type:'DISCARD_CARD',targetIid:iid,sourceIid:frame.sourceIid,sourceController:frame.controller,reason:'JIMMY_HAND_RESET'});
+        if(findCard(state,iid)?.zone==='discard')count++;
+      }
+      if(count)applyOperation(ctx,{type:'DRAW_CARD',playerIndex:opponent,count,activatedEffect:true,sourceIid:frame.sourceIid,sourceController:frame.controller});
+      frame.instructionIndex++;continue;
+    }
     if(instruction.kind === 'APPLY_DECK_ORDER'){
+
       const deck = state.players[frame.controller].deck;
       const top = deck.slice(0, instruction.count);
       const value = frame.locals[instruction.local];
@@ -1210,7 +1280,7 @@ function runEffectStack(state, ctx){
       state.instanceCounter+=1;
       const card={...cloneSerializable(definition),iid:state.matchId+':p'+frame.controller+':c'+state.instanceCounter,
         baseFate:definition.fate,currentFate:definition.fate,owner:frame.controller,controller:frame.controller,
-        faceDown:false,statuses:[],counters:{chauffeurFreeSet:true}};
+        faceDown:false,statuses:[],counters:{}};
       state.players[frame.controller].hand.push(card);
       applySpecialHandArrival(ctx, frame.controller, card);
       ctx.events.push({type:'CARD_CREATED',cardIid:card.iid,playerIndex:frame.controller,sourceIid:frame.sourceIid,reason:'CHAUFFEUR_CATALOG',privateTo:[frame.controller]});
@@ -1225,6 +1295,9 @@ function runEffectStack(state, ctx){
       const copiedRule = cardRule(selected?.id, state);
       if(!selected || !source || !copiedRule){
         throw Object.assign(new Error('copied effect is no longer available'), {code:'EFFECT_NOT_IMPLEMENTED'});
+      }
+      if(String(source.id) === 'bh05' && Number(selected.cost || 0) >= 4){
+        throw Object.assign(new Error('Taylor cannot copy cards costing 4 or more Reinforcements'), {code:'INVALID_COPY_COST'});
       }
       if(Math.max(Number(copiedRule.minimumTurn || 0), Number(copiedRule.program?.[0]?.minimumTurn || 0)) > state.turn){
         throw Object.assign(new Error('the copied effect cannot activate before its minimum turn'), {code:'MINIMUM_TURN_NOT_REACHED'});
@@ -1443,9 +1516,10 @@ function completeEndTurn(state, ctx, actorIndex){
     });
   }
   resolveMoraleSupporterExpiry(state, ctx, actorIndex);
-  resolveElViajeDelHombrePinaTurn(state, ctx);
+  // Jorge now converts healing, without a turn-boundary aura.
   resolveMoralePressureCycle(ctx);
   resolveMoraleLowHandDiscard(state, ctx, actorIndex);
+  resolveAnneActionEvents(ctx);
   state.geometry.squareStatuses=state.geometry.squareStatuses.filter(status=>{
     const expired=status?.type==='HIDDEN_BOMB_TRAP'
       && Number(status.targetPlayer)===Number(actorIndex)
@@ -1517,47 +1591,6 @@ function completeEndTurn(state, ctx, actorIndex){
     turn:state.turn
   });
   openMoraleThresholdDiscardFrame(state, ctx);
-}
-
-function openBh18EndTurnFrame(state, ctx, actorIndex, commandId){
-  if(!state.players[actorIndex]?.deck?.length) return false;
-  const controller = actorIndex === 0 ? 1 : 0;
-  const sources = boardEntries(state).filter(entry=>
-    controllerOf(entry.card) === controller
-    && runtimeRuleId(entry.card) === 'bh18'
-    && !isEffectSourceSuppressed(state, entry)
-  );
-  if(!sources.length) return false;
-  const program = sources.map(source=>({
-    kind:'OPERATION',
-    targeted:true,
-    operation:{
-      type:'RANDOM_DISCARD_DECK',
-      playerIndex:actorIndex,
-      targetPlayerIndex:actorIndex,
-      sourceIid:source.card.iid,
-      semanticSourceCardId:'bh18',
-      sourceController:controller,
-      reason:'GENESIS_OF_ALL_INCELDOM'
-    }
-  }));
-  program.push({kind:'FINALIZE_END_TURN', playerIndex:actorIndex});
-  state.effectStack.push({
-    frameId:nextId(state, 'frame'),
-    kind:'PASSIVE_END_TURN_EFFECT',
-    sourceIid:sources[0].card.iid,
-    sourceCardId:'bh18',
-    sourceType:String(sources[0].card.type || 'Improvisor'),
-    controller,
-    timing:'TURN_ENDING',
-    instructionIndex:0,
-    waitingFor:null,
-    locals:{},
-    program,
-    originalCommandId:commandId
-  });
-  runEffectStack(state, ctx);
-  return true;
 }
 
 function resolveMoraleLowHandDiscard(state, ctx, playerIndex){
@@ -1796,6 +1829,13 @@ function openTimedLandscapeEndTurnFrame(state, ctx, actorIndex, commandId){
 
 function startEffect(state, ctx, source, controller, timing, commandId, ruleId = source.id){
   const rule = cardRule(ruleId, state);
+  if(rule?.program?.some(instruction=>instruction.kind === 'REQUIRE_NO_DRAW_EFFECTS_IN_ORIGINAL_DECK')){
+    const reason = flowerPickingBlockReason(state, controller, source);
+    if(reason){
+      ctx.events.push({type:'EFFECT_SKIPPED', sourceIid:source.iid, playerIndex:controller, timing, reason});
+      return;
+    }
+  }
   const sourceEntry = findBoardCard(state, source.iid);
   if(sourceEntry && isEffectSourceSuppressed(state, sourceEntry)){
     ctx.events.push({
@@ -1965,17 +2005,16 @@ function resolveReaction(state, ctx, frame, prompt, payload){
   const reactionEntry = findCard(state, option.reactionIid);
   if(!reactionEntry) throw Object.assign(new Error('reaction card no longer exists'), {code:'REACTION_NOT_FOUND'});
   if(option.kind !== 'HAVANO') consumeReaction(reactionEntry.card);
-  // Lydia and Havano both stop this resolution and permanently suppress
-  // its source, including clients that submit Havano's older NEGATE choice.
+  // Lydia suppresses the source; Havano only negates this resolution.
   const reactedSourceIid = frame.activeReactionSourceIid || frame.sourceIid;
-  if(choice === 'SUPPRESS' || option.kind === 'HAVANO' || option.kind === 'LYDIA' || frame.reactionPhase === 'PASSIVE_TARGET') addSuppression(state, reactedSourceIid);
+  if(option.kind !== 'HAVANO' && (choice === 'SUPPRESS' || option.kind === 'LYDIA' || frame.reactionPhase === 'PASSIVE_TARGET')) addSuppression(state, reactedSourceIid);
   emitRuleEvent(ctx, {
     type:RULE_EVENT_TYPES.EFFECT_REACTED,
     sourceIid:reactedSourceIid,
     reactionIid:reactionEntry.card.iid,
     playerIndex:controllerOf(reactionEntry.card),
     reactionKind:option.kind,
-    mode:option.kind === 'HAVANO' ? 'SUPPRESS' : choice
+    mode:choice
   });
   state.pendingPrompt = null;
   if(option.kind === 'HAVANO'){
@@ -2023,6 +2062,22 @@ function resolvePrompt(state, ctx, actorIndex, payload){
     || (Array.isArray(payload.selectedIids) && payload.selectedIids.length === 0);
   if(cancelRequested){
     if(!prompt.cancellable) throw Object.assign(new Error('this prompt cannot be cancelled'), {code:'PROMPT_NOT_CANCELLABLE'});
+    const source = findBoardCard(state, frame.sourceIid);
+    if(payload.cancel === true && source && controllerOf(source.card) === actorIndex
+      && actorIndex === state.activePlayer
+      && state.effectStack.every(item=>['CARD_EFFECT', 'COPIED_CARD_EFFECT'].includes(item.kind)
+        && item.controller === actorIndex && ['WHEN_SET', 'DECK_SET', 'ACTIVATE', 'COPIED'].includes(item.timing))){
+      // Retain the continuation, not a fresh activation: earlier costs and rewards
+      // must not run twice. Re-running this instruction refreshes eligible targets.
+      state.deferredPickerEffects ||= [];
+      state.deferredPickerEffects.push({turn:state.turn, controller:actorIndex,
+        frame:cloneSerializable(frame), frames:cloneSerializable(state.effectStack)});
+      state.effectStack = [];
+      state.pendingPrompt = null;
+      ctx.events.push({type:'PROMPT_CANCELLED', promptId:prompt.promptId, sourceIid:frame.sourceIid, deferred:true});
+      runEffectStack(state, ctx);
+      return;
+    }
     frame.locals[prompt.local || frame.program[frame.instructionIndex]?.local] = null;
     state.pendingPrompt = null;
     frame.waitingFor = null;
@@ -2104,11 +2159,9 @@ function resolvePrompt(state, ctx, actorIndex, payload){
         sourceController:actorIndex,
         reactionSet:true
       });
-      if(frame.havanoReactionPhase === 'ACTIVATION' || frame.havanoReactionPhase === 'PASSIVE_TARGET'){
-        frame.instructionIndex = frame.program.length;
-      }else{
-        frame.instructionIndex += 1;
-      }
+      // Negate the current card-effect resolution, including any remaining
+      // steps after its target was chosen, without disabling future effects.
+      frame.instructionIndex = frame.program.length;
       delete frame.havanoIid;
       delete frame.havanoReactionPhase;
       delete frame.activeReactionSourceIid;
@@ -2175,6 +2228,10 @@ function performCommand(state, ctx, command, actorIndex, options){
       ctx.events.push({type:RULE_EVENT_TYPES.MATCH_ENDED, outcome:cloneSerializable(state.outcome)});
       return;
     }
+    if(state.deferredPickerEffects){
+      state.deferredPickerEffects = state.deferredPickerEffects.filter(item=>item.turn === state.turn
+        && controllerOf(findBoardCard(state,item.frame.sourceIid)?.card) === item.controller);
+    }
     state.outcome = {
       type:'CONCEDED',
       winner:actorIndex === 0 ? 1 : 0,
@@ -2214,6 +2271,22 @@ function performCommand(state, ctx, command, actorIndex, options){
   }
   if(command.type === 'CHOOSE_TURN_ORDER'){
     throw Object.assign(new Error('turn order has already been chosen'), {code:'TURN_ORDER_ALREADY_CHOSEN'});
+  }
+  if(command.type === 'END_TURN' && payload.expirePickers === true){
+    assertActivePlayer(state, actorIndex);
+    if(state.pendingPrompt) ctx.events.push({type:'PICKER_EXPIRED', promptId:state.pendingPrompt.promptId, playerIndex:state.pendingPrompt.playerIndex});
+    state.pendingPrompt = null;
+    state.effectStack = [];
+    state.deferredPickerEffects = [];
+    // Required discards cannot be bypassed by letting the clock expire.
+    for(const owner of [0,1]){
+      const player = state.players[owner];
+      const count = Math.max(0, player.hand.length - activeHandLimit(state, owner));
+      const cards = player.hand.filter(card=>!isProtectedHandLimitCard(card, owner)).slice(0,count);
+      for(const card of cards) applyOperation(ctx,{type:'DISCARD_CARD',targetIid:card.iid,sourceIid:card.iid,
+        sourceController:controllerOf(card),reason:'HAND_LIMIT',bypassTargeting:true});
+    }
+    state.pendingHandLimit = null;
   }
   if(state.pendingHandLimit){
     if(command.type !== 'DISCARD_TO_HAND_LIMIT'){
@@ -2278,8 +2351,27 @@ function performCommand(state, ctx, command, actorIndex, options){
     return;
   }
   if(command.type === 'ACTIVATE_LANDSCAPE'){
-    if(!['igb16', 'igb17', 'igb21'].includes(state.landscapeId)){
+    if(!['igb4', 'igb16', 'igb17', 'igb21'].includes(state.landscapeId)){
       throw Object.assign(new Error('the active landscape has no direct v3 activation'), {code:'LANDSCAPE_ACTIVATION_NOT_AVAILABLE'});
+    }
+    if(state.landscapeId === 'igb4'){
+      const uses = state.landscapeState.twilightRecoveryUses || (state.landscapeState.twilightRecoveryUses = [0, 0]);
+      if(Number(uses[actorIndex] || 0) >= 1){
+        throw Object.assign(new Error('Twilight recovery can only be used once per game'), {code:'USE_LIMIT_REACHED'});
+      }
+      const card = state.players[actorIndex].discard.find(card=>card.iid === payload.targetIid);
+      if(state.phase !== 'main' || !card || !['Initiator','Coordinator','Dauntless','Improvisor'].includes(String(card.type))){
+        throw Object.assign(new Error('Choose a Character in your own discard'), {code:'INVALID_LANDSCAPE_SELECTION'});
+      }
+      applyOperation(ctx, {type:'TRANSFER_CARDS', targetIid:card.iid, playerIndex:actorIndex,
+        destinationPile:'hand', sourceController:actorIndex, sourceIid:'landscape:igb4', reason:'LANDSCAPE_IGB4_RECOVERY'});
+      // Zion grants a fresh activation budget without resetting Fate or identity.
+      if(!card.counters) card.counters = {};
+      card.counters.effectUses = 0;
+      for(const key of ['whenSetResolved','lastEffectTurn']) delete card.counters[key];
+      uses[actorIndex] = 1;
+      ctx.events.push({type:'LANDSCAPE_ACTIVATED', landscapeId:'igb4', playerIndex:actorIndex, targetIid:card.iid});
+      return;
     }
     if(state.landscapeId === 'igb21'){
       if(Number(state.landscapeState.oncePerGameUses[actorIndex] || 0) >= 1){
@@ -2467,7 +2559,7 @@ function performCommand(state, ctx, command, actorIndex, options){
     if(!isPierogi && alondraBlock){
       throw Object.assign(new Error('Alondra blocks an adjacent opponent Supporter set'), {code:'ILLEGAL_PLACEMENT'});
     }
-    if((payload.contributesFate !== undefined || payload.contributesAuras !== undefined) && String(entry.card.id||'') !== '102'){
+    if((payload.contributesFate !== undefined || payload.contributesAuras !== undefined) && !['102','104','105','107'].includes(String(entry.card.id||''))){
       throw Object.assign(new Error('contribution choices require a hidden-placement option'), {code:'CONTRIBUTION_CHOICE_NOT_ALLOWED'});
     }
     const result = applyOperation(ctx, {
@@ -2475,7 +2567,7 @@ function performCommand(state, ctx, command, actorIndex, options){
       playerIndex:actorIndex,
       cardIid:payload.cardIid,
       destination:payload.destination,
-      faceDown:payload.faceDown===true&&String(entry.card.id||'')==='102',
+      faceDown:payload.faceDown===true&&['102','104','105','107'].includes(String(entry.card.id||'')),
       contributesFate:payload.contributesFate,
       contributesAuras:payload.contributesAuras,
       sourceController:actorIndex,
@@ -2645,10 +2737,10 @@ function performCommand(state, ctx, command, actorIndex, options){
       && Number(status.zone) === Number(payload.destination?.z)
       && Number(status.remaining || 0) > 0
     );
-    if((payload.contributesFate !== undefined || payload.contributesAuras !== undefined) && !faceDownPermission && String(entry.card.id||'') !== '102'){
+    if((payload.contributesFate !== undefined || payload.contributesAuras !== undefined) && !faceDownPermission && !['102','104','105','107'].includes(String(entry.card.id||''))){
       throw Object.assign(new Error('contribution choices require a Hoplite placement'), {code:'CONTRIBUTION_CHOICE_NOT_ALLOWED'});
     }
-    if(payload.faceDown === true && !faceDownPermission && String(entry.card.id||'')!=='102'){
+    if(payload.faceDown === true && !faceDownPermission && !['102','104','105','107'].includes(String(entry.card.id||''))){
       throw Object.assign(new Error('there is no face-down consolidation permission in this zone'), {code:'FACE_DOWN_NOT_ALLOWED'});
     }
     const result = applyOperation(ctx, {
@@ -2815,6 +2907,19 @@ function performCommand(state, ctx, command, actorIndex, options){
       );
     }
     const activationRuleId=['37','bh05'].includes(String(entry.card.id)) && runtimeRuleId(entry.card)==='93'?'93':entry.card.id;
+    const deferredIndex = (state.deferredPickerEffects || []).findIndex(item=>
+      item.turn === state.turn && item.controller === actorIndex && item.frame.sourceIid === entry.card.iid);
+    if(deferredIndex >= 0){
+      if(isEffectSourceSuppressed(state, entry) || supporterEffectBlock(state, entry.card, actorIndex, true)){
+        throw Object.assign(new Error('the source effect is suppressed'), {code:'EFFECT_SUPPRESSED'});
+      }
+      const deferred = state.deferredPickerEffects.splice(deferredIndex, 1)[0];
+      const frames = deferred.frames || [deferred.frame];
+      frames[frames.length - 1].waitingFor = null;
+      state.effectStack.push(...frames);
+      runEffectStack(state, ctx);
+      return;
+    }
     const rule = cardRule(activationRuleId, state);
     const hiddenWhenSet = entry.card.faceDown === true && !entry.card.counters?.whenSetResolved && rule?.timings?.includes('WHEN_SET');
     if((!rule?.timings?.includes('ACTIVATE') && !hiddenWhenSet) || !rule.program){
@@ -2872,8 +2977,14 @@ function performCommand(state, ctx, command, actorIndex, options){
     return;
   }
   if(command.type === 'END_TURN'){
+    if(state.deferredPickerEffects) state.deferredPickerEffects = [];
     ctx.events.push({type:RULE_EVENT_TYPES.TURN_ENDING, playerIndex:actorIndex, turn:state.turn});
-    if(openTimedLandscapeEndTurnFrame(state, ctx, actorIndex, command.commandId)) return;
+    if(openTimedLandscapeEndTurnFrame(state, ctx, actorIndex, command.commandId)){
+      if(payload.expirePickers !== true || !state.pendingPrompt) return;
+      ctx.events.push({type:'PICKER_EXPIRED',promptId:state.pendingPrompt.promptId,playerIndex:state.pendingPrompt.playerIndex});
+      state.pendingPrompt = null;
+      state.effectStack = [];
+    }
     // BH18's legacy deck-discard effect is retired; Morale resolution owns its effect.
     completeEndTurn(state, ctx, actorIndex);
     return;
@@ -2931,6 +3042,7 @@ export function reduceCommand(currentState, rawCommand, options = {}){
         type:'WARFRONT_FORFEIT',winner:state.warfrontForfeit.winner,loser:state.warfrontForfeit.loser,
         commendationsEligible:state.outcome.commendationsEligible !== false};
     }
+    resolveAnneActionEvents(ctx);
     state.revision += 1;
     assertInvariants(state);
     const hiddenSources = new Map();
@@ -2942,6 +3054,15 @@ export function reduceCommand(currentState, rawCommand, options = {}){
       if(hiddenSources.has(String(status.sourceIid))){ status.hiddenSource = true; status.sourceController = hiddenSources.get(String(status.sourceIid)); }
     }
     for(const event of ctx.events){
+      // The completed Call to Arms is public even when its Improvisor stays hidden.
+      // Publish the category animation without identifying the hidden source.
+      if(event.type === 'SUPPORT_COMPANY_USED'){
+        if(hiddenSources.has(String(event.sourceIid || ''))) delete event.sourceIid;
+        continue;
+      }
+      // The mark and activation are secret; the detonation is visible to everyone.
+      if(event.type === 'HIDDEN_BOMB_EXPLODED'
+        || (event.type === 'CARD_DISCARDED' && event.reason === 'THE_BLACK_ROSE_BOMB')) continue;
       const iid = String(event.reactionIid || event.effectSourceIid || event.sourceIid || event.status?.sourceIid || '');
       if(hiddenSources.has(iid)){ event.hiddenSource = true; event.sourceController = hiddenSources.get(iid); }
     }

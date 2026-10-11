@@ -7,7 +7,7 @@ import {DRAW_EFFECT_CARD_IDS} from '../../shared/engine/cards/draw-effects.mjs';
 import {command} from './test-helpers.mjs';
 const require=createRequire(import.meta.url);
 const definitions=require('../fate-card-catalog.js').getCardCatalog().cards.filter(c=>!c.retired&&!c.temporarilyDisabled);
-assert.equal(definitions.find(c=>c.id==='bh10').cost,3);
+assert.equal(definitions.find(c=>c.id==='bh10').cost,1);
 assert(!DRAW_EFFECT_CARD_IDS.includes('bh10'));
 for(const owner of [0,1]){
  const row=owner===0?2:0;
@@ -32,19 +32,22 @@ for(const owner of [0,1]){
  assert.equal(state.players[owner].discard.length,0);
  assert(!result.events.some(e=>['DECK_SEARCHED','CARD_DRAWN','CARD_DISCARDED','DRAW_EFFECT_ACTIVATED'].includes(e.type)));
  const created=state.players[owner].hand.at(-1);
- assert.equal(created.id,'09');assert.equal(created.counters.chauffeurFreeSet,true);
+ assert.equal(created.id,'09');assert.equal(created.counters.chauffeurFreeSet,undefined);
  assert.equal(projectStateForPlayer(state,owner).players?.[owner]?.hand?.length ?? state.players[owner].hand.length,hand.length+1);
  state.supportersSetThisTurn[owner]=2;state.supportersSetForCapThisTurn[owner]=2;
  const choices=legalCommandTemplates(state,owner);
- assert(choices.some(c=>c.type==='SET_CARD'&&c.payload.cardIid===created.iid),'exempt card remains legal after ordinary card in hand');
+ assert(!choices.some(c=>c.type==='SET_CARD'&&c.payload.cardIid===created.iid),'catalog card obeys the normal Supporter limit');
+ const ordinaryDenied=reduceCommand(state,command(state,'p'+owner,40,'SET_CARD',{cardIid:created.iid,destination:{z:1,r:row,c:0}}),{playerId:'p'+owner});
+ assert.equal(ordinaryDenied.ok,false,'direct commands cannot bypass the limit');
  const capped=structuredClone(state);capped.supportersSetForCapThisTurn[owner]=5;
  assert(!legalCommandTemplates(capped,owner).some(c=>c.type==='SET_CARD'&&c.payload.cardIid===created.iid));
  const denied=reduceCommand(capped,command(capped,'p'+owner,4,'SET_CARD',{cardIid:created.iid,destination:{z:1,r:row,c:0}}),{playerId:'p'+owner});
  assert.equal(denied.ok,false);assert.equal(denied.rejection.code,'SUPPORTER_HARD_CAP_REACHED');
+ state.supportersSetThisTurn[owner]=1;state.supportersSetForCapThisTurn[owner]=1;
  result=reduceCommand(state,command(state,'p'+owner,5,'SET_CARD',{cardIid:created.iid,destination:{z:1,r:row,c:0}}),{playerId:'p'+owner});
  assert.equal(result.ok,true,JSON.stringify(result.rejection));
  assert.equal(result.state.supportersSetThisTurn[owner],2);
- assert.equal(result.state.supportersSetForCapThisTurn[owner],3);
+ assert.equal(result.state.supportersSetForCapThisTurn[owner],2);
  assert(!result.state.board[1][row][0].counters.chauffeurFreeSet);
  assertInvariants(result.state);
 }
@@ -55,10 +58,10 @@ for(const ai of [false,true]){
  let arrivals=[];
  const sandbox=vm.createContext({G:game,CARDS:definitions,createCardInstance:(c,owner)=>({...c,owner,iid:1}),addCardToHand:(p,c,o)=>{game.players[p].hand.push(c);arrivals.push(o.arrivalKind);return true;},renderEffectResolutionForPlayer:()=>{},pickCardsVisual:(cards,options,done)=>{assert(cards.every(c=>c.type==='Supporter'));done([cards.find(c=>c.id==='09')]);}});
  vm.runInContext(fn,sandbox);await sandbox.resolveChauffeurCatalog({id:'bh10'},0);
- assert.equal(game.players[0].hand.length,1);assert.equal(game.players[0].hand[0].counters.chauffeurFreeSet,true);
+ assert.equal(game.players[0].hand.length,1);assert.equal(game.players[0].hand[0].counters?.chauffeurFreeSet,undefined);
  assert.deepEqual(game.players[0].deck,['untouched']);assert.equal(game.players[0].discard.length,0);assert.deepEqual(arrivals,['chauffeur-catalog']);
 }
-console.log('Chauffeur catalog, no-search/no-redraw, both seats, AI, one-use exemption and hard-cap regression checks passed.');
+console.log('Chauffeur catalog, no-search/no-redraw, both seats, AI, normal placement limit and hard-cap regression checks passed.');
 
 const rendering=fs.readFileSync(new URL('../../src/scripts/06-rendering-and-helpers.js',import.meta.url),'utf8');
 const playHelpers=rendering.slice(rendering.indexOf('function canPlayCard('),rendering.indexOf('function renderZoneScores('));

@@ -1,0 +1,27 @@
+/* Simplified Chinese CSS labels. */
+html[lang="zh-CN"] {
+  --fate-label-79a1694efa: "现场命令 · 仅供参考";
+  --fate-label-b5887e0958: "战区情报";
+  --fate-label-9c1a2e4221: "单位档案";
+  --fate-label-1b1f8a58b1: "信号兵团";
+  --fate-label-e1e1024c47: "最终情报·只读";
+  --fate-label-2f45a6362e: "战争前线";
+  --fate-label-07732a73c0: "行动后文件";
+  --fate-label-e90fbbde09: "战斗电报";
+  --fate-label-11939f1f51: "机密活动文件";
+  --fate-label-6e00805398: "音频设置";
+  --fate-label-800756b0ed: "没有合并";
+  --fate-label-bda58606d1: "存档·提取订单·授权访问";
+  --fate-label-211a0a7004: "文件 0";
+  --fate-label-b5c7aed7cd: "全部";
+  --fate-label-41cf8adfd8: "卡档案";
+  --fate-label-5ec3c1c34e: "现场资源";
+  --fate-label-10547aaa7b: "大地图·积极参与";
+  --fate-label-8f2e2070f9: "风景圣物盒";
+  --fate-label-3f89dc4fcd: "风景";
+  --fate-label-0ab09daaa2: "现场对开本";
+  --fate-label-4e8c9131d3: "地图抽屉 03";
+  --fate-label-930eff8e37: "I区";
+  --fate-label-ec4aaac9e3: "II区";
+  --fate-label-0c429f1ce9: "第三区";
+}

@@ -1,0 +1,66 @@
+const {app,BrowserWindow}=require('electron');
+const fs=require('node:fs'),path=require('node:path');
+const root=path.resolve(__dirname,'..');
+const out=path.join(root,'.tmp','discard-picker-ui');
+fs.mkdirSync(out,{recursive:true});
+app.setPath('userData',path.join(out,'profile-'+Date.now()));
+app.whenReady().then(async()=>{
+  const win=new BrowserWindow({show:false,width:1280,height:900,webPreferences:{sandbox:true,contextIsolation:true,backgroundThrottling:false}});
+  const timeout=setTimeout(()=>app.exit(1),45000);
+  win.webContents.session.webRequest.onBeforeRequest({urls:['http://*/*','https://*/*']},(_,cb)=>cb({cancel:true}));
+  try{
+    await win.loadFile(path.join(root,'index.html'));
+    await new Promise(resolve=>setTimeout(resolve,1500));
+    const result=await win.webContents.executeJavaScript(`(async()=>{
+      const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+      const check=(value,message)=>{if(!value)throw Error(message);};
+      G.aiEnabled=false; G.phase='main'; G.currentPlayer=0; G.turn=1;
+      G.board=Array.from({length:3},()=>Array.from({length:3},()=>Array(3).fill(null)));
+      const source=newInstance(CARDS.find(card=>card.id==='05')); source.owner=0;
+      G.board[0][2][0]=source;
+      let chosen=0;
+      showBoardTargetPicker({sourceCard:source,immediate:true,entries:[{card:source,z:0,r:2,c:0}],zones:[0]},()=>{chosen++;});
+      const button=label=>[...document.querySelectorAll('#modal-acts button')].find(node=>node.textContent===label);
+      button('Cancel').click();
+      check(!document.getElementById('modal').classList.contains('on'),'Cancel did not close picker');
+      check(hasDeferredLocalPicker(source),'Cancel did not retain picker');
+      openCardDetail(source,false,true);
+      check(!!button('Activate Effect'),'No Activate Effect button after cancel');
+      button('Activate Effect').click();
+      for(let attempt=0;attempt<30 && !document.querySelector('#modal.on .board-target-picker');attempt++) await pause(100);
+      check(!!document.querySelector('#modal.on .board-target-picker'),'Activate Effect did not reopen picker');
+      button('Cancel').click();
+      const warnings=collectPendingCardWindowEffectsForEndTurn(0);
+      check(warnings.some(item=>item.name===source.name),'Canceled effect missing from end-turn warning');
+      const card=newInstance(CARDS.find(card=>card.id==='27'));card.owner=0;G.board[0][2][1]=card;
+      openCardDetail(card,false,true);
+      check(!!button('Discard'),'Card detail missing discard');
+      button('Discard').click();
+      check(!!document.querySelector('.card-discard-confirm-modal'),'Discard did not request confirmation');
+      check(G.board[0][2][1]===card,'Discard changed the board before confirmation');
+      button('Keep Card').click();
+      check(G.board[0][2][1]===card,'Cancel discarded the card');
+      button('Discard').click();
+      button('Discard').click();
+      for(let attempt=0;attempt<30 && G.board[0][2][1]===card;attempt++) await pause(100);
+      check(G.board[0][2][1]!==card,'Confirmed discard did not remove the card');
+      G.players[0].deck=['05','27','32'].map(id=>newInstance(CARDS.find(card=>card.id===id)));
+      showDeckInfo(0);
+      check(!!button('Remaining Cards'),'Deck window missing Remaining Cards button');
+      button('Remaining Cards').click();
+      check(!!document.querySelector('#modal.on .canvas-card-gallery'),'Remaining Cards did not open gallery');
+      check(document.getElementById('modal-title').textContent.includes('3'),'Remaining deck count is incorrect');
+      button('Back to Deck').click();
+      check(!!button('Remaining Cards'),'Back to Deck did not restore deck window');
+      return {pickerResume:true,endTurnWarning:true,discardConfirmation:true,remainingDeckGallery:true,chosen};
+    })()`);
+    await win.webContents.executeJavaScript(`confirmCardDiscard({name:'Kazumi'},()=>{});document.getElementById('modal').style.zIndex='2147483647';`);
+    await new Promise(resolve=>setTimeout(resolve,180));
+    fs.writeFileSync(path.join(out,'confirmation.png'),(await win.webContents.capturePage()).toPNG());
+    await win.webContents.executeJavaScript(`showDeckInfo(0);document.getElementById('modal').style.zIndex='2147483647';`);
+    await new Promise(resolve=>setTimeout(resolve,100));
+    fs.writeFileSync(path.join(out,'deck-window.png'),(await win.webContents.capturePage()).toPNG());
+    console.log(JSON.stringify(result));
+  }catch(error){console.error(error.stack);fs.writeFileSync(path.join(out,'failure.png'),(await win.webContents.capturePage()).toPNG());process.exitCode=1;}
+  finally{clearTimeout(timeout);app.exit(process.exitCode || 0);}
+});

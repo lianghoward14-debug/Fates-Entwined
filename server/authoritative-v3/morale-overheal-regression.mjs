@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import {createInitialState,modifyMorale,assertInvariants,reduceCommand,projectStateForPlayer} from '../../shared/engine/index.mjs';
+import {command} from './test-helpers.mjs';
+const state=createInitialState({matchId:'overheal',seed:'overheal',handSize:1,players:[{id:'p0',deckIds:['33']},{id:'p1',deckIds:[]}],cardDefinitions:[{id:'33',name:'Healer',type:'Supporter',fate:1,cost:0}],gameSettings:{healthPressureSeals:true,pressureCardReworks:true}});
+const result=reduceCommand(state,command(state,'p0',1,'SET_CARD',{cardIid:state.players[0].hand[0].iid,destination:{z:0,r:2,c:0}}),{playerId:'p0'});
+assert.equal(result.ok,true,JSON.stringify(result));assert.equal(result.state.moralePressure.morale[0],216);
+const ctx={state:result.state,events:[],ruleEvents:[]};modifyMorale(ctx,{playerIndex:0,amount:50});assert.equal(ctx.state.moralePressure.morale[0],266);assertInvariants(ctx.state);
+assert.equal(projectStateForPlayer(ctx.state,1).moralePressure.morale[0],266);
+modifyMorale(ctx,{playerIndex:0,amount:-10});assert.equal(ctx.state.moralePressure.morale[0],256);
+modifyMorale(ctx,{playerIndex:0,amount:-999});assert.equal(ctx.state.moralePressure.morale[0],0);
+console.log('Overheal: authoritative card activation, repeat healing, projection, invariants, damage and zero floor passed');

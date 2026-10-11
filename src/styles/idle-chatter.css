@@ -1,0 +1,11 @@
+#fate-idle-chatter{position:fixed;right:20px;bottom:220px;z-index:850;box-sizing:border-box;width:330px;max-width:calc(100vw - 40px);display:flex;align-items:center;gap:12px;padding:16px;background:#112b31;color:#eee8d9;border:1px solid #a79160;border-radius:2px 22px 2px 2px;box-shadow:0 8px 24px #0006;pointer-events:none;font-family:Georgia,serif;opacity:0;transition:opacity .4s ease}
+#fate-idle-chatter[hidden]{display:none}
+#fate-idle-chatter:before{content:'';position:absolute;inset:5px;border:1px solid #aa976244;border-radius:0 16px 0 0;pointer-events:none}
+#fate-idle-chatter .chatter-portrait{width:60px;height:60px;padding:4px;flex-shrink:0;border:1px solid #b2a078;border-radius:50%;box-sizing:border-box;background:#0c2025}
+#fate-idle-chatter img{display:block;width:100%;height:100%;object-fit:cover;object-position:48% 40%;border-radius:50%}
+#fate-idle-chatter .chatter-copy{min-width:0}
+#fate-idle-chatter .chatter-name{font-size:11px;line-height:1.5;letter-spacing:1.8px;text-transform:uppercase;color:#d1b989}
+#fate-idle-chatter p{font-size:15px;line-height:1.5;margin:8px 0 0;color:#eee8d9}
+#fate-idle-chatter .chatter-rule{height:1px;width:52px;background:#ac9869;margin-top:12px}
+@media(max-width:600px){#fate-idle-chatter{right:10px;bottom:180px;max-width:calc(100vw - 20px);padding:16px;gap:12px}#fate-idle-chatter .chatter-portrait{width:56px;height:56px}#fate-idle-chatter p{font-size:14px}}
+@media(prefers-reduced-motion:reduce){#fate-idle-chatter{transition:none}}

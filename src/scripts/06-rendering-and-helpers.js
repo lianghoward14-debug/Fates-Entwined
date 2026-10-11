@@ -505,6 +505,10 @@ function isElectronCardImageRuntime() {
   }
 }
 function getRuntimeCardImageSrc(src, role) {
+  if(/^107\.png(?:[?#]|$)/.test(String(src||''))) return '107.png?v=20261011';
+  if(/^106\.png(?:[?#]|$)/.test(String(src||''))) return '106.png?v=1a1e0a223fc3';
+  if(/^105\.png(?:[?#]|$)/.test(String(src||''))) return '105.png?v=20261009-triangle';
+  if(/^(101|102|103|104|105)\.png(?:[?#]|$)/.test(String(src||''))) return String(src).split(/[?#]/)[0]+'?v=20261008-card-art';
   if(/^bh10\.png(?:[?#]|$)/.test(String(src||'')))return src;
   if(!src) return src;
   const raw = String(src);
@@ -609,7 +613,12 @@ function getCachedEffectiveFate(card, z) {
   if(!card) return 0;
   // Projected Fate can change while a hidden card's local fields stay identical.
   if(G?._phase7ZoneScores && Number.isFinite(card._authoritativeFate)) return card._authoritativeFate;
-  if(!_renderCalcCache || typeof getEffectiveFate !== 'function') return getEffectiveFate(card, z);
+  if(!_renderCalcCache || typeof getEffectiveFate !== 'function') {
+    const value = getEffectiveFate(card, z);
+    presentJimmyDynamicFateGain(card, value);
+    if(typeof observeChineseMacArthurDerivedFate === 'function') observeChineseMacArthurDerivedFate(card, value);
+    return value;
+  }
   const flowerSquare = card._bh12FlowerSquare
     ? [card._bh12FlowerSquare.z, card._bh12FlowerSquare.r, card._bh12FlowerSquare.c].join(',')
     : '';
@@ -1847,6 +1856,7 @@ document.addEventListener('pointerup', function(){ _pointerDown = false; setTime
 document.addEventListener('pointercancel', function(){ _pointerDown = false; setTimeout(_flushDeferredRender, 80); }, true);
 
 function renderGame(parts) {
+  window.FateAnnePlanning?.observe();
   const v3LocalScreen = window.FateAuthorityV3SinglePlayer?.currentScreen?.();
   if(v3LocalScreen){
     v3LocalScreen.render(window.FateAuthorityV3SinglePlayer.view());
@@ -1869,6 +1879,7 @@ function renderGame(parts) {
 }
 // Immediate render for critical moments (game start, turn change)
 function renderGameImmediate(parts) {
+  window.FateAnnePlanning?.observe();
   const v3LocalScreen = window.FateAuthorityV3SinglePlayer?.currentScreen?.();
   if(v3LocalScreen){
     v3LocalScreen.render(window.FateAuthorityV3SinglePlayer.view());
@@ -2045,6 +2056,14 @@ function renderLandscapePanel() {
   }
   let whiteboardActionHtml = '';
   let whiteboardActionSig = '';
+  if(landscape.id === 'igb4' && !tutorialLandscapeDisplay){
+    const spent = Number(st?.twilightRecoveryUses?.[perspectivePlayer] || 0) >= 1;
+    const enabled = !G._isSpectator && G._onlineRole !== 'spectator';
+    whiteboardActionSig = ['twilight', perspectivePlayer, spent, enabled].join(':');
+    whiteboardActionHtml = '<div class="landscape-whisper-action ' + (spent ? 'is-spent' : 'is-ready') + '">' +
+      '<button type="button" class="landscape-whisper-button" onclick="activateTwilightRecoveryLandscape()"' + (enabled ? '' : ' disabled') + '>' +
+      (spent ? 'View Discard — Recovery Used' : 'Open Twilight Recovery') + '</button></div>';
+  }
   if(landscape.id === 'igb21' && !tutorialLandscapeDisplay) {
     const uses = st && Array.isArray(st.igb21CatalogUses) ? st.igb21CatalogUses : (st && Array.isArray(st.oncePerGameUses) ? st.oncePerGameUses : [0,0]);
     const spent = (Number(uses[perspectivePlayer]) || 0) >= 1;
@@ -3194,7 +3213,7 @@ function showCanvasCardGalleryModal(title, cards, opts) {
     const cssW = 720, cols = 4, gap = 14, pad = 14;
     const start = page * perPage;
     const end = Math.min(start + perPage, cards.length);
-    const rows = Math.max(1, Math.ceil((end - start) / cols));
+    const rows = opts.fixedPageSize ? Math.ceil(perPage / cols) : Math.max(1, Math.ceil((end - start) / cols));
     const cardW = Math.floor((cssW - pad*2 - gap*(cols-1)) / cols);
     const cardH = Math.floor(cardW * 1.4);
     const cssH = pad*2 + rows*cardH + gap*(rows-1);
@@ -3259,7 +3278,7 @@ function showCanvasCardGalleryModal(title, cards, opts) {
   }
   canvas.onclick = function(ev) {
     const h = hit(ev);
-    if(h) openCardDetail(h.card);
+    if(h) { if(opts.onInspect) opts.onInspect(h.card); else openCardDetail(h.card); }
   };
   canvas.onmousemove = function(ev) {
     const h = hit(ev);
@@ -3369,7 +3388,27 @@ function renderOppHand() {
   }
 }
 
-// Show deck info (count + no content reveal — this is hidden info)
+function showRemainingDeckCards(player) {
+  if(!isPerspectivePlayer(player) || G._isSpectator || G._onlineRole === 'spectator') return;
+  const localView=G._phase7CurrentMultiplayer ? null : window.FateAuthorityV3SinglePlayer?.currentScreen?.()?.view;
+  const seat=G.players?.[player];
+  const cards=localView?.state?.players?.[player]?.remainingDeck
+    || seat?.remainingDeck || (!G._phase7CurrentMultiplayer ? seat?.deck : null);
+  if(!Array.isArray(cards)){ toast('Deck contents are not available yet.'); return; }
+  const sorted=sortHowardDevDeckCards(cards.slice());
+  showCanvasCardGalleryModal('Remaining Cards · '+sorted.length, sorted, {
+    immediate:true, viewerPlayerIndex:player, fixedPageSize:true, hideCountText:true,
+    onInspect:card=>openCardDetailFromDeckPreview(card,()=>showRemainingDeckCards(player))
+  });
+  document.querySelector('#modal .modal')?.classList.add('remaining-deck-modal');
+  const back=document.createElement('button');
+  back.className='btn sm'; back.textContent='Back to Deck';
+  back.onclick=()=>showDeckInfo(player);
+  document.getElementById('modal-acts')?.prepend(back);
+}
+window.showRemainingDeckCards=showRemainingDeckCards;
+
+// Deck summary and an unordered contents gallery for its owner.
 function showDeckInfo(player) {
   if(typeof window.playFateSfxOnce === 'function') window.playFateSfxOnce('uiClick', 'pile-inspect', 500);
   else if(typeof playSfx === 'function') playSfx('uiClick');
@@ -3416,20 +3455,25 @@ function showDeckInfo(player) {
     + majaHtml
     + (typeof window.buildSupportCompanyPanel === 'function' ? window.buildSupportCompanyPanel(player) : '')
     + '</div>',
-    [{label:'Close',action:closeModal}], {immediate:true, silentOpen:true});
+    [...(isOwn && !G._isSpectator && G._onlineRole !== 'spectator'
+      ? [{label:'Remaining Cards',pri:true,action:()=>showRemainingDeckCards(player)}] : []),
+      {label:'Close',action:closeModal}], {immediate:true, silentOpen:true});
   const modalBox = document.querySelector('#modal .modal');
   if(modalBox) modalBox.classList.add('deck-info-modal');
 }
 
 function showHowardDevDeckList(player) {
+  if(typeof isHowardDevMode !== 'function' || !isHowardDevMode()) return;
   if(!G || !G.players || !G.players[player]) return;
   const cards = (typeof CARDS !== 'undefined' && Array.isArray(CARDS))
     ? sortHowardDevDeckCards(CARDS.filter(function(card){
       if(!card || !card.id) return false;
+      if(card.devOnly === true) return true;
       if(typeof isRetiredCardForBuilder === 'function') return !isRetiredCardForBuilder(card);
       return card.retired !== true;
     }))
     : [];
+  if(typeof window.getHowardPerspectiveTestCards === 'function') cards.unshift(...window.getHowardPerspectiveTestCards());
   if(!cards.length){
     showModal('Howard Dev Deck List',
       '<div class="di-window"><p class="di-note">No cards are available.</p></div>',
@@ -3984,7 +4028,13 @@ function renderBoard() {
         const blackRoseBomb = blackRoseBombCells.has(blockKey);
         const card=boardRow[c];
         cellEl.className='cell '+(card ? 'has-card' : 'cell-empty')+(carolynBlocked?' blocked':'')+(zoeBlocked?' no-consolidate':'');
-        if(blackRoseBomb){cellEl.classList.add('black-rose-bomb-square');cellEl.setAttribute('data-bomb-icon','💣');}
+        if(blackRoseBomb){
+          cellEl.classList.add('black-rose-bomb-square');
+          const mark=document.createElement('div');mark.className='black-rose-bomb-overlay';
+          mark.title='The Black Rose — hidden bomb';
+          const icon=document.createElement('span');icon.className='black-rose-bomb-icon';icon.innerHTML=getStatusEffectIcon('black_rose_bomb');
+          mark.appendChild(icon);cellEl.appendChild(mark);
+        }
         cellEl.classList.toggle('henry-suppressed-empty', !card && typeof isActiveHenrySuppressionSquare === 'function' && isActiveHenrySuppressionSquare(z, r, c, G));
         if(c>=3 && r!==1) cellEl.classList.add('extra-safe');
         const fullExtraRow = typeof isFullExtraSafeRow === 'function' && isFullExtraSafeRow(z, r);
@@ -4178,8 +4228,33 @@ function getAffIconImageSrc(aff) {
   return (typeof AFF_ICON_IMG !== 'undefined' && AFF_ICON_IMG && AFF_ICON_IMG[aff]) ? AFF_ICON_IMG[aff] : '';
 }
 
+function getAnnePlanningStatusEffects(game,viewer) {
+  const effects=[];
+  (game.board || []).flat(2).forEach(function(card){
+    if(!card || String(card.id) !== '107' || coerceStatusOwner(card.controller ?? card.owner,-1) !== viewer) return;
+    const labels={DRAW:'Draw',SEARCH:'Search',FATE:'Fate Increase/Decrease',MOVEMENT:'Movement',STATUS:'Status Effect Activation',MORALE:'Morale Increase/Decrease'};
+    (card.counters?.anneDeclarations || card._anneDeclarations || []).forEach(function(declaration,index){
+      if(Number(declaration.turn) < Number(game.turn)) return;
+      const label=labels[declaration.action];if(!label) return;
+      const definition=CARDS.find(entry=>String(entry.id)==='107');
+      effects.push({icon:getStatusEffectIcon('private_anne_planning'),label:'Planning: '+label,
+        cardName:definition?.name || 'Anne Stone (Revolutionary)',cardAbility:'Strategy of a Revolution',
+        cardEffect:'If the opponent performs '+label+' through an effect on their next turn, Anne gains 8 Fate once.',
+        owner:viewer,sourceIid:card.iid,extraClass:'effect-pill-private-special effect-pill-anne-planning effect-pill-anne-plan-'+declaration.action.toLowerCase(),
+        statusInstanceKey:'anne-planning:'+String(card.iid || '')+':'+index});
+    });
+  });
+  return effects;
+}
+
 function getStatusEffectIcon(kind) {
   const icons = {
+    private_anne_planning: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 52V15h31M48 31v21H12M18 20h13m-13 9h8" stroke-width="3.5"/><path d="M24 47l4-13 19-21 8 8-20 21zM29 34l7 7M44 17l8 8" stroke-width="4"/><path d="M21 53h23" stroke-width="3" opacity=".5"/></g></svg>`,
+    private_black_rose: `<svg class="private-black-rose-icon" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="30" cy="39" r="16.5" stroke-width="4"/><path d="M27 22v-6h8v7M31 16c0-7 11-5 13-11" stroke-width="4"/><path d="M46 7l5-3M48 13l6 1M40 5l-1-4" stroke-width="3"/><path d="M19 36c1-5 4-8 8-10" stroke-width="3" opacity=".45"/></g></svg>`,
+    private_rivera_converge: `<svg class="private-rivera-converge-icon" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 17h13c7 0 11 5 11 12M56 17H43c-7 0-11 5-11 12"/><path d="M8 17l7-7M8 17l7 7M56 17l-7-7M56 17l-7 7" stroke-width="4"/><path d="M32 27l14 14-14 16-14-16z"/></g></svg>`,
+    private_jorge_mobilized: `<svg class="private-jorge-mobilized-icon" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="18" r="7"/><circle cx="13" cy="27" r="5"/><circle cx="51" cy="27" r="5"/><path d="M20 50v-3c0-11 5-17 12-17s12 6 12 17v3"/><path d="M5 49v-2c0-8 3-13 8-13 4 0 7 3 8 9M59 49v-2c0-8-3-13-8-13-4 0-7 3-8 9"/></g></svg>`,
+    jorge_pineapple: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="32" cy="39" rx="15" ry="20"/><path d="M30 21L18 12l11 4-2-11 6 10 6-10-2 11 10-4-12 9"/><path d="M20 27l24 26M18 37l22 20M29 20l18 21M44 27L20 53M47 37L26 57M35 20L17 40" stroke-width="2.3" opacity=".72"/></g></svg>`,
+    black_rose_bomb: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><circle cx="29" cy="39" r="18"/><path d="M26 21v-6h8v7M30 15c0-8 13-3 13-10"/><path d="M46 7l5-2M48 13l5 2M39 5l-2-3" stroke-width="3"/><path d="M18 36c0-5 4-9 8-10" stroke-width="3" opacity=".45"/></g></svg>`,
     buff: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M32 10v44M10 32h44" stroke-width="5"/><path d="M20 20l24 24M44 20L20 44" stroke-width="3" opacity=".35"/></g></svg>`,
     debuff: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 32h36" stroke-width="6"/><path d="M44 18l8 14-8 14" stroke-width="4"/></g></svg>`,
     suppression: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 18h36M14 46h36" stroke-width="4"/><path d="M20 26h24v12H20z" stroke-width="3.4"/><path d="M25 32h14" stroke-width="4.8"/></g></svg>`,
@@ -4228,6 +4303,7 @@ function getStatusEffectIcon(kind) {
     administrative_bloat: `<svg class="administrative-bloat-icon" viewBox="0 0 64 64" aria-hidden="true"><path d="M19 11h20l9 9v33H19z" fill="currentColor" opacity=".12"/><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M19 11h20l9 9v33H19z" stroke-width="4"/><path d="M39 11v10h9" stroke-width="4"/><path d="M25 29h17M25 36h17M25 43h12" stroke-width="3.5"/></g></svg>`,
     blame_game: `<svg class="blame-game-icon" viewBox="0 0 64 64" aria-hidden="true"><g transform="translate(32 32) scale(1.16) translate(-32 -32)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M32 6v9M32 49v9M6 32h9M49 32h9" stroke-width="3.5"/><circle cx="32" cy="25" r="6.5" stroke-width="3.5"/><path d="M20 47c1-10.5 5.5-16 12-16s11 5.5 12 16" stroke-width="4.2"/></g></svg>`,
     boleslaw: `<svg class="boleslaw-bombastic-icon" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10 39c0-13 10-22 24-22h3c14 0 24 9 24 22s-10 22-24 22h-9l-15 8 5-14c-5-4-8-9-8-16z" stroke-width="4.2"/><path d="M24 31h22M24 40h18M24 49h10" stroke-width="3.4"/></g></svg>`,
+    jose_clock: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="32" r="22"/><path d="M32 18v14l10 6"/></g></svg>`,
     alpine_engineer_proc: `<svg class="alpine-engineer-icon" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"><path d="M32 6l5 8 9-1 2 9 8 5-4 5 4 5-8 5-2 9-9-1-5 8-5-8-9 1-2-9-8-5 4-5-4-5 8-5 2-9 9 1z"/><circle cx="32" cy="32" r="10"/></g></svg>`,
     ali_indomitable: `<svg class="ali-indomitable-icon" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 29V18c0-4 6-4 6 0v8-12c0-4 7-4 7 0v12-14c0-4 7-4 7 0v14-10c0-4 7-4 7 0v18l-5 16H23l-8-13c-3-5 3-9 7-5l5 5" stroke-width="4"/><path d="M23 50h17v7H23z" stroke-width="3.5"/></g></svg>`,
     busser_boot: `<svg class="busser-boot-icon" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M11 40h42M16 40c1-11 7-18 16-18s15 7 16 18" stroke-width="4"/><path d="M28 17h8M32 17v5M10 49h35" stroke-width="3.5"/><path d="M42 14h12M49 9l5 5-5 5" stroke-width="3.5"/></g></svg>`,
@@ -4248,6 +4324,8 @@ function getAuthoritativeEffectOverlayDescriptor(event, source, target) {
   const type = String(event?.type || '').toUpperCase();
   const sourceId = String(event?.semanticSourceCardId || source?.id || '');
   const targetId = String(target?.id || '');
+  if(type === 'FATE_CHANGED' && String(event?.reason || '') === 'MORALE_HEAL_FATE_CONVERSION' && targetId === '101')
+    return {kind:'jorge_pineapple',label:'El Viaje Del Hombre Piña'};
   if(type === 'CARD_MOVED') return sourceId === 'bh01' || targetId === 'bh01'
     ? {kind:'anicka_voyager_boat', label:'Brave Horizons'}
     : {kind:'movement_boot', label:'Effect Movement'};
@@ -4627,19 +4705,19 @@ function getCardRarityLabel(rarity) {
   return labels[key] || (key ? key.charAt(0).toUpperCase() + key.slice(1) : 'Circle');
 }
 
-function enforceHandLimit(player) {
+function enforceHandLimit(player, options = {}) {
   if(typeof G === 'undefined' || !G || !G.players || !G.players[player]) return false;
   if(G._isSpectator || G._onlineRole === 'spectator') return false;
   // Phase 7 owns this requirement as an exact server command. Its UI bridge
   // renders the authoritative picker; the legacy modal must never race it.
   if(G._phase7CurrentMultiplayer === true) return false;
   // A draw-then-discard effect must finish before checking the resulting hand.
-  if(G._whenSetEffectsResolving > 0) return false;
-  if(Number(G._deferHandLimitEnforcementForPlayer) === Number(player)) return false;
+  if(!options.automatic && G._whenSetEffectsResolving > 0) return false;
+  if(!options.automatic && Number(G._deferHandLimitEnforcementForPlayer) === Number(player)) return false;
   const handLimit = getActiveHandLimit(player);
   const hand = G.players[player].hand || [];
   if(getHandLimitCount(player) <= handLimit) return false;
-  if(player !== getPerspectivePlayerIndex()){
+  if(options.automatic || player !== getPerspectivePlayerIndex()){
     if(G._onlineRoomCode) return false;
     const autoDiscarded = [];
     while(getHandLimitCount(player) > handLimit){
@@ -5627,6 +5705,10 @@ function getTopBarEffectsSourceSignature() {
   if(typeof forEachBoardCard === 'function') {
     forEachBoardCard(function(c, z, r, col){
       if(!c) return;
+      if(String(c.id)==='107'){
+        boardBits.push(['anne',c.iid,c.controller??c.owner,c.faceDown?1:0,G.turn,
+          JSON.stringify(c.counters?.anneDeclarations || c._anneDeclarations || [])].join(':'));
+      }
       if(c.id === '20' || c.id === '07' || c.id === '50' || c.id === '51' || c.id === '56' || c.id === '67' || c.id === '71' || c.id === '87' || c.id === '99' || c.id === 'token1'){
         boardBits.push([c.iid, c.id, c.owner, c.faceDown ? 1 : 0, z, r, col, c.usesLeft ?? '', c._seculesUsed ? 1 : 0, c._pierogiTurnsRemaining ?? '', c._pierogiCreator ?? '', c._pierogiHost ?? ''].join(':'));
       }
@@ -5768,6 +5850,8 @@ function renderTopbarEffects() {
       const aff = (typeof AFF_LABEL !== 'undefined' && AFF_LABEL[status.affiliation]) ? AFF_LABEL[status.affiliation] : String(status.affiliation || 'the declared affiliation');
       const affClass = String(status.affiliation || '').replace(/[^a-z0-9_-]/gi, '');
       add('51', 'rivera_aff', 'Rivera', "Jorge's Right Hand Man", 'Character cards set with ' + aff + ' gain ' + (Number(status.value) || 4) + ' Fate. ' + remaining + ' owner turn' + (remaining === 1 ? '' : 's') + ' remaining.', 'effect-pill-rivera' + (affClass ? ' aff-' + affClass : ''));
+    }else if(type === 'RIVERA_FATE_TRANSFER' && remaining > 0 && sourceOwner === myP){
+      add('104', 'private_rivera_converge', 'Rivera (Revolutionary)', 'A Brighter Future', "On the opponent's next turn, Rivera copies every other card's Fate gains, including new continuous bonuses. Original gains are kept; losses are not copied.", 'effect-pill-private-special effect-pill-rivera-revolutionary');
     }else if(type === 'CONSOLIDATION_FATE_BONUS'){
       add('87', 'ballad', 'Kvetka Svoboda', 'A Noble Effort at a Ballad', 'Your consolidations gain ' + (Number(status.value) || 3) + ' Fate permanently until you set a Supporter.', 'effect-pill-music');
     }else if(type === 'CONSOLIDATION_COST_MODIFIER' && remaining > 0){
@@ -5943,7 +6027,7 @@ function renderTopbarEffects() {
     const blackRoseBombs = G.blockedCells.filter(b => b.type === 'blackRoseBomb' && Number(b.owner) === Number(myP));
     blackRoseBombs.forEach(function(block,index){
       const card=CARDS.find(c=>c.id==='102');
-      allEffects.push({icon:'💣',label:'Bomb Armed',cardName:card?card.name:'Anne Stone (Anarchist)',cardAbility:'The Black Rose',cardEffect:card?card.effect:'A hidden bomb is armed on one square.',owner:myP,sourceIid:block.sourceIid,extraClass:'effect-pill-black-rose',statusInstanceKey:'black-rose:'+String(block.sourceIid||index)});
+      allEffects.push({icon:getStatusEffectIcon('private_black_rose'),label:'Bomb Armed',cardName:card?card.name:'Anne Stone (Anarchist)',cardAbility:'The Black Rose',cardEffect:card?card.effect:'A hidden bomb is armed on one square.',owner:myP,sourceIid:block.sourceIid,extraClass:'effect-pill-black-rose effect-pill-private-special',statusInstanceKey:'black-rose:'+String(block.sourceIid||index)});
     });
     if(carolynBlocks.length > 0) {
       let cOwner = typeof carolynBlocks[0].owner === 'number' ? carolynBlocks[0].owner : oppP;
@@ -6011,30 +6095,6 @@ function renderTopbarEffects() {
         extraClass: 'effect-pill-marie'
       });
     }
-  });
-
-  const chaparralCard = CARDS.find(c => c.id === '78');
-  forEachBoardCard(function(c, z){
-    if(!c || !(typeof cardActsAsPassive === 'function' ? cardActsAsPassive(c, '78') : String(c.id || '') === '78') || c._chaparralAmbushUsed || isFaceDownCard(c)) return;
-    if(typeof isSupporterEffectSuppressed === 'function' && isSupporterEffectSuppressed(c)) return;
-    // Authoritative multiplayer projects the same permission onto both the
-    // canonical status list and the compatibility board card. The canonical
-    // entry is the single source of truth for its banner; rendering this
-    // compatibility branch as well produced two identical Chaparral pills for
-    // one live permission. Single-player still owns and uses this board path.
-    if(G._phase7CurrentMultiplayer === true && phase7Statuses.some(function(status){
-      return String(status?.statusType || status?.type || '').toUpperCase() === 'FACE_DOWN_CONSOLIDATION_PERMISSION'
-        && Number(status?.remainingOwnerTurns ?? status?.remaining ?? 0) > 0;
-    })) return;
-    allEffects.push({
-      icon:getStatusEffectIcon('chaparral'),
-      label:chaparralCard ? chaparralCard.ability : 'Chaparral Ambush',
-      cardName:chaparralCard ? chaparralCard.name : 'Chaparral Hoplite',
-      cardAbility:chaparralCard ? chaparralCard.ability : 'Chaparral Ambush',
-      cardEffect:(chaparralCard ? chaparralCard.effect : 'The next consolidation in this zone may be set face down.') + ' Ready in Zone ' + (z + 1) + '.',
-      owner:c.owner,
-      extraClass:'effect-pill-chaparral'
-    });
   });
 
   // Maja's current text grants exactly two extra Supporter placements. Both
@@ -6381,6 +6441,31 @@ function renderTopbarEffects() {
     });
   }
 
+  allEffects.push(...getAnnePlanningStatusEffects(G,myP));
+
+  // Jorge's armed declaration is secret match information. Mount it only for
+  // its controller, and only on the exact opponent turn for which it is armed.
+  (G.board || []).flat(2).forEach(function(card){
+    if(!card || String(card.id || '') !== '105') return;
+    const owner = coerceStatusOwner(card.controller ?? card.owner, -1);
+    if(owner !== myP) return;
+    const declaredType = String(card.counters?.jorgeDeclaredType || card._jorgeDeclaredType || '');
+    const triggerTurn = Number(card.counters?.jorgeTriggerTurn ?? card._jorgeTriggerTurn);
+    if(!declaredType || !Number.isFinite(triggerTurn) || triggerTurn < Number(G.turn)) return;
+    const definition = CARDS.find(function(entry){ return String(entry.id) === '105'; });
+    allEffects.push({
+      icon:getStatusEffectIcon('private_jorge_mobilized'),
+      label:'Mobilized: ' + declaredType,
+      cardName:definition ? definition.name : 'Jorge Alvarez (Revolutionary)',
+      cardAbility:definition ? definition.ability : 'A Caribbea for All',
+      cardEffect:'If the opponent consolidates a ' + declaredType + ' this turn, trigger Call to Arms.',
+      owner:myP,
+      sourceIid:card.iid,
+      extraClass:'effect-pill-private-special effect-pill-jorge-revolutionary',
+      statusInstanceKey:'jorge-mobilized:' + String(card.iid || '')
+    });
+  });
+
   const phase7OwnsAdministrativeBloat = phase7Statuses.some(function(status){
     return String(status && (status.statusType || status.type) || '').toUpperCase() === 'CONSOLIDATION_COST_MODIFIER'
       && Number(status && status.remaining || 0) > 0;
@@ -6446,6 +6531,7 @@ function renderTopbarEffects() {
     });
   });
 
+  window.FateAnnePlanning?.statuses(allEffects);
   // Multiple instances from the same card/effect use one banner. The banner's
   // appended multiplicity sentence above communicates the count without consuming a slot
   // for every instance (or for both canonical and compatibility projections).
@@ -7062,10 +7148,44 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
   let value = '';
   let sub = '';
 
-  if(trackerId==='84'){
+  if(trackerId==='107'){
+    const remaining=Math.max(0,2-Number(card.counters?.effectUses ?? card._anneEffectUses ?? 0));
+    const gained=Math.max(0,Number(card.counters?.anneFateGained ?? card._anneFateGained)||0);
+    label='Strategy of a Revolution';
+    value=remaining+' Use'+(remaining===1?'':'s')+' Remaining';
+    sub='+'+gained+' Fate gained from successful uses';
+  } else if(trackerId==='104'){
+    const gained=Math.max(0,Number(card.counters?.riveraFateTransferred ?? card._riveraFateTransferred)||0);
+    label='A Brighter Future';
+    value='+'+gained+' Fate Gained';
+    sub='Copied during the opponent’s turn';
+  } else if(trackerId==='106'){
+    const turns=Math.max(0,Number(card.counters?.joseFieldTurns ?? card._joseFieldTurns)||0);
+    const untilNext=3-(turns%3);
+    label='The Long Game';
+    const tier=Math.floor(turns/3);
+    const sourcePos=typeof getBoardCardPosition==='function'?getBoardCardPosition(card):null;
+    const boost=tier>0 && sourcePos && typeof getWhisperAuraPotencyBoost==='function'
+      ? Math.max(0,Number(getWhisperAuraPotencyBoost({card:card,z:sourcePos.z,r:sourcePos.r,c:sourcePos.c}))||0) : 0;
+    value='Aura: +'+(tier+boost)+' Fate';
+    sub='Next Tier in '+untilNext+' Turn'+(untilNext===1?'':'s');
+  } else if(trackerId==='84'){
     label='Flower Picking';
-    value=typeof isFlowerPickingEligible==='function' && isFlowerPickingEligible(owner)?'Eligible':'Not eligible';
-    sub='Original deck must contain no Draw effects';
+    if(G._onlineRoomCode || G._phase7CurrentMultiplayer){
+      const statuses = {
+        ELIGIBLE:['Eligible','Flower Picking can search a card when activated.'],
+        RESOLVING:['Resolving','Flower Picking is waiting for its current choice to finish.'],
+        RESOLVED:['Activated','Flower Picking has already activated for this placement.'],
+        EFFECT_SUPPRESSED:['Suppressed','Flower Picking cannot activate while its effect is suppressed.'],
+        NO_LEGAL_TARGETS:['Deck empty','There are no cards left to search.'],
+        ORIGINAL_DECK_CONTAINS_DRAW_EFFECT:['Not eligible','The original deck contains a Draw effect.']
+      };
+      const status = statuses[card.flowerPickingStatus] || ['Eligibility unavailable','Waiting for the server to confirm Flower Picking can activate.'];
+      value=status[0]; sub=status[1];
+    }else{
+      value=typeof isFlowerPickingEligible==='function' && isFlowerPickingEligible(owner)?'Deck eligible':'Deck not eligible';
+      sub='Original deck must contain no Draw effects';
+    }
   } else if(['34','35','65'].includes(trackerId)) {
     const inflicted = Math.max(0, Math.floor(Number(card._moraleDamageInflicted ?? card.counters?.moraleDamageInflicted) || 0));
     label = 'Morale Damage Inflicted';
@@ -7101,11 +7221,11 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
     label = 'Opponent Supporters Placed';
     value = String(opponentSets);
     sub = '+1 Fate Each';
-  } else if(trackerId === 'bh18') {
-    const total=Math.max(0,Number(card._bh18FateReduced??card.counters?.bh18FateReduced)||0);
-    label='Zone Fate Reduced';
-    value=String(total);
-    sub='−3 per applied reduction · '+Math.floor(total/3)+' triggers';
+  } else if(trackerId === '21') {
+    const count=(G.players[owner].discard || []).length;
+    label='Cards in Discard';
+    value=String(count);
+    sub='+'+(count*2)+' Fate';
   } else if(trackerId === '36') {
     const pos = typeof getBoardCardPosition === 'function' ? getBoardCardPosition(card) : null;
     if(pos) {
@@ -7183,7 +7303,7 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
   if(!label) return '';
   const trackerClass = trackerId === '81'
     ? ' cd-wojciech-turn-tracker'
-    : (trackerId === '71' ? ' cd-fort-calvin-tracker' : '');
+    : (trackerId === '71' ? ' cd-fort-calvin-tracker' : (trackerId === '106' ? ' cd-jose-tracker' : ''));
   const trackerOwner = trackerId === '81' ? ' data-wojciech-owner="' + owner + '"' : '';
   return '<div class="cd-live-tracker' + trackerClass + '"' + trackerOwner + '>' +
     '<span class="cd-live-tracker-kicker">Match Tracker</span>' +
@@ -7602,13 +7722,19 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
       && !G._isSpectator
       && G._onlineRole !== 'spectator';
     const canDiscardBerkeleyHomeless = canDiscardBerkeleyHomelessEffect(bc, z, r, c, boardActionPlayer);
+    if(canUseBoardCard && typeof hasDeferredLocalPicker === 'function' && hasDeferredLocalPicker(bc)){
+      const resume=document.createElement('button');
+      resume.className='btn sm pri'; resume.textContent='Activate Effect';
+      resume.onclick=()=>resumeDeferredLocalPicker(bc);
+      acts.appendChild(resume);
+    }
     if(canDiscardBerkeleyHomeless){
       const berkeleyDisc=document.createElement('button');
       berkeleyDisc.className='btn sm danger';
       berkeleyDisc.textContent=isCardEffectSuppressed(bc) ? 'Discard' : 'Discard (expend 2 hand cards)';
       berkeleyDisc.onclick=()=>{
-        closeModal();
-        discardBerkeleyHomelessWithHandCost(bc, z, r, c);
+        confirmCardDiscard(bc, ()=>discardBerkeleyHomelessWithHandCost(bc, z, r, c),
+          ()=>openCardDetail(bc, false, true));
       };
       acts.appendChild(berkeleyDisc);
     }
@@ -7626,13 +7752,13 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
       };
       acts.appendChild(flip);
     }
-    if(canUseBoardCard && !isFaceDownCard(bc) && typeof shouldShowManualCharacterEffectButton === 'function' && shouldShowManualCharacterEffectButton(bc)){
+    if(canUseBoardCard && !(typeof hasDeferredLocalPicker === 'function' && hasDeferredLocalPicker(bc)) && !isFaceDownCard(bc) && typeof shouldShowManualCharacterEffectButton === 'function' && shouldShowManualCharacterEffectButton(bc)){
       // Coordinators: passive, no manual activation needed
       if(false){
         // No button needed — coordinators are automatic
       } else if(bc.type==='Initiator' && bc.effectUsedInitial && !['38','40'].includes(typeof getCardRuntimeEffectId === 'function' ? getCardRuntimeEffectId(bc) : String(bc.id || ''))){
         // Initiator already fired — no button
-      } else if((bc.type==='Improvisor' && !['40','102','bh16'].includes(String(bc.id || ''))) || bc.id==='89'){
+      } else if((bc.type==='Improvisor' && !['40','102','104','105','bh16'].includes(String(bc.id || ''))) || bc.id==='89'){
         // Improvisors are conditional/reactive and should not show a manual activation button.
       } else {
         const act=document.createElement('button');
@@ -7707,6 +7833,11 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
             finishManualDiscard();
           }
         };
+        const discardConfirmed = disc.onclick;
+        disc.onclick=()=>confirmCardDiscard(bc, ()=>{
+          if(G.board?.[z]?.[r]?.[c] !== bc || G.phase !== 'main') return;
+          discardConfirmed();
+        }, ()=>openCardDetail(bc, false, true));
         acts.appendChild(disc);
       }
     }
@@ -7739,6 +7870,19 @@ window.openCardDetailFromDeckPreview = openCardDetailFromDeckPreview;
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  HELPER MODALS
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+function confirmCardDiscard(card, onConfirm, onCancel) {
+  let settled = false;
+  showModal('Discard card?', '<div class="card-discard-confirm-copy"><span class="card-discard-confirm-kicker">Confirm discard</span><h3>'
+    + escapePlacementAnimHtml(card?.name || 'This card')
+    + '</h3><p>This card will leave the board and go to the discard pile.</p></div>', [
+    {label:'Keep Card', action:function(){ if(settled) return; settled=true; closeModal(); if(onCancel) onCancel(); }},
+    {label:'Discard', danger:true, action:function(){ if(settled) return; settled=true; closeModal(); onConfirm(); }}
+  ], {immediate:true});
+  document.querySelector('#modal .modal')?.classList.add('card-discard-confirm-modal');
+  document.querySelector('#modal-acts button')?.focus();
+}
+window.confirmCardDiscard = confirmCardDiscard;
+
 function resetModalChrome() {
   const modalEl = document.getElementById('modal');
   if(modalEl) {
@@ -7784,6 +7928,48 @@ function shouldUseCardEffectModal(title, bodyHtml, actions) {
   if(/reaction-panel|cd-wrap|visual-grid|zone-picker-wrap|deck-pick-grid|profile-wrap|match-overview|pd-preview/i.test(bodyStr)) return false;
   if(/leave|surrender|disconnect|error|match overview/i.test(titleStr)) return false;
   return (actions || []).length > 0 && (actions || []).length <= 6;
+}
+
+function showJorgeTypeDeclarationPicker(actions, options = {}) {
+  const choices=(actions||[]).filter(action=>['Initiator','Improvisor','Coordinator','Dauntless'].includes(action.label)).map(action=>({
+    ...action, action:function(event){
+      closeModal({cardChoiceResolved:true});
+      return action.action?.(event);
+    }
+  }));
+  showModal('A Caribbea for All',
+    '<div class="jorge-declaration"><div class="jorge-declaration-hero">'+
+    '<img src="pfp/card-105-portrait.png" alt="Jorge Alvarez (Revolutionary)">'+
+    '<div><span class="jorge-declaration-kicker">Jorge Alvarez · Revolutionary</span>'+
+    '<h3>Rally for Caribbea.</h3><p>Declare a character card type.</p></div></div>'+
+    '<div class="jorge-declaration-rule"><span>On your opponent’s next turn</span>'+
+    '<p>If they consolidate your declared type, trigger a <strong>Call to Arms</strong> for yourself.</p></div>'+
+    '<div class="jorge-declaration-prompt">Choose your declared type</div></div>', choices, {immediate:true,onOpen:function(){
+      const modal=document.getElementById('modal');
+      modal._mandatoryCardChoice=true;
+      if(options.promptId) modal.querySelector('.jorge-declaration').dataset.phase7PromptId=String(options.promptId);
+    }});
+}
+
+function showAnneActionDeclarationPicker(actions, options = {}) {
+  const choices=(actions||[]).map(action=>({...action,
+    label:action.label === 'Draw' ? 'Draw Cards' : action.label === 'Search' ? 'Search Cards' : action.label,
+    action:function(event){
+    closeModal({cardChoiceResolved:true});return action.action?.(event);
+  }}));
+  showModal('Strategy of a Revolution',
+    '<div class="jorge-declaration anne-declaration"><div class="jorge-declaration-hero">'+
+    '<img src="pfp/card-107-portrait.svg?v=20261010" alt="Anne Stone (Revolutionary)">'+
+    '<div><span class="jorge-declaration-kicker">Anne Stone · Revolutionary</span>'+
+    '<h3>Plan the path to liberation.</h3><p>Declare your opponent’s next effect.</p></div></div>'+
+    '<div class="jorge-declaration-rule"><span>On your opponent’s next turn</span>'+
+    '<p><strong>The first matching effect grants Anne +8 Fate.</strong></p>'+
+    '<p>Only effects count. Normal draws and other normal game actions do not.</p></div>'+
+    '</div>',choices,
+    {immediate:true,onOpen:function(){
+      const modal=document.getElementById('modal');modal._mandatoryCardChoice=true;
+      if(options.promptId) modal.querySelector('.anne-declaration').dataset.phase7PromptId=String(options.promptId);
+    }});
 }
 
 function renderCardEffectModalBody(title, bodyHtml) {
@@ -8109,21 +8295,58 @@ function pickAnyBoardCard(owner, callback) {
 }
 
 // Choice UI must wait for the complete presentation, even for immediate prompts.
-function deferPickerUntilAnimationFinishes(open){
+function getChoicePresentationDelayMs(){
   const game = typeof G !== 'undefined' ? G : null;
-  if(!game) return false;
+  if(!game) return 0;
   const now = Date.now();
-  const wait = Math.max(0,
+  return Math.max(0,
     (Number(game._coordinatorSignatureUntil) || 0)-now,
     (Number(game._effectActivationPresentationLockUntil) || 0)-now,
     typeof getInteractionAnimationDelayMs === 'function' ? getInteractionAnimationDelayMs() : 0,
     typeof effectActivationPredecessorRemaining === 'function' ? effectActivationPredecessorRemaining() : 0,
+    typeof effectActivationConsolidationGapRemaining === 'function' ? effectActivationConsolidationGapRemaining() : 0,
+    window.FateActivationBanner?.isActive?.() ? 80 : 0,
+    typeof document!=='undefined' && document.querySelector('.support-company-cinematic') ? 80 : 0,
     typeof _effectActivationCinematicQueue !== 'undefined' && (_effectActivationCinematicShowing || _effectActivationCinematicQueue.length) ? 80 : 0);
+}
+
+// A quiet interval closes the handoff gap between consolidation, its banner,
+// and an effect queued by the resulting state update.
+let supportCompanyQuietGame=null;
+let supportCompanyQuietSince=0;
+function getSupportCompanyPresentationDelayMs(){
+  const game=typeof G!=='undefined'?G:null;
+  const now=Date.now();
+  if(game!==supportCompanyQuietGame){supportCompanyQuietGame=game;supportCompanyQuietSince=now;}
+  const remaining=getChoicePresentationDelayMs();
+  if(remaining>0){supportCompanyQuietSince=now;return Math.max(remaining,80);}
+  return Math.max(0,120-(now-supportCompanyQuietSince));
+}
+function waitForSupportCompanyPresentation(isCurrent=()=>true){
+  return new Promise(resolve=>{
+    function check(){
+      if(!isCurrent()){resolve(false);return;}
+      const remaining=getSupportCompanyPresentationDelayMs();
+      if(remaining<=0){resolve(true);return;}
+      setTimeout(check,Math.min(80,Math.max(16,remaining)));
+    }
+    check();
+  });
+}
+window.getSupportCompanyPresentationDelayMs=getSupportCompanyPresentationDelayMs;
+window.waitForSupportCompanyPresentation=waitForSupportCompanyPresentation;
+
+function deferPickerUntilAnimationFinishes(open){
+  const game = typeof G !== 'undefined' ? G : null;
+  if(!game) return false;
+  const wait = getChoicePresentationDelayMs();
   if(wait <= 0) return false;
+  const expiryEpoch = Number(game._pickerExpiryEpoch) || 0;
+  const pickerTurn = game.turn;
   game._deferredCardPickers = (Number(game._deferredCardPickers) || 0)+1;
   setTimeout(function(){
     game._deferredCardPickers = Math.max(0,game._deferredCardPickers-1);
-    if(typeof G !== 'undefined' && G === game) open();
+    if(typeof G !== 'undefined' && G === game && G.turn === pickerTurn && (Number(G._pickerExpiryEpoch) || 0) === expiryEpoch) open();
   },Math.max(16,wait));
   return true;
 }
@@ -8160,6 +8383,7 @@ function getBoardTargetPickerRowLabel(rowIndex, viewerP) {
 }
 
 function showBoardTargetPicker(opts, onConfirm) {
+  if(!opts.sourceCard && typeof localPickerSource === 'function') opts={...opts,sourceCard:localPickerSource()};
   if(deferPickerUntilAnimationFinishes(()=>showBoardTargetPicker(opts, onConfirm))) return;
   const interactionWait = opts?.immediate === true
     ? 0
@@ -8392,7 +8616,13 @@ function showBoardTargetPicker(opts, onConfirm) {
 
   showModal(opts.title || 'Select Target', '', [
     {label:'Cancel', action:function(){
-      closeModal();
+      if(closeModal() === false) return;
+      if(typeof deferLocalEffectPicker === 'function' && deferLocalEffectPicker(opts.sourceCard, ()=>{
+        const liveEntries = entries.filter(entry=>(entry.squareOnly || G.board?.[entry.z]?.[entry.r]?.[entry.c] === entry.card)
+          && (!opts.eligibilityFilter || opts.eligibilityFilter(entry.card,entry.z,entry.r,entry.c)));
+        if(!liveEntries.length){ toast('No valid targets are available right now.'); return false; }
+        showBoardTargetPicker({...opts,entries:liveEntries},onConfirm);
+      })) return;
       if(typeof opts.onCancel === 'function') opts.onCancel();
     }},
     {label:opts.confirmLabel || 'Confirm', pri:true, action:function(){
@@ -8441,6 +8671,7 @@ function showZonePicker(z, prompt, entries, maxCount, viewerP, onConfirm, filter
     showZoneTitles:true,
     emptyMessage:'No valid targets in this zone',
     onCancel:onCancel,
+    eligibilityFilter:filter,
     sourceCard:sourceCard
   }, function(chosen){
     onConfirm(chosen);
@@ -8557,8 +8788,25 @@ function pickCardsFromHand(player, maxCount, prompt, callback) {
   }, callback);
 }
 
+// A delayed local choice belongs to the field instance that requested it.
+// Consolidating that instance must not let its old timer replace the new card's choice.
+function bindLocalCardPickerLifetime(opts){
+  opts = opts || {};
+  if(opts._localPickerIsCurrent) return opts;
+  const game = typeof G !== 'undefined' ? G : null;
+  if(!game || game._onlineRoomCode || game._phase7CurrentMultiplayer || opts.authoritativeDirectAction) return opts;
+  const source = opts.sourceCard;
+  if(!source?.iid || typeof findBoardPositionForCard !== 'function' || !findBoardPositionForCard(source)) return opts;
+  const turn = game.turn;
+  return {...opts, _localPickerIsCurrent:()=>G === game && G.turn === turn && !!findBoardPositionForCard(source)};
+}
+
 // Image-based card picker with pagination
 function pickCardsVisual(cards, opts, onConfirm) {
+  if(opts?.title === 'Call to Arms' && cards.length <= 3 && window.pickRoyalSeal) return window.pickRoyalSeal(cards,opts,onConfirm);
+  if(!opts?.sourceCard && typeof localPickerSource === 'function') opts={...opts,sourceCard:localPickerSource()};
+  opts = bindLocalCardPickerLifetime(opts);
+  if(opts._localPickerIsCurrent && !opts._localPickerIsCurrent()) return;
   if(deferPickerUntilAnimationFinishes(()=>pickCardsVisual(cards, opts, onConfirm))) return;
   opts = opts || {};
   if(!opts._characterBannerConfirm) {
@@ -8574,10 +8822,12 @@ function pickCardsVisual(cards, opts, onConfirm) {
   const wait = (opts.immediate || allowAfterEffectCinematic) ? 0 : (typeof getInteractionAnimationDelayMs === 'function' ? getInteractionAnimationDelayMs() : getPlacementUiDelayMs());
   if(wait > 0){
     const pickerMatch = G;
+    const pickerTurn = G.turn;
+    const expiryEpoch = Number(G._pickerExpiryEpoch) || 0;
     pickerMatch._deferredCardPickers = (Number(pickerMatch._deferredCardPickers) || 0) + 1;
     setTimeout(()=>{
       pickerMatch._deferredCardPickers = Math.max(0, pickerMatch._deferredCardPickers - 1);
-      if(G === pickerMatch) pickCardsVisual(cards, opts, onConfirm);
+      if(G === pickerMatch && G.turn === pickerTurn && (Number(G._pickerExpiryEpoch) || 0) === expiryEpoch) pickCardsVisual(cards, opts, onConfirm);
     }, wait);
     return;
   }
@@ -8988,7 +9238,19 @@ function pickCardsVisual(cards, opts, onConfirm) {
   };
   const cl=document.createElement('button');
   cl.className='btn sm';cl.textContent='Cancel';
-  cl.onclick=()=>{closeModal();if(opts.onCancel) opts.onCancel();};
+  cl.onclick=()=>{
+    if(closeModal() === false) return;
+    const origins = cards.map(card=>({card, pile:G.players.flatMap((player,owner)=>
+      ['hand','deck','discard'].map(name=>({owner,name,cards:player[name]}))).find(pile=>pile.cards?.includes(card)),
+      board:typeof findBoardPositionForCard === 'function' ? findBoardPositionForCard(card) : null}));
+    if(typeof deferLocalEffectPicker === 'function' && deferLocalEffectPicker(opts.sourceCard, ()=>{
+      const available=origins.filter(({card,pile,board})=>!card.iid || (pile && G.players[pile.owner]?.[pile.name]?.includes(card))
+        || (board && G.board?.[board.z]?.[board.r]?.[board.c] === card)).map(entry=>entry.card);
+      if(!available.length){ toast('No valid cards are available right now.'); return false; }
+      pickCardsVisual(available,opts,onConfirm);
+    })) return;
+    if(opts.onCancel) opts.onCancel();
+  };
   if(opts.allowCancel === true || (minCount <= 0 && opts.allowCancel !== false)) document.getElementById('modal-acts').appendChild(cl);
   document.getElementById('modal-acts').appendChild(ok);
   modalRoot._mandatoryCardChoice = opts.allowCancel === false;
@@ -9295,6 +9557,7 @@ function showAffiliationPickerVisual(callback, sourceCard, confirmCharacterBanne
 
 
 function showZonePickerVisual(options, callback) {
+  if(!options?.sourceCard && typeof localPickerSource === 'function') options={...options,sourceCard:localPickerSource()};
   if(deferPickerUntilAnimationFinishes(()=>showZonePickerVisual(options, callback))) return;
   options = options || {};
   // This shared modal is also used by card, affiliation, and online prompt
@@ -9338,7 +9601,12 @@ function showZonePickerVisual(options, callback) {
     else {
       acts.innerHTML = '<button class="btn sm" type="button">Cancel</button>';
       const cancel = acts.querySelector('button');
-      if(cancel) cancel.onclick = function(){ closeModal(); if(typeof options.onCancel === 'function') options.onCancel(); };
+      if(cancel) cancel.onclick = function(){
+        if(closeModal() === false) return;
+        if(typeof deferLocalEffectPicker === 'function' && deferLocalEffectPicker(options.sourceCard,
+          ()=>showZonePickerVisual(options,callback))) return;
+        if(typeof options.onCancel === 'function') options.onCancel();
+      };
     }
   }
   document.getElementById('modal').classList.add('on');
@@ -10256,6 +10524,13 @@ function showMariaDiscardBadge(targetCard, count, z, r, c) {
 
 
 const CINEMATIC_VOICELINES = Object.freeze({
+  "101": "Sometimes, happiness is as simple as a fresh bowl of diced pineapples",
+  "103": "Unravel their delusions with the point of our bayonets",
+  "102": "Rarely is justice dealt by an unforced hand",
+  "104": "Remember who you fight for!",
+  "107": "The path forward is winding and treacherous - but it is the only one that leads to liberation.",
+  "106": "These peasants call for revolution...without understanding that they must pay for it with their lives.",
+  "105": "Together, brothers and sisters, we advance toward Havano!",
   "1": "Duty to one's country first",
   "2": "To the ends of the world",
   "3": "This reminds me of that one time we played the card game",
@@ -10360,8 +10635,10 @@ function getCinematicVoiceline(card) {
 function showCinematicSubtitle(cardOrLine, durationMs, rarity, fadeLeadMs) {
   if(typeof cardOrLine !== 'string' && cardOrLine && (cardOrLine.faceDown || cardOrLine._suppressCinematicSubtitle || (typeof isAchillesAdaptiveToken === 'function' && isAchillesAdaptiveToken(cardOrLine)) || (typeof isFaceDownCard === 'function' && isFaceDownCard(cardOrLine)))) return null;
   const sourceLine = typeof cardOrLine === 'string' ? cardOrLine : getCinematicVoiceline(cardOrLine);
-  const japaneseSubtitle = window.FateI18n?.getLanguage() === 'ja';
-  const line = japaneseSubtitle ? String(sourceLine || '').split(/\r?\n/).map(part => window.FateJapaneseSubtitles?.[part.trim()] || window.FateI18n.t(part)).join('\n') : sourceLine;
+  const subtitleLanguage = window.FateI18n?.getLanguage() || 'en';
+  const japaneseSubtitle = subtitleLanguage !== 'en';
+  const subtitleCatalog = subtitleLanguage === 'zh-CN' ? window.FateChineseSubtitles : window.FateJapaneseSubtitles;
+  const line = japaneseSubtitle ? String(sourceLine || '').split(/\r?\n/).map(part => subtitleCatalog?.[part.trim()] || window.FateI18n.t(part)).join('\n') : sourceLine;
   const cinematicCardId = typeof cardOrLine === 'string' ? '' : String(cardOrLine && cardOrLine.id || '');
   if(!line) return null;
   // A picker may already own the modal layer while its activation cinematic is
@@ -10375,7 +10652,7 @@ function showCinematicSubtitle(cardOrLine, durationMs, rarity, fadeLeadMs) {
   el.setAttribute('aria-live', 'polite');
   const hasManualLineBreak = /\r?\n/.test(line);
   el.textContent = japaneseSubtitle ? '「' + line + '」' : '“' + line + '”';
-  el.lang = japaneseSubtitle ? 'ja' : 'en';
+  el.lang = subtitleLanguage;
   el.setAttribute('translate', 'no');
   if(hasManualLineBreak) el.classList.add('multi-line', 'dialogue-linebreak');
   // Inline visibility is intentional: older patches hide cinematic text elements.
@@ -10733,7 +11010,7 @@ function showConsolidationCinematic(card, opts) {
     _lastConsolidationCinematicEndedAt = Date.now();
     // Coordinators never enter the generic activation cinematic, including
     // those with WHEN_SET rules (Rozsi, Makenna, Duncan and Louis).
-    if(card.type === 'Improvisor' || card.type === 'Coordinator' || (card.type === 'Dauntless' && typeof hasAuthoritativeWhenSetEffect === 'function' && !hasAuthoritativeWhenSetEffect(card))) {
+    if(String(card.id)!=='105' && (card.type === 'Improvisor' || card.type === 'Coordinator' || (card.type === 'Dauntless' && typeof hasAuthoritativeWhenSetEffect === 'function' && !hasAuthoritativeWhenSetEffect(card)))) {
       const signaturePlayed = card.type === 'Coordinator'
         ? window.FateSignatureActivationFx?.playCoordinator(card,{sfx:opts.playSfx !== false})
         : window.FateSignatureActivationFx?.playPlacement(card,{sfx:opts.playSfx !== false});
@@ -10775,12 +11052,12 @@ function showConsolidationCinematic(card, opts) {
 if(typeof window !== 'undefined') window.showConsolidationCinematic = showConsolidationCinematic;
 
 function requestCharacterSetCinematic(card, opts) {
-  if(!card || card.faceDown || String(card.type || '') === 'Supporter') return false;
-  if(String(card.rarity || '').toLowerCase() === 'circle') return false;
+  if(!card || card.faceDown) return false;
+  if(!opts?.reveal && (String(card.type || '') === 'Supporter' || String(card.rarity || '').toLowerCase() === 'circle')) return false;
   if(typeof shouldSuppressConsolidationCinematic === 'function' && shouldSuppressConsolidationCinematic(card)) return false;
   const options = opts || {};
   const identity = String(card.iid || [card.id || '', card.owner ?? '', options.z ?? '', options.r ?? '', options.c ?? ''].join(':'));
-  const key = 'character-set:' + identity;
+  const key = options.reveal ? 'character-reveal:' + identity + ':' + String(options.revealKey || '') : 'character-set:' + identity;
   if(_characterSetCinematicKeys.has(key)) return false;
   _characterSetCinematicKeys.add(key);
   const delayMs = Math.max(0, Number(options.delayMs) || 90);
@@ -10974,6 +11251,13 @@ function queueEffectActivationCinematic(card, options, key) {
 }
 
 function showEffectActivationCinematic(card, opts) {
+  // Reveal only the presentation copy to its controller. The live card stays
+  // face down, and queued cinematics retain the same opponent visibility guard.
+  const visibilitySource = card?._hiddenActivationSource || card;
+  if(typeof window.isHiddenEffectForViewer === 'function' && window.isHiddenEffectForViewer(visibilitySource)) return Promise.resolve(false);
+  if(visibilitySource?.faceDown && typeof window.isHiddenEffectForViewer === 'function') {
+    card = Object.assign({}, card, {faceDown:false, _suppressCinematicSubtitle:false, _hiddenActivationSource:visibilitySource});
+  }
   // Juan's presentation needs a confirmed opponent target and destination.
   if(String(card?.id||'')==='61' && window.FateMariaCenterFx)return Promise.resolve(false);
   if(String(card?.id||'')==='39' && window.FateJuanCarlosTargetFx)return Promise.resolve(false);
@@ -11131,7 +11415,9 @@ function showEffectActivationCinematic(card, opts) {
       imageReady = Promise.resolve(true);
     }
     document.body.appendChild(overlay);
-    window.FateActivationBanner?.play(card, {sfx:options.sfx, hasCenterAnimation:!!signatureActivation});
+    // The selected Caribbea companions own their motion-matched soundtracks.
+    const companionOwnsSound = !!signatureActivation && ['104','105','106'].includes(String(card.id));
+    window.FateActivationBanner?.play(card, {sfx:companionOwnsSound ? false : options.sfx, hasCenterAnimation:!!signatureActivation});
     if(signatureActivation) { overlay.style.opacity = '1'; signatureActivation.start(); }
     document.body.classList.add('cinematic-lock');
     // Effect-activation cinematics use the card and "Activate Effect" label
@@ -11208,7 +11494,7 @@ function playEffectActivationCinematic(card, z, r, c, opts) {
   if(!G._onlineRoomCode && window.FateCharacterBoardEffects?.handles(card)) return Promise.resolve(false);
   // These target-specific presentations run after the player confirms a target.
   if(window.FateCharacterBoardEffects?.handles(card)) return Promise.resolve(false);
-  if(!options.remote && options.broadcast !== false && String(options.source || '') !== 'improvisor-reaction' && typeof window !== 'undefined' && typeof window.__fateSendEffectActivationCinematic === 'function') {
+  if(!card?.faceDown && !options.remote && options.broadcast !== false && String(options.source || '') !== 'improvisor-reaction' && typeof window !== 'undefined' && typeof window.__fateSendEffectActivationCinematic === 'function') {
     try { window.__fateSendEffectActivationCinematic(card, z, r, c, options); } catch(e) {}
   }
   if(typeof showEffectActivationCinematic === 'function') {
@@ -11554,9 +11840,10 @@ function showFaceDownEffectChoice(card, onFlip, onActivate, options = {}) {
   const e = value=>String(value || '').replace(/[&<>"']/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   const placement=options.placement===true;
   const title=options.title || (placement?'Choose your entrance':'Reveal or remain unseen');
-  const portraitId = card?.pfpId || ({'101':6,'102':11,'103':30})[String(card?.id)]
+  const portraitId = ({'101':126,'102':127,'103':128})[String(card?.id)] || card?.pfpId
     || (/^bh0?(\d+)$/i.test(String(card?.id)) ? 100 + Number(String(card.id).match(/\d+/)[0]) : Number(card?.id));
-  const art=e(portraitId ? (typeof PFP_PATH === 'function' ? PFP_PATH(portraitId, 'square') : 'pfp/pfp'+portraitId+'.png') : card?.runtimeImg || card?.img || 'back.png');
+  const dedicatedPortrait = String(card?.id) === '107' ? 'pfp/card-107-portrait.svg?v=20261010' : ['104','105','106'].includes(String(card?.id)) ? 'pfp/card-'+card.id+'-portrait.png?v=20261009' : '';
+  const art=e(dedicatedPortrait || card?.cinematicPortrait || (portraitId ? (typeof PFP_PATH === 'function' ? PFP_PATH(portraitId, 'square') : 'pfp/pfp'+portraitId+'.png') : card?.runtimeImg || card?.img || 'back.png'));
   showModal(title,
     '<section class="hidden-effect-choice tactical-choice'+(placement?' placement-choice':'')+'"><aside class="tactical-art"><img src="'+art+'" alt=""><div class="tactical-art-shade"></div>'+(placement?'':'<span class="tactical-edition">HIDDEN IN PLAIN SIGHT</span>')+'<div class="tactical-identity"><small>'+e(card?.ability || 'Tactical decision')+'</small><h3>'+e(card?.name || 'Your card')+'</h3></div></aside>'+
     '<div class="tactical-content"><div class="hidden-effect-eyebrow">YOUR NEXT MOVE</div><h3>'+title+'</h3><p>'+e(options.description || 'Control what your opponent sees.')+'</p><div class="hidden-effect-options">'+

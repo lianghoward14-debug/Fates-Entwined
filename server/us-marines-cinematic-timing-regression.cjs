@@ -1,0 +1,6 @@
+const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const source=fs.readFileSync('src/scripts/18-online-rooms.js','utf8');
+const fn=source.slice(source.indexOf('  async function phase7PlayActivationCinematics('),source.indexOf('  function phase7ExactEffectOverlayDescriptor('));
+const calls=[];const cards={marines:{id:'18',iid:'marines'},other:{id:'16',iid:'other'}};
+const env={phase7FastPresentationMode:()=>false,phase7FindAnyCard:id=>cards[id],phase7FindProjectedEntry:(_,id)=>({card:cards[id]}),phase7PresentationCard:c=>c,phase7RecordPresentationStage(){},phase7WaitForPresentationIdle:async()=>{},window:{showEffectActivationCinematic:async c=>calls.push(c.id)},console};vm.createContext(env);vm.runInContext(fn,env);
+(async()=>{for(const playerIndex of [0,1]){calls.length=0;await env.phase7PlayActivationCinematics({playerIndex,presentationBatch:{id:'test'}},[{type:'EFFECT_ACTIVATED',sourceIid:'marines',playerIndex},{type:'EFFECT_REACTED',reactionIid:'marines',reactionKind:'TIMED_PERMISSION',mode:'SUPPRESS',playerIndex},{type:'EFFECT_REACTED',reactionIid:'other',playerIndex}]);assert.deepEqual(calls,['18','16']);}console.log('PASS Marines set activation retained; later suppression cinematic skipped for both viewers; other reactions unchanged.');})().catch(e=>{console.error(e);process.exitCode=1});

@@ -1,0 +1,20 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const source=fs.readFileSync('src/scripts/render-v2/04-match-renderer-adapter.js','utf8');
+let now=1000,reduced=false,off=false;const states=new Map();
+const runtime={fateOdometersByIid:states,nowMs:()=>now,animationsOff:()=>off,window:{matchMedia:()=>({matches:reduced})}};
+vm.createContext(runtime);vm.runInContext(source.slice(source.indexOf('  function fateBadgeIsDecreasing('),source.indexOf('  function fateDigitLayout(')),runtime);
+const loss=(value,visual={})=>runtime.fateBadgeIsDecreasing('card',String(value),{fate:5},visual);
+states.set('card',{from:20,to:20,start:0,duration:0});assert.equal(loss(15),true,'first decrease frame remains red above base Fate');
+states.set('card',{from:20,to:15,start:now,duration:1100,decreasing:true});assert.equal(loss(15),true);
+now+=1099;assert.equal(loss(15),true,'red throughout the roll');now++;assert.equal(loss(15),false,'normal badge comparison resumes when settled');
+states.set('card',{from:5,to:25,start:now,duration:1100,decreasing:false});assert.equal(loss(20),true,'gain-to-loss reversal');
+states.set('card',{from:25,to:20,start:now,duration:1100,decreasing:true});assert.equal(loss(24),false,'loss-to-gain reversal');
+assert.equal(loss(19,{_placementFateHeld:true}),false);assert.equal(loss(19,{isHidden:true}),false);assert.equal(loss('-'),false);
+reduced=true;assert.equal(loss(19),false);reduced=false;off=true;assert.equal(loss(19),false);off=false;
+states.clear();assert.equal(loss(3),true,'initial decrease from printed Fate');assert.equal(loss(8),false);
+// Verify actual stroke and glow selection, not just the direction helper.
+vm.runInContext(source.slice(source.indexOf('  function drawFateBadge('),source.indexOf('  function fateBadgeIsDecreasing(')),runtime);
+Object.assign(runtime,{coordinatorFatePresentationVisual:(_,v)=>v,getCardIid:()=> 'card',deferredFateNumbersByKey:new Map(),fateBadgeState:()=> 'up',roundedPath(){},drawFateOdometer:()=>true,drawSettledFateDigits(){}});
+const strokes=[],glows=[];const ctx={save(){},restore(){},fill(){glows.push(this.shadowColor)},stroke(){strokes.push(this.strokeStyle)}};
+states.set('card',{from:20,to:20,start:0,duration:0});runtime.drawFateBadge(ctx,{displayFate:'15'},{x:0,y:0,w:100,h:140},{fate:5});assert.equal(strokes[0],'#ff6060');assert.equal(glows[0],'rgba(255,96,96,.78)');
+console.log('PASS Fate-loss outline and glow: above-base losses, first frame, active roll, reversals, settled state and motion/visibility guards.');

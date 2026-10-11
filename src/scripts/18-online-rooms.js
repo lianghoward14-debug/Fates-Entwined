@@ -408,6 +408,9 @@
       player.name = p?.name || ('Player ' + (idx + 1));
       player.color = p?.color || (idx === 0 ? 'var(--p1)' : 'var(--p2)');
       player.deck = syncOnlineCardListInPlace(player.deck, p?.deck, cardPool);
+      // The private unordered gallery is separate from redacted draw-order cards.
+      // Clear it when absent so another seat/match cannot inherit an old list.
+      player.remainingDeck = Array.isArray(p?.remainingDeck) ? cloneOnlinePlain(p.remainingDeck) : null;
       player.hand = syncOnlineCardListInPlace(player.hand, p?.hand, cardPool);
       player.discard = syncOnlineCardListInPlace(player.discard, p?.discard, cardPool);
       player.limbo = syncOnlineCardListInPlace(player.limbo, p?.limbo, cardPool);
@@ -3200,6 +3203,8 @@
       next._villagerCostReduction=Math.max(0,Number(card.counters?.villagerCostReduction)||0);
       next._villagerSearchApplied=card.counters?.villagerSearchApplied===true;
       next.fate = Number(card.baseFate ?? card.fate ?? card.currentFate ?? 0) || 0;
+      next._joseFieldTurns = Number(card.counters?.joseFieldTurns)||0;
+      next._riveraFateTransferred = Number(card.counters?.riveraFateTransferred)||0;
       next.currentFate = Number(card.currentFate ?? next.fate) || 0;
       if(String(card.id || '') === 'bh02'){
         next._joieProcCount = Math.max(0, Math.floor(Number(card.counters?.joieProcCount) || 0));
@@ -3260,7 +3265,7 @@
         next._seculesUsed = reactionUses > 0;
       }
       const effectUses = Math.max(0, Number(card.counters?.effectUses) || 0);
-      const trackedMaxUses = ({'20':2,'40':2,'bh16':2})[String(card.id || '')];
+      const trackedMaxUses = ({'20':2,'40':2,'107':2,'bh16':2})[String(card.id || '')];
       if(Number.isFinite(trackedMaxUses)) next.usesLeft = Math.max(0, trackedMaxUses - effectUses);
       if(card.counters?.pierogiCounter === true){
         next.pierogiCounter = true;
@@ -3580,6 +3585,7 @@
         name:String(player?.name || ('Player ' + (index + 1))),
         color:index === 0 ? 'var(--p1)' : 'var(--p2)',
         deck:phase7HiddenCards(player?.deckCount, index, 'deck'),
+        remainingDeck:Array.isArray(player?.remainingDeck) ? player.remainingDeck.map(projectCard).filter(Boolean) : null,
         flowerPickingEligible:typeof player?.flowerPickingEligible==='boolean'?player.flowerPickingEligible:null,
         hand,
         discard:(Array.isArray(player?.discard) ? player.discard : []).map(projectCard).filter(Boolean),
@@ -3661,6 +3667,7 @@
           r:Number(status.r),
           c:Number(status.c),
           type:bomb ? 'blackRoseBomb' : (jaime ? 'jaime' : (zoe ? 'zoe' : 'carolyn')),
+          ...(bomb ? {targetPlayer:Number(status.targetPlayer),triggerTurn:Number(status.triggerTurn)} : {}),
           owner:Number.isInteger(Number(status.sourceController)) ? Number(status.sourceController) : viewer,
           blockedPlayer:Number.isInteger(Number(status.blockedPlayer)) ? Number(status.blockedPlayer) : null,
           sourceIid:String(status.sourceIid || '')
@@ -4037,6 +4044,20 @@
   function phase7SubmitCommand(command, options){
     if(!command || !phase7CurrentUiSession.adapter) return Promise.resolve(false);
     const submitOptions = options && typeof options === 'object' ? options : {};
+    if(command.type === 'END_TURN' && !submitOptions.skipEffectWarning){
+      const effects = phase7CurrentCommands().filter(candidate=>candidate.type === 'ACTIVATE_EFFECT'
+        && candidate.deferredPicker).filter(candidate=>{
+        const card=phase7FindBoardCard(candidate.payload.sourceIid)?.card;
+        return String(card?.id)!=='107' || Number(card.counters?.anneLastActivatedTurn ?? -1)!==Number(G.turn);
+      }).map(candidate=>{
+        const entry = phase7FindBoardCard(candidate.payload.sourceIid);
+        return {name:entry?.card?.name || 'Card', label:'Activate Effect', zone:Number.isInteger(entry?.z) ? entry.z+1 : null};
+      });
+      if(effects.length && typeof window.showEndTurnEffectWarning === 'function'){
+        window.showEndTurnEffectWarning(effects, ()=>phase7SubmitCommand(command, {...submitOptions, skipEffectWarning:true}));
+        return Promise.resolve(false);
+      }
+    }
     const activePrompt = phase7CurrentUiSession.view?.state?.pendingPrompt || null;
     const activePromptSource = phase7FindAnyCard(activePrompt?.sourceIid)
       || phase7FindRawProjectedCard(phase7CurrentUiSession.view, activePrompt?.sourceIid);
@@ -4124,6 +4145,14 @@
     inflight.set(key, promise);
     return promise;
   }
+  window.fatePhase7SubmitTwilightRecovery = function(targetIid){
+    if(!phase7CurrentUiSession.adapter || !targetIid){
+      toast('Recovery is not ready yet. Please reopen the panel.');
+      return false;
+    }
+    phase7SubmitCommand({type:'ACTIVATE_LANDSCAPE', payload:{targetIid:String(targetIid)}});
+    return true;
+  };
   window.fatePhase7SubmitWhiteboardCatalog = function(cardIds, options){
     // The shipping catalog modal can survive a transient UI remount while the
     // authoritative adapter and canonical view remain ready. Requiring the
@@ -4150,7 +4179,7 @@
   };
   function phase7ChooseCommand(matches, label, options){
     const choices = Array.isArray(matches) ? matches.filter(Boolean) : [];
-    const blackRoseFaceUp=choices.find(command=>String(command?.type||'')==='SET_CARD'&&command?.payload?.faceDown!==true&&String(phase7FindAnyCard(command?.payload?.cardIid)?.id||'')==='102');
+    const blackRoseFaceUp=choices.find(command=>String(command?.type||'')==='SET_CARD'&&command?.payload?.faceDown!==true&&['102','104','105','107'].includes(String(phase7FindAnyCard(command?.payload?.cardIid)?.id||'')));
     const blackRoseFaceDown=choices.find(command=>String(command?.type||'')==='SET_CARD'&&command?.payload?.faceDown===true&&String(command?.payload?.cardIid||'')===String(blackRoseFaceUp?.payload?.cardIid||''));
     if(blackRoseFaceUp&&blackRoseFaceDown){
       window.showFaceDownPlacementChoice(phase7FindAnyCard(blackRoseFaceUp.payload.cardIid),choices=>phase7SubmitCommand({...blackRoseFaceUp,payload:{...blackRoseFaceUp.payload,...choices}},options),choices=>phase7SubmitCommand({...blackRoseFaceDown,payload:{...blackRoseFaceDown.payload,...choices}},options));
@@ -4572,10 +4601,10 @@
     return {state:phase7CurrentUiSession.view?.state,
       commands:phase7CurrentCommands().filter(command=>command?.type === 'SUPPORT_COMPANY')};
   };
-  window.fatePhase7UseSupportCompany = function(ability, cardId){
+  window.fatePhase7UseSupportCompany = function(ability, cardId, category){
     if(!phase7CurrentUiActive()) return Promise.resolve(false);
     const command = phase7CurrentCommands().find(candidate=>candidate?.type === 'SUPPORT_COMPANY'
-      && candidate.payload.ability === ability && candidate.payload.cardId === cardId);
+      && candidate.payload.ability === ability && candidate.payload.cardId === cardId && candidate.payload.category === category);
     if(!command) return Promise.resolve(false);
     if(typeof closeModal === 'function') closeModal();
     return phase7SubmitCommand(command);
@@ -4806,8 +4835,8 @@
       const berkeleyCost = discards.some(command=>command.payload?.reason === 'CLEAR_BERKELEY')
         && !(typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(card));
       if(discards.length) add(berkeleyCost ? 'Discard (expend 2 hand cards)' : 'Discard', function(){
-        closeModal();
-        phase7ChooseCommand(discards, 'Discard Card');
+        window.confirmCardDiscard(card, function(){ phase7ChooseCommand(discards, 'Discard Card'); },
+          function(){ window.openCardDetail(card, false, true); });
       }, {danger:true, phase7Action:'discard', iid});
     }
     return true;
@@ -4963,6 +4992,7 @@
     withOnlinePromptBypass(g, function(){
       window.pickCardsVisual(cards, {
         title:title,
+        promptKey:key,
         subtitle:minimum === maximum
           ? 'Select exactly ' + minimum
           : 'Select ' + minimum + ' to ' + maximum,
@@ -5101,6 +5131,8 @@
     phase7CurrentUiSession.handLimitGuardTimer = setTimeout(check, 80);
   }
   function phase7PromptModalMatches(prompt){
+    const royal = document.querySelector('.sc-royal-overlay');
+    if(prompt?.promptId && royal?.dataset?.promptKey === 'prompt:' + String(prompt.promptId)) return true;
     const modal = document.getElementById('modal');
     if(!modal?.classList.contains('on')) return false;
     const promptId = String(prompt?.promptId || '');
@@ -5350,11 +5382,11 @@
       if(window.toast) toast('That choice is no longer legal.');
       return false;
     };
-    if(prompt?.type==='MODAL_CHOICE'&&sourceId==='103'&&typeof window.showSangrePorVictoriaMoralePicker==='function'){
+    if(prompt?.type==='MODAL_CHOICE' && prompt.title==='Call to Arms' && typeof window.showSupportCompanyCategoryWindow==='function'){
       withOnlinePromptBypass(gameState(),function(){
-        window.showSangrePorVictoriaMoralePicker(Number(prompt.playerIndex),function(amount){submitChoice(String(amount),'choice');},function(){
-          const cancel=phase7PromptCancel();if(cancel)phase7SubmitCommand(cancel);
-        });
+        window.showSupportCompanyCategoryWindow({cancellable:false,promptId,
+          categories:prompt.options.map(option=>({id:option.value,name:option.label,description:''})),
+          onSelect:category=>submitChoice(category,'choice')});
       });
       return;
     }
@@ -5519,6 +5551,20 @@
         }
       };
     });
+    if(prompt?.type === 'MODAL_CHOICE' && sourceId === '107'
+      && typeof window.showAnneActionDeclarationPicker === 'function'){
+      withOnlinePromptBypass(gameState(), function(){
+        window.showAnneActionDeclarationPicker(actions.filter((_action,index)=>choices[index]?.payload?.cancel !== true), {promptId});
+      });
+      return;
+    }
+    if(prompt?.type === 'MODAL_CHOICE' && sourceId === '105'
+      && typeof window.showJorgeTypeDeclarationPicker === 'function'){
+      withOnlinePromptBypass(gameState(), function(){
+        window.showJorgeTypeDeclarationPicker(actions, {promptId});
+      });
+      return;
+    }
     if(isReaction){
       const reactionChoices = phase7VisibleReactionChoices(choices, prompt);
       const declineCommand = choices.find(function(command){
@@ -5537,7 +5583,7 @@
         const mode = String(payload.choice || 'NEGATE').toUpperCase();
         const modeLabel = kind === 'LYDIA'
           ? 'Negate effect & suppress source'
-          : (kind === 'HAVANO' ? 'Permanently suppress source'
+          : (kind === 'HAVANO' ? 'Negate the effect'
             : (mode === 'SUPPRESS' ? 'Suppress the source' : 'Negate the effect'));
         const location = phase7FindCardLocation(payload.reactionIid);
         const locationLabel = location?.zone === 'hand'
@@ -5602,9 +5648,8 @@
       if(!iid) return false;
       const option = (prompt?.options || []).find(function(value){ return value.reactionIid === iid; });
       if(option?.kind !== 'HAVANO') return true;
-      // Havano always permanently suppresses. Prefer the server's SUPPRESS
-      // command; retain compatibility with older NEGATE-only prompts.
-      const preferred = 'SUPPRESS';
+      // Havano negates only the current effect.
+      const preferred = 'NEGATE';
       const preferredExists = choices.some(function(value){
         return value?.payload?.reactionIid === iid && value.payload.choice === preferred;
       });
@@ -5754,7 +5799,7 @@
     const promptId = String(prompt?.promptId || '');
     if(!promptId || document.querySelector('#modal.on .phase7-reaction-waiting[data-prompt-id="' + promptId + '"]')) return true;
     const source = phase7FindAnyCard(prompt?.sourceIid);
-    const sourceName = String(source?.name || 'an effect');
+    const sourceName = prompt?.context === 'JORGE_CALL_TO_ARMS' ? 'Call to Arms' : String(source?.name || 'an effect');
     withOnlinePromptBypass(gameState(), function(){
       showModal('Opponent Reaction',
         '<div class="reaction-panel reaction-waiting-panel phase7-reaction-waiting" data-prompt-id="' + esc(promptId) + '">' +
@@ -5870,6 +5915,12 @@
     }
     phase7CurrentUiSession.screenRecoveryKey = '';
     const prompt = state.pendingPrompt || null;
+    // Presentation batches can finish while a queued banner is still draining.
+    if(prompt?.title === 'Call to Arms' && typeof getSupportCompanyPresentationDelayMs === 'function'
+      && getSupportCompanyPresentationDelayMs() > 0){
+      setTimeout(phase7SyncInteractionUi, 80);
+      return;
+    }
     const handLimit = state.pendingHandLimit || null;
     const promptKey = prompt?.promptId
       ? 'prompt:' + String(prompt.promptId)
@@ -5931,7 +5982,7 @@
       phase7CurrentUiSession.handLimitSelectedIids = new Set();
       phase7CurrentUiSession.handLimitMissingSince = 0;
       phase7CurrentUiSession.promptMissingSince = 0;
-      if(typeof window.closeModal === 'function') closeModal({forceHandLimitClose:true, deferQueuedModals:true});
+      if(typeof window.closeModal === 'function') closeModal({cardChoiceResolved:true,authoritativeHandLimitResolved:true,forceHandLimitClose:true, deferQueuedModals:true});
     }
     const root = phase7ActionContainer();
     const hint = document.getElementById('act-hint');
@@ -5940,7 +5991,7 @@
       if(typeof window.closeLedgerArchive === 'function') window.closeLedgerArchive();
       if(hint) hint.textContent = 'Waiting for your opponent to resolve an effect';
       if(typeof window.clearPlaceHighlights === 'function') window.clearPlaceHighlights();
-      if(prompt?.type === 'REACTION') phase7ShowOpponentReactionWaiting(prompt);
+      if(prompt?.type === 'REACTION' || prompt?.context === 'JORGE_CALL_TO_ARMS') phase7ShowOpponentReactionWaiting(prompt);
       return;
     }
     if(handLimit && Number(handLimit.playerIndex) === localIndex){
@@ -6169,8 +6220,16 @@
       const predecessorRemaining = typeof window.fateEffectActivationPredecessorRemaining === 'function'
         ? Math.max(0, Number(window.fateEffectActivationPredecessorRemaining()) || 0)
         : 0;
-      if(!locked && !overlay && predecessorRemaining <= 0) break;
+      const followUpRemaining = typeof window.getSupportCompanyPresentationDelayMs === 'function'
+        ? window.getSupportCompanyPresentationDelayMs() : 0;
+      if(!locked && !overlay && predecessorRemaining <= 0 && followUpRemaining <= 0) break;
       await new Promise(function(resolve){ setTimeout(resolve, 40); });
+    }
+    // Never advance into an effect picker merely because the legacy timeout
+    // elapsed while the post-consolidation signature/banner was still running.
+    const match=gameState();
+    if(window.waitForSupportCompanyPresentation){
+      await window.waitForSupportCompanyPresentation(()=>gameState()===match);
     }
     await phase7NextFrame();
   }
@@ -6354,8 +6413,15 @@
       if(eventType !== 'EFFECT_ACTIVATED' && eventType !== 'EFFECT_REACTED') continue;
       if(eventType === 'EFFECT_ACTIVATED' && event?.suppressActivationCinematic === true) continue;
       const sourceIid = eventType === 'EFFECT_REACTED' ? event?.reactionIid : event?.sourceIid;
-      const source = phase7PresentationCard(phase7FindAnyCard(sourceIid)) || phase7FindProjectedEntry(view, sourceIid)?.card;
+      const publiclyFlipped = events.some(item=>item.type === 'CARD_FLIPPED' && item.faceDown === false && String(item.cardIid) === String(sourceIid));
+      const source = publiclyFlipped
+        ? phase7PresentationCard(phase7FindProjectedEntry(view, sourceIid)?.card)
+        : phase7PresentationCard(phase7FindAnyCard(sourceIid)) || phase7FindProjectedEntry(view, sourceIid)?.card;
       if(!source || typeof window.showEffectActivationCinematic !== 'function') continue;
+      if(String(source.id)==='105' && event.timing==='OPPONENT_CONSOLIDATION')continue;
+      // Semper Fidelis is armed on set. Its later permission blocks are not
+      // fresh activations; keep suppression feedback without replaying Marines.
+      if(eventType === 'EFFECT_REACTED' && String(source.id || '') === '18') continue;
       // Mark's four post-picker affiliation declarations replace the generic
       // activation pop, which otherwise appears before the player has chosen.
       if(eventType === 'EFFECT_ACTIVATED' && String(source.id || '') === '66') continue;
@@ -6598,6 +6664,9 @@
     for(let eventIndex = 0; eventIndex < events.length; eventIndex++){
       const event = events[eventIndex];
       if(event?.type === 'SUPPORT_COMPANY_USED'){
+        if(document.querySelector('#modal.on .phase7-reaction-waiting')){
+          closeModal({cardChoiceResolved:true,authoritativeHandLimitResolved:true,forceHandLimitClose:true,deferQueuedModals:true});
+        }
         await window.presentSupportCompanyUse?.(event, `${view.state.matchId}:${batchId}:${eventIndex}:support`);
       }
     }
@@ -6667,6 +6736,38 @@
       prePresentedMoveIndexes.add(eventIndex);
     }
     phase7PresentJimmyCounterGain(view);
+    // Hand resets resolve visibly in the same order as their rules: the
+    // activation cinematic has finished, then discard, then ordinary draws.
+    const handResetDiscardIndexes = new Set();
+    const handResetSounds = new Set();
+    for(let eventIndex = 0; eventIndex < events.length; eventIndex += 1){
+      const event = events[eventIndex];
+      if(event.type !== 'CARD_DISCARDED' || event.reason !== 'JIMMY_HAND_RESET') continue;
+      const location = phase7FindCardLocation(event.cardIid);
+      const target = location?.card || phase7FindAnyCard(event.cardIid) || event.card;
+      const owner = Number(event.owner ?? event.playerIndex ?? location?.playerIndex);
+      const fx = window.FateV2CardMotionFx;
+      let moved = false;
+      if(target && location?.zone === 'hand' && typeof fx?.sendHandCardToDiscard === 'function'){
+        moved = !!fx.sendHandCardToDiscard(target, owner, location.index, {suppressMotionAudio:true});
+      }
+      if(!moved && typeof fx?.discardCard === 'function'){
+        moved = !!fx.discardCard(target || {iid:event.cardIid,owner,hidden:true,faceDown:true,img:'back.png'},owner,{zone:'hand',suppressMotionAudio:true});
+      }
+      const sourceKey = String(event.sourceIid || '');
+      if(!handResetSounds.has(sourceKey)){
+        handResetSounds.add(sourceKey);
+        window.playSfx?.('discard');
+      }
+      handResetDiscardIndexes.add(eventIndex);
+      resultMotionStarted = moved || resultMotionStarted;
+    }
+    if(handResetDiscardIndexes.size){
+      await phase7WaitForPresentationIdle({minQuietMs:110,timeoutMs:7600});
+      const discarded = new Set([...handResetDiscardIndexes].map(index=>String(events[index].cardIid)));
+      for(const player of gameState()?.players || []) player.hand = (player.hand || []).filter(card=>!discarded.has(String(card.iid)));
+      window.renderGameImmediate?.({hand:true,oppHand:true,piles:true});
+    }
     // The canonical hand is committed only after every visible draw completes.
     // Run one production recipe per CARD_DRAWN event; batching them in one
     // synchronous loop caused the VFX director to collapse Kazumi's three draws.
@@ -6834,6 +6935,27 @@
         // and is a safe presentation target; dropping it made the +2 commit
         // silently with neither its overlay nor its Fate motion.
         || (targetIid && targetIid === String(event?.sourceIid || '') ? source : null);
+      if(type === 'HIDDEN_BOMB_EXPLODED'){
+        const pos = event.destination;
+        const bombedCard = phase7PresentationCard(phase7FindAnyCard(event.cardIid))
+          || phase7FindProjectedEntry(view,event.cardIid)?.card
+          || target;
+        if(pos && bombedCard && window.FateV2CardMotionFx?.flyBoardCard){
+          resultMotionStarted = !!window.FateV2CardMotionFx.flyBoardCard(bombedCard,pos.z,pos.r,pos.c,'destroy',{suppressMotionAudio:true,blackRoseBomb:true}) || resultMotionStarted;
+        }
+        // The explosion owns the synchronized sound while the destroyed-card
+        // recipe throws the card away from the trapped square.
+        if(pos && typeof window.playBlackRoseExplosion === 'function'){
+          window.playBlackRoseExplosion(pos.z,pos.r,pos.c);
+          resultMotionStarted = true;
+        }
+        if(window.toast) toast('The Black Rose exploded! The placed card was discarded before its effect activated.');
+        return;
+      }
+      if(type === 'HIDDEN_BOMB_TRAP' || (type === 'SQUARE_STATUS_CREATED' && event.statusType === 'HIDDEN_BOMB_TRAP')){
+        if(Number(event.playerIndex)===Number(typeof getPerspectivePlayerIndex==='function'?getPerspectivePlayerIndex():0)) window.playBlackRoseArmingSound?.();
+        return;
+      }
       if(type === 'AFFILIATION_DECLARED'){
         // Mark's declaration is represented visually by the exact affiliation
         // crest on every card that actually changed. The per-card
@@ -6843,7 +6965,6 @@
       }
       if(type === 'EFFECT_ACTIVATED'){
         const sourceCardId = String(event?.semanticSourceCardId || source?.id || '').toLowerCase();
-        if(sourceCardId === '18') window.playFateReactionSfx?.(true, source);
         if(sourceCardId === 'bh16'){
           const matchingStatusEvent = events.find(function(candidate){
             const status = candidate?.status || {};
@@ -6883,9 +7004,31 @@
         return;
       }
       if(type === 'CARD_FLIPPED' && target){
+        // The live opponent card is still redacted until the final batch commit.
+        // Only the public projection may supply the newly revealed identity.
+        const projected = phase7FindProjectedEntry(view, event.cardIid);
+        const revealed = event.faceDown !== true && projected?.card?.id
+          && projected.card.hidden !== true && projected.card.faceDown !== true
+          ? phase7PresentationCard(projected.card) : null;
+        if(!revealed) return;
+        const revealCard = {...revealed, faceDown:false, hidden:false,
+          _suppressPlacementAnimation:false, _suppressCinematicSubtitle:false};
         const pos = targetLocation?.zone === 'board' ? targetLocation : phase7FindBoardCard(target.iid);
+        // Update this card's presentation now, without committing later results
+        // elsewhere in the batch. The board must retain the art after motion.
+        const board = gameState()?.board;
+        if(pos && String(board?.[pos.z]?.[pos.r]?.[pos.c]?.iid || '') === String(revealCard.iid)){
+          board[pos.z][pos.r][pos.c] = revealCard;
+        }
+        let flipped = false;
         if(pos && window.FateV2CardMotionFx && typeof window.FateV2CardMotionFx.flipBoardCard === 'function'){
-          resultMotionStarted = !!window.FateV2CardMotionFx.flipBoardCard(target, pos.z, pos.r, pos.c) || resultMotionStarted;
+          flipped = !!window.FateV2CardMotionFx.flipBoardCard(revealCard, pos.z, pos.r, pos.c);
+          resultMotionStarted = flipped || resultMotionStarted;
+        }
+        window.FateMatchRendererAdapter?.renderFromGameState?.({source:'phase7-face-up-reveal'});
+        if(typeof window.requestCharacterSetCinematic === 'function'){
+          const scheduled = window.requestCharacterSetCinematic(revealCard, {z:pos?.z,r:pos?.r,c:pos?.c,delayMs:flipped?980:90,reveal:true,revealKey:String(batchId)+':'+eventIndex,source:'phase7-face-up-reveal'});
+          resultMotionStarted = !!scheduled || resultMotionStarted;
         }
         return;
       }
@@ -6902,6 +7045,13 @@
         if(window.toast) toast('The Genesis of all Inceldom sent ' + String(event.cardName || target?.name || 'a card') + ' from the deck to the discard pile.');
       }
       if(type === 'CARD_DISCARDED' && target){
+        if(handResetDiscardIndexes.has(eventIndex)) return;
+        // The consolidation stage already consumed/animated these tributes.
+        // Replaying them here creates a late discard after the cinematic.
+        // Effect discards in this same batch still need their own presentation.
+        if(event.reason === 'CONSOLIDATION_TRIBUTE') return;
+        // Its matching detonation event owns the synchronized discard + explosion.
+        if(event.reason === 'THE_BLACK_ROSE_BOMB') return;
         const discardTarget = phase7DiscardPresentationCard(view, event, target);
         if(event.revealedOnDiscard === true && event.reason === 'SANTIAGO_DISCARD'
           && typeof window.showSantiagoDiscardBanner === 'function'){
@@ -6916,7 +7066,13 @@
         }else if(fx && typeof fx.discardCard === 'function'){
           resultMotionStarted = !!fx.discardCard(discardTarget, event.playerIndex ?? discardTarget.owner, {zone:event.from || targetLocation?.zone}) || resultMotionStarted;
         }
-        if(typeof window.playDiscardSfx === 'function') window.playDiscardSfx({count:1});
+        if(String(event.reason || '').toUpperCase() === 'JIMMY_HAND_RESET' && String(event.previousZone || '').toLowerCase() === 'hand'){
+          const soundKey = String(batchId) + ':' + String(event.sourceIid || '');
+          if(window._lastJimmyHandShredSoundKey !== soundKey){
+            window._lastJimmyHandShredSoundKey = soundKey;
+            if(typeof window.playSfx === 'function') window.playSfx('discard');
+          }
+        }else if(typeof window.playDiscardSfx === 'function') window.playDiscardSfx({count:1});
         else if(typeof window.playSfx === 'function') window.playSfx('discard');
         return;
       }
@@ -6996,7 +7152,17 @@
         return;
       }
       if(type === 'EFFECT_BLOCKED' || type === 'EFFECT_SKIPPED'){
-        if(window.toast) toast((source?.name || 'The effect') + ' was ' + (type === 'EFFECT_BLOCKED' ? 'blocked' : 'skipped') + '.');
+        const reasons = {
+          EFFECT_SUPPRESSED:'its effect is suppressed',
+          ORIGINAL_DECK_CONTAINS_DRAW_EFFECT:'the original deck contains a Draw effect',
+          ORIGINAL_DECK_ELIGIBILITY_UNKNOWN:'the server has no original-deck eligibility record for this match',
+          NO_LEGAL_TARGETS:'the server found no eligible resolution',
+          TURN_USE_LIMIT_REACHED:'the effect has reached its limit for this turn',
+          USE_LIMIT_REACHED:'the effect has reached its use limit',
+          MINIMUM_TURN_NOT_REACHED:'the effect is not available this early in the match'
+        };
+        const reason = reasons[String(event.reason || '')];
+        if(window.toast) toast((source?.name || 'The effect') + ' was ' + (type === 'EFFECT_BLOCKED' ? 'blocked' : 'skipped') + (reason ? ': ' + reason : '') + '.');
         return;
       }
       if(type === 'FATE_CHANGED' && target){
@@ -7673,12 +7839,24 @@
         });
       }
     });
+    // A consolidation snapshot already contains the hand-reset results. Keep
+    // the old hand visible until the activation and discard presentation run.
+    const handResetEvents = (events || []).filter(event=>event.type === 'CARD_DISCARDED' && event.reason === 'JIMMY_HAND_RESET');
+    for(const playerIndex of new Set(handResetEvents.map(event=>Number(event.owner ?? event.playerIndex)))){
+      const player = masked.state.players?.[playerIndex];
+      const before = gameState()?.players?.[playerIndex];
+      if(!player || !before) continue;
+      if(Array.isArray(player.hand)) player.hand = cloneOnlinePlain(before.hand || []);
+      player.handCount = (before.hand || []).length;
+      const discarded = new Set(handResetEvents.filter(event=>Number(event.owner ?? event.playerIndex) === playerIndex).map(event=>String(event.cardIid)));
+      player.discard = (player.discard || []).filter(card=>!discarded.has(String(card.iid)));
+    }
     const fateEvents = (Array.isArray(events) ? events : []).filter(function(event){
       return String(event?.type || '').toUpperCase() === 'FATE_CHANGED'
         && String(event?.cardIid || event?.targetIid || '') === cardIid
         && Number(event?.before) !== Number(event?.after);
     });
-    if(!fateEvents.length) return handArrivalIidsByPlayer.size ? masked : view;
+    if(!fateEvents.length) return handArrivalIidsByPlayer.size || handResetEvents.length ? masked : view;
     let projected = null;
     (masked.state.board || []).some(function(zone){
       return (zone || []).some(function(row){
@@ -7835,8 +8013,9 @@
     const generation=phase7CurrentUiSession.presentationGeneration;
     setTimeout(function(){ if(generation===phase7CurrentUiSession.presentationGeneration && phase7CurrentUiSession.mounted) phase7PresentAuthoritativeOutcome(view, outcome); }, 80);
   }
-  function phase7PresentCardSetAuraOverlays(events){
+  function phase7PresentCardSetAuraOverlays(events, joseBatchKey){
     for(const event of events || []){
+      window.presentJoseLongGameEvent?.(event, joseBatchKey || ('jose:'+gameState()?.turn));
       if(String(event?.type || '').toUpperCase() === 'SOVIET_GRENADIERS_TARGET_LINKED'){
         const sourceEntry=phase7FindBoardCard(event.sourceIid);
         const targetEntry=phase7FindBoardCard(event.targetIid);
@@ -7950,6 +8129,12 @@
     };
     const task = async function(){
       if(!presentationStillCurrent()) return false;
+      const flipEvents = events.filter(event=>event.type === 'CARD_FLIPPED');
+      const resultEvents = events.filter(event=>event.type !== 'CARD_FLIPPED');
+      if(unseenBatch && flipEvents.length){
+        await phase7PresentBatch(view, flipEvents);
+        if(!presentationStillCurrent()) return false;
+      }
       const consolidation = unseenBatch
         ? events.find(function(event){ return String(event?.type || '').toUpperCase() === 'CARD_CONSOLIDATED'; })
         : null;
@@ -7966,22 +8151,31 @@
         if(!presentationStillCurrent()) return false;
         await phase7PlayActivationCinematics(view, events);
         if(!presentationStillCurrent()) return false;
-        await phase7PresentBatch(view, events);
+        await phase7PresentBatch(view, resultEvents);
         if(!presentationStillCurrent()) return false;
         applied = phase7CommitCurrentView(view, reason);
-        phase7PresentCardSetAuraOverlays(events);
+        phase7PresentCardSetAuraOverlays(events, `${view.state.matchId}:${view.presentationBatch?.id}`);
       }else{
         applied = phase7CommitCurrentView(view, reason);
       }
       if(!presentationStillCurrent()) return false;
       if(unseenBatch && consolidation){
-        await phase7PresentBatch(view, events);
+        await phase7PresentBatch(view, resultEvents);
         if(!presentationStillCurrent()) return false;
         // Reveal the final authoritative number only after its synchronized
         // Fate motion/overlay has started. This prevents Great Oak (and any
         // future consolidation Fate result) from appearing early.
         applied = phase7CommitCurrentView(view, reason) && applied;
-        phase7PresentCardSetAuraOverlays(events);
+        phase7PresentCardSetAuraOverlays(events, `${view.state.matchId}:${view.presentationBatch?.id}`);
+      }
+      // A hand reset can replace every IID without changing the hand count.
+      // Flush the final hand after the draw recipes and canonical commit even
+      // when the recipient is not the active player.
+      if(applied && events.some(event=>event.type==='CARD_DRAWN' ||
+        (event.type==='CARD_TRANSFERRED' && event.to==='hand'))){
+        if(typeof window.renderGameImmediate === 'function'){
+          window.renderGameImmediate({hand:true,oppHand:true,piles:true});
+        }else renderOnlineAuthoritativeState('hand-arrival-complete');
       }
       return applied;
     };
@@ -16713,7 +16907,13 @@
       originals.pickCardsVisual = window.pickCardsVisual;
       window.pickCardsVisual = function(cards, opts, onConfirm){
         const g = gameState();
-        if(g?._onlineServerPromptBypass || window.__fateOnlineServerPromptBypass) return originals.pickCardsVisual.apply(this, arguments);
+        if(g?._onlineServerPromptBypass || window.__fateOnlineServerPromptBypass){
+          // The picker can defer itself until an animation finishes. Its next
+          // invocation runs after withOnlinePromptBypass has cleared the flags,
+          // so preserve ownership in the options carried by that callback.
+          return originals.pickCardsVisual.call(this, cards,
+            Object.assign({}, opts, {authoritativeDirectAction:true}), onConfirm);
+        }
         // Some shipping pickers collect payload for a direct authoritative
         // command rather than resolving a legacy picker action. Moffitt's
         // catalog is one: wrapping its Confirm as PICK_CARDS_VISUAL causes the

@@ -3,6 +3,19 @@
   // Cue times follow the reviewed two-second visual beats. Each character gets
   // a distinct attack, material texture and finishing accent.
   const cues={
+    // Knight's Gambit: trace .16–.74s; eased leap .62–1.40s; landing at 1.40s.
+    '107':[['anne-plan',.16,.58,1600],['anne-leap',.62,.78,360],['anne-land',1.40,.18,420],['anne-resolve',1.42,.48,880]],
+    'jose-clock':[['metal',.12,.10,520],['metal',.36,.09,680],['metal',.60,.10,520],['metal',.84,.09,680],['ping',1.12,.70,880],['ping',1.24,.60,1320]],
+    // Sea Breeze: trunks .10–.94s, fronds .50–1.32s, sunrise .40–1.36s.
+    '104':[['surf',.04,1.82,460],['frond',.30,.85,1700],['pan',.50,.50,523.25],['pan',.78,.50,659.25],['pan',1.08,.60,783.99]],
+    // Single Resolve: lift .14–1.00s, impact starts .86s, rays finish 1.36s.
+    '105':[['rally-rise',.14,.76,140],['rally-drum',.86,.43,105],['rally-drum',1.02,.32,155],['rally-brass',1.04,.78,293.66]],
+    // Sands of Patience: sand .16–1.50s, final settling burst begins 1.36s.
+    '106':[['glass-tick',.12,.16,1300],['sand-flow',.16,1.34,3200],['glass-tick',.60,.13,1100],['glass-tick',1.08,.13,1300],['sand-settle',1.36,.25,1500],['hourglass-bell',1.50,.40,880]],
+    // Seconds match normalized visual beats multiplied by the two-second duration.
+    '101':[['water',.08,.65,620],['chord',.7,.65,330],['ping',1.04,.5,660]],
+    '102':[['fuse',.24,.94,2600],['blast',1.2,.65,65],['debris',1.29,.5,1450]],
+    '103':[['blade',.06,.42,1700],['drop',1.1,.13,560],['drop',1.42,.13,510],['drop',1.74,.13,470]],
     'support-call':[['wind',.03,.55,950],['chord',.16,.5,294],['chord',.48,.5,392],['chord',.8,.68,494],['metal',1.2,.48,587],['chord',1.38,.55,587]],
     'support-desperate':[['rumble',.02,.62,72],['crack',.4,.23,1400],['hit',.49,.3,82],['metal',.85,.38,230],['metal',1.12,.4,294],['chord',1.42,.5,196]],
  '77':[['wind',.04,.85,540],['water',.4,.85,440],['water',1.05,.84,610]],
@@ -29,7 +42,8 @@
  '10':[['rise',.07,1.02,105],['crack',.43,.45,230],['crack',.72,.42,290],['hit',1.29,.35,62],['wind',1.41,.5,420]],
  '19':[['water',.04,.75,440],['water',.51,.82,570],['water',1.03,.78,670],['ping',.93,.35,870],['ping',1.36,.4,1060]],
  'bh12':[['wind',.08,.5,720],['rise',.28,.77,540],['rise',.57,.69,670],['ping',1.12,.45,980],['wind',1.35,.53,1120]],
- '01':[['wind',.06,.5,540],['wind',.35,.58,740],['metal',.93,.45,430],['chord',1.2,.6,660]],
+ // Coronation Fanfare: ascending heraldic brass, crown bell, royal resolve.
+ '01':[['coronation-brass',.10,.31,294],['coronation-brass',.39,.34,392],['coronation-brass',.69,.38,494],['coronation-bell',1.01,.73,784],['coronation-chord',1.17,.75,196],['coronation-bell',1.45,.38,1175]],
  'bh07':[['glitch',.06,.4,210],['rise',.32,.65,330],['metal',.78,.36,660],['ping',1.05,.45,880],['chord',1.3,.55,440]],
  'bh11':[['paper',.04,.55,1400],['scratch',.32,.5,1900],['hit',.98,.3,180],['metal',1.18,.45,330]],
  '45':[['wind',.03,.8,650],['rumble',.16,.64,95],['rise',.35,.68,170],['ping',.82,.5,392],['chord',1.12,.72,220]],
@@ -116,7 +130,12 @@
     'bh19':['electric',175,.6,5,0], 'bh20':['wing',590,.57,6,.65],
     'bh21':['sand',620,.54,4,.55], 'bh22':['glass',440,.56,3,0]
   };
+  // Card 1's coronation score has no feather or bird texture underneath it.
+  delete motion['01'];
   const sampleBuffers = new Map();
+  // Forged in Revolution: converge, hammer impact at .96s, sparks, star chime.
+  cues['21']=[['forge-sweep',.16,.78,650],['forge-strike',.96,.55,210],['forge-sparks',1.02,.48,2400],['forge-star',1.40,.48,784]];
+  delete motion['21'];
   let sampleBufferBytes = 0;
   const MAX_SAMPLE_BYTES = 16 * 1024 * 1024;
   function cachedSamples(ac, key, duration, fill){
@@ -167,7 +186,7 @@
       '41':'glass','89':'ice',
       '35':'blade','88':'ice','11':'parchment',
       '10':'implosion','19':'river','bh12':'garden',
-      '01':'wing','bh07':'circuit','bh11':'parchment','03':'wood','04':'chain','07':'engine','08':'glitch',
+      'bh07':'circuit','bh11':'parchment','03':'wood','04':'chain','07':'engine','08':'glitch',
       '13':'writing','14':'blade','17':'glass','21':'chain','22':'circuit','27':'parchment','29':'wing','30':'blade',
       '38':'sizzle','39':'rope','40':'forge','43':'origami','45':'wind','48':'space','51':'cloth','56':'blade','61':'rifle',
       '66':'stamp','67':'eraser','81':'dough','82':'ice','83':'stone','84':'flutter','86':'fireworks','87':'ukulele',
@@ -178,7 +197,7 @@
     // Only these non-Carpathian cards receive the new material voices. The
     // existing scores, generators and mix for IDs 80–100 stay untouched.
     const diverseThemes={'03':'woodblock','08':'radio','13':'pencil','15':'plucked','21':'ratchet','34':'mallet','40':'anvil','48':'sonar','bh06':'relay','bh13':'coins'};
-    const theme=preserveOriginal?null:(diverseThemes[String(id)] || themes[String(id)]);
+    const theme=preserveOriginal || String(id)==='21'?null:(diverseThemes[String(id)] || themes[String(id)]);
     const materialGain={woodblock:1.5,radio:1.8,pencil:2.5,plucked:1.4,ratchet:2,mallet:1.4,anvil:1.2,sonar:1.3,coins:2,relay:2,dance:2.5,specter:2.5,chuckle:3,garden:3,writing:4,eraser:4,cloth:3.8,circuit:5,charge:5,origami:2.2,parchment:2.5,wind:2.2,flutter:3.3,rope:2.3,net:2.3,dough:2.1,sailing:2.5,maelstrom:2.2,wing:1.7,engine:1.5,chauffeur:2.2,chain:1.8,blade:1.4,sizzle:2,sand:1.8,glitch:2,rifle:1.3,wood:1.4};
     if(theme)out.gain.setValueAtTime(Math.min(1,volume)*.72*(materialGain[theme]||1)*(String(id)==='77'?1.8:1),now);
     function materialVoice(material,at,dur,f,level,role){
@@ -296,6 +315,60 @@
       source.connect(filter);filter.connect(gain);gain.connect(stereo);stereo.connect(out);source.start(now);source.stop(now+1.985);
     }
     for(const [kind,at,dur,f] of score){
+      if(kind==='anne-plan'){
+        noise(at,dur,f,.13,'bandpass');
+        tone('sine',520,640,at,.12,.10);
+        tone('sine',640,780,at+.12,.13,.10);
+        continue;
+      }
+      if(kind==='anne-leap'){
+        // Cubic easing puts the top of the visual arc about .16s into the leap.
+        tone('sine',f,f*2.2,at,.16,.15);
+        tone('sine',f*2.2,f*.72,at+.16,dur-.16,.13);
+        noise(at,dur,1350,.16,'bandpass');
+        continue;
+      }
+      if(kind==='anne-land'){
+        // A short wooden chess-piece tap, with a quiet low body.
+        tone('sine',f,f*.55,at,dur,.38);
+        tone('triangle',f*2.1,f*1.4,at,.065,.13);
+        noise(at,.045,1900,.19,'bandpass');
+        continue;
+      }
+      if(kind==='anne-resolve'){
+        tone('sine',f,f,at,dur,.17);
+        tone('sine',f*1.5,f*1.5,at+.055,dur-.055,.09);
+        continue;
+      }
+      if(kind==='coronation-brass'){
+        tone('triangle',f,f*1.015,at,dur,.22);
+        tone('sine',f*2,f*2.03,at,dur*.8,.075);continue;
+      }
+      if(kind==='coronation-bell'){
+        [1,2.03,2.89].forEach((n,j)=>tone('sine',f*n,f*n,at,dur*[1,.57,.36][j],[.30,.072,.042][j]));continue;
+      }
+      if(kind==='coronation-chord'){
+        [1,1.5,2,3].forEach((n,j)=>tone('triangle',f*n,f*n*1.002,at+j*.018,dur-j*.018,.09));continue;
+      }
+      if(kind==='forge-sweep'){noise(at,dur,f,.22);tone('triangle',95,220,at,dur,.13);continue;}
+      if(kind==='forge-strike'){tone('sine',130,48,at,.30,.58);[1,2.41,4.17].forEach((n,j)=>tone('sine',f*n,f*n*.985,at,dur/(1+j*.25),.27/(j+1)));noise(at,.08,1800,.20);continue;}
+      if(kind==='forge-sparks'){for(let j=0;j<6;j++)noise(at+j*.063,.07,f+j*190,.11,'highpass');continue;}
+      if(kind==='forge-star'){tone('sine',f,f,at,dur,.21);tone('sine',f*2,f*2,at,dur*.6,.07);continue;}
+      if(kind==='surf'){noise(at,dur,f,.23,'lowpass');noise(at+.16,dur-.18,900,.10,'bandpass');continue;}
+      if(kind==='frond'){noise(at,dur,f,.11,'highpass');continue;}
+      if(kind==='pan'){[1,2,2.98].forEach((n,j)=>tone('sine',f*n*1.012,f*n,at,dur/(1+j*.4),.24/(1+j*2)));continue;}
+      if(kind==='rally-rise'){tone('triangle',f,f*2.1,at,dur,.16);noise(at,dur,800,.18);continue;}
+      if(kind==='rally-drum'){tone('sine',f*1.7,f*.60,at,dur,.62);noise(at,.10,650,.20,'lowpass');continue;}
+      if(kind==='rally-brass'){[1,1.5,2].forEach((n,j)=>tone('triangle',f*n*.96,f*n,at+j*.018,dur-j*.018,.16/(1+j*.5)));continue;}
+      if(kind==='glass-tick'){tone('sine',f,f*.99,at,dur,.18);tone('sine',f*2.7,f*2.68,at,dur*.5,.06);continue;}
+      if(kind==='sand-flow'){noise(at,dur,f,.16,'highpass');for(let j=0;j<13;j++)noise(at+j*.095,.075,2400+j*67,.07,'highpass');continue;}
+      if(kind==='sand-settle'){noise(at,dur,f,.16);continue;}
+      if(kind==='hourglass-bell'){tone('sine',f,f,at,dur,.25);tone('sine',f*2.76,f*2.76,at,dur*.6,.07);continue;}
+      if(kind==='fuse'){noise(at,dur,f,.24,'highpass');for(let j=0;j<11;j++)noise(at+j*.08,.035,3300+j*53,.1,'highpass');continue;}
+      if(kind==='blast'){tone('sine',110,34,at,dur,.72);noise(at,.2,2100,.45);noise(at+.02,dur-.03,340,.5,'lowpass');continue;}
+      if(kind==='debris'){for(let j=0;j<5;j++){noise(at+j*.075,.07,f+j*210,.16,'highpass');tone('sine',420+j*97,200+j*37,at+j*.075,.12,.07);}continue;}
+      if(kind==='blade'){noise(at,dur,f,.18,'highpass');tone('sine',1280,1130,at+.05,.28,.07);continue;}
+      if(kind==='drop'){tone('sine',f*1.7,f*.35,at,dur,.34);noise(at,.045,650,.14,'lowpass');continue;}
       if(kind==='royal'){
         tone('triangle',f*.99,f,at,dur,.24);
         tone('sine',f*1.5,f*1.5,at+.015,dur-.015,.16);
@@ -335,7 +408,7 @@
       'bh20':[.31,.64,.97,1.3,1.63], 'bh22':[.58,.86,1.18,1.47]
     }[String(id)]||(preserveOriginal?[.47,.89,1.37]:[]);
     cueLevel=.28;
-    contacts.forEach((at,i)=>{
+    (String(id)==='21'?[]:contacts).forEach((at,i)=>{
       const material=profile?.[0],f=(profile?.[1]||330)*(1+(i%4)*.19);
       if(theme){materialVoice(theme,at,.17,f,.5,'contact');return;}
       if(id==='87'){tone('triangle',[392,494,587,659,784,880,988][i%7],f,at,.22,.52);}

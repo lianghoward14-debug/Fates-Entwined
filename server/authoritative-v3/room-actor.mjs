@@ -138,9 +138,7 @@ export class AuthoritativeRoomActor {
 
   turnTimeoutCommand(){
     if(this.state.phase !== 'main'
-      || this.state.outcome
-      || this.state.pendingPrompt
-      || this.state.pendingHandLimit){
+      || this.state.outcome){
       return null;
     }
     const player = this.state.players[this.state.activePlayer];
@@ -158,7 +156,7 @@ export class AuthoritativeRoomActor {
         matchId:this.state.matchId,
         expectedRevision:this.state.revision,
         type:'END_TURN',
-        payload:{}
+        payload:{expirePickers:true}
       }
     };
   }
