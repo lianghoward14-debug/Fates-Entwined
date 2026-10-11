@@ -7562,11 +7562,11 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
           ${(moscowTenureBanner || lowMoraleExpiryBanner) ? '<span class="cd-status-badges">' + moscowTenureBanner + lowMoraleExpiryBanner + '</span>' : ''}
         </div>
         <div class="cd-ability">${visual.ability}</div>
-        <div class="cd-pills">
+        <div class="cd-pills" data-card-affiliation="${escapeHtml(visual.aff || 'neutral')}">
           <span class="pill type">${visual.type}${visual.cost>0?` (${visual.xCost?'X':visual.cost})`:''}</span>
            <span class="pill fate">${visual.fate} Fate</span>
           ${typeof window.getCardPressurePillHTML === 'function' ? window.getCardPressurePillHTML(card) : ''}
-           <span class="pill">${AFF_LABEL[visual.aff]||visual.aff}</span>
+           <span class="pill affiliation">${AFF_LABEL[visual.aff]||visual.aff}</span>
           <span class="pill rarity">${rarityLabel}</span>
         </div>
         ${trackerHtml}
@@ -10230,10 +10230,11 @@ function showHoverPreview(card, e) {
     <div class="chp-info">
       <div class="chp-name">${card.name}</div>
       <div class="chp-ability">${card.ability}</div>
-      <div class="chp-pills">
+      <div class="chp-pills" data-card-affiliation="${escapeHtml(card.aff || 'neutral')}">
         <span class="chp-pill">${card.type}${card.cost>0?` (${card.xCost?'X':card.cost})`:''}</span>
         <span class="chp-pill" style="border-color:var(--fate);color:var(--fate);">⭐ ${typeof getPrintedFateLabel === 'function' ? getPrintedFateLabel(card) : (card.xFate ? 'X' : card.fate)}</span>
-        <span class="chp-pill">${AFF_LABEL[card.aff]||card.aff}</span>
+        <span class="chp-pill affiliation">${AFF_LABEL[card.aff]||card.aff}</span>
+        <span class="chp-pill rarity">${getCardRarityLabel(card.rarity)}</span>
       </div>
       <div class="chp-eff">${card.effect}</div>
     </div>`;
@@ -10312,11 +10313,11 @@ function showCardInfoOverlay(card) {
         '<div class="cd-info">'+
           '<div class="cd-name cd-name-with-audio"><span>'+visual.name+'</span>'+voiceButton+((moscowTenureBanner||lowMoraleExpiryBanner)?'<span class="cd-status-badges">'+moscowTenureBanner+lowMoraleExpiryBanner+'</span>':'')+'</div>'+
           '<div class="cd-ability">'+visual.ability+'</div>'+
-          '<div class="cd-pills">'+
+          '<div class="cd-pills" data-card-affiliation="'+escapeHtml(visual.aff || 'neutral')+'">'+
              '<span class="pill type">'+visual.type+(visual.cost>0?' ('+(visual.xCost?'X':visual.cost)+')':'')+'</span>'+
               '<span class="pill fate">'+visual.fate+' Fate</span>'+
             (typeof window.getCardPressurePillHTML === 'function' ? window.getCardPressurePillHTML(card) : '')+
-             '<span class="pill">'+affLabel+'</span>'+
+             '<span class="pill affiliation">'+affLabel+'</span>'+
             '<span class="pill rarity">'+rarityLabel+'</span>'+
           '</div>'+
           trackerHtml+

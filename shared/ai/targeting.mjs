@@ -1,3 +1,4 @@
+import {filterRevolutionTargets} from './revolution-heuristics.mjs';
 import {cardRule} from '../engine/cards/registry.mjs';
 import {filterLakesMomentum} from './lakes-momentum-heuristics.mjs';
 import {filterEndlessSeaTiming} from './endless-sea-heuristics.mjs';
@@ -39,6 +40,7 @@ export function filterAiTargets(commands,state,player){
         && c.payload?.destination?.z===e.z && c.payload.destination.r===e.r && c.payload.destination.c===e.c);
     });
   }
+  commands=filterRevolutionTargets(commands,state,player);
   commands=filterLakesMomentum(commands,state,player);
   commands=filterEndlessSeaTiming(commands,state,player);
   commands=filterArchiveExpansionTargets(commands,state,player);

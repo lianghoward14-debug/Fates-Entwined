@@ -1397,6 +1397,17 @@ function aiEvaluateMove(move) {
 
 function aiDeckSearchPriority(deckId, kind) {
   const priorities = {
+    ai_revolutionary_oaf: {
+      supporter:['74','09','60','42','32','bh24','80','98'],
+      character:['08','38','21','13','29','03'],
+      lina:['21','38','03','08','13'],
+      dylan:['09','74','42','bh24','29'], jorge:['08','38','21','09','74'], coordinator:[]
+    },
+    ai_black_revolution: {
+      supporter:['60','50','16','97','76','58','98'],
+      character:['102','104','105','bh05','27','30'],
+      lina:[], dylan:['16','97','28'], jorge:['102','104','105','50','60'], coordinator:[]
+    },
     starter_freeworld: {
       supporter: ['59','25','63','28','68','42','05'],
       character: ['34','77','01','35','29','06','13'],
@@ -1406,11 +1417,11 @@ function aiDeckSearchPriority(deckId, kind) {
       coordinator: ['34','77','01']
     },
     starter_assault: {
-      supporter: ['68','59','63','74','16','42','32','05'],
-      character: ['11','43','40','22','27','06'],
-      jorge: ['11','43','40','22','27','68','59','63','74','16','42','32','05'],
+      supporter: ['68','59','63','74','16','60','32','05'],
+      character: ['11','40','22','27','06'],
+      jorge: ['11','40','22','27','68','59','63','74','16','60','32','05'],
       lina: [],
-      dylan: ['11','43','40','22','59','63','05'],
+      dylan: ['11','40','22','59','63','05'],
       coordinator: ['11']
     },
     starter_maelstrom: {
@@ -1795,7 +1806,34 @@ function aiDeckStrategyBonus(move, deckId) {
   let bonus = 0;
   const cp = G.aiPlayer;
 
-  if(deckId === 'starter_maelstrom') {
+  if(deckId === 'ai_revolutionary_oaf' || deckId === 'ai_black_revolution') {
+    const id=String(move.card?.id || ''), hand=G.players[cp].hand, grave=G.players[cp].discard;
+    const black=deckId === 'ai_black_revolution', future=G.turn<G.maxTurns;
+    if(move.type==='place' || move.type==='consolidate') {
+      if(id==='28' && move.fromDeck)bonus+=900;
+      if(id==='60')bonus+=hand.filter(c=>c.type==='Supporter').length<3?350:150;
+      if(id==='32')bonus+=hand.length<5?260:80;
+      if(!black){
+        if(id==='09')bonus+=300;
+        if(id==='42')bonus+=G.players[cp].deck.length>=3?350:-200;
+        if(id==='08')bonus+=!aiOwnBoardCardsById('21').length && grave.length>=5?650:400;
+        if(id==='21')bonus+=grave.length>=5?400+grave.length*25:-300;
+        if(id==='38')bonus+=aiOwnBoardCardsById('38').length?80:400;
+        if(id==='03')bonus+=Math.max(-250,...['21','38'].flatMap(x=>aiOwnBoardCardsById(x)).filter(e=>e.z===move.z).map(e=>Number(e.card.currentFate||1)*45));
+        if(id==='80')bonus+=aiCountOwnCardsInZone(move.z,c=>['08','13','29','03'].includes(c.id))?250:-250;
+        if(id==='74')bonus+=hand.filter(c=>c.type==='Supporter').length>1?300:40;
+      }else{
+        if(['102','104','105'].includes(id))bonus+=future?400:20;
+        if(id==='50')bonus+=future?360:0;
+        if(id==='16')bonus+=aiCountOpponentCardsInZone(move.z,c=>c.type==='Supporter')?350:-250;
+        if(id==='30')bonus+=G.board[move.z][1].some(c=>c && c.owner!==cp)?350:-300;
+        if(id==='27')bonus+=hand.length<5?340:40;
+        if(id==='58')bonus+=grave.some(c=>c.type==='Supporter' && c.id!=='58')?230:-200;
+      }
+      for(const t of move.tributes || [])if(['21','38','104'].includes(t.card?.id))bonus-=1800;
+    }
+  }
+  else if(deckId === 'starter_maelstrom') {
     // RELENTLESS MAELSTROM: anchor Alondra, recycle disposable supporters, and compound draw/buff engines.
     const safeRow = typeof getSafeRowForPlayer === 'function' ? getSafeRowForPlayer(cp) : (cp === 0 ? 2 : 0);
     let anchorZone=null, anchorValue=-1;
@@ -1921,7 +1959,7 @@ function aiDeckStrategyBonus(move, deckId) {
   else if(deckId === 'starter_assault') {
     // MASS ASSAULT DOCTRINE: expand one safe row, establish Anne, then pack it with scaling supporters.
     const engineIds = ['11','43','59','63'];
-    const disposableSupporters = ['32','42','16','74','68','05'];
+    const disposableSupporters = ['32','60','28','16','74','68','05'];
     const safeRow = typeof getSafeRowForPlayer === 'function' ? getSafeRowForPlayer(cp) : (cp === 0 ? 2 : 0);
     let formationZone = null;
     let formationValue = -1;
@@ -1945,7 +1983,8 @@ function aiDeckStrategyBonus(move, deckId) {
       if(id === '68') bonus += aiOwnBoardCardsById('11').length || G.players[cp].hand.some(c=>c.id === '11') ? 85 : 480;
       if(id === '74') bonus += 245 + (G.players[cp].hand.filter(c=>c.type === 'Supporter').length * 18);
       if(id === '32') bonus += G.players[cp].hand.length <= 5 ? 255 : 120;
-      if(id === '42') bonus += G.players[cp].hand.length <= 5 ? 270 : 105;
+      if(id === '28') bonus += move.fromDeck ? 1200 : 145;
+      if(id === '60' && G.players[cp].deck.some(c=>c.type === 'Supporter')) bonus += G.players[cp].hand.filter(c=>c.type === 'Supporter').length < 3 ? 550 : 280;
       if(id === '16') {
         const opposingSupporters = aiCountOpponentCardsInZone(move.z,c=>c.type === 'Supporter');
         bonus += opposingSupporters ? 190 + opposingSupporters * 75 : -45;

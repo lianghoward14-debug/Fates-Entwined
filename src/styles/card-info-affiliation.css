@@ -1,0 +1,12 @@
+/* Only affiliation pill outlines follow the displayed card, including mini previews. */
+[data-card-affiliation] { --card-pill-color: #c0c4d0; }
+[data-card-affiliation="reality"] { --card-pill-color: #f3d65c; }
+[data-card-affiliation="eventide"] { --card-pill-color: #61d1e8; }
+[data-card-affiliation="third_great_war"] { --card-pill-color: #f58282; }
+[data-card-affiliation="expanded_worlds"] { --card-pill-color: #80dc96; }
+/* ID specificity also overrides older modal themes and per-stat inline colors. */
+:is(#modal, #card-info-affiliation-specificity, .card-info-overlay, .card-hover-preview)
+:is(.cd-pills, .chp-pills)[data-card-affiliation] > :is(.pill, .chp-pill).affiliation {
+  border-color: var(--card-pill-color) !important;
+  color: var(--card-pill-color) !important;
+}

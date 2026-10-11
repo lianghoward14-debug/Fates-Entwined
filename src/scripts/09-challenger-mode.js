@@ -530,13 +530,13 @@ const STARTER_DECKS = [
   {
     id: 'starter_assault',
     name: 'Mass Assault Doctrine',
-    description: 'Build an expanded safe-row formation around Anne Stone, stack supporter auras, and turn repeated draw effects into a sustained mass deployment.',
+    description: 'Deploy the Polish-Lithuanian Army from the deck each turn, use IB Student to refill your supporter hand, and build a formation around Anne Stone and supporter auras.',
     theme: 'Supporters',
     faceCardId: '11',
-    displayCardIds: ['11','43','68','59','63','40','22'],
+    displayCardIds: ['11','28','60','68','59','63','40','22'],
     ids: [
       '05','05','05','11','11','11','68','68','68','27','27','27',
-      '32','32','32','42','42','42','16','16','16','43','43','43',
+      '32','32','32','60','60','60','16','16','16','28','28','28',
       '74','74','74','40','40','40','22','22','22','63','63','63',
       '59','59','59','06'
     ]
@@ -544,6 +544,8 @@ const STARTER_DECKS = [
 ];
 
 const AI_ONLY_RANDOM_DECKS = [
+{"id":"ai_revolutionary_oaf","baseStrategy":"ai_revolutionary_oaf","name":"The Revolutionary and the Oaf","description":"Custom deck","theme":"AI Only","faceCardId":"21","displayCardIds":["21","03","42","74"],"sourcePublicDeckId":"nNbfvYwsoDfnvTHQhK4lwN5a2B22_1791694365696","ids":["21","21","03","42","42","42","74","74","74","bh24","bh24","bh24","38","38","08","08","08","29","29","09","09","09","13","13","13","32","32","32","80","80","80","28","28","28","60","60","60","98","98","98"],"enabled":true},
+{"id":"ai_black_revolution","baseStrategy":"ai_black_revolution","name":"The Black Revolution","description":"Peace is complicity, change only comes with daring endeavors","theme":"AI Only","faceCardId":"102","displayCardIds":["16","30","102","104"],"sourcePublicDeckId":"nNbfvYwsoDfnvTHQhK4lwN5a2B22_1791693555279","ids":["28","28","28","16","16","16","30","30","30","102","102","102","60","60","60","104","104","104","105","105","105","27","27","27","58","58","58","98","98","98","97","97","97","bh05","50","50","50","76","76","76"],"enabled":true},
 {"id":"ai_sunset_great_lakes","name":"Sunset over the Great Lakes","faceCardId":"45","sourcePublicDeckId":"nNbfvYwsoDfnvTHQhK4lwN5a2B22_1789191956232","ids":["30","30","30","45","45","45","16","16","16","63","63","63","76","76","76","40","40","40","bh22","bh22","bh22","09","09","09","bh05","60","60","60","28","28","28","32","32","32","58","58","58","33","33","33"],"baseStrategy":"ai_sunset_great_lakes","enabled":true,"theme":"AI Only","displayCardIds":["45"]},
 {"id":"ai_sad_tale","name":"The Sad Tale of a Fat Man","faceCardId":"bh17","sourcePublicDeckId":"nNbfvYwsoDfnvTHQhK4lwN5a2B22_1789191913167","ids":["82","91","bh17","bh17","bh17","07","48","48","48","27","27","27","60","60","60","28","28","28","09","09","09","98","98","98","75","75","75","32","32","32","74","43","43","43","66","66","66","04","04","04"],"baseStrategy":"ai_sad_tale","enabled":true,"theme":"AI Only","displayCardIds":["bh17"]},
   {

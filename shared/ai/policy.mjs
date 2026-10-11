@@ -8,11 +8,17 @@ import {reviewPass} from './pass-review.mjs';
 import {searchBudget} from './search-budget.mjs';
 import {recruitmentContext} from './recruitment-context.mjs';
 import {assessRecruitment} from './recruitment-timing.mjs';
+import {isOktaiConcealed,planConcealedDecision} from './oktai-concealment.mjs';
 
 export function planDecision(commands,projection,context={}){
   const state=context.canonicalState;
   const player=Number(context.playerIndex ?? projection?.activePlayer ?? 0);
   if(!state)return null;
+  if(isOktaiConcealed(state,player)){
+    const plan=planConcealedDecision(commands,state,player);
+    if(plan)context.onDecision?.(plan.trace);
+    return plan;
+  }
   const personality=personalityFor(context.style || context.personality);
   const integer=(value,fallback,min,max)=>Number.isFinite(Number(value))?Math.max(min,Math.min(max,Math.floor(Number(value)))):fallback;
   const samples=integer(context.samples,context.difficulty==='easy'?2:3,1,8);
@@ -105,6 +111,13 @@ export function planDecision(commands,projection,context={}){
 
 export function chooseCommand(commands,projection,context={}){
   const targetingState=context.canonicalState || projection;
+  const concealedPlayer=Number(context.playerIndex ?? projection?.activePlayer ?? 0);
+  if(isOktaiConcealed(targetingState,concealedPlayer)){
+    if(context.planCache)context.planCache.sequence=[];
+    const plan=planConcealedDecision(commands,targetingState,concealedPlayer);
+    if(plan)context.onDecision?.(plan.trace);
+    return plan?.command || null;
+  }
   if(targetingState?.board)commands=filterAiTargets(commands,targetingState,Number(context.playerIndex ?? projection?.activePlayer ?? 0));
   const actor=Number(context.playerIndex ?? projection?.activePlayer ?? 0);
   if(targetingState?.board && !targetingState.pendingPrompt && !targetingState.pendingHandLimit

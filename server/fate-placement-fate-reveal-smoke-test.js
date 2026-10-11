@@ -25,7 +25,7 @@ assert.match(
 );
 assert.match(
   core,
-  /case '76':[\s\S]{0,500}playAlpineInfantryFateGainSound\(inst, 340\)/,
+  /case '76':[\s\S]{0,500}playAlpineInfantryFateGainSound\(inst, 100\)/,
   'singleplayer ALPINE Infantry must explicitly schedule its Fate-gain sound'
 );
 assert.match(
@@ -139,3 +139,4 @@ prepareRuntime.preparePlacementFateReveal(handBoostResult, {id:'35', fate:8, cur
 assert.strictEqual(handBoostResult._placementFateReveal.fromValue, 8, 'bonuses already visible in hand must animate from printed Fate on placement');
 
 console.log('Placement Fate reveal smoke test passed.');
+

@@ -1731,6 +1731,7 @@
     let until = Math.max(0, Number(existingUntil) || 0);
     if(!until) {
       let settleMs = 340;
+      if(String(card && card.id || '') === '76' && typeof G !== 'undefined' && G && !G._onlineRoomCode && !G._phase7CurrentMultiplayer) settleMs = 100;
       if(mode === 'consolidation' && !isFaceDown) {
         let cinematicMs = 3260;
         try {

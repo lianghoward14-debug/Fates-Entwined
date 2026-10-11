@@ -557,10 +557,11 @@ function openDeckBuilderCardDetail(card) {
           ${voiceButton}
         </div>
         <div class="cd-ability">${card.ability}</div>
-        <div class="cd-pills">
+        <div class="cd-pills" data-card-affiliation="${escapeHtml(card.aff || 'neutral')}">
           <span class="pill type">${card.type}${card.cost>0?` (${card.xCost?'X':card.cost})`:''}</span>
           <span class="pill fate">${typeof getPrintedFateLabel === 'function' ? getPrintedFateLabel(card) : (card.xFate ? 'X' : card.fate)} Fate</span>
-          <span class="pill">${AFF_LABEL[card.aff]||card.aff}</span>
+          <span class="pill affiliation">${AFF_LABEL[card.aff]||card.aff}</span>
+          <span class="pill rarity">${getCardRarityLabel(card.rarity)}</span>
           <span class="pill" style="border-color:var(--gold);color:var(--gold)">In deck: ${inDeckCount}</span>
         </div>
         <div class="cd-eff">${typeof escapeHtml === 'function' ? escapeHtml(String(card.effect || '')) : String(card.effect || '')}</div>

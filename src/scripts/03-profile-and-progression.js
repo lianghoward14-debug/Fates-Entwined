@@ -1467,7 +1467,11 @@ function getDeckThemeOptions(){
     'Morale Sustain',
     'Morale Damage',
     'Morale Resource',
-    'Early Pressure'
+    'Early Pressure',
+    'Discard',
+    'Call to Arms',
+    'Hand Denial',
+    'Late Game'
   ];
 }
 

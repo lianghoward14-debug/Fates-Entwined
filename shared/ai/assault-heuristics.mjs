@@ -7,7 +7,7 @@ export function createAssaultPrior(state,player,entries,cards){
   const owner=state.players[player];
   const own=entries.filter(e=>controllerOf(e.card)===player);
   const ids=new Set([...own.map(e=>e.card),...(owner.hand || []),...(owner.deck || []),...(owner.discard || [])].map(c=>c.id));
-  if(!['11','43','40','63','59'].every(id=>ids.has(id)))return ()=>0;
+  if(!['11','40','63','59'].every(id=>ids.has(id)))return ()=>0;
   const hand=owner.hand || [];
   const prompt=state.pendingPrompt,source=cards.get(prompt?.sourceIid);
   const active=e=>!e.card.faceDown && !e.card.statuses?.includes('EFFECTS_SUPPRESSED');
@@ -23,6 +23,9 @@ export function createAssaultPrior(state,player,entries,cards){
     if(c.id==='63')return own.some(e=>e.card.id==='63')?6:3;
     if(c.id==='32' || c.id==='27')return hand.length<5?6:2;
     if(c.id==='16')return entries.some(e=>controllerOf(e.card)!==player && e.card.type==='Supporter')?5:0;
+    if(c.id==='60')return (owner.deck || []).some(c=>c.type==='Supporter' && c.id!=='28')?8:0;
+    // Army copies deploy directly; leave them in the deck when tutoring.
+    if(c.id==='28')return -12;
     if(c.id==='43')return 1;
     return 0;
   }
@@ -31,7 +34,7 @@ export function createAssaultPrior(state,player,entries,cards){
     const card=cards.get(p.cardIid || p.sourceIid);
     const selected=(p.selectedIids || (p.selectedIid?[p.selectedIid]:[])).map(i=>cards.get(i)).filter(Boolean);
     let score=0;
-    if(prompt?.type==='CARD_SELECTION' && ['68','06'].includes(source?.id)){
+    if(prompt?.type==='CARD_SELECTION' && ['68','06','60'].includes(source?.id)){
       score+=selected.reduce((sum,c)=>sum+access(c),0);
     }
     if(prompt?.type==='HAND_SELECTION' && source?.id==='42'){
@@ -43,6 +46,8 @@ export function createAssaultPrior(state,player,entries,cards){
         if(['43','40'].includes(c.id) && own.some(e=>e.card.id===c.id))score+=3;
       }
     }
+    if(command.type==='SET_CARD_FROM_DECK' && card?.id==='28')score+=40;
+    if(command.type==='SET_CARD' && card?.id==='60')score+=access(card);
     if(p.destination){
       const z=Number(p.destination.z),tributes=new Set(p.tributeIids || []);
       const survivors=own.filter(e=>e.z===z && !tributes.has(e.card.iid));

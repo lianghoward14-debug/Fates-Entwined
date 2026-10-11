@@ -614,7 +614,7 @@
     if(type === 'MOVE_CARD' || type === 'SWAP_CARDS') return 240;
     if(type === 'RETURN_TO_HAND') return 520;
     if(type === 'DISCARD_CARD' || type === 'HAND_DISCARD') return 1500;
-    if(type === 'DESTROY_CARD') return 520;
+    if(type === 'DESTROY_CARD') return p.blackRoseBomb ? Math.max(0, Number(p.bombHoldMs) || 0) + 915 : 520;
     if(type === 'FATE_GAIN' || type === 'FATE_LOSS') return 260;
     if(type === 'CARD_FLIP') return Math.max(950, Number(p.duration) || 950) + 34;
     if(type === 'CARD_REVEAL') return 660;

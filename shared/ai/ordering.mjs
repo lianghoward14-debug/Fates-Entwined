@@ -1,3 +1,4 @@
+import {createRevolutionPrior} from './revolution-heuristics.mjs';
 import {createLakesMomentumPrior} from './lakes-momentum-heuristics.mjs';
 import {boardEntries,controllerOf} from '../engine/selectors.mjs';
 import {zoneScore} from '../engine/scoring.mjs';
@@ -39,6 +40,7 @@ export function createCommandOrderer(state,player,personality='balanced'){
   const comboPlanPrior=createComboPlanPrior(state,player);
   const deckPreservationPrior=createDeckPreservationPrior(state,player,entries,cards);
   const archiveExpansionPrior=createArchiveExpansionPrior(state,player,entries,cards);
+  const revolutionPrior=createRevolutionPrior(state,player);
   const lakesMomentumPrior=createLakesMomentumPrior(state,player);
   let supportCompanyPrior;
   const values=new Map();
@@ -81,7 +83,7 @@ export function createCommandOrderer(state,player,personality='balanced'){
       // merely because the discarded card has powerful operation tags.
       return -8-departureValue([p.targetIid || p.sourceIid])+deckPreservationPrior(command)+contestedCommandDelta(state,player,command,cards);
     }
-    let score=lakesMomentumPrior(command)+value(card)+incelPrior(command)+assaultPrior(command)+freeWorldPrior(command)+majaPrior(command)+timePrior(command)+patiencePrior(command)+wintertidePrior(command)+endlessSeaPrior(command)+publicComboPrior(command)+archiveExpansionPrior(command)+comboPlanPrior(command)+deckPreservationPrior(command);
+    let score=revolutionPrior(command)+lakesMomentumPrior(command)+value(card)+incelPrior(command)+assaultPrior(command)+freeWorldPrior(command)+majaPrior(command)+timePrior(command)+patiencePrior(command)+wintertidePrior(command)+endlessSeaPrior(command)+publicComboPrior(command)+archiveExpansionPrior(command)+comboPlanPrior(command)+deckPreservationPrior(command);
     if(command.type==='ACTIVATE_EFFECT' && card){
       // Explore live draw/search actions before dismissing the source as a
       // low-Fate body. Copied effects inherit the runtime rule's operations.

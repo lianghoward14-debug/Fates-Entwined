@@ -15510,6 +15510,9 @@ html body #modal .modal.cdb-save-modal .deck-theme-field{
   overflow:visible!important;
   transform:translateX(-5px)!important;
 }
+html body #modal .modal.cdb-save-modal .deck-theme-field{
+  transform:translateX(0)!important;
+}
 html body #modal .modal.cdb-save-modal .cdb-save-top,
 html body #modal .modal.cdb-save-modal .cdb-save-form,
 html body #modal .modal.cdb-save-modal .deck-theme-field,

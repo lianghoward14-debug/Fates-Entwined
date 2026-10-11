@@ -1,3 +1,4 @@
+import {serveGame} from './game-static.mjs';
 import crypto from 'node:crypto';
 import {createDeltaEncoder} from '../../shared/multiplayer-delta.mjs';
 import {normalizeMultiplayerPhoto} from '../../shared/profile-photo.mjs';
@@ -938,6 +939,7 @@ const server = http.createServer(async (req, res)=>{
       writeJson(res, 200, {ok:true, ...actor.snapshotForPlayer(Number(credential.seat))});
       return;
     }
+    if(await serveGame(req, res, url.pathname)) return;
     writeJson(res, 404, {ok:false, error:'not found'});
   }catch(error){
     writeJson(res, 400, {ok:false, error:String(error.message || error)});

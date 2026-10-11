@@ -535,7 +535,7 @@
         return ['screenShake', 'screenFlash'].indexOf(p.kind) < 0;
       }).map(function(p){
         const next = Object.assign({}, p);
-        if(next.kind === 'cardMove') {
+        if(next.kind === 'cardMove' && !next.stationaryHold) {
           next.arc = 0;
           next.lift = Math.min(.16, Number(next.lift) || .16);
           next.duration = Math.min(Number(next.duration) || 320, 320);

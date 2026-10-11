@@ -474,6 +474,7 @@
     const from = payloadRect(p, ['fromRect', 'sourceRect', 'targetRect']);
     const to = payloadRect(p, ['toRect', 'discardRect']) || from;
     if(p.blackRoseBomb && from){
+      const holdMs = Math.max(0, Number(p.bombHoldMs) || 0);
       // Give the bomb its own readable silhouette: a short blast recoil, then
       // a long lateral launch that remains opaque until it clears the board.
       const direction = center(from).x < (window.innerWidth || 1920) * .5 ? 1 : -1;
@@ -483,8 +484,9 @@
         y: Math.max(-from.h * .35, from.y - Math.max(250, (window.innerHeight || 1080) * .30))
       });
       return [
-        cardMove({iid:p.iid, card:p.card, fromRect:from, toRect:recoil, startOffset:0, duration:170, easing:'out-quint', path:'direct', rotate:-direction * 12, bank:-direction * 7, scale:1.11, launchSquash:.04, noShadow:false, priority:'high'}),
-        cardMove({iid:p.iid, card:p.card, fromRect:recoil, toRect:offscreen, startOffset:125, duration:790, easing:'in-cubic', path:'s-curve', arc:.56, lift:.42, sideArc:-direction * .18, startRotate:-direction * 12, rotate:direction * 1080, bank:direction * 18, scale:.88, fadeOut:true, noShadow:false, keepInFrame:false, priority:'high'})
+        ...(holdMs ? [cardMove({iid:p.iid, card:p.card, faceDown:p.card?.faceDown === true, fromRect:from, toRect:from, startOffset:0, duration:holdMs, stationaryHold:true, path:'direct', arc:0, lift:0, rotate:0, bank:0, scale:1, overshoot:0, launchSquash:0, landSquash:0, wobble:0, settleMs:0, noShadow:true, priority:'high'})] : []),
+        cardMove({iid:p.iid, card:p.card, fromRect:from, toRect:recoil, startOffset:holdMs, duration:170, easing:'out-quint', path:'direct', rotate:-direction * 12, bank:-direction * 7, scale:1.11, launchSquash:.04, noShadow:false, priority:'high'}),
+        cardMove({iid:p.iid, card:p.card, fromRect:recoil, toRect:offscreen, startOffset:holdMs+125, duration:790, easing:'in-cubic', path:'s-curve', arc:.56, lift:.42, sideArc:-direction * .18, startRotate:-direction * 12, rotate:direction * 1080, bank:direction * 18, scale:.88, fadeOut:true, noShadow:false, keepInFrame:false, priority:'high'})
       ];
     }
     const recoil = from ? offsetRect(from, 0, -Math.max(12, from.h * .12)) : from;

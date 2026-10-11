@@ -18,3 +18,23 @@ COPY src/scripts/09-challenger-mode.js ./src/scripts/09-challenger-mode.js
 EXPOSE 8787
 
 CMD ["node", "server/authoritative-v3/phase7-beta-server.mjs"]
+
+ENV FATE_WEBSITE_DIR=/app/public
+COPY index.html manifest.json pwa-icon.svg sw.js voicelines.txt /app/public/
+COPY *.png /app/public/
+COPY src /app/public/src
+COPY shared /app/public/shared
+COPY optimized /app/public/optimized
+COPY titlscreenbackgrounds /app/public/titlscreenbackgrounds
+COPY ingamebackgrouds /app/public/ingamebackgrouds
+COPY igb17 /app/public/igb17
+COPY setvoicelines /app/public/setvoicelines
+COPY ["new voices", "/app/public/new voices"]
+COPY soundeffects /app/public/soundeffects
+COPY afficon /app/public/afficon
+COPY aiicons /app/public/aiicons
+COPY rankicons /app/public/rankicons
+COPY pfp /app/public/pfp
+COPY UIpictures /app/public/UIpictures
+COPY assets /app/public/assets
+COPY *.mp3 /app/public/

@@ -1,3 +1,4 @@
+import {revolutionFutureValue} from './revolution-heuristics.mjs';
 import {boardEntries, controllerOf} from '../engine/selectors.mjs';
 import {zoneScore} from '../engine/scoring.mjs';
 import {canUseAsConsolidationTribute,runtimeRuleId,isEffectSourceSuppressed} from '../engine/modifiers.mjs';
@@ -86,6 +87,7 @@ export function evaluatePosition(state, player, preferences=personalityFor()) {
   score+=(ownAccess.interaction-enemyAccess.interaction)*preferences.disruption;
   score+=(ownAccess.readiness-enemyAccess.readiness)*preferences.development;
   score-=(ownAccess.congestion-enemyAccess.congestion)*preferences.resources;
+  score+=(revolutionFutureValue(state,player)-revolutionFutureValue(state,opponent))*preferences.development;
   const entries=boardEntries(state);
   score+=(majaResponsePotential(state,player,entries)-majaResponsePotential(state,opponent,entries))*preferences.disruption;
   for(const entry of entries){

@@ -683,7 +683,12 @@ function playBlackRoseArmingSound(){
   if(typeof playSfx==='function') playSfx('blackRoseArm');
 }
 
-function playBlackRoseExplosion(z,r,c){
+function playBlackRoseExplosion(z,r,c,delayMs){
+  if(Number(delayMs)>0){
+    const game=typeof G!=='undefined'?G:null;
+    setTimeout(()=>{if(!game || G===game)playBlackRoseExplosion(z,r,c);},Number(delayMs));
+    return;
+  }
   const canvasRect=window.FateMatchRendererAdapter?.getSquareViewportRect?.(z,r,c);
   const cell=document.querySelector('.cell[data-z="'+z+'"][data-r="'+r+'"][data-c="'+c+'"]');
   const rect=canvasRect || cell?.getBoundingClientRect();
@@ -698,11 +703,11 @@ function resolveBlackRoseBombAt(card,z,r,c,player){
   if(!traps.length)return false;
   const trap=traps[0];
   G.blockedCells=G.blockedCells.filter(b=>b!==trap);
-  window.FateV2CardMotionFx?.flyBoardCard?.(card,z,r,c,'destroy',{suppressMotionAudio:true,blackRoseBomb:true});
+  window.FateV2CardMotionFx?.flyBoardCard?.(card,z,r,c,'destroy',{suppressMotionAudio:true,blackRoseBomb:true,bombHoldMs:1000});
   if(G.board?.[z]?.[r]?.[c]===card)G.board[z][r][c]=null;
   card._blackRoseBombed=true;
   if(typeof fatePushDiscard==='function')fatePushDiscard(player,card,{animate:false,sound:false,sourceLocation:{zone:'board',z,r,c}});else G.players[player].discard.push(card);
-  playBlackRoseExplosion(z,r,c);
+  playBlackRoseExplosion(z,r,c,1000);
   toast('The Black Rose exploded! '+(card.name||'The placed card')+' was discarded before its effect activated.');
   return true;
 }
@@ -8276,7 +8281,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       if(typeof applyPermanentEffectImmunity === 'function') applyPermanentEffectImmunity(inst);
       inst._suppressNextFatePulse = true;
       inst.currentFate = (typeof getPlacedCardFate === 'function' ? getPlacedCardFate(inst) : 1) + 5;
-      playAlpineInfantryFateGainSound(inst, 340);
+      playAlpineInfantryFateGainSound(inst, 100);
       inst.immuneFlag = true;
       inst.noBonus = true;
       inst.noConsolidate = true;
