@@ -5822,7 +5822,9 @@ function finalizeConsolidate(card, tributes, targetIdx, conContext) {
     const actionPresenter = window.FateActionPresentation;
     if(!tributes.length){
       commitConsolidationAfterPresentation(null, 0);
-      window.FateSquareFeedbackFx?.playSet({z:targetZ, r:targetR, c:targetC}, inst, 'hammer-lock');
+      if(!(typeof isFishCounter === 'function' && isFishCounter(inst))){
+        window.FateSquareFeedbackFx?.playSet({z:targetZ, r:targetR, c:targetC}, inst, 'hammer-lock');
+      }
       return;
     }
     if(actionPresenter && typeof actionPresenter.beginConsolidation === 'function'){
@@ -11820,7 +11822,7 @@ function checkWin() {
 // Vigilantes (52): mark an opponent card in this zone for a hand discard on departure.
 async function activateVigilantes(card, z, r, c, options) {
   options = options || {};
-  const cp = G.currentPlayer;
+  const cp = Number(card.controller ?? card.owner ?? G.currentPlayer);
   const opp = 1 - cp;
   const allowed = options.activationAlreadyCounted === true
     ? true
@@ -11833,8 +11835,9 @@ async function activateVigilantes(card, z, r, c, options) {
     return;
   }
   if(typeof showEffectActivationGlow === 'function') showEffectActivationGlow(z, r, c, card);
-  pickCardInZone(z,'Vigilantes: select an opponent card in this zone to mark.',(tgt)=>{
-    if(tgt.owner !== opp){toast('Must select an opponent card');return;}
+  const eligible = cell=>!!cell && Number(cell.controller ?? cell.owner) === opp && !(typeof isTargetImmuneToEffectOwner === 'function' ? isTargetImmuneToEffectOwner(cell, cp) : (typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(cell)));
+  const markTarget = (tgt)=>{
+    if(Number(tgt.controller ?? tgt.owner) !== opp){toast('Must select an opponent card');return;}
     if(typeof isTargetImmuneToEffectOwner === 'function' ? isTargetImmuneToEffectOwner(tgt, cp) : (typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(tgt) : (tgt.immuneFlag || tgt.id==='76'))){showBlockedAnimation('this card is immune');return;}
     markCardForVigilantes(tgt, card, cp);
     card.vigilanteUsed = true;
@@ -11844,7 +11847,18 @@ async function activateVigilantes(card, z, r, c, options) {
     log(cp===0?'p1':'p2', 'Vigilantes marked '+tgt.name+' for death in Zone '+(z+1));
     playSfx('effect');
     renderEffectResolutionForPlayer(cp, {hand:false});
-  }, function(cell){ return !!cell && cell.owner === opp && !(typeof isTargetImmuneToEffectOwner === 'function' ? isTargetImmuneToEffectOwner(cell, cp) : (typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(cell))); }, null, card);
+  };
+  if(G.aiEnabled && cp === Number(G.aiPlayer)){
+    const targets=(G.board[z] || []).flat().filter(eligible);
+    targets.sort((a,b)=>Number(b.currentFate ?? b.fate ?? 0)-Number(a.currentFate ?? a.fate ?? 0));
+    if(targets.length) markTarget(targets[0]);
+    else {
+      card.vigilanteUsed=true;card.whenSetActivated=true;card.effectUsedInitial=true;
+      renderEffectResolutionForPlayer(cp,{hand:false});
+    }
+    return;
+  }
+  pickCardInZone(z,'Vigilantes: select an opponent card in this zone to mark.',markTarget,eligible,null,card);
 }
 
 

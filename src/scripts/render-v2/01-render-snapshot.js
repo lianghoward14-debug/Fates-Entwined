@@ -340,7 +340,8 @@
     const p = g.players && g.players[player] ? g.players[player] : {};
     const isViewer = player === viewer;
     const hand = Array.isArray(p.hand) ? p.hand.filter(function(card){ return !(card && card._drawPresentationPending) && !window.isSebastianFishHidden?.(card); }) : [];
-    const handCards = hand.map(function(card, index){
+    const handCards = hand.map(function(card){
+      const index = p.hand.indexOf(card);
       const revealed = isViewer || canRevealHandCard(g, card);
       return revealed
         ? Object.assign({index, revealed:true}, cardPublicState(card, viewer, {forceHidden:false}))

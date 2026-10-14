@@ -15,11 +15,25 @@
   };
   const pending=[];
   const pendingFish=[];
+  const presentedFishKeys=new Set();
   const hiddenFish=new Set();
   window.holdSebastianFishCards=iids=>{for(const iid of iids||[])hiddenFish.add(String(iid));};
   window.isSebastianFishHidden=card=>hiddenFish.has(String(card?.iid));
-  window.queueSebastianFishOverlay=(card,key,iids=[])=>{if(card){window.holdSebastianFishCards(iids);pendingFish.push({card,key,iids});}};
+  window.queueSebastianFishOverlay=(card,key,iids=[])=>{
+    if(!card)return false;
+    const normalizedKey=String(key||'');
+    if(normalizedKey&&(presentedFishKeys.has(normalizedKey)||pendingFish.some(item=>String(item.key||'')===normalizedKey)))return false;
+    window.holdSebastianFishCards(iids);
+    pendingFish.push({card,key:normalizedKey,iids});
+    return true;
+  };
   window.presentSebastianFishAfterResolution=async function(card,key,iids=[]){
+    const normalizedKey=String(key||'');
+    if(normalizedKey&&presentedFishKeys.has(normalizedKey))return false;
+    if(normalizedKey){
+      presentedFishKeys.add(normalizedKey);
+      if(presentedFishKeys.size>160)presentedFishKeys.delete(presentedFishKeys.values().next().value);
+    }
     window.holdSebastianFishCards(iids);
     // Pickers can hand off to another picker after their closing animation.
     // Keep both the effect and the new hand card hidden throughout that handoff.
@@ -36,8 +50,14 @@
       await new Promise(resolve=>setTimeout(resolve,50));
     }
     for(const iid of iids)hiddenFish.delete(String(iid));
-    window.flashCardEffect?.(card,'sebastian_fish',{label:'Fishmonger',soundKey:key,onlineRemote:true});
     window.renderGame?.({board:true,hand:true,oppHand:true});
+    await new Promise(resolve=>{
+      if(typeof requestAnimationFrame==='function')requestAnimationFrame(resolve);
+      else setTimeout(resolve,0);
+    });
+    window.flashCardEffect?.(card,'sebastian_fish',{label:'Fishmonger',soundKey:normalizedKey,onlineRemote:true});
+    window.renderGame?.({board:true,hand:true,oppHand:true});
+    return true;
   };
   window.flushSebastianFishOverlays=async function(state){
     if(state?.pendingPrompt || state?.pendingHandLimit || state?.effectStack?.length)return;
@@ -96,7 +116,10 @@
     scene.innerHTML='<div style="position:relative;width:min(700px,100vw);height:390px"><canvas role="img" style="width:100%;height:390px"></canvas><div style="position:absolute;top:26px;left:0;right:0;text-align:center;letter-spacing:.15em">DON JULIO</div><output aria-live="polite" style="position:absolute;top:342px;left:0;right:0;text-align:center;font-size:27px;color:#fff3d3"></output></div>';
     document.body.appendChild(scene);
     window.playDonJulioDiceSfx?.('enter');
-    const impactTimers=[180,510,880,1240,1580,1920].map((delay,index)=>setTimeout(()=>window.playDonJulioDiceSfx?.('impact',index),delay));
+    // The die touches the floor when |sin(t * 3π)| returns to zero: at one
+    // third and two thirds of the 2.1-second tumble. The final contact is the
+    // dedicated landing cue fired by the animation frame below.
+    const impactTimers=[700,1400].map((delay,index)=>setTimeout(()=>window.playDonJulioDiceSfx?.('impact',index),delay));
     const canvas=scene.querySelector('canvas'),ctx=canvas.getContext('2d'),out=scene.querySelector('output');
     if(!ctx){impactTimers.forEach(clearTimeout);scene.remove();resolve(false);return;}
     const dots=[[4],[0,8],[0,4,8],[0,2,6,8],[0,2,4,6,8],[0,2,3,5,6,8]],W=canvas.clientWidth;

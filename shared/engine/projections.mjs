@@ -4,6 +4,14 @@ import {zoneScore} from './scoring.mjs';
 import {flowerPickingStatus} from './cards/flower-picking.mjs';
 
 function flowerPickingProjection(state, card){
+  if(String(card.id) === '115'){
+    const counts = new Map();
+    for(const original of state.players[Number(card.controller ?? card.owner)]?.originalDeck || []){
+      const affiliation = original.affiliation || original.aff;
+      if(affiliation) counts.set(affiliation, (counts.get(affiliation) || 0) + 1);
+    }
+    return {loyalistEligible:[...counts.values()].some(count=>count >= 30)};
+  }
   return String(card.id) === '84' ? {flowerPickingStatus:flowerPickingStatus(state, card)} : {};
 }
 

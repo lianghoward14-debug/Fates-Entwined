@@ -2128,7 +2128,7 @@ function showLandscapeChoiceModal(page, onChoose, promptState) {
   const choiceState = promptState || {committed:false};
   const entries = Object.keys(LANDSCAPES || {}).sort(function(a,b){
     return (parseInt(a.replace('igb',''),10)||0) - (parseInt(b.replace('igb',''),10)||0);
-  }).map(function(id){
+  }).filter(id=>!Array.isArray(choiceState.allowedLandscapeIds) || choiceState.allowedLandscapeIds.includes(id)).map(function(id){
     const n = Math.max(1, Math.min(24, parseInt(id.replace('igb',''), 10) || 1));
     return {
       id:id,
@@ -4575,7 +4575,8 @@ function renderHand() {
     if(child && child.dataset && child.dataset.iid) existingByIid.set(child.dataset.iid, child);
   });
   const frag = document.createDocumentFragment();
-  hand.forEach((card,i)=>{
+  hand.forEach((card)=>{
+    const i = G.players[cp].hand.indexOf(card);
     const iidKey = String(card.iid);
     let el = existingByIid.get(iidKey);
     if(!el) el = document.createElement('div');
@@ -7182,6 +7183,23 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
       ? Math.max(0,Number(getWhisperAuraPotencyBoost({card:card,z:sourcePos.z,r:sourcePos.r,c:sourcePos.c}))||0) : 0;
     value='Aura: +'+(tier+boost)+' Fate';
     sub='Next Tier in '+untilNext+' Turn'+(untilNext===1?'':'s');
+  } else if(trackerId==='115'){
+    label='Loyalist Call';
+    let eligible=card.loyalistEligible;
+    if(typeof eligible !== 'boolean' && !G._phase7CurrentMultiplayer){
+      const original=G.players[owner].originalDeckIds || (owner===0 ? G.p1Deck : G.p2Deck);
+      if(Array.isArray(original)){
+        const counts=new Map();
+        for(const entry of original){
+          const definition=typeof entry==='object' ? entry : CARDS.find(candidate=>candidate.id===String(entry));
+          const affiliation=definition?.affiliation || definition?.aff;
+          if(affiliation) counts.set(affiliation,(counts.get(affiliation)||0)+1);
+        }
+        eligible=[...counts.values()].some(count=>count>=30);
+      }
+    }
+    value=typeof eligible==='boolean' ? (eligible?'Deck eligible':'Deck not eligible') : 'Eligibility unavailable';
+    sub='30 or more cards in the original deck must share an affiliation';
   } else if(trackerId==='84'){
     label='Flower Picking';
     if(G._onlineRoomCode || G._phase7CurrentMultiplayer){

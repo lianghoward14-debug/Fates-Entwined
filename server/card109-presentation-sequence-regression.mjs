@@ -18,7 +18,7 @@ for(const viewer of [0,1]){
  predecessor=false;timers.shift().fn();await settle();assert.deepEqual(order,['dice-start','enter']);assert(runtime.window.donJulioDiceBusy);
  assert.equal(runtime.window.donJulioHeldFate('julio'),2);
  let prevented=0;for(const type of ['click','keydown'])listeners[type]({preventDefault(){prevented++},stopImmediatePropagation(){prevented++}});assert.equal(prevented,4);
- for(const timer of timers.splice(0))timer.fn();assert.equal(order.filter(x=>x==='impact').length,6);
+ for(const timer of timers.splice(0))timer.fn();assert.equal(order.filter(x=>x==='impact').length,2);
  frame(2200);assert.equal(order.at(-1),'land');assert(!order.includes('fate-gain'));
  timers.find(t=>t.ms===900).fn();await done;
  assert.equal(runtime.window.donJulioDiceBusy,false);assert.deepEqual(order.slice(-3),['exit','dice-end','fate-gain']);

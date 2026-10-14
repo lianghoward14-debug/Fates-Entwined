@@ -3398,7 +3398,7 @@
       // from adding one removed/immutable Character for a frame or longer.
       next._phase7RozsiYouthCharacterCount = projectedCharacterCount;
     }
-    if(card.counters?.fishCounter === true){
+    if(card.counters?.fishCounter === true || card.fishCounter === true || String(card.id) === 'token-fish'){
       Object.assign(next,{fishCounter:true,token:true,img:'token-fish.svg',type:'Counter',cost:0,ability:'Fresh Catch',effect:'Counts as 0.5 Reinforcement. Can be set for free.'});
     }
     if(card.counters?.whisperLandscapeToken === true || String(card.id || '') === 'whisper17'){
@@ -5158,7 +5158,7 @@
     }
     const sourceId = String(phase7FindAnyCard(prompt?.sourceIid)?.id || '');
     if(['51','66','77','90'].includes(sourceId) && modal.querySelector('.aff-pick-square[data-aff]')) return true;
-    if(sourceId === '82' && modal.querySelector('.landscape-choice-card[data-landscape-id]')) return true;
+    if(prompt?.options?.length && prompt.options.every(option=>/^igb\d+$/.test(String(option.value))) && modal.querySelector('.landscape-choice-card[data-landscape-id]')) return true;
     if(sourceId === 'bh04' && modal.querySelector('.bh04-type-choice[data-bh04-type]')) return true;
     if(sourceId === 'bh14' && modal.querySelector('.bh14-charter-choice[data-bh14-type]')) return true;
     if(prompt?.type === 'ZONE_SELECTION' && modal.querySelector('.zone-picker-tile[data-zone]')) return true;
@@ -5428,12 +5428,13 @@
       bindAffiliationButtons(0);
       return;
     }
-    if(prompt?.type === 'MODAL_CHOICE' && sourceId === '82'
+    if(prompt?.type === 'MODAL_CHOICE' && prompt.options?.length
+      && prompt.options.every(option=>/^igb\d+$/.test(String(option.value)))
       && typeof window.showLandscapeChoiceModal === 'function'){
       withOnlinePromptBypass(gameState(), function(){
         window.showLandscapeChoiceModal(0, function(_song, _landscape, landscapeNumber){
           submitChoice('igb' + Number(landscapeNumber), 'choice');
-        }, {sourceCard:source, allowCancel:false});
+        }, {sourceCard:source, allowCancel:false, allowedLandscapeIds:choices.map(command=>String(command.payload.choice))});
       });
       // Preserve the single-player landscape picker, while exposing the exact
       // authoritative option represented by each visual card. This is the
@@ -6324,7 +6325,8 @@
       const projected = phase7FindProjectedEntry(view, event.cardIid);
       const card = projected?.card;
       const destination = event?.destination || projected;
-      if(!card || card.faceDown === true || !window.FateSquareFeedbackFx?.playSet) continue;
+      const fishCounter = !!card && (card.fishCounter === true || card.counters?.fishCounter === true || String(card.id || '') === 'token-fish');
+      if(!card || card.faceDown === true || fishCounter || !window.FateSquareFeedbackFx?.playSet) continue;
       const shown = window.FateSquareFeedbackFx.playSet({
         z:Number(destination?.z), r:Number(destination?.r), c:Number(destination?.c)
       }, card);
@@ -6378,14 +6380,16 @@
       const token = phase7IsTokenCard(card);
       const supporter = String(card.type || '') === 'Supporter';
       if(token || supporter){
-        if(typeof window.playCardSetAudio === 'function') window.playCardSetAudio(card);
+        const fishCounter = card.fishCounter === true || card.counters?.fishCounter === true || String(card.id || '') === 'token-fish';
+        if(!fishCounter && typeof window.playCardSetAudio === 'function') window.playCardSetAudio(card);
         continue;
       }
       const destination = event?.destination || projected;
       phase7RecordPresentationStage('cinematic:start', {type:'CARD_SET', cardIid:String(card.iid || '')});
       const feedbackKey = phase7CardSetFeedbackKey(view?.presentationBatch?.id, event);
       let feedbackUntil = Number(phase7CurrentUiSession.cardSetFeedbackUntilByKey.get(feedbackKey)) || 0;
-      if(feedbackUntil <= Date.now() && window.FateSquareFeedbackFx?.playSet){
+      const fishCounter = card.fishCounter === true || card.counters?.fishCounter === true || String(card.id || '') === 'token-fish';
+      if(!fishCounter && feedbackUntil <= Date.now() && window.FateSquareFeedbackFx?.playSet){
         const shown = window.FateSquareFeedbackFx.playSet({z:Number(destination?.z),r:Number(destination?.r),c:Number(destination?.c)},card);
         if(shown) feedbackUntil = Date.now() + Math.max(0, Number(window.FateSquareFeedbackFx.duration) || 0);
       }
@@ -8006,7 +8010,8 @@
     const card = phase7FindAnyCard(event?.cardIid) || phase7FindProjectedEntry(view, event?.cardIid)?.card;
     if(!card || card.faceDown === true) return;
     if(event?.adaptiveToken === true || phase7IsTokenCard(card)){
-      if(typeof window.playCardSetAudio === 'function') window.playCardSetAudio(card);
+      const fishCounter = card.fishCounter === true || card.counters?.fishCounter === true || String(card.id || '') === 'token-fish';
+      if(!fishCounter && typeof window.playCardSetAudio === 'function') window.playCardSetAudio(card);
       return;
     }
     if(!(event?.tributeIids || event?.tributes || []).length || typeof window.showConsolidationCinematic !== 'function') return;
@@ -8209,7 +8214,7 @@
       // Keep presentationBusy set through the dice. Prompt-bearing batches
       // retain their rolls until the final picker response has resolved.
       await window.flushDonJulioDieRolls?.(view.state);
-      await window.flushSebastianFishOverlays?.(view.state);
+      // Fish reveals wait for resolved picker UI to close in the queue finalizer.
       if(!presentationStillCurrent()) return false;
       // A hand reset can replace every IID without changing the hand count.
       // Flush the final hand after the draw recipes and canonical commit even
@@ -8238,6 +8243,10 @@
         if(!phase7CurrentUiSession.presentationBusy){
           phase7RecordPresentationStage('modal-gate:open', {batchId});
           phase7SyncInteractionUi();
+          // Do not await a UI-dependent reveal inside the presentation queue:
+          // the next snapshot may be needed to resolve/close that very picker.
+          Promise.resolve(window.flushSebastianFishOverlays?.(phase7CurrentUiSession.view?.state))
+            .catch(error=>console.warn('Fish counter presentation failed', error));
           phase7PresentOutcomeAfterQueue(phase7CurrentUiSession.view);
           phase7NextFrame().then(function(){
             phase7RecordPresentationStage('modal-gate:settled', {

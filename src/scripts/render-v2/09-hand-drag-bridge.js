@@ -1043,7 +1043,7 @@
     const handHit = viewportHandHitFromPoint(ev.clientX, ev.clientY);
     if(!handHit) return;
     const el = null;
-    const idx = Number(handHit.index);
+    const idx = (currentHand() || []).findIndex(card=>String(card.iid) === String(handHit.iid));
     const card = currentHandCard(idx);
     if(handHit && handHit.disabled && !isFreeSetCard(card)) return;
     if(!canStartDrag(ev, el, idx, card)) return;

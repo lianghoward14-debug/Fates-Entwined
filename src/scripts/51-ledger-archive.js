@@ -55,6 +55,7 @@
       if(options.readOnly || submitting || from === to || from < 0 || to < 0 || to >= ordered.length) return;
       const card = ordered.splice(from,1)[0];
       ordered.splice(to,0,card);
+      window.playLedgerReorderSfx?.(!!options.opponentDeck,Math.abs(to-from));
       render();
       announce.textContent = card.name + ' is now draw ' + (to+1) + '.';
       if(focus) list.children[to].querySelector('button:not(:disabled)')?.focus();
@@ -111,7 +112,12 @@
       });
       window.bindPickerEffectMarkers?.(list);
     }
-    root.querySelector('.ledger-reset').onclick = ()=>{ if(!submitting){ ordered.splice(0,ordered.length,...original); render(); announce.textContent = 'Original order restored.'; } };
+    root.querySelector('.ledger-reset').onclick = ()=>{ if(!submitting){
+      const changed=ordered.some((card,index)=>card!==original[index]);
+      ordered.splice(0,ordered.length,...original);
+      if(changed) window.playLedgerReorderSfx?.(!!options.opponentDeck,2);
+      render(); announce.textContent = 'Original order restored.';
+    } };
     confirm.onclick = async function(){
       if(submitting) return;
       submitting = true;
@@ -123,7 +129,7 @@
         if(accepted === false) throw new Error('The order could not be saved. Please try again.');
         try {
           const soundKey = 'ledger-confirm:' + String(options.key || Date.now());
-          if(typeof window.playLedgerPanelSfx === 'function') window.playLedgerPanelSfx(true);
+          if(typeof window.playLedgerPanelSfx === 'function') window.playLedgerPanelSfx(true,!!options.opponentDeck);
           else if(typeof window.playFateSfxOnce === 'function') window.playFateSfxOnce('modalConfirm', soundKey, 500);
           else if(typeof playSfx === 'function') playSfx('modalConfirm');
         } catch(e) {}

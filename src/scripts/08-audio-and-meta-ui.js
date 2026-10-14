@@ -417,24 +417,28 @@ function playFateOverlayFamilySfx(family, kind, effectiveVol, pitchStep) {
 }
 window.playFateOverlayFamilySfx = playFateOverlayFamilySfx;
 
-// Shared by the Ledger-keeper and Oligarch deck-order panels.
 function playDonJulioDiceSfx(stage,index=0){
   if(_masterVol<=0 || _sfxVol<=0)return false;
   try{
     const ctx=getAudioCtx(),out=ctx.createGain(),now=ctx.currentTime;
     out.gain.value=_masterVol*_sfxVol*.8;out.connect(getSfxBus(ctx).input);
-    const impact=stage==='impact',landing=stage==='land',exit=stage==='exit';
-    const duration=impact?.14:landing?.5:.45;
+    const impact=stage==='impact',landing=stage==='land',exit=stage==='exit',rolling=stage==='enter';
+    const duration=rolling?2.05:impact?.14:landing?.5:.45;
     const buffer=ctx.createBuffer(1,Math.ceil(ctx.sampleRate*duration),ctx.sampleRate),data=buffer.getChannelData(0);
-    for(let i=0;i<data.length;i++)data[i]=(Math.random()*2-1)*Math.pow(1-i/data.length,impact?4:2)*.38;
+    for(let i=0;i<data.length;i++){
+      const t=i/data.length;
+      const envelope=rolling?(.22+.78*Math.pow(Math.max(0,Math.sin(t*Math.PI*13)),8))*Math.pow(1-t,.28):Math.pow(1-t,impact?4:2);
+      data[i]=(Math.random()*2-1)*envelope*(rolling?.2:.38);
+    }
     const noise=ctx.createBufferSource(),filter=ctx.createBiquadFilter();noise.buffer=buffer;
-    filter.type='lowpass';filter.frequency.setValueAtTime(impact?2200:1200,now);
+    filter.type=rolling?'bandpass':'lowpass';if(filter.Q)filter.Q.value=rolling?.65:1;
+    filter.frequency.setValueAtTime(impact?2200:rolling?1350:1200,now);
     filter.frequency.exponentialRampToValueAtTime(exit?180:impact?700:2000,now+duration);
     noise.connect(filter).connect(out);noise.start(now);
     const osc=ctx.createOscillator(),gain=ctx.createGain();osc.type='sine';
-    osc.frequency.setValueAtTime(impact?170-index*10:landing?90:exit?160:55,now);
-    osc.frequency.exponentialRampToValueAtTime(impact?65:landing?45:exit?45:130,now+duration);
-    gain.gain.setValueAtTime(.0001,now);gain.gain.exponentialRampToValueAtTime(landing?.45:impact?.26:.2,now+.009);
+    osc.frequency.setValueAtTime(impact?170-index*18:landing?90:exit?160:105,now);
+    osc.frequency.exponentialRampToValueAtTime(impact?65:landing?45:exit?45:62,now+duration);
+    gain.gain.setValueAtTime(.0001,now);gain.gain.exponentialRampToValueAtTime(landing?.45:impact?.26:rolling?.13:.2,now+.009);
     gain.gain.exponentialRampToValueAtTime(.0001,now+duration);
     osc.connect(gain).connect(out);osc.start(now);osc.stop(now+duration+.02);
     setTimeout(()=>out.disconnect(),1000);return true;
@@ -442,47 +446,77 @@ function playDonJulioDiceSfx(stage,index=0){
 }
 window.playDonJulioDiceSfx=playDonJulioDiceSfx;
 
+// A short, tactile file-slide for every change to the Ledger-keeper and
+// Oligarch draw order. Oligarch gets a lower, more metallic accent so the two
+// otherwise-identical interactions remain recognizable by sound.
+function playLedgerReorderSfx(oligarch=false,distance=1){
+  if(_masterVol<=0 || _sfxVol<=0)return false;
+  try{
+    const ctx=getAudioCtx(),out=ctx.createGain(),now=ctx.currentTime;
+    out.gain.value=_masterVol*_sfxVol*.68;out.connect(getSfxBus(ctx).input);
+    const duration=.105+Math.min(3,Math.max(1,Math.abs(Number(distance)||1)))*.018;
+    const buffer=ctx.createBuffer(1,Math.ceil(ctx.sampleRate*duration),ctx.sampleRate),data=buffer.getChannelData(0);
+    for(let i=0;i<data.length;i++){
+      const t=i/data.length;
+      data[i]=(Math.random()*2-1)*Math.sin(Math.PI*t)*Math.pow(1-t,1.7)*.26;
+    }
+    const slide=ctx.createBufferSource(),filter=ctx.createBiquadFilter();slide.buffer=buffer;
+    filter.type='bandpass';filter.frequency.setValueAtTime(oligarch?720:1180,now);
+    filter.frequency.exponentialRampToValueAtTime(oligarch?360:620,now+duration);
+    filter.Q.value=.75;slide.connect(filter).connect(out);slide.start(now);
+    const tick=ctx.createOscillator(),gain=ctx.createGain();tick.type=oligarch?'triangle':'sine';
+    tick.frequency.setValueAtTime(oligarch?185:330,now);
+    tick.frequency.exponentialRampToValueAtTime(oligarch?115:220,now+.11);
+    gain.gain.setValueAtTime(.13,now);gain.gain.exponentialRampToValueAtTime(.0001,now+.12);
+    tick.connect(gain).connect(out);tick.start(now);tick.stop(now+.13);
+    setTimeout(()=>out.disconnect(),500);return true;
+  }catch(e){return false;}
+}
+window.playLedgerReorderSfx=playLedgerReorderSfx;
+
 function playLedgerPanelSfx(closing=false,oligarch=false){
   if(_masterVol<=0 || _sfxVol<=0)return false;
   try{
     const ctx=getAudioCtx(),out=ctx.createGain(),now=ctx.currentTime;
     out.gain.value=_masterVol*_sfxVol*.95;
     out.connect(getSfxBus(ctx).input);
-    if(oligarch && !closing){
-      // A vault-like bass swell and staggered metallic partials, without paper.
-      [[65,98,0,.65,.38],[1046,1046,.13,.65,.16],
-        [1673,1673,.13,.46,.075],[2636,2636,.13,.25,.04],
-        [784,784,.3,.65,.14],[1254,1254,.3,.4,.065]].forEach(([from,to,delay,len,level])=>{
+    if(oligarch){
+      // Keep the Oligarch panel's established vault-like metallic identity.
+      const oligarchTones=closing
+        ? [[98,58,0,.38,.34],[784,392,.04,.34,.12],[1254,627,.06,.27,.055]]
+        : [[65,98,0,.65,.38],[1046,1046,.13,.65,.16],[1673,1673,.13,.46,.075],
+          [2636,2636,.13,.25,.04],[784,784,.3,.65,.14],[1254,1254,.3,.4,.065]];
+      oligarchTones.forEach(([from,to,delay,len,level])=>{
         const osc=ctx.createOscillator(),gain=ctx.createGain(),t=now+delay;
         osc.type='sine';osc.frequency.setValueAtTime(from,t);osc.frequency.exponentialRampToValueAtTime(to,t+len);
         gain.gain.setValueAtTime(.0001,t);gain.gain.exponentialRampToValueAtTime(level,t+(delay===0?.12:.005));
         gain.gain.exponentialRampToValueAtTime(.0001,t+len);
         osc.connect(gain).connect(out);osc.start(t);osc.stop(t+len+.02);
       });
-      setTimeout(()=>out.disconnect(),1400);
+      setTimeout(()=>out.disconnect(),closing?800:1400);
       return true;
     }
-    const duration=closing?.28:.46;
+    // Ledger Keepers uses a neutral modal transition: a clean filtered whoosh
+    // and one small UI confirmation tick, with no paper or book-cover motif.
+    const duration=closing?.16:.22;
     const buffer=ctx.createBuffer(1,Math.ceil(ctx.sampleRate*duration),ctx.sampleRate);
     const data=buffer.getChannelData(0);
     for(let i=0;i<data.length;i++){
       const t=i/data.length;
-      data[i]=(Math.random()*2-1)*Math.pow(1-t,2)*(.45+.25*Math.sin(t*70));
+      data[i]=(Math.random()*2-1)*Math.sin(Math.PI*t)*Math.pow(1-t,closing?1.2:.55)*.22;
     }
-    const paper=ctx.createBufferSource(),filter=ctx.createBiquadFilter();
-    paper.buffer=buffer;filter.type='lowpass';filter.frequency.setValueAtTime(closing?1900:1100,now);
-    filter.frequency.exponentialRampToValueAtTime(closing?450:3200,now+duration);
-    paper.connect(filter).connect(out);paper.start(now);
-    // Weighty book-cover impact, followed by a short resonant seal/open chord.
-    [[closing?135:95,closing?55:160,0,.42,.5],
-      [closing?330:440,closing?220:660,.06,.48,.18],
-      [closing?440:660,closing?330:880,.11,.45,.12]].forEach(([from,to,delay,len,level])=>{
-      const osc=ctx.createOscillator(),gain=ctx.createGain(),t=now+delay;
-      osc.type='sine';osc.frequency.setValueAtTime(from,t);osc.frequency.exponentialRampToValueAtTime(to,t+len);
-      gain.gain.setValueAtTime(.0001,t);gain.gain.exponentialRampToValueAtTime(level,t+.009);gain.gain.exponentialRampToValueAtTime(.0001,t+len);
-      osc.connect(gain).connect(out);osc.start(t);osc.stop(t+len+.02);
-    });
-    setTimeout(()=>out.disconnect(),1200);
+    const whoosh=ctx.createBufferSource(),filter=ctx.createBiquadFilter();
+    whoosh.buffer=buffer;filter.type='bandpass';filter.Q.value=.72;
+    filter.frequency.setValueAtTime(closing?1500:650,now);
+    filter.frequency.exponentialRampToValueAtTime(closing?520:1900,now+duration);
+    whoosh.connect(filter).connect(out);whoosh.start(now);
+    const tick=ctx.createOscillator(),gain=ctx.createGain(),tickAt=now+(closing?.015:.075);
+    tick.type='sine';tick.frequency.setValueAtTime(closing?420:720,tickAt);
+    tick.frequency.exponentialRampToValueAtTime(closing?280:960,tickAt+.1);
+    gain.gain.setValueAtTime(.0001,tickAt);gain.gain.exponentialRampToValueAtTime(.16,tickAt+.006);
+    gain.gain.exponentialRampToValueAtTime(.0001,tickAt+.13);
+    tick.connect(gain).connect(out);tick.start(tickAt);tick.stop(tickAt+.15);
+    setTimeout(()=>out.disconnect(),600);
     return true;
   }catch(e){return false;}
 }

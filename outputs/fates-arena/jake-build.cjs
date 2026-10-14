@@ -1,0 +1,30 @@
+// Apply Jake integration to the generated Tidebound engine, leaving earlier prototypes intact.
+module.exports=function(e,mechanics){
+ const replace=(a,b)=>{if(!e.includes(a))throw Error('Missing Jake integration anchor: '+a);e=e.replace(a,b)};
+ replace('animation:0,','stun:0,knockup:0,armorBuff:0,eating:0,punch:0,landing:0,mealRecovery:0,animation:0,');
+ replace('t.invulnerable>0)return 0','(t.invulnerable>0||jakeImmune(t)))return 0');
+ replace("t.armor+(t.kind", "t.armor+(t.armorBuff>0?60:0)+(t.kind");
+ replace('if(s.done||f.hp<=0||f.freeze>0','if(s.done||s.countdown>0||f.hp<=0||f.stun>0||jakeBusy(f)||f.freeze>0');
+ replace('if(ani){tidalCast',"if(f.kind==='jake'){jakeCast(s,f,i,ax,ay);return true}\nif(ani){tidalCast");
+ replace("'basicCd']","'basicCd','stun','knockup','armorBuff','eating','punch','landing','mealRecovery']");
+ replace('if(input.dodge&&','if(input.dodge&&!p.stun&&!jakeBusy(p)&&');
+ replace('if(!p.freeze&&!p.dash', 'if(!p.stun&&!jakeBusy(p)&&!p.freeze&&!p.dash');
+ replace('if(!b.freeze&&!b.dash', 'if(!b.stun&&!jakeBusy(b)&&!b.freeze&&!b.dash');
+ replace("desired=b.kind==='howard'?245:330", "desired=b.kind==='jake'?65:b.kind==='howard'?245:330");
+ replace('const error=Math.sin',"if(b.kind==='jake'){if(b.hp<b.maxHp-55)cast(s,b,1,p.x,p.y);if(d<155)cast(s,b,3,p.x,p.y);if(d<260)cast(s,b,0,p.x,p.y);if(d>170)cast(s,b,2,p.x,p.y);return}const error=Math.sin");
+ replace('for(const f of s.fighters)tidalStep(s,f,dt,f.id===0?input:{ax:p.x,ay:p.y});','for(const f of s.fighters){const control=f.id===0?input:{ax:p.x,ay:p.y};jakeStep(s,f,dt,control);tidalStep(s,f,dt,control);}');
+ replace('if(d<44&&!p.phase&&!b.phase)', 'if(d<44&&!p.phase&&!b.phase&&!p.belly&&!b.belly&&!jakeImmune(p)&&!jakeImmune(b))');
+ replace('f.invulnerable<=0)', 'f.invulnerable<=0&&!jakeImmune(f))');
+ replace("if(z.type==='trail'&&f.id!==z.owner)","if(z.type==='trail'&&f.id!==z.owner&&!jakeImmune(f))");
+ replace("f.mark=4;f.slow=1", "if(!jakeImmune(f)){f.mark=4;f.slow=1}");
+ replace('if(q.sweep&&o.invulnerable<=0)', 'if(q.sweep&&o.invulnerable<=0&&!jakeImmune(o))');
+ replace('if(q.soak)', 'if(!jakeImmune(o)){if(q.soak)');
+ replace('q.hit.push(o.id);', '}q.hit.push(o.id);');
+ replace('o.slow=.8;move(s,o,f.dx*30,f.dy*30);','if(!jakeImmune(o)){o.slow=.8;move(s,o,f.dx*30,f.dy*30);}');
+ replace('if(f.basicCd>0||', 'if(f.hp<=0||f.stun>0||jakeBusy(f)||f.basicCd>0||');
+ replace("f.basicCd=.65;if(f.kind==='anicka')", "f.basicCd=.65;if(f.kind==='jake'){f.aim=Math.atan2(y-f.y,x-f.x);f.punch=.38;f.eating=0;f.cast=f.castMax=.38;f.punchPending=true;f.punchAngle=f.aim;return;}if(f.kind==='anicka')");
+ replace('if(f.sweep>0&&!f.phase)', 'if(f.sweep>0&&!f.phase&&!jakeImmune(f))');
+ replace('o.sweep=.24;o.sweepX=Math.cos(f.aim);o.sweepY=Math.sin(f.aim);','if(!jakeImmune(o)){o.sweep=.24;o.sweepX=Math.cos(f.aim);o.sweepY=Math.sin(f.aim);}');
+ replace('const api={kits,',mechanics+'\nconst api={kits,');
+ return e;
+};

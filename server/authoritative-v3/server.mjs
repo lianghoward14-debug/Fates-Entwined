@@ -491,6 +491,16 @@ function scheduleTurnTimer(actor){
     clearTurnTimer(matchId);
     return;
   }
+  // Opponent reactions preserve the active player's remaining time.
+  if(actor.state.pendingPrompt?.type === 'REACTION'){
+    const entry = turnTimers.get(matchId);
+    if(entry?.signature !== timeout.turnSignature){
+      clearTurnTimer(matchId);
+      armTurnTimer(actor, timeout, timeout.timeoutMs);
+    }
+    suspendTurnTimer(matchId);
+    return;
+  }
   const existing = turnTimers.get(matchId);
   if(existing?.signature === timeout.turnSignature){
     if(existing.timer && !existing.suspended) return;

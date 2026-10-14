@@ -1,7 +1,7 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
 let now=1000,picker=true,cinematic=false;
-const timers=[],shown=[];
-const context={window:{flashCardEffect:()=>shown.push(now),renderGame:()=>{},addEventListener:()=>{}},
+const timers=[],shown=[],presentationOrder=[];
+const context={window:{flashCardEffect:()=>{shown.push(now);presentationOrder.push('overlay-sound');},renderGame:()=>presentationOrder.push('render'),addEventListener:()=>{}},
   Date:{now:()=>now},document:{querySelector:()=>cinematic},
   effectChoicePresentationUiOpen:()=>picker,getChoicePresentationDelayMs:()=>0,
   setTimeout:(fn,ms)=>timers.push({fn,at:now+ms})};
@@ -29,5 +29,8 @@ async function tick(until){
   cinematic=false;await tick(3800);await reveal;
   assert.equal(shown.length,1);
   assert.equal(context.window.isSebastianFishHidden(fish),false);
-  console.log('PASS: fish overlay and hand arrival wait for chained pickers and cinematics.');
+  assert.deepEqual(presentationOrder.slice(-3),['render','overlay-sound','render'],'fish is rendered before its one overlay sound');
+  await context.window.presentSebastianFishAfterResolution({iid:'sebastian'},'test',[fish.iid]);
+  assert.equal(shown.length,1,'the same fish event cannot play its overlay sound twice');
+  console.log('PASS: fish reveal waits for pickers, renders before its overlay, and plays one sound per event.');
 })().catch(error=>{console.error(error);process.exitCode=1;});
