@@ -387,6 +387,8 @@ function setCard(ctx, operation){
     else delete card[key];
   }
   if(!card.counters || typeof card.counters !== 'object') card.counters = {};
+  card.counters.majaPlacementBoost = Number(card.counters.majaPendingBoost || 0);
+  delete card.counters.majaPendingBoost;
   card.counters.fieldEnteredTurn = Number(ctx.state.turn) || 0;
   delete card.counters.whenSetResolved;
   card.counters.joseFieldTurns = 0;
@@ -468,7 +470,7 @@ function consolidateCard(ctx, operation){
   if(!handEntry || handEntry.zone !== 'hand' || handEntry.playerIndex !== playerIndex){
     throw operationError('CARD_NOT_IN_HAND', 'the consolidated card is not in the player hand');
   }
-  if(String(handEntry.card.type || '') === 'Supporter'){
+  if(handEntry.card.counters?.fishCounter === true || String(handEntry.card.type || '') === 'Supporter'){
     throw operationError('INVALID_CONSOLIDATION_CARD', 'only Character cards can be consolidated');
   }
   const tributeIids = Array.isArray(operation.tributeIids) ? operation.tributeIids.map(String) : [];
@@ -1032,6 +1034,10 @@ function transferCards(ctx, operation){
     if(destinationPile === 'hand') stampCaliforniqueHandCard(ctx.state, playerIndex, card);
     const fateBonus = Number(operation.fateBonus || 0);
     if(destinationPile === 'hand' && fateBonus && !isEffectImmutable(card)){
+      if(operation.reason === 'OBLIQUE_ORDER') {
+        card.counters ||= {};
+        card.counters.majaPendingBoost = Number(card.counters.majaPendingBoost || 0) + fateBonus;
+      }
       changeFate(ctx, {
         type:OPERATION_TYPES.MODIFY_FATE,
         targetIid:card.iid,
@@ -1817,8 +1823,9 @@ function createTokens(ctx, operation){
   const count = Math.max(0, Number(operation.count || 0) || 0);
   const createdIids = [];
   for(let index = 0; index < count; index += 1){
+    const fish = String(operation.tokenKind || '') === 'FISH';
     const pierogi = String(operation.tokenKind || '') === 'PIEROGI';
-    const base = pierogi
+    const base = fish ? {id:'token-fish', name:'Fish Counter'} : pierogi
       ? {id:'token1', name:"Wojciech's Pierogi"}
       : ADAPTIVE_TOKEN_BASES[index % ADAPTIVE_TOKEN_BASES.length];
     ctx.state.instanceCounter += 1;
@@ -1848,10 +1855,19 @@ function createTokens(ctx, operation){
           }
         : {adaptiveToken:true}
     };
+    if(fish) Object.assign(card, {
+      ability:'Fresh Catch', type:'Counter', affiliation:'eventide',
+      baseFate:0, currentFate:0, img:'token-fish.svg', token:true,
+      effect:'Counts as 0.5 Reinforcement. Can be set for free.',
+      flavor:'A fresh catch from the wharf.', statuses:[], counters:{fishCounter:true}
+    });
     ctx.state.players[playerIndex].hand.push(card);
     createdIids.push(card.iid);
   }
   ctx.events.push({type:'TOKENS_CREATED', privateTo:[playerIndex], playerIndex, createdIids, sourceIid:operation.sourceIid || null});
+  if(operation.tokenKind === 'FISH' && createdIids.length){
+    ctx.events.push({type:'FISH_COUNTER_CREATED',playerIndex,sourceIid:operation.sourceIid || null,count:createdIids.length,createdIids});
+  }
   return {createdIids};
 }
 
@@ -2124,8 +2140,15 @@ function changeLandscape(ctx, operation){
     throw operationError('INVALID_LANDSCAPE', 'landscape change target is invalid');
   }
   const blockReason = landscapeChangeBlockReason(ctx.state, landscapeId);
-  if(blockReason) throw operationError('LANDSCAPE_CHANGE_BLOCKED', blockReason);
+  if(blockReason && !operation.restore) throw operationError('LANDSCAPE_CHANGE_BLOCKED', blockReason);
+  if(operation.temporary && landscapeId === ctx.state.landscapeId) throw operationError('INVALID_LANDSCAPE','Choose a different landscape');
   const result = replaceLandscapeState(ctx.state, landscapeId);
+  if(operation.temporary){
+    ctx.state.temporaryLandscape = {endingPlayer:1-Number(operation.sourceController),expiresTurn:Number(ctx.state.turn)+1};
+  }else{
+    if(!operation.restore) ctx.state.landscapeReturnId = landscapeId;
+    ctx.state.temporaryLandscape = null;
+  }
   ctx.events.push({
     type:'LANDSCAPE_CHANGED',
     previousLandscapeId:result.previousLandscapeId,
@@ -2256,12 +2279,45 @@ function dispatchOperation(ctx, operation){
     throw new TypeError('operation context is invalid');
   }
   switch(operation?.type){
+    case OPERATION_TYPES.COPY_ORIGINAL_DECK: {
+      const playerIndex = Number(operation.playerIndex);
+      const original = ctx.state.players[1-playerIndex].originalDeck;
+      if(!Array.isArray(original)) throw new Error('Original deck unavailable; start a new match to use Sofia');
+      for(const card of [...ctx.state.players[playerIndex].hand]){
+        applyOperation(ctx,{type:OPERATION_TYPES.DISCARD_CARD,targetIid:card.iid,sourceIid:operation.sourceIid,sourceController:playerIndex,reason:'SOFIA_HAND_RESET'});
+      }
+      ctx.state.players[playerIndex].deck = original.map(template=>{
+        const card = cloneSerializable(template);
+        card.iid = ctx.state.matchId+':p'+playerIndex+':c'+(++ctx.state.instanceCounter);
+        card.owner = playerIndex; card.controller = playerIndex;
+        return card;
+      });
+      shuffleInPlace(ctx.state.players[playerIndex].deck, ctx.state.rngState);
+      const player=ctx.state.players[playerIndex];
+      const extras=player.deck.filter(card=>['98','84'].includes(String(card.id)));
+      player.deck=player.deck.filter(card=>!['98','84'].includes(String(card.id)));
+      for(const card of extras){
+        player.hand.push(card);
+        applySpecialHandArrival(ctx,playerIndex,card);
+        emit(ctx,{type:RULE_EVENT_TYPES.CARD_TRANSFERRED,cardIid:card.iid,playerIndex,
+          from:'deck',to:'hand',sourceIid:operation.sourceIid,reason:'SOFIA_OPENING_HAND'});
+      }
+      return ctx.state.players[playerIndex].deck;
+    }
     case OPERATION_TYPES.DRAW_CARD: return drawCards(ctx, operation);
     case OPERATION_TYPES.SET_CARD: return setCard(ctx, operation);
     case OPERATION_TYPES.CONSOLIDATE_CARD: return consolidateCard(ctx, operation);
     case OPERATION_TYPES.MOVE_CARD: return moveCard(ctx, operation);
     case OPERATION_TYPES.DISCARD_CARD: return discardCards(ctx, operation);
     case OPERATION_TYPES.MODIFY_FATE: return changeFate(ctx, operation, false);
+    case OPERATION_TYPES.ROLL_FATE_DIE: {
+      const source = findBoardCard(ctx.state, operation.sourceIid);
+      if(!source || isEffectSourceSuppressed(ctx.state, source)) return null;
+      const roll = nextInt(ctx.state.rngState, 6) + 1;
+      ctx.events.push({type:'FATE_DIE_ROLLED',cardIid:source.card.iid,
+        sourceIid:source.card.iid,playerIndex:controllerOf(source.card),roll,before:effectiveFate(ctx.state,source)});
+      return changeFate(ctx, {...operation,type:OPERATION_TYPES.MODIFY_FATE,amount:roll,presentationDelayMs:900}, false);
+    }
     case OPERATION_TYPES.SET_FATE: return changeFate(ctx, operation, true);
     case OPERATION_TYPES.CHANGE_CARD_TYPE: return changeCardType(ctx, operation);
     case OPERATION_TYPES.REVEAL_HAND: return revealHand(ctx, operation);

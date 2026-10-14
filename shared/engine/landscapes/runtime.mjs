@@ -277,19 +277,25 @@ export function landscapeChangeBlockReason(state, targetLandscapeId){
 export function replaceLandscapeState(state, targetLandscapeId){
   const targetId = String(targetLandscapeId || '');
   const previousLandscapeId = String(state.landscapeId || '');
+  state.landscapeReturnId ||= previousLandscapeId;
+  state.landscapeHistory ||= {};
+  state.landscapeHistory[previousLandscapeId] = state.landscapeState;
   if(targetId === previousLandscapeId){
     return {previousLandscapeId, landscapeId:targetId, changed:false};
   }
   state.landscapeId = targetId;
   const twilightRecoveryUses = state.landscapeState?.twilightRecoveryUses?.slice() || [0, 0];
-  state.landscapeState = createLandscapeState(targetId, state.rngState);
+  const saved = state.landscapeHistory[targetId];
+  state.landscapeState = saved || createLandscapeState(targetId, state.rngState);
   state.landscapeState.twilightRecoveryUses = twilightRecoveryUses;
-  if(targetId === 'igb19') initializeLandscapeHandCards(state);
+  if(targetId === 'igb19') state.players.forEach((player,index)=>player.hand.forEach(card=>{
+    if(card.counters?.igb19HandOwner !== index || !Number.isFinite(card.counters?.igb19HandTurnsRemaining)) stampCaliforniqueHandCard(state,index,card);
+  }));
   if(targetId === 'igb20'){
     const totals = [totalFate(state, 0), totalFate(state, 1)];
     const highestAlreadyReached = Math.max(...totals);
     for(const threshold of [20, 35, 50]){
-      if(highestAlreadyReached < threshold) continue;
+      if(highestAlreadyReached < threshold || state.landscapeState.fateThresholdClaims[String(threshold)]) continue;
       state.landscapeState.fateThresholdClaims[String(threshold)] = {
         threshold,
         winner:null,

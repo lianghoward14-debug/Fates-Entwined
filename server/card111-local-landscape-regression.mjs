@@ -1,0 +1,6 @@
+import assert from 'node:assert/strict';import fs from 'node:fs';import vm from 'node:vm';
+const src=fs.readFileSync('src/scripts/08-audio-and-meta-ui.js','utf8');const a=src.indexOf('function transitionGameLandscape('),b=src.indexOf('  const gameScreen =',a);const code=src.slice(a,b)+'return pickedSong;\n}';
+const G={turn:3,landscapeId:'igb22',_landscapeState:{id:'igb22',targetZones:[0,2],igb21CatalogUses:[1,0]}};
+const c=vm.createContext({G,GAME_SONGS:Array.from({length:24},(_,i)=>'board'+(i+1)),LANDSCAPES:{},getCardRuntimeEffectId:c=>c.id,getFelicitaLandscapeChangeBlockReason:()=>'',initLandscapeForSong:()=>{if(!G._landscapeState.id)G._landscapeState={id:G.landscapeId};}});vm.runInContext(code,c);
+c.transitionGameLandscape('board20',{player:0,sourceCard:{id:'111'}});c.transitionGameLandscape('board21',{player:1,sourceCard:{id:'111'}});assert.equal(G._landscapeReturnId,'igb22');assert.equal(G._temporaryLandscape.endingPlayer,0);
+c.transitionGameLandscape('board22',{restore:true});assert.deepEqual(G._landscapeState.targetZones,[0,2]);c.transitionGameLandscape('board3',{player:0,sourceCard:{id:'82'}});c.transitionGameLandscape('board1',{player:0,sourceCard:{id:'111'}});assert.equal(G._landscapeReturnId,'igb3');assert.equal(G._temporaryLandscape.expiresTurn,4);console.log('Single-player landscape return and saved state passed.');

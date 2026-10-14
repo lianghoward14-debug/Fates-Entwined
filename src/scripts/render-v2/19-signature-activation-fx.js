@@ -1,5 +1,8 @@
 (function(){'use strict';if(window.FateSignatureActivationFx)return;
 const studies={
+'108':['108','Sofia','Star of my World','A World in Bloom','approved','#c7a8ed',2000],
+'109':['109','Don Julio','Oppression of the Ruling Class','Three from the Cup','approved','#8dbbdf',2000],
+'110':['110','Sebastian','Fishmonger','The Big Catch','approved','#8bd2cf',2000],
 '107':['107','Anne Stone (Revolutionary)','Strategy of a Revolution','Knight’s Gambit','approved','#99d5ba',2000],
 '104':['104','Rivera (Revolutionary)','A Brighter Future','Palms of Caribbea — sea breeze','approved','#8fc9dd',2000],
 '105':['105','Jorge Alvarez (Revolutionary)','A Caribbea for All','Rise Together — single resolve','approved','#d4b47b',2000],
@@ -188,7 +191,7 @@ ctx.restore();
 }
 }
 
-function playSignatureSound(cardId){if(window.FateApprovedActivationSfx?.handles(cardId)){signatureSound=window.FateApprovedActivationSfx.play(cardId);return;}try{if(typeof getAudioCtx!=='function'||typeof getSfxBus!=='function')return;const ac=getAudioCtx(),out=ac.createGain(),master=(typeof _masterVol==='number'?_masterVol:1),sfx=(typeof _sfxVol==='number'?_sfxVol:.8),now=ac.currentTime;out.gain.setValueAtTime(Math.max(.0001,master*sfx*.22),now);out.connect(getSfxBus(ac).input);const tone=(type,f0,f1,at,dur,level=.7)=>{const o=ac.createOscillator(),g=ac.createGain();o.type=type;o.frequency.setValueAtTime(f0,now+at);o.frequency.exponentialRampToValueAtTime(Math.max(20,f1),now+at+dur);g.gain.setValueAtTime(.0001,now+at);g.gain.exponentialRampToValueAtTime(level,now+at+.025);g.gain.exponentialRampToValueAtTime(.0001,now+at+dur);o.connect(g);g.connect(out);o.start(now+at);o.stop(now+at+dur+.03)};const chime=(freq,at)=>{tone('sine',freq,freq*1.012,at,.42,.42);tone('triangle',freq*2,freq*2.02,at+.015,.3,.13)};
+function playSignatureSound(cardId){if(window.FateCaribbeaActivationSfx?.handles(cardId)){signatureSound=window.FateCaribbeaActivationSfx.play(cardId);return;}if(window.FateApprovedActivationSfx?.handles(cardId)){signatureSound=window.FateApprovedActivationSfx.play(cardId);return;}try{if(typeof getAudioCtx!=='function'||typeof getSfxBus!=='function')return;const ac=getAudioCtx(),out=ac.createGain(),master=(typeof _masterVol==='number'?_masterVol:1),sfx=(typeof _sfxVol==='number'?_sfxVol:.8),now=ac.currentTime;out.gain.setValueAtTime(Math.max(.0001,master*sfx*.22),now);out.connect(getSfxBus(ac).input);const tone=(type,f0,f1,at,dur,level=.7)=>{const o=ac.createOscillator(),g=ac.createGain();o.type=type;o.frequency.setValueAtTime(f0,now+at);o.frequency.exponentialRampToValueAtTime(Math.max(20,f1),now+at+dur);g.gain.setValueAtTime(.0001,now+at);g.gain.exponentialRampToValueAtTime(level,now+at+.025);g.gain.exponentialRampToValueAtTime(.0001,now+at+dur);o.connect(g);g.connect(out);o.start(now+at);o.stop(now+at+dur+.03)};const chime=(freq,at)=>{tone('sine',freq,freq*1.012,at,.42,.42);tone('triangle',freq*2,freq*2.02,at+.015,.3,.13)};
  if(cardId==='03'){tone('triangle',180,460,0,.55,.55);chime(690,.58);chime(920,.76)}
  else if(cardId==='06'){tone('sine',210,330,0,.72,.48);tone('triangle',520,760,.18,.62,.3);chime(988,.82)}
  else if(cardId==='22'){tone('sine',190,380,0,.72,.42);tone('triangle',540,760,.18,.58,.28);tone('sine',820,1080,.62,.46,.22)}
@@ -196,6 +199,9 @@ function playSignatureSound(cardId){if(window.FateApprovedActivationSfx?.handles
  else if(cardId==='39'){tone('square',105,82,0,.24,.2);tone('triangle',330,220,.22,.48,.38);chime(660,.76)}
  else if(cardId==='40'){tone('triangle',92,55,.03,.3,.7);tone('sine',680,190,.18,.5,.34);chime(440,.72)}
  else if(cardId==='48'){tone('sine',145,420,0,.9,.4);tone('sine',720,1180,.25,.75,.25);chime(1318,.88)}
+ else if(cardId==='108'){chime(523,.08);chime(659,.34);chime(784,.62);chime(1047,1.02)}
+ else if(cardId==='109'){tone('triangle',110,73,.03,.42,.5);chime(440,.5);chime(660,.82);chime(880,1.12)}
+ else if(cardId==='110'){tone('sine',190,330,.04,.6,.28);chime(587,.38);chime(740,.71);tone('sine',390,210,1.05,.6,.22)}
  setTimeout(()=>{try{out.disconnect()}catch(e){}},2200)}catch(e){}}
 function dispose(){if(disposed)return;disposed=true;signatureSound?.stop();cancelAnimationFrame(raf);removeEventListener('resize',resize)}
  function tick(now){if(disposed)return;if(!overlay.isConnected){dispose();return}try{t=clamp((now-start)/Math.max(1,Number(options?.duration)||study[6]));draw();if(t<1)raf=requestAnimationFrame(tick)}catch(e){dispose();overlay.replaceChildren(...previous)}}

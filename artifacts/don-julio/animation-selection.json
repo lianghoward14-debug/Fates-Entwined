@@ -9,5 +9,5 @@
   "sequence": "after cinematic banner and animation",
   "audience": "both players",
   "previewSource": "plain-dice-motion.html",
-  "integrationStatus": "selected, pending game integration"
+  "integrationStatus": "integrated in src/scripts/28-don-julio-dice.js"
 }

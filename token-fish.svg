@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="510" viewBox="0 0 360 510">
+<rect x="5" y="5" width="350" height="500" rx="12" fill="#e9e1c7" stroke="#514d3e" stroke-width="9"/>
+<text x="24" y="43" font-family="Georgia,serif" font-size="28" fill="#302e28">Fish Counter</text>
+<text x="328" y="43" text-anchor="end" font-family="Georgia,serif" font-size="28">0</text>
+<rect x="23" y="63" width="314" height="264" fill="#acc5c6" stroke="#514d3e" stroke-width="4"/>
+<path d="M40 269 Q115 240 180 266 T324 265 M40 290 Q115 263 180 287 T324 287" fill="none" stroke="#7a9da1" stroke-width="4"/>
+<path d="M93 181 L48 140 L50 221 Z" fill="#819591" stroke="#363f3e" stroke-width="5"/>
+<path d="M90 181 Q178 81 287 181 Q189 278 90 181Z" fill="#cbd2b4" stroke="#363f3e" stroke-width="5"/>
+<path d="M146 132 L177 101 L203 132 M150 225 L185 245 L204 223" fill="#819591" stroke="#363f3e" stroke-width="4"/>
+<path d="M235 150 Q216 181 238 207 M153 158 Q175 181 153 207" fill="none" stroke="#657574" stroke-width="4"/>
+<circle cx="252" cy="174" r="7" fill="#303d3b"/>
+<text x="180" y="361" text-anchor="middle" font-family="Georgia,serif" font-size="27" fill="#302e28">Fresh Catch</text>
+<text x="180" y="395" text-anchor="middle" font-family="Georgia,serif" font-size="20">Counts as ½ Reinforcement.</text>
+<text x="180" y="426" text-anchor="middle" font-family="Georgia,serif" font-size="20">Can be set for free.</text>
+<text x="180" y="476" text-anchor="middle" font-family="Georgia,serif" font-size="15" fill="#68614f">PLACEHOLDER • COUNTER • COST 0</text>
+</svg>

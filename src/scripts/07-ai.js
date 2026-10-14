@@ -438,6 +438,7 @@ const AI_VISUAL_PAUSE_EFFECTS = 900;
 const AI_VISUAL_PAUSE_ENDTURN = 700;
 
 async function aiWaitForInteractionAnimations(extraMs=0){
+  while(window.donJulioDiceBusy) await aiSleep(50);
   const wait = typeof getInteractionAnimationDelayMs === 'function'
     ? getInteractionAnimationDelayMs()
     : (typeof getPlacementUiDelayMs === 'function' ? getPlacementUiDelayMs() : 0);
@@ -789,10 +790,10 @@ function aiGenerateAllMoves() {
   const hardCapAvailable = !(typeof isSupporterHardCapReached === 'function' && isSupporterHardCapReached(cp));
   const isArtilleryLockedForAI = (z) => typeof G._artilleryLockedZone === 'number' && G._artilleryLockedZone === z && G._artilleryLockOwner === cp && G._artilleryLockTurnsLeft > 0;
 
-  hand.filter(function(card){ return typeof isWojciechPierogiCounter === 'function' && isWojciechPierogiCounter(card); }).forEach(function(counter){
+  hand.filter(function(card){ return isFishCounter(card) || (typeof isWojciechPierogiCounter === 'function' && isWojciechPierogiCounter(card)); }).forEach(function(counter){
     const options = typeof getValidPlacementOptionsForCard === 'function' ? getValidPlacementOptionsForCard(counter, cp) : [];
     options.forEach(function(option){
-      moves.push({type:'place', card:counter, z:option.z, r:option.r, c:option.c, contested:option.r===1, pierogiCounter:true});
+      moves.push({type:'place', card:counter, z:option.z, r:option.r, c:option.c, contested:option.r===1, pierogiCounter:!isFishCounter(counter), fishCounter:isFishCounter(counter)});
     });
   });
 
@@ -883,9 +884,9 @@ function aiGenerateAllMoves() {
       if(!card || !canTribute) return;
       if(isArtilleryLockedForAI(z)) return;
       const ralphBonus = typeof countFriendlyRalphAdjacency === 'function' ? countFriendlyRalphAdjacency(z, r, c, cp) : 0;
-      const reinforcement = getSupportReinforcementValue(card) + ralphBonus;
+      const reinforcement = getSupportReinforcementValue(card) + (isFishCounter(card) ? 0 : ralphBonus);
       const isCharacter = typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(card, cp) : card.type !== 'Supporter';
-      if(card.type === 'Supporter') mySups.push({card,z,r,c,reinforcement, kind:'supporter'});
+      if(card.type === 'Supporter' || isFishCounter(card)) mySups.push({card,z,r,c,reinforcement, kind:'supporter'});
       if(isCharacter) mySups.push({card,z,r,c,reinforcement, kind:'character'});
       // Irvine Businessman lets ordinary Characters pay normal consolidation
       // costs in his zone. Keep this second role separate from cards such as
@@ -3754,10 +3755,10 @@ async function aiDoPlace(choice) {
     return;
   }
   const isAchillesToken = typeof isAchillesAdaptiveToken === 'function' && isAchillesAdaptiveToken(card);
-  const isEffectFree = !!(G._linaFreeIids && G._linaFreeIids.has(card.iid)) || isAchillesToken;
+  const isEffectFree = isFishCounter(card) || !!(G._linaFreeIids && G._linaFreeIids.has(card.iid)) || isAchillesToken;
   const cardIsSupporterForRules = typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, cp) : card.type === 'Supporter';
   const placementCountsAsConsolidated = (isAchillesToken && card._achillesPlayMode === 'consolidated')
-    || (!cardIsSupporterForRules && !isAchillesToken && isEffectFree);
+    || (!isFishCounter(card) && !cardIsSupporterForRules && !isAchillesToken && isEffectFree);
   if(!cardIsSupporterForRules && !isEffectFree){
     if(typeof canConsolidateWithoutTributeAt !== 'function' || !canConsolidateWithoutTributeAt(card, choice)) return;
     return aiDoConsolidate({...choice, tributes:[]});
@@ -3812,6 +3813,7 @@ async function aiDoPlace(choice) {
       inst._supporterSetOwner = cp;
       inst._setReinforcementValue = setReinforcementValue;
       if(typeof noteBalladSupporterSet === 'function') noteBalladSupporterSet(cp, inst);
+      triggerDonJulioSupporterSet(inst, choice.z);
       if(defenseInDepthSet){
         G._bh24DefenseInDepth[cp] = null;
         if(typeof applyPairedOverlayFateGain === 'function'){
@@ -4142,6 +4144,10 @@ async function aiTriggerWhenSet(inst, z, r, c) {
   }
 
   switch(id) {
+    case '112':
+    case '113':
+    case '115': await resolveCaribbeaSupporter(inst,cp,id,true); break;
+    case '108': await resolveSofiaOriginalDeck(inst, cp); break;
     case '103': {
       const targets=[];
       forEachBoardCard(function(target,tz,tr,tc){if(Number(target.owner)===Number(cp)&&getEffectiveFate(target,tz)>=7)targets.push({card:target,z:tz,r:tr,c:tc});});
@@ -4614,6 +4620,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       log('p2','AI: Wojciech created ' + added + ' Pierogi Counter' + (added === 1 ? '' : 's'));
       break;
     }
+    case '111':
     case '82': { // Felicyta Janowicz (Youth): choose a legal replacement landscape
       aiChooseFelicytaYouthLandscape(inst, cp);
       inst.effectUsedInitial = true;

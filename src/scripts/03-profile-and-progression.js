@@ -402,6 +402,7 @@ const TITLE_BG_PATH = n => FATE_BACKGROUND_URL(`optimized/backgrounds/titlscreen
 const INGAME_BG_PATH = n => FATE_BACKGROUND_URL(Number(n) === 1 ? 'ingamebackgrouds/igb1.png?v=bg20260705' : ([15,18,21,22,23,24].includes(Number(n)) ? `ingamebackgrouds/igb${n}.png` : `optimized/backgrounds/ingamebackgrouds_igb${n}.jpg`));
 const PFP_PATH = (n, shape='circle') => {
   const id = Math.max(1, parseInt(n, 10) || 1);
+  if(id >= 133 && id <= 135) return `pfp/card-${id-25}-portrait.svg?v=20261014-full-art`;
   if(id === 132) return 'pfp/card-107-portrait.svg?v=20261010';
   if(id >= 126 && id <= 128) return `pfp/card-${id-25}-portrait.svg?v=20261008`;
   if(id >= 129 && id <= 131) return `pfp/card-${id-25}-portrait.png?v=20261009`;
@@ -418,7 +419,7 @@ const SET_VOICELINE_PATH = name => {
   const path = `setvoicelines/${key}.${ext}`;
   return key === 'board22' ? path + '?v=audio20260831-mexico' : path;
 };
-const PFP_CATALOG_SIZE = 132;
+const PFP_CATALOG_SIZE = 135;
 const ALL_PFP_IDS = Array.from({length:PFP_CATALOG_SIZE}, (_,i)=>i+1);
 const DEFAULT_PROFILE_IMG = 'blank.png';
 

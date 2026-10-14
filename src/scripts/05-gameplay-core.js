@@ -1,3 +1,28 @@
+function triggerDonJulioSupporterSet(placed, zone){
+  const owner = placed.controller ?? placed.owner;
+  forEachBoardCard(function(card,z,r,c){
+    const controller = card.controller ?? card.owner;
+    if(String(typeof getCardRuntimeEffectId==='function'?getCardRuntimeEffectId(card):card.id)!=='109'
+      || z!==zone || controller===owner || card.faceDown || isCardEffectSuppressed(card,z,r,c)) return;
+    const rng = typeof G._onlineRng==='function' ? G._onlineRng : Math.random;
+    const roll = Math.floor(rng()*6)+1;
+    window.holdDonJulioFate?.({sourceIid:card.iid,before:Number(card.currentFate??card.fate)||0});
+    modifyFate(card,roll,'unclassified',controller);
+    (placed._donJulioPendingRolls ||= []).push({event:{type:'FATE_DIE_ROLLED',roll,sourceIid:card.iid,cardIid:card.iid,playerIndex:controller},card:{...card}});
+  });
+}
+
+async function resolveDonJulioSupporterArrival(inst){
+  if(!inst || inst._pendingWhenSetEffect || inst._pendingWhenSetActivationInFlight) return;
+  const fish=inst._pendingSebastianFishOverlays || [];
+  delete inst._pendingSebastianFishOverlays;
+  for(const item of fish) await window.presentSebastianFishAfterResolution?.(item.source,item.key,[item.fishIid]);
+  const rolls=inst._donJulioPendingRolls;
+  if(!rolls?.length) return;
+  delete inst._donJulioPendingRolls;
+  for(const item of rolls) await window.presentDonJulioDieRoll?.(item.event,null,item.card);
+}
+
 function hasNoSuppressibleFieldEffect(card){
   const id=String(typeof getCardRuntimeEffectId==='function'?getCardRuntimeEffectId(card):card?.id || '');
   return ['76','bh01'].includes(id);
@@ -8,7 +33,7 @@ function isFlowerPickingEligible(player){
   // or belong to the other seat and cannot fill in a missing server flag.
   if(G._onlineRoomCode || G._phase7CurrentMultiplayer)return false;
   const original=player===0?G.p1Deck:G.p2Deck;
-  const drawIds=['27','32','42','80','86','bh01'];
+  const drawIds=['27','32','42','80','86','108','bh01'];
   if(Array.isArray(original) && original.length)return !original.some(c=>drawIds.includes(String(c?.id || c)));
   return false;
 }
@@ -30,7 +55,7 @@ function coercePlayerIndex(value, fallback) {
   return fallback;
 }
 
-const FRENCH_FUSILIERS_COPYABLE_PASSIVE_IDS = new Set(['25','24','44','49','53','59','65','92','93']);
+const FRENCH_FUSILIERS_COPYABLE_PASSIVE_IDS = new Set(['25','24','44','49','53','59','65','92','93','114']);
 
 function getFrenchFusiliersCopiedPassiveId(card) {
   if(!card) return '';
@@ -1804,8 +1829,14 @@ async function nextPlayerTurn() {
     G.suppressTarget = null;
   }
 
+  if(G._temporaryLandscape && G.turn >= G._temporaryLandscape.expiresTurn && endingPlayer === G._temporaryLandscape.endingPlayer){
+    transitionGameLandscape('board'+String(G._landscapeReturnId).replace('igb',''),{restore:true,player:endingPlayer});
+  }
   G.currentPlayer = 1 - G.currentPlayer;
   G.turn++;
+  // Turn-based restrictions expire now, before turn-start effects and pickers.
+  if(typeof window.renderGameImmediate === 'function') window.renderGameImmediate({board:true});
+  else renderGame({board:true});
   G.board.forEach((zone,z)=>zone.forEach((row,r)=>row.forEach((card,c)=>{
     if(!card || String(card.id)!=='106') return;
     card._joseFieldTurns=(Number(card._joseFieldTurns)||0)+1;
@@ -2745,7 +2776,7 @@ function placeSelected() {
   if(typeof tutorialCanStartHandAction === 'function' && !tutorialCanStartHandAction(card, 'place')) return;
 
   // Free-set effects skip reinforcement/supporter limits, but still obey board placement rules.
-  const isLinaFree = !!(card.counters?.chauffeurFreeSet || card._linaFree || (G._linaFreeIids && G._linaFreeIids.has(card.iid)) || (typeof isAchillesAdaptiveToken === 'function' && isAchillesAdaptiveToken(card)));
+  const isLinaFree = !!(isFishCounter(card) || card.counters?.chauffeurFreeSet || card._linaFree || (G._linaFreeIids && G._linaFreeIids.has(card.iid)) || (typeof isAchillesAdaptiveToken === 'function' && isAchillesAdaptiveToken(card)));
 
   const defenseInDepthReady = Array.isArray(G._bh24DefenseInDepth)
     && G._bh24DefenseInDepth[G.currentPlayer]
@@ -3114,6 +3145,7 @@ window.clearDeferredCardEffectFlashes=clearDeferredCardEffectFlashes;
 
 // Rozsi Szocs (34) — Coordinator(2): cards moved into zone gain +3 Fate (not setting)
 function flashCardEffect(card, kind, options) {
+  if(window.deferDonJulioFate?.(card?.iid,()=>flashCardEffect(card,kind,options))) return true;
   if(typeof G !== 'undefined' && (G?._hiddenEffectPresentationSources || []).some(entry=>isHiddenEffectForViewer(entry.card))) return false;
   if(typeof isHiddenEffectForViewer === 'function' && isHiddenEffectForViewer(card)) return false;
   if(!card || typeof window === 'undefined' || typeof window.markCardEffectFlash !== 'function') return false;
@@ -4397,7 +4429,7 @@ async function clickCell(z,r,c) {
   }
   // Supporter limit re-check (skip for Lina free-set cards and Adaptive Tactic Tokens).
   const achillesCountsAsConsolidated = isAchillesToken && card._achillesPlayMode === 'consolidated';
-  const isLinaFree = !!(card.counters?.chauffeurFreeSet || card._linaFree || (G._linaFreeIids && G._linaFreeIids.has(card.iid)) || isAchillesToken);
+  const isLinaFree = !!(isFishCounter(card) || card.counters?.chauffeurFreeSet || card._linaFree || (G._linaFreeIids && G._linaFreeIids.has(card.iid)) || isAchillesToken);
   const cardIsSupporterForRules = typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, cp) : card.type === 'Supporter';
   const freeCharacterCountsAsConsolidated = !cardIsSupporterForRules
     && ['lina-free-set', 'kvetka-svoboda-free-set'].includes(String(card._freePlacementCinematicKind || ''));
@@ -4590,6 +4622,7 @@ async function clickCell(z,r,c) {
     inst._hasBeenOnBoard = true;
     inst._supporterSetOwner = G.currentPlayer;
     if(typeof noteBalladSupporterSet === 'function') noteBalladSupporterSet(G.currentPlayer, inst);
+    triggerDonJulioSupporterSet(inst, z);
     if(defenseInDepthSet){
       G._bh24DefenseInDepth[cp] = null;
       if(typeof applyPairedOverlayFateGain === 'function'){
@@ -5015,6 +5048,7 @@ async function resolveSetCardAfterPlacement(inst, z, r, c, opts = {}) {
   } finally {
     delete inst._onlineSetResolutionPending;
     delete inst._onlineSetResolutionInFlight;
+    await resolveDonJulioSupporterArrival(inst);
     await resolveJorgeConsolidationArrival(inst);
   }
 }
@@ -5023,6 +5057,11 @@ window.resolveSetCardAfterPlacement = resolveSetCardAfterPlacement;
 function flipFaceDownBoardCard(card, z, r, c) {
   if(!card || !isFaceDownCard(card)) return 0;
   card.faceDown = false;
+  for(const effect of G._revolutionaryFlipGains || []){
+    if(effect.turn !== G.turn) continue;
+    if(typeof isTargetImmuneToEffectOwner === 'function' && isTargetImmuneToEffectOwner(card,effect.owner)) continue;
+    applyPairedOverlayFateGain(card,4,effect.owner,{type:'unclassified',kind:'revolutionary_spirit',label:'Revolutionary Spirit',sourceIid:effect.sourceIid,waitForConsolidationCinematic:true,waitForMoraleCalculation:true});
+  }
   delete card._suppressPlacementAnimation;
   delete card._suppressCinematicSubtitle;
   scheduleCoordinatorRevealFlash(card, z, r, c);
@@ -5051,10 +5090,28 @@ function flipFaceDownBoardCard(card, z, r, c) {
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  CONSOLIDATION (tribute supporters → summon character)
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+function getMilitaryBlockadeTurns(card, zone) {
+  if(!card || card.type !== 'Supporter' || !G || !Number.isInteger(zone)) return 0;
+  const owner = Number(card.controller ?? card.owner);
+  if(typeof isTargetImmuneToEffectOwner === 'function' && isTargetImmuneToEffectOwner(card,1-owner)) return 0;
+  let count = 0;
+  (G.board[zone] || []).forEach(row=>(row || []).forEach(source=>{
+    if(source && Number(source.controller ?? source.owner) !== owner && cardActsAsPassive(source,'114')
+      && !source.faceDown && source.contributesAuras !== false
+      && !(typeof isSupporterAuraSuppressed === 'function' && isSupporterAuraSuppressed(source))
+      && !(typeof isCardEffectSuppressed === 'function' && isCardEffectSuppressed(source))) count++;
+  }));
+  const entered = Number(card._setTurn ?? card.counters?.fieldEnteredTurn);
+  const elapsedOwnerTurns = Math.floor(Math.max(0,Number(G.turn)-entered)/2);
+  return count && Number.isFinite(entered) ? Math.max(0,count-elapsedOwnerTurns) : 0;
+}
+window.getMilitaryBlockadeTurns = getMilitaryBlockadeTurns;
+
 function canUseAsConsolidationTribute(card, owner, z, r, c) {
   if(!card) return false;
   if(card.owner !== owner) return false;
   if(card.noConsolidate) return false;
+  if(getMilitaryBlockadeTurns(card,z) > 0) return false;
   // ALPINE Infantry is immune to effects and can never be spent as tribute,
   // including older instances that may not have noConsolidate stamped yet.
   if(typeof isCardEffectImmutable === 'function' ? isCardEffectImmutable(card) : card.id === '76') return false;
@@ -5184,12 +5241,12 @@ function doConsolidate(card, cost) {
     if(typeof G._artilleryLockedZone==='number' && G._artilleryLockedZone===z && G._artilleryLockOwner===cp && G._artilleryLockTurnsLeft>0) return;
     row.forEach((cell,c)=>{
       const isCharacterTribute = typeof isCardCharacterForRules === 'function' && isCardCharacterForRules(cell, cp);
-      const cellIsPrintedSupporter = !!(cell && cell.type === 'Supporter');
+      const cellIsPrintedSupporter = !!(cell && (cell.type === 'Supporter' || isFishCounter(cell)));
       const canUseForThisCard = usesCharacterTributes
         ? isCharacterTribute
         : (cell && cellIsPrintedSupporter);
       if(cell && canUseForThisCard && canUseAsConsolidationTribute(cell, cp, z, r, c)) {
-        const reinforcement = usesCharacterTributes ? 1 : getSupportReinforcementValue(cell) + countFriendlyRalphAdjacency(z, r, c, cp);
+        const reinforcement = usesCharacterTributes ? 1 : getSupportReinforcementValue(cell) + (isFishCounter(cell) ? 0 : countFriendlyRalphAdjacency(z, r, c, cp));
         supports.push({card:cell,z,r,c,zoneIdx:z,reinforcement});
       }
     });
@@ -6133,6 +6190,17 @@ function noteBalladSupporterSet(player, card) {
 
 function noteBalladConsolidation(player, card) {
   if(!card) return 0;
+  forEachBoardCard(function(source){
+    if(source.owner !== player || source.iid === card.iid || source.faceDown
+      || !cardActsAsPassive(source, '110') || isCardEffectSuppressed(source)) return;
+    const fish = createCardInstance({id:'token-fish',name:'Fish Counter',ability:'Fresh Catch',
+      type:'Counter',aff:'eventide',rarity:'circle',fate:0,cost:0,token:true,fishCounter:true,
+      img:'token-fish.svg',effect:'Counts as 0.5 Reinforcement. Can be set for free.',
+      flavor:'A fresh catch from the wharf.'}, player);
+    G.players[player].hand.push(fish);
+    window.holdSebastianFishCards?.([fish.iid]);
+    (card._pendingSebastianFishOverlays ||= []).push({source,key:'fish:'+source.iid+':'+fish.iid,fishIid:fish.iid});
+  });
   const playerEffects = ensureBalladState()[player];
   if(String(card.id || '') === '87' && !playerEffects.some(function(fx){
     return fx && fx.active && !fx.ended && String(fx.sourceIid || '') === String(card.iid || '');
@@ -6266,7 +6334,7 @@ function isPersistentSupporterEffectOnSet(card) {
   if(!card || !(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, card.owner) : card.type === 'Supporter')) return false;
   if(pressureCardReworkTimingActive() && PRESSURE_REWORK_TIMING_CARD_IDS.has(String(card.id))) return false;
   if(WHEN_SET_IDS.has(String(card.id))) return false;
-  return new Set(['24','44','49','53','59','63','65','78','92','95']).has(String(card.id));
+  return new Set(['24','44','49','53','59','63','65','78','92','95','114']).has(String(card.id));
 }
 
 async function beginManualSupporterEffectActivation(card, z, r, c, affectedOwners, options) {
@@ -6517,11 +6585,11 @@ function tickCarpathianSpecters(player) {
   });
 }
 
-const INITIAL_SET_INITIATOR_IDS = new Set(['03','04','06','07','08','13','17','22','29','30','39','43','45','48','51','54','66','81','82','83','87','90','99','103','bh04','bh05','bh06','bh10','bh13','bh14','bh18','bh19','bh20','bh21','bh22']);
+const INITIAL_SET_INITIATOR_IDS = new Set(['108','03','04','06','07','08','13','17','22','29','30','39','43','45','48','51','54','66','81','82','83','87','90','99','103','bh04','bh05','bh06','bh10','bh13','bh14','bh18','bh19','bh20','bh21','bh22']);
 // Browser timing mirror for shared/engine/cards/registry.mjs. This is the seam
 // that keeps single-player interaction timing identical to authoritative play.
 const AUTHORITATIVE_ACTIVATE_EFFECT_IDS = new Set(['03','06','20','22','27','29','30','38','39','40','48','83','93','102','104','105','107','bh01']);
-const AUTHORITATIVE_WHEN_SET_EFFECT_IDS = new Set([
+const AUTHORITATIVE_WHEN_SET_EFFECT_IDS = new Set(['108','111','112','113','115',
   '02','04','05','07','08','12','13','14','16','17','18','25','26','31','32','33','37','42','43','50','51','52','54','58','60','61','62','65','66','68','69','71','72','73','75','76','77','78','80','81','82','84','87','90','94','96','97','99','103','bh04','bh05','bh06','bh09','bh10','bh12','bh13','bh14','bh18','bh19','bh20','bh21','bh22','bh23','bh24','bh25'
 ]);
 const PRESSURE_REWORK_TIMING_CARD_IDS = new Set(['20','25','33','34','35','44','45','47','64','65','69','73']);
@@ -6670,6 +6738,7 @@ async function activatePendingWhenSetEffect(card, z, r, c) {
     if(typeof tutorialEvent === 'function' && _tutorialActive) tutorialEvent('activateEffect', {card, id:card.id, z:az, r:ar, c:ac});
   } finally {
     delete card._pendingWhenSetActivationInFlight;
+    await resolveDonJulioSupporterArrival(card);
   }
   renderGame({board:true, hand:true, scores:true, piles:true, oppHand:true, blocks:true, topbar:true});
 }
@@ -6722,6 +6791,7 @@ async function triggerWhenSet(inst, z, r, c, opts = {}) {
     // The outer placement resolver owns this trigger when present. Direct
     // callers must also finish the arriving card before opening a free call.
     if(!inst?._onlineSetResolutionInFlight && !opts.manualActivation && !opts.forceImmediate){
+      await resolveDonJulioSupporterArrival(inst);
       await resolveJorgeConsolidationArrival(inst);
     }
   }
@@ -7974,7 +8044,44 @@ function resolvePanaceaMilitia(card, z, cp) {
   });
 }
 
+async function resolveSofiaOriginalDeck(card, cp) {
+  for(const target of G.players[cp].hand.slice()){
+    if(typeof isTargetImmuneToEffectOwner==='function' && isTargetImmuneToEffectOwner(target,cp)) continue;
+    G.players[cp].hand=G.players[cp].hand.filter(item=>item.iid!==target.iid);
+    fatePushDiscard(cp,target,{source:'hand',sound:false});
+  }
+  const original = G.players[1-cp].originalDeckIds || (cp===0 ? G.p2Deck : G.p1Deck);
+  G.players[cp].deck = shuffle(original.map(id=>CARDS.find(c=>c.id===String(id))).filter(Boolean).map(def=>createCardInstance(def,cp)));
+  const openingExtras=G.players[cp].deck.filter(item=>['98','84'].includes(String(item.id)));
+  G.players[cp].deck=G.players[cp].deck.filter(item=>!['98','84'].includes(String(item.id)));
+  for(const extra of openingExtras) addCardToHand(cp,extra,{openingHand:true,announce:false});
+  await drawCard(cp,6,{afterSetOrCinematic:true,activatedDrawEffect:true,effectSource:card});
+  markInitialEffectResolved(card);
+}
+
+async function resolveCaribbeaSupporter(inst, cp, id, ai = false) {
+  if(id === '112'){
+    G._revolutionaryFlipGains = (G._revolutionaryFlipGains || []).filter(effect=>effect.turn === G.turn);
+    G._revolutionaryFlipGains.push({turn:G.turn,owner:cp,sourceIid:inst.iid});
+    if(typeof renderTopbarEffects === 'function') renderTopbarEffects();
+  }else if(id === '113'){
+    await window.resolveLedgerArchive(cp,inst,{ai,deckOwner:1-cp,title:'Elite Influence'});
+  }else if(id === '115'){
+    const counts = new Map();
+    const original = G.players[cp].originalDeckIds || (cp === 0 ? G.p1Deck : G.p2Deck) || [];
+    for(const value of original){
+      const card = typeof value === 'object' ? value : CARDS.find(card=>card.id === String(value));
+      const aff = card?.affiliation || card?.aff;
+      if(aff) counts.set(aff,(counts.get(aff)||0)+1);
+    }
+    if([...counts.values()].some(count=>count >= 30)) await window.resolveHopliteCallToArms(inst,cp);
+  }
+}
+
 async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
+  if(['112','113','115'].includes(id)) return resolveCaribbeaSupporter(inst,cp,id);
+  if(id === '108') return resolveSofiaOriginalDeck(inst, cp);
+  if(id === '111') return resolveVillagerLandscapeChoice(inst, cp);
   if((['33','47'].includes(String(id || '')) || pressureCardReworkTimingActive())
     && new Set(['20','33','47','64']).has(String(id || ''))
     && typeof window.recordLegacyMoralePressureCardSet === 'function') {
@@ -8836,6 +8943,53 @@ function activateHenryDongSuppression(card, z, r, c, opts = {}) {
   });
 }
 
+async function resolveVillagerLandscapeChoice(card, cp) {
+      // Taylor resolves copied initiators through this shared handler too.
+      // Route the choice by the source owner, never by who can see the modal.
+      if(G.aiEnabled && Number(card.owner) === Number(G.aiPlayer)) {
+        if(typeof aiChooseFelicytaYouthLandscape === 'function') aiChooseFelicytaYouthLandscape(card, Number(card.owner));
+        return;
+      }
+      if(isLandscapeChangeBlockedFor(cp)){
+        toast('A Snowy Village prevents you from changing the landscape right now.');
+        if(typeof playSfx === 'function') playSfx('blocked');
+        return;
+      }
+      if(typeof showLandscapeChoiceModal !== 'function' || typeof transitionGameLandscape !== 'function'){
+        toast('Landscape selection is unavailable.');
+        return;
+      }
+      const currentLandscapeBlock = typeof getFelicitaLandscapeChangeBlockReason === 'function' ? getFelicitaLandscapeChangeBlockReason('') : '';
+      if(currentLandscapeBlock) {
+        if(typeof showFelicitaLandscapeChangeBlockedBanner === 'function') showFelicitaLandscapeChangeBlockedBanner(currentLandscapeBlock);
+        return;
+      }
+      await new Promise(function(resolve){
+        let settled = false;
+        const finishChoice = function(value){
+          if(settled) return;
+          settled = true;
+          resolve(value);
+        };
+        showLandscapeChoiceModal(0, function(song){
+          const previousLandscapeId = String(G.landscapeId || '');
+          const changed = transitionGameLandscape(song, {player:cp, sourceCard:card});
+          if(changed !== false) {
+            ignoreBattleOfPellaThresholdsReachedBeforeEntry(previousLandscapeId);
+            renderGame({board:true, scores:true, landscape:true, topbar:true});
+          }
+          finishChoice(changed !== false);
+        }, {
+          committed:false,
+          sourceCard:card,
+          player:cp,
+          onCancel:function(){ finishChoice(false); }
+        });
+      });
+      return;
+
+}
+
 async function triggerCharacterEffect(card, z, r, c, opts = {}) {
   if(card && !opts.pickerBoundary && !G._onlineRoomCode && !G._phase7CurrentMultiplayer){
     return runLocalPickerEffect(card, ()=>triggerCharacterEffect(card,z,r,c,{...opts,pickerBoundary:true}));
@@ -9195,51 +9349,8 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
       renderEffectResolutionForPlayer(cp, {hand:true});
       break;
     }
-    case '82': { // Felicyta Janowicz (Youth): change landscape
-      // Taylor resolves copied initiators through this shared handler too.
-      // Route the choice by the source owner, never by who can see the modal.
-      if(G.aiEnabled && Number(card.owner) === Number(G.aiPlayer)) {
-        if(typeof aiChooseFelicytaYouthLandscape === 'function') aiChooseFelicytaYouthLandscape(card, Number(card.owner));
-        break;
-      }
-      if(isLandscapeChangeBlockedFor(cp)){
-        toast('A Snowy Village prevents you from changing the landscape right now.');
-        if(typeof playSfx === 'function') playSfx('blocked');
-        break;
-      }
-      if(typeof showLandscapeChoiceModal !== 'function' || typeof transitionGameLandscape !== 'function'){
-        toast('Landscape selection is unavailable.');
-        break;
-      }
-      const currentLandscapeBlock = typeof getFelicitaLandscapeChangeBlockReason === 'function' ? getFelicitaLandscapeChangeBlockReason('') : '';
-      if(currentLandscapeBlock) {
-        if(typeof showFelicitaLandscapeChangeBlockedBanner === 'function') showFelicitaLandscapeChangeBlockedBanner(currentLandscapeBlock);
-        break;
-      }
-      await new Promise(function(resolve){
-        let settled = false;
-        const finishChoice = function(value){
-          if(settled) return;
-          settled = true;
-          resolve(value);
-        };
-        showLandscapeChoiceModal(0, function(song){
-          const previousLandscapeId = String(G.landscapeId || '');
-          const changed = transitionGameLandscape(song, {player:cp, sourceCard:card});
-          if(changed !== false) {
-            ignoreBattleOfPellaThresholdsReachedBeforeEntry(previousLandscapeId);
-            renderGame({board:true, scores:true, landscape:true, topbar:true});
-          }
-          finishChoice(changed !== false);
-        }, {
-          committed:false,
-          sourceCard:card,
-          player:cp,
-          onCancel:function(){ finishChoice(false); }
-        });
-      });
-      break;
-    }
+    case '111':
+    case '82': { await resolveVillagerLandscapeChoice(card, cp); break; }
     case '83': { // Sebastyen Janowicz: friendly characters in zone +2 permanently
       let count = 0;
       G.board[z].forEach(row=>row && row.forEach(cell=>{
@@ -9377,6 +9488,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
       }, card);
       break;
     }
+    case '108': { await resolveSofiaOriginalDeck(card, cp); break; }
     case '87': { // Kvetka Svoboda (Ukulele): immediate consolidation ballad
       const effects = ensureBalladState();
       let ownEffect = effects[cp].find(function(fx){return fx&&fx.active&&!fx.ended&&String(fx.sourceIid||'')===String(card.iid||'');});
@@ -9845,6 +9957,7 @@ function preparePlacementFateReveal(inst, sourceCard, mode) {
     genericSoundRequested:Number(inst.currentFate ?? inst.fate ?? 0) !== fromValue,
     forceFateGainSound:String(inst.id || source.id || '') === '76'
       && Number(inst.currentFate ?? inst.fate ?? 0) > fromValue,
+    majaBoost:(source._handEffectModifiers || []).some(row=>row?.key === 'maja-kaminska-oblique-order' && Number(row.fateDelta)>0) || Number(source.counters?.majaPlacementBoost)>0,
     kvetkaGainAmount:0
   };
   return inst;
@@ -9997,7 +10110,7 @@ function effectChoicePresentationUiOpen() {
   const modal = document.getElementById('modal');
   if(modal && modal.classList.contains('on')) return true;
   return !!(typeof G !== 'undefined' && G && (
-    G._phase7PendingPrompt ||
+    G._phase7PendingPrompt || G._phase7PendingHandLimit ||
     G._serverPendingReaction || G._serverPendingZonePick ||
     G._serverPendingCardPick || G._serverPendingModalAction ||
     G._onlinePendingPickCardsVisual || G._onlinePendingZonePicker ||
@@ -10103,7 +10216,9 @@ function queuePairedOverlayFateGain(target, options) {
     waitForMoraleCalculation:opts.waitForMoraleCalculation === true,
     effectOptions:opts.effectOptions && typeof opts.effectOptions === 'object' ? Object.assign({}, opts.effectOptions) : null,
     soundKey:String(opts.soundKey || ''),
-    readyAt:Date.now() + Math.max(0, Number(opts.delayMs) || 0)
+    // Flip cinematics are scheduled after the 980ms flip. Reserve that handoff
+    // before polling the live animation gates; a single fixed delay is insufficient.
+    readyAt:Date.now() + Math.max(opts.kind === 'revolutionary_spirit' ? 1200 : 0, Number(opts.delayMs) || 0)
   });
   if(state.running) return true;
   state.running = true;
@@ -10129,6 +10244,15 @@ function queuePairedOverlayFateGain(target, options) {
       return;
     }
     const liveTarget = resolveSequentialFateDisplayTarget(targetKey, current.target);
+    if(next.kind === 'revolutionary_spirit'){
+      const busy = !!liveTarget?._flipResolutionPromise
+        || (typeof getChoicePresentationDelayMs === 'function' && getChoicePresentationDelayMs() > 0)
+        || (typeof consolidationCinematicIsActive === 'function' && consolidationCinematicIsActive())
+        || (typeof window.isMoraleCalculationPresentationActive === 'function' && window.isMoraleCalculationPresentationActive());
+      if(busy){ next.quietSince=0;setTimeout(presentNext,80);return; }
+      if(!next.quietSince) next.quietSince=Date.now();
+      if(Date.now()-next.quietSince<180){setTimeout(presentNext,80);return;}
+    }
     if(next.waitForConsolidationCinematic
       && typeof consolidationCinematicIsActive === 'function'
       && consolidationCinematicIsActive()){
@@ -10555,6 +10679,7 @@ function modifyFate(card, amount, type) {
 }
 
 function playResolvedFateChangeSfx(card, beforeValue, afterValue, sourceOwner) {
+  if(window.deferDonJulioFate?.(card?.iid,()=>playResolvedFateChangeSfx(card,beforeValue,afterValue,sourceOwner)))return;
   if(!card) return;
   const before = Math.max(0, Number(beforeValue) || 0);
   const after = Math.max(0, Number(afterValue) || 0);
@@ -12022,7 +12147,7 @@ function isHavanoReactionSource(actionData) {
 function getSupporterEffectAffectedOwners(inst, z, r, c, cp, opp) {
   if(!inst) return [];
   if(isPersistentSupporterEffectOnSet(inst)) {
-    if(inst.id === '53') return [opp];
+    if(inst.id === '53' || inst.id === '114') return [opp];
     if(inst.id === '20') {
       let touchesOpponent = false;
       if(G.board && G.board[z]) G.board[z].forEach(row=>row && row.forEach(cell=>{
@@ -12032,7 +12157,7 @@ function getSupporterEffectAffectedOwners(inst, z, r, c, cp, opp) {
     }
     return [];
   }
-  const affectsOpponent = new Set(['16','26','31','50','61','62','71','72','97']);
+  const affectsOpponent = new Set(['16','26','31','50','61','62','71','72','97','113']);
   const affectsBoth = new Set(['18']);
   if(affectsBoth.has(inst.id)) return [0,1];
   if(affectsOpponent.has(inst.id)) return [opp];
@@ -12348,6 +12473,7 @@ function applyHavanoPlacementRules(inst, sourceCard, z, r, c, owner) {
   inst._hasBeenOnBoard = true;
   inst._supporterSetOwner = owner;
   if(typeof noteBalladSupporterSet === 'function') noteBalladSupporterSet(owner, inst);
+  triggerDonJulioSupporterSet(inst, z);
   if(typeof consumePendingPlacementFlags === 'function') consumePendingPlacementFlags(sourceCard, inst);
   if(typeof applyContinuousEffects === 'function') applyContinuousEffects();
   return true;
@@ -12391,6 +12517,7 @@ function beginHavanoDeployment(reaction, owner) {
         toast('Havano Citizen negated the effect and deployed to Zone '+(o.z+1)+'!');
         renderEffectResolutionForPlayer(owner, {hand:true});
         resolve(false);
+        void resolveDonJulioSupporterArrival(inst);
       };
       const presenter = window.FateActionPresentation;
       if(presenter && typeof presenter.beginBoardPlacement === 'function'){
@@ -12436,6 +12563,7 @@ function handleHavanoDeployClick(z,r,c) {
     else showBlockedAnimation(resultWord + ' by Havano Citizen!');
     renderEffectResolutionForPlayer(dep.owner, {hand:true});
     dep.resolve(false);
+    void resolveDonJulioSupporterArrival(dep.inst);
   };
   const presenter = window.FateActionPresentation;
   if(presenter && typeof presenter.beginBoardPlacement === 'function'){
@@ -12515,7 +12643,7 @@ function executeReaction(reaction, actionData) {
     renderEffectResolutionForPlayer(opp, {hand:false});
   }
 }// Cards with when-set effects (global so runWhenSetEffect can reference it)
-const WHEN_SET_IDS = new Set(['02','03','04','05','06','07','08','12','13','14','16','17','18','22','25','26','27','29','30','31','32','33','34','35','37','38','39','42','43','45','46','48','50','51','52','54','56','58','60','61','62','66','68','69','71','72','73','75','76','77','80','84','94','96','97','bh09','bh10','bh12','bh13','bh14','bh19','bh23','bh24','bh25']);
+const WHEN_SET_IDS = new Set(['108','111','112','113','115','02','03','04','05','06','07','08','12','13','14','16','17','18','22','25','26','27','29','30','31','32','33','34','35','37','38','39','42','43','45','46','48','50','51','52','54','56','58','60','61','62','66','68','69','71','72','73','75','76','77','80','84','94','96','97','bh09','bh10','bh12','bh13','bh14','bh19','bh23','bh24','bh25']);
 
 async function activateFaceDownBoardEffect(card,z,r,c) {
   if(!card?.faceDown) return false;

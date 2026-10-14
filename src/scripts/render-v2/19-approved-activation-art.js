@@ -259,6 +259,7 @@ function drawAnneKnightsGambit(c,t,w=700,h=430){
  c.restore();
 }
 function draw(ctx,id,t,w=700,h=430,options={}){
+if(window.FateCaribbeaActivationArt?.handles(id))return window.FateCaribbeaActivationArt.draw(ctx,id,t,w,h,window.FateCaribbeaActivationArt.selected[id]);
 if(String(id)==='107')return drawAnneKnightsGambit(ctx,t,w,h);
 if(String(id)==='21')return drawHenryForged(ctx,t,w,h);
 if(String(id)==='104')return drawCaribbea104(ctx,t,w,h);
@@ -723,6 +724,6 @@ for(let j=0;j<3;j++)curve(v=>[(j-1)*75-12+24*v,21-3*Math.sin(v*PI)],1,'#e7f6ff',
 }
 ctx.restore();
 }
-window.FateApprovedActivationArt={handles:id=>['101','102','103','104','105','106','107'].includes(String(id))||String(id)==='bh15'||names.some(n=>n[0]===String(id)),draw};
+window.FateApprovedActivationArt={handles:id=>['101','102','103','104','105','106','107','108','109','110'].includes(String(id))||String(id)==='bh15'||names.some(n=>n[0]===String(id)),draw};
 })();
 

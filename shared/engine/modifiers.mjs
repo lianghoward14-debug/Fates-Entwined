@@ -338,6 +338,7 @@ function isAdjacent(a, b){
 export function effectiveReinforcement(state, entry, playerIndex){
   const card = entry?.card;
   if(!card || controllerOf(card) !== Number(playerIndex)) return 0;
+  if(card.counters?.fishCounter === true) return 0.5;
   let value = runtimeRuleId(card) === '09' && activeAuraSource(state, entry) ? 2 : 1;
   value += Number(card.counters?.reinforcementBonus || 0) || 0;
   for(const status of card.statuses || []){
@@ -372,6 +373,10 @@ export function canUseAsConsolidationTribute(state, entry, playerIndex, consolid
     }
     return {ok:true, reinforcement:1};
   }
+  if(card.counters?.fishCounter === true){
+    if(card.noConsolidate === true || card.statuses?.includes('CANNOT_CONSOLIDATE')) return rejection('TRIBUTE_PREVENTED', 'this Fish cannot be used for consolidation');
+    return {ok:true, reinforcement:0.5};
+  }
   if(cardType !== 'Supporter'){
     const irvinePermission = boardEntries(state).some(source=>
       source.z === entry.z
@@ -383,6 +388,17 @@ export function canUseAsConsolidationTribute(state, entry, playerIndex, consolid
       return rejection('INVALID_TRIBUTE_TYPE', 'only Supporters are eligible for this consolidation');
     }
     return {ok:true, reinforcement:1};
+  }
+  if(!isEffectImmutable(card) && !isImmuneToOpponentEffects(card,state)){
+    const blockade = boardEntries(state).filter(source=>source.z === entry.z
+      && controllerOf(source.card) !== Number(playerIndex)
+      && runtimeRuleId(source.card) === '114' && !source.card.faceDown && activeAuraSource(state,source)).length;
+    const entered = Number(card.counters?.fieldEnteredTurn);
+    // A waiting turn belongs to the Supporter's controller, not either player's turn.
+    const elapsedOwnerTurns = Math.floor(Math.max(0,state.turn-entered)/2);
+    if(blockade && Number.isFinite(entered) && elapsedOwnerTurns < blockade){
+      return rejection('TRIBUTE_PREVENTED','Infantry of Havano: this Supporter must wait before consolidation');
+    }
   }
   if(((String(card.id || '') === '62' && !isEffectSourceSuppressed(state, entry))
       || String(card.id || '') === '76')

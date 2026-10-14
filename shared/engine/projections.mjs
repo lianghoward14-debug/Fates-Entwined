@@ -213,10 +213,17 @@ export function projectEvents(events, playerIndex){
     .map(event=>{
       const clone = cloneSerializable(event);
       delete clone.privateTo;
+      if(clone.type === 'FISH_COUNTER_CREATED' && Number(clone.playerIndex) !== Number(playerIndex)){
+        delete clone.createdIids;
+      }
       return clone;
     });
 }
 
 export function projectEventsForSpectator(events){
-  return (events || []).filter(event=>!Array.isArray(event.privateTo) && !event.hiddenSource).map(cloneSerializable);
+  return (events || []).filter(event=>!Array.isArray(event.privateTo) && !event.hiddenSource).map(event=>{
+    const clone = cloneSerializable(event);
+    if(clone.type === 'FISH_COUNTER_CREATED') delete clone.createdIids;
+    return clone;
+  });
 }

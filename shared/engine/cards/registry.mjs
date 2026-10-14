@@ -1,5 +1,16 @@
 import {TEMPORARILY_RETIRED_CARD_IDS as retiredCardIds} from '../../card-availability.mjs';
 const REGISTRY = Object.freeze({
+  '112':{timings:['WHEN_SET'],operations:['MODIFY_FATE'],prompts:[],program:[{kind:'REVOLUTIONARY_FLIPPED_FATE'}]},
+  '113':{timings:['WHEN_SET'],havanoTargeting:'OPPONENT',operations:[],prompts:['CARD_SELECTION'],program:[
+    {kind:'SELECT_CARDS',local:'orderedIids',reorderTopCount:5,exactUpToAvailable:5,filter:{locations:['deck'],playerIndex:'opponent'},title:'Elite Influence',prompt:'Arrange your opponent’s next five draws.'},
+    {kind:'APPLY_DECK_ORDER',local:'orderedIids',count:5,playerIndex:'opponent'}
+  ]},
+  '114':{timings:['PASSIVE'],havanoTargeting:'OPPONENT',havanoPassiveEntry:true,operations:[],prompts:[],program:[]},
+  '115':{timings:['WHEN_SET'],operations:[],prompts:['MODAL_CHOICE','CARD_SELECTION'],program:[
+    {kind:'REQUIRE_ORIGINAL_AFFILIATION_COUNT',count:30},
+    {kind:'SELECT_HOPLITE_CALL',local:'callCardId',unconditional:true},
+    {kind:'RESOLVE_HOPLITE_CALL',cardId:'$callCardId'}
+  ]},
   '07':{
     timings:['WHEN_SET', 'DECK_SET'],
     operations:['TRANSFER_CARDS', 'MODIFY_FATE', 'CHANGE_PLAYER_COUNTER'],
@@ -133,6 +144,33 @@ const REGISTRY = Object.freeze({
         kind:'OPERATION',
         operation:{
           type:'CHANGE_LANDSCAPE',
+          landscapeId:'$landscapeId',
+          sourceIid:'$sourceIid',
+          sourceController:'$controller'
+        }
+      }
+    ]
+  },
+  '111':{
+    timings:['WHEN_SET'],
+    operations:['CHANGE_LANDSCAPE'],
+    prompts:['MODAL_CHOICE'],
+    program:[
+      {
+        kind:'CHOOSE_OPTION',
+        local:'landscapeId',
+        landscapeChoices:true,
+        options:Array.from({length:24}, (_value, index)=>({
+          value:`igb${index + 1}`,
+          label:`Landscape ${index + 1}`
+        })),
+        defaultChoice:'igb1'
+      },
+      {
+        kind:'OPERATION',
+        operation:{
+          type:'CHANGE_LANDSCAPE',
+          temporary:true,
           landscapeId:'$landscapeId',
           sourceIid:'$sourceIid',
           sourceController:'$controller'
@@ -854,6 +892,8 @@ const REGISTRY = Object.freeze({
       }
     ]
   },
+  '110':{timings:['PASSIVE'],operations:['CREATE_TOKENS'],prompts:[],triggerSubscriptions:['CARD_CONSOLIDATED']},
+  '109':{timings:['PASSIVE'],operations:['ROLL_FATE_DIE','MODIFY_FATE'],prompts:[],triggerSubscriptions:['CARD_SET']},
   '46':{
     timings:['PASSIVE'],
     operations:['MODIFY_FATE'],
@@ -1738,6 +1778,10 @@ const REGISTRY = Object.freeze({
     {kind:'CHOOSE_OPTION',local:'declaredType',options:['Initiator','Improvisor','Coordinator','Dauntless'].map(value=>({value,label:value}))},
     {kind:'OPERATION',operation:{type:'SET_CARD_COUNTER',targetIid:'$sourceIid',counterKey:'jorgeDeclaredType',value:'$declaredType'}},
     {kind:'ARM_JORGE_NEXT_TURN'}
+  ]},
+  '108':{timings:['WHEN_SET'],operations:['DISCARD_CARD','COPY_ORIGINAL_DECK','DRAW_CARD'],prompts:[],program:[
+    {kind:'OPERATION',operation:{type:'COPY_ORIGINAL_DECK',playerIndex:'$controller'}},
+    {kind:'OPERATION',operation:{type:'DRAW_CARD',playerIndex:'$controller',count:6,activatedEffect:true}}
   ]},
   '107':{timings:['ACTIVATE'],manualOnly:true,maxUses:2,operations:['MODIFY_FATE','SET_CARD_COUNTER'],prompts:['MODAL_CHOICE'],program:[
     {kind:'CHOOSE_OPTION',local:'declaredAction',cancellable:false,options:[

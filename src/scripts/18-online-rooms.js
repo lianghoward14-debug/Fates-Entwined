@@ -242,7 +242,7 @@
     if(!card) return null;
     const out = {};
     const cardId = String(card.id || '');
-    const preserveInstanceText = ['token1','whisper17'].includes(cardId)
+    const preserveInstanceText = ['token1','whisper17','token-fish'].includes(cardId)
       || card.achillesToken === true
       || /^token[2-5]$/i.test(cardId);
     Object.keys(card).forEach(function(k){
@@ -1668,7 +1668,7 @@
   const ONLINE_HAVANO_FIRST_SET_SOURCE_IDS = new Set([
     '04','10','14','16','17','18','21','26','30','31','36','39','50','52','53','61','62','64','71','72'
   ]);
-  const ONLINE_SECULES_WHEN_SET_IDS = new Set([
+  const ONLINE_SECULES_WHEN_SET_IDS = new Set(['108','111','112','113','115',
     '02','03','04','05','06','07','08','12','13','14','16','17','18','21','22','25','26','27','29','30','31','32','33','34','35','37','38','39','40','42','43','45','46','48','50','51','52','54','56','58','60','61','62','66','68','69','71','72','73','75','76','77','80','84','91','94','bh09','bh23','bh24','bh25'
   ]);
   const resumedOnlinePlacementReactionPrompts = new Set();
@@ -3397,6 +3397,9 @@
       // snapshot. This prevents stale single-player classification mirrors
       // from adding one removed/immutable Character for a frame or longer.
       next._phase7RozsiYouthCharacterCount = projectedCharacterCount;
+    }
+    if(card.counters?.fishCounter === true){
+      Object.assign(next,{fishCounter:true,token:true,img:'token-fish.svg',type:'Counter',cost:0,ability:'Fresh Catch',effect:'Counts as 0.5 Reinforcement. Can be set for free.'});
     }
     if(card.counters?.whisperLandscapeToken === true || String(card.id || '') === 'whisper17'){
       // Concrete Roads stores the copied rule in authoritative counters. The
@@ -6092,6 +6095,8 @@
           phase7CurrentUiSession.pickerKey = promptKey;
           window.openLedgerArchive((prompt.eligibleCards || []).map(phase7PresentationCard), {
             key:promptKey,
+            title:prompt.title,
+            opponentDeck:prompt.opponentDeck === true,
             onConfirm:function(ordered){
               if(phase7CurrentUiSession.promptKey !== promptKey) return false;
               return phase7SubmitCommand({type:'ANSWER_PROMPT', payload:{
@@ -6656,7 +6661,7 @@
     return preview;
   }
 
-  async function phase7PresentBatch(view, eventsOverride){
+  async function phase7PresentBatch(view, eventsOverride, onResultsStarted){
     const batch = view?.presentationBatch;
     const batchId = String(batch?.id || '');
     const events = Array.isArray(eventsOverride) ? eventsOverride : (batch?.events || []);
@@ -7441,6 +7446,9 @@
         });
       }, 180);
     }
+    // Placement overlays and their Fate deltas belong to the start of result feedback,
+    // not after waiting for those same result animations to finish.
+    if(typeof onResultsStarted === 'function') onResultsStarted();
     if(resultMotionStarted) await phase7WaitForPresentationIdle({minQuietMs:110, timeoutMs:7600});
     for(const event of events){
       if(event?.type === 'VILLAGER_SEARCH_EMPTY' && Number(event.playerIndex) === Number(view.playerIndex)){
@@ -7730,6 +7738,9 @@
     const previousSquareState = {blockedCells:cloneOnlinePlain(g.blockedCells || [])};
     const hadCurrentBoard = !!g._phase7PendingPrompt || !!phase7CurrentUiSession.committedCarolynMatch;
     const applied = applyOnlineCanonicalState(legacy, reason || 'Phase 7 current UI snapshot', null);
+    if(applied && authoritativeTurnChanged && typeof window.renderGameImmediate === 'function'){
+      window.renderGameImmediate({board:true});
+    }
     if(applied && hadCurrentBoard && phase7CurrentUiSession.committedCarolynMatch === String(view.state.matchId || '')){
       phase7PresentNewCarolynSquares(previousSquareState, legacy);
     }
@@ -8015,6 +8026,18 @@
   }
   function phase7PresentCardSetAuraOverlays(events, joseBatchKey){
     for(const event of events || []){
+      if(event?.type === 'FISH_COUNTER_CREATED'){
+        const source = phase7FindBoardCard(event.sourceIid)?.card;
+        if(source && typeof window.flashCardEffect === 'function'){
+          const fishKey=['fish',joseBatchKey,event.sourceIid,events.indexOf(event)].join(':');
+          if(typeof window.queueSebastianFishOverlay === 'function'){
+            window.queueSebastianFishOverlay(source,fishKey,event.createdIids);
+          }else{
+            window.flashCardEffect(source,'sebastian_fish',{soundKey:fishKey});
+          }
+        }
+      }
+      window.queueDonJulioDieRoll?.(event, String(joseBatchKey)+':'+events.indexOf(event), phase7FindBoardCard(event.sourceIid)?.card);
       window.presentJoseLongGameEvent?.(event, joseBatchKey || ('jose:'+gameState()?.turn));
       if(String(event?.type || '').toUpperCase() === 'SOVIET_GRENADIERS_TARGET_LINKED'){
         const sourceEntry=phase7FindBoardCard(event.sourceIid);
@@ -8055,6 +8078,18 @@
       const entry = phase7FindBoardCard(event.cardIid);
       const card = entry?.card;
       if(!card || card.faceDown === true) continue;
+      const majaBoost = Math.max(0, Number(card.counters?.majaPlacementBoost) || 0);
+      if(majaBoost > 0 && typeof window.flashCardEffect === 'function'){
+        const after = typeof getEffectiveFate === 'function' ? Number(getEffectiveFate(card,entry.z)) : Number(card.currentFate ?? card.fate);
+        const before = Math.max(0, after - majaBoost);
+        card._suppressNextFatePulse = true;
+        window.flashCardEffect(card, 'maja_tank', {label:'Oblique Order', soundKey:'maja-set:' + String(event.eventId || event.cardIid) + ':' + String(gameState()?.turn || 0)});
+        window.FateMatchRendererAdapter?.presentFateDelta?.({
+          iid:String(card.iid),targetIid:String(card.iid),card,z:entry.z,r:entry.r,c:entry.c,
+          fromValue:before,toValue:after,before,after,delta:after-before,
+          synchronizeResultFeedback:true,_fatePresentationReady:true,pairedEffectOverlayKind:'maja_tank'
+        });
+      }
       // These are the production single-player presenters. They cover both
       // directions that do not necessarily emit FATE_CHANGED: a Coordinator
       // entering and revealing its existing aura, and a new card entering one
@@ -8129,6 +8164,8 @@
     };
     const task = async function(){
       if(!presentationStillCurrent()) return false;
+      for(const event of events)if(event.type==='FATE_DIE_ROLLED')window.holdDonJulioFate?.(event);
+      for(const event of events)if(event.type==='FISH_COUNTER_CREATED')window.holdSebastianFishCards?.(event.createdIids);
       const flipEvents = events.filter(event=>event.type === 'CARD_FLIPPED');
       const resultEvents = events.filter(event=>event.type !== 'CARD_FLIPPED');
       if(unseenBatch && flipEvents.length){
@@ -8151,23 +8188,29 @@
         if(!presentationStillCurrent()) return false;
         await phase7PlayActivationCinematics(view, events);
         if(!presentationStillCurrent()) return false;
-        await phase7PresentBatch(view, resultEvents);
+        await phase7PresentBatch(view, resultEvents, function(){
+          if(!presentationStillCurrent()) return;
+          applied = phase7CommitCurrentView(view, reason);
+          phase7PresentCardSetAuraOverlays(events, `${view.state.matchId}:${view.presentationBatch?.id}`);
+        });
         if(!presentationStillCurrent()) return false;
-        applied = phase7CommitCurrentView(view, reason);
-        phase7PresentCardSetAuraOverlays(events, `${view.state.matchId}:${view.presentationBatch?.id}`);
       }else{
         applied = phase7CommitCurrentView(view, reason);
       }
       if(!presentationStillCurrent()) return false;
       if(unseenBatch && consolidation){
-        await phase7PresentBatch(view, resultEvents);
+        await phase7PresentBatch(view, resultEvents, function(){
+          if(!presentationStillCurrent()) return;
+          applied = phase7CommitCurrentView(view, reason) && applied;
+          phase7PresentCardSetAuraOverlays(events, `${view.state.matchId}:${view.presentationBatch?.id}`);
+        });
         if(!presentationStillCurrent()) return false;
-        // Reveal the final authoritative number only after its synchronized
-        // Fate motion/overlay has started. This prevents Great Oak (and any
-        // future consolidation Fate result) from appearing early.
-        applied = phase7CommitCurrentView(view, reason) && applied;
-        phase7PresentCardSetAuraOverlays(events, `${view.state.matchId}:${view.presentationBatch?.id}`);
       }
+      // Keep presentationBusy set through the dice. Prompt-bearing batches
+      // retain their rolls until the final picker response has resolved.
+      await window.flushDonJulioDieRolls?.(view.state);
+      await window.flushSebastianFishOverlays?.(view.state);
+      if(!presentationStillCurrent()) return false;
       // A hand reset can replace every IID without changing the hand count.
       // Flush the final hand after the draw recipes and canonical commit even
       // when the recipient is not the active player.

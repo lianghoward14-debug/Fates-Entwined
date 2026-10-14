@@ -11,7 +11,7 @@ import {chooseStrategicV3AiCommand} from './authoritative-v3-ai-policy.mjs';
 import {AiSearchWorker} from './new-ai-worker-client.mjs';
 import {filterAiTargets} from '../../shared/ai/targeting.mjs';
 import {createCommandOrderer} from '../../shared/ai/ordering.mjs';
-import {FateAuthoritativeV3SinglePlayerScreen} from './authoritative-v3-single-player-screen.mjs?v=20260913-negation-result-sfx';
+import {FateAuthoritativeV3SinglePlayerScreen} from './authoritative-v3-single-player-screen.mjs?v=20261014-revolution-after-flip';
 
 export const FATE_V3_SINGLE_PLAYER_QUERY_FLAG = 'fateV3SinglePlayer';
 const RECORDER_QUERY_FLAG = 'fateV3Recorder';
@@ -119,6 +119,10 @@ export class FateAuthoritativeV3SinglePlayerAdapter {
     this.aiRunning = false;
     this.lastView = null;
     this.session.subscribe(change=>{
+      // Register dice holds before publishing the new Fate to any renderer.
+      for(const event of change.events || []){
+        if(event?.type === 'FATE_DIE_ROLLED') globalThis.window?.holdDonJulioFate?.(event);
+      }
       // Canonical turn state must reach the screen before optional presentation
       // listeners run. Morale resolution is the first event family that fires
       // only on every second turn; letting its retired/hidden HUD listener run

@@ -1,0 +1,25 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
+let finish,callbacks=0;
+let source=fs.readFileSync('src/scripts/28-don-julio-dice.js','utf8');
+source=source.slice(0,source.indexOf('  function animate(roll)'))+'function animate(){return new Promise(resolve=>finish(resolve));}})();';
+const context={window:{addEventListener:()=>{},renderGame:()=>{}},document:{querySelector:()=>null},finish:resolve=>{finish=resolve;}};
+vm.createContext(context);vm.runInContext(source,context);
+(async()=>{
+  const event={type:'FATE_DIE_ROLLED',sourceIid:'julio',roll:4,before:7};
+  const done=context.window.presentDonJulioDieRoll(event,'test');
+  assert.equal(context.window.donJulioHeldFate('julio'),7);
+  context.window.deferDonJulioFate('julio',()=>callbacks++);
+  for(let i=0;i<5;i++)await Promise.resolve();
+  assert.equal(callbacks,0);assert.equal(context.window.donJulioDiceBusy,true);
+  const renderer=fs.readFileSync('src/scripts/render-v2/04-match-renderer-adapter.js','utf8');
+  const start=renderer.indexOf('    const julioHeld =');
+  const end=renderer.indexOf('    const fate =',start);
+  context.visual={displayFate:'11'};context.iid='julio';
+  vm.runInContext(renderer.slice(start,end),context);
+  assert.equal(context.visual.displayFate,'7');
+  assert.equal(context.visual._placementFateHeld,true,'odometer stays off while dice are visible');
+  finish(true);await done;
+  assert.equal(context.window.donJulioHeldFate('julio'),undefined);
+  assert.equal(callbacks,1);assert.equal(context.window.donJulioDiceBusy,false);
+  console.log('PASS: badge, odometer and queued feedback stay held until dice exit.');
+})().catch(error=>{console.error(error);process.exitCode=1;});

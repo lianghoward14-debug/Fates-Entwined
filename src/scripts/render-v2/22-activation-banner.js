@@ -81,7 +81,7 @@
     const numeric = Number(id);
     const mapped = expansion && Number(expansion[1]) <= 25 ? 100 + Number(expansion[1]) : numeric > 0 && numeric <= 100 ? numeric : null;
     const pfp = ({'101':126,'102':127,'103':128,'104':129,'105':130,'106':131,'107':132})[id] || card.pfpId || mapped || portraits[card.name];
-    const dedicatedPortrait = id === '107' ? 'pfp/card-107-portrait.svg?v=20261010' : ['104','105','106'].includes(id) ? 'pfp/card-'+id+'-portrait.png?v=20261009' : '';
+    const dedicatedPortrait = ['108','109','110'].includes(String(card?.id)) ? 'pfp/card-'+card.id+'-portrait.svg?v=20261014-full-art' : id === '107' ? 'pfp/card-107-portrait.svg?v=20261010' : ['104','105','106'].includes(id) ? 'pfp/card-'+id+'-portrait.png?v=20261009' : '';
     if(!pfp && !card.img) return null;
     syncMatch();
     shown.add(key(card));

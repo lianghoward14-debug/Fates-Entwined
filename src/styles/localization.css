@@ -19,7 +19,7 @@
 /* Share the authored typography and layout in both languages. The body font
    already includes Japanese serif fallbacks; localization changes text only. */
 html:is([lang="ja"],[lang="zh-CN"]) body { font-family: var(--font-body); }
-/* Japanese ranks need their natural glyph width, including translated lines. */
+/* Localized ranks need their natural glyph width, including translated lines. */
 html:is([lang="ja"],[lang="zh-CN"]) body #modal .profile-view-badges .rank-badge {
   width:max-content!important;
   inline-size:max-content!important;
@@ -27,13 +27,18 @@ html:is([lang="ja"],[lang="zh-CN"]) body #modal .profile-view-badges .rank-badge
   min-height:38px;
   overflow:visible!important;
 }
-html:is([lang="ja"],[lang="zh-CN"]) body #modal .profile-view-badges .rank-badge-label {
+html:is([lang="ja"],[lang="zh-CN"]) body #modal .profile-view-badges .rank-badge .rank-badge-label {
   width:max-content!important;
   inline-size:max-content!important;
   max-width:none!important;
   overflow:visible!important;
   transform:none!important;
+  /* English's compressed labels use negative margins; translated text does not. */
+  margin:0!important;
   line-height:1.5!important;
+}
+html:is([lang="ja"],[lang="zh-CN"]) body #modal .profile-view-badges .rank-badge.rank-badge-two-line :is(.rank-badge-icon,.rank-badge-label-two-line) {
+  left:0!important;
 }
 /* Both lore browsers truncate visually after localization, never in source. */
 html body #fate-lore-window-overlay .ch-lore-card-copy small {

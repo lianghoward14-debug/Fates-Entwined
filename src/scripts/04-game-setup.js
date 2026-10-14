@@ -1495,6 +1495,7 @@ function buildDefaultDecks() {
 function initGameState() {
   if(typeof window.invalidateFateRenderCaches === 'function') window.invalidateFateRenderCaches();
   resetMatchTransientState();
+  G._landscapeReturnId = null; G._temporaryLandscape = null; G._landscapeHistory = {};
 
   // Build decks as instances (each card gets a unique iid)
   function makeDeck(ids, owner) {
@@ -1506,6 +1507,7 @@ function initGameState() {
   }
   G.players[0].deck = makeDeck(G.p1Deck, 0);
   G.players[1].deck = makeDeck(G.p2Deck, 1);
+  G.players.forEach(player=>{ player.originalDeckIds = player.deck.map(card=>card.id); });
   G.players[0].hand = [];
   G.players[1].hand = [];
   G.players[0].discard = [];
@@ -1527,7 +1529,7 @@ function initGameState() {
   G._pendingSelvaSupportBoost = [0, 0];
   G._selvaSupportBoosts = [null, null];
   for(let player=0;player<2;player++){
-    G.players[player].flowerPickingEligible=!(player===0?G.p1Deck:G.p2Deck).some(c=>['27','32','42','80','86','bh01'].includes(String(c?.id || c)));
+    G.players[player].flowerPickingEligible=!(player===0?G.p1Deck:G.p2Deck).some(c=>['27','32','42','80','86','108','bh01'].includes(String(c?.id || c)));
     for(let i=0;i<6;i++)drawCard(player,1,{skipOptionalImprovisors:true,openingHand:true});
   }
   avalancheEscapeCards.forEach(function(cards, player){

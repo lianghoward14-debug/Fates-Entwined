@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+const source=fs.readFileSync('src/scripts/08-audio-and-meta-ui.js','utf8');
+const code=source.slice(source.indexOf('function playDonJulioDiceSfx('),source.indexOf('function playLedgerPanelSfx('));
+let starts=0,connections=0;
+const param=()=>({value:0,setValueAtTime(){},exponentialRampToValueAtTime(v){assert(v>0)}});
+const node=()=>({gain:param(),frequency:param(),connect(target){connections++;return target},disconnect(){},start(){starts++},stop(){}});
+const ctx={currentTime:0,sampleRate:8000,createGain:node,createOscillator:node,createBiquadFilter:node,createBufferSource:node,createBuffer:(_,n)=>({getChannelData:()=>new Float32Array(n)})};
+const runtime={window:{},_masterVol:1,_sfxVol:1,getAudioCtx:()=>ctx,getSfxBus:()=>({input:node()}),setTimeout:fn=>fn()};
+vm.runInNewContext(code,runtime);
+for(const stage of ['enter','impact','land','exit'])assert.equal(runtime.window.playDonJulioDiceSfx(stage),true);
+assert.equal(starts,8);assert(connections>0);
+runtime._sfxVol=0;assert.equal(runtime.window.playDonJulioDiceSfx('impact'),false);assert.equal(starts,8);
+runtime._sfxVol=1;runtime._masterVol=0;assert.equal(runtime.window.playDonJulioDiceSfx('enter'),false);assert.equal(starts,8);
+console.log('Don Julio audio: all four cues create sound through SFX bus; master and SFX mute respected.');

@@ -20,6 +20,7 @@ import {
 } from './hand-limits.mjs';
 import {
   effectiveCardType,
+  inspectOperation,
   effectiveFate,
   isTriggeredFateCoordinator,
   coordinatorAuraPotencyBoost,
@@ -844,7 +845,7 @@ function openInstructionPrompt(state, frame, instruction, ctx){
         : {value:String(option), label:String(option)}
     ).filter(option=>
       instruction.landscapeChoices !== true
-      || !landscapeChangeBlockReason(state, option.value)
+      || (option.value !== state.landscapeId && !landscapeChangeBlockReason(state, option.value))
     );
     if(instruction.maxByControllerMorale===true){
       const morale=Math.max(0,Number(state.moralePressure?.morale?.[frame.controller])||0);
@@ -882,7 +883,7 @@ function openInstructionPrompt(state, frame, instruction, ctx){
       ? {...instruction.filter, locations:['hand']}
       : instruction.filter;
     const eligibleIids = instruction.reorderTopCount
-      ? state.players[frame.controller].deck.slice(0, instruction.reorderTopCount).map(card=>card.iid)
+      ? state.players[filter?.playerIndex === 'opponent' ? 1-frame.controller : frame.controller].deck.slice(0, instruction.reorderTopCount).map(card=>card.iid)
       : eligibleCardTargets(state, frame, filter);
     const exactAvailableLimit = Number(instruction.exactUpToAvailable);
     const exactAvailable = Number.isInteger(exactAvailableLimit) && exactAvailableLimit >= 0
@@ -931,8 +932,9 @@ function openInstructionPrompt(state, frame, instruction, ctx){
     };
     if(instruction.reorderTopCount){
       state.pendingPrompt.ordered = true;
+      state.pendingPrompt.opponentDeck = filter?.playerIndex === 'opponent';
       state.pendingPrompt.cancellable = false;
-      ctx.events.push({type:'DECK_TOP_REVEALED', playerIndex:frame.controller, privateTo:[frame.controller],
+      ctx.events.push({type:'DECK_TOP_REVEALED', playerIndex:filter?.playerIndex === 'opponent' ? 1-frame.controller : frame.controller, privateTo:[frame.controller],
         sourceIid:frame.sourceIid, cards:cloneSerializable(state.pendingPrompt.eligibleCards)});
     }
     if(instruction.title) state.pendingPrompt.title = String(instruction.title);
@@ -1119,6 +1121,23 @@ function runEffectStack(state, ctx){
     const frame = state.effectStack[state.effectStack.length - 1];
     if(frame.waitingFor) return;
     const instruction = frame.program[frame.instructionIndex];
+    if(instruction?.kind === 'REQUIRE_ORIGINAL_AFFILIATION_COUNT'){
+      const counts = new Map();
+      for(const card of state.players[frame.controller].originalDeck || []){
+        const aff = card.affiliation || card.aff;
+        if(aff) counts.set(aff,(counts.get(aff)||0)+1);
+      }
+      if(![...counts.values()].some(count=>count >= instruction.count)){
+        ctx.events.push({type:'EFFECT_CONDITION_UNMET',sourceIid:frame.sourceIid,reason:'ORIGINAL_DECK_AFFILIATION_COUNT'});
+        frame.instructionIndex=frame.program.length;
+      }else frame.instructionIndex++;
+      continue;
+    }
+    if(instruction?.kind === 'REVOLUTIONARY_FLIPPED_FATE'){
+      state.statuses.push({statusId:nextId(state,'status'),type:'REVOLUTIONARY_FLIP_GAIN',turn:state.turn,sourceIid:frame.sourceIid,playerIndex:frame.controller});
+      frame.instructionIndex++;
+      continue;
+    }
     if(instruction?.kind === 'REQUIRE_NO_DRAW_EFFECTS_IN_ORIGINAL_DECK'){
       if(!flowerPickingEligible(state.players[frame.controller])){
         ctx.events.push({type:'EFFECT_CONDITION_UNMET',sourceIid:frame.sourceIid,reason:'ORIGINAL_DECK_CONTAINS_DRAW_EFFECT'});
@@ -1178,7 +1197,8 @@ function runEffectStack(state, ctx){
     }
     if(instruction.kind === 'APPLY_DECK_ORDER'){
 
-      const deck = state.players[frame.controller].deck;
+      const deckOwner = instruction.playerIndex === 'opponent' ? 1-frame.controller : frame.controller;
+      const deck = state.players[deckOwner].deck;
       const top = deck.slice(0, instruction.count);
       const value = frame.locals[instruction.local];
       const ordered = (Array.isArray(value) ? value : [value]).filter(Boolean).map(String);
@@ -1187,7 +1207,7 @@ function runEffectStack(state, ctx){
         throw Object.assign(new Error('deck order must contain each revealed card exactly once'), {code:'INVALID_CHOICE'});
       }
       deck.splice(0, top.length, ...ordered.map(iid=>byIid.get(iid)));
-      ctx.events.push({type:'DECK_REORDERED', playerIndex:frame.controller, sourceIid:frame.sourceIid, count:top.length});
+      ctx.events.push({type:'DECK_REORDERED', playerIndex:deckOwner, sourceIid:frame.sourceIid, count:top.length});
       frame.instructionIndex += 1;
       continue;
     }
@@ -1543,8 +1563,12 @@ function completeEndTurn(state, ctx, actorIndex){
   expireTimedPlayerStatuses(state, actorIndex, ctx);
   state.cardsPlacedLastTurn[actorIndex] = state.cardsPlacedThisTurn[actorIndex];
   state.cardsPlacedThisTurn[actorIndex] = 0;
+  if(state.temporaryLandscape && state.turn >= state.temporaryLandscape.expiresTurn && actorIndex === state.temporaryLandscape.endingPlayer){
+    applyOperation(ctx,{type:'CHANGE_LANDSCAPE',landscapeId:state.landscapeReturnId,restore:true,sourceController:actorIndex});
+  }
   state.activePlayer = actorIndex === 0 ? 1 : 0;
   state.turn += 1;
+  state.statuses = state.statuses.filter(status=>status.type !== 'REVOLUTIONARY_FLIP_GAIN');
   if(state.landscapeId === 'igb24'
     && state.turn >= 20
     && state.landscapeState.resolvedTurns.igb24 !== true){
@@ -2512,6 +2536,7 @@ function performCommand(state, ctx, command, actorIndex, options){
     }
     const isPierogi = entry.card.counters?.pierogiCounter === true;
     const isWhisperToken = entry.card.counters?.whisperLandscapeToken === true;
+    const isFish = entry.card.counters?.fishCounter === true;
     const defenseInDepthReady = String(entry.card.type || '') === 'Supporter'
       && state.statuses.some(status=>
         status?.type === 'NEXT_SUPPORTER_SET_EXEMPT'
@@ -2519,18 +2544,18 @@ function performCommand(state, ctx, command, actorIndex, options){
         && Number(status.remaining || 0) > 0
       );
     if(!isPierogi
-      && !isWhisperToken
+      && !isWhisperToken && !isFish
       && (String(entry.card.type || '') !== 'Supporter' || (Number(entry.card.cost || 0) !== 0 && !entry.card.counters?.chauffeurFreeSet))){
       throw Object.assign(new Error('this card requires the consolidation command family, which is not yet v3 eligible'), {code:'CONSOLIDATION_REQUIRED'});
     }
-    if(!isPierogi && !isWhisperToken && Number(state.supportersSetForCapThisTurn?.[actorIndex] || 0) >= MAX_SUPPORTERS_SET_PER_TURN){
+    if(!isPierogi && !isFish && !isWhisperToken && Number(state.supportersSetForCapThisTurn?.[actorIndex] || 0) >= MAX_SUPPORTERS_SET_PER_TURN){
       throw Object.assign(new Error(`the ${MAX_SUPPORTERS_SET_PER_TURN}-Supporter hard cap has been reached`), {code:'SUPPORTER_HARD_CAP_REACHED'});
     }
     const normalSupporterAllowance = Math.min(
       MAX_SUPPORTERS_SET_PER_TURN,
       state.baseSupportersPerTurn + Number(state.extraSupportersThisTurn[actorIndex] || 0)
     );
-    if(!isPierogi && !isWhisperToken && !defenseInDepthReady && !entry.card.counters?.chauffeurFreeSet && state.supportersSetThisTurn[actorIndex] >= normalSupporterAllowance){
+    if(!isPierogi && !isFish && !isWhisperToken && !defenseInDepthReady && !entry.card.counters?.chauffeurFreeSet && state.supportersSetThisTurn[actorIndex] >= normalSupporterAllowance){
       throw Object.assign(new Error('the Supporter set limit has been reached'), {code:'SUPPORTER_SET_LIMIT_REACHED'});
     }
     const placementBlock = zoneActionBlock(state, actorIndex, payload.destination?.z);
@@ -2556,7 +2581,7 @@ function performCommand(state, ctx, command, actorIndex, options){
       && Math.abs(source.r - Number(payload.destination?.r))
         + Math.abs(source.c - Number(payload.destination?.c)) === 1
     );
-    if(!isPierogi && alondraBlock){
+    if(!isPierogi && !isFish && alondraBlock){
       throw Object.assign(new Error('Alondra blocks an adjacent opponent Supporter set'), {code:'ILLEGAL_PLACEMENT'});
     }
     if((payload.contributesFate !== undefined || payload.contributesAuras !== undefined) && !['102','104','105','107'].includes(String(entry.card.id||''))){
@@ -2572,7 +2597,7 @@ function performCommand(state, ctx, command, actorIndex, options){
       contributesAuras:payload.contributesAuras,
       sourceController:actorIndex,
       playedFromHand:true,
-      countTowardSupporterLimit:!isPierogi && !isWhisperToken,
+      countTowardSupporterLimit:!isPierogi && !isFish && !isWhisperToken,
       allowOpponentSide:isPierogi
     });
     const card = findBoardCard(state, result.cardIid)?.card;
@@ -2721,8 +2746,8 @@ function performCommand(state, ctx, command, actorIndex, options){
     if(!entry || entry.zone !== 'hand' || entry.playerIndex !== actorIndex){
       throw Object.assign(new Error('the selected card is not in the actor hand'), {code:'CARD_NOT_IN_HAND'});
     }
-    if(String(entry.card.type || '') === 'Supporter'){
-      throw Object.assign(new Error('Supporters cannot be consolidated'), {code:'INVALID_CONSOLIDATION_CARD'});
+    if(entry.card.counters?.fishCounter === true || String(entry.card.type || '') === 'Supporter'){
+      throw Object.assign(new Error('Supporters and Fish counters cannot be consolidated'), {code:'INVALID_CONSOLIDATION_CARD'});
     }
     const consolidationBlock = zoneActionBlock(state, actorIndex, payload.destination?.z);
     if(consolidationBlock){
@@ -2779,7 +2804,15 @@ function performCommand(state, ctx, command, actorIndex, options){
       throw Object.assign(new Error('the selected card is already face up'), {code:'CARD_ALREADY_FACE_UP'});
     }
     entry.card.faceDown = false;
+    entry.card.counters = entry.card.counters || {};
+    entry.card.counters.flippedFaceUpTurn = state.turn;
     ctx.events.push({type:'CARD_FLIPPED', cardIid:entry.card.iid, playerIndex:actorIndex, faceDown:false});
+    for(const status of state.statuses){
+      if(status.type === 'REVOLUTIONARY_FLIP_GAIN' && status.turn === state.turn){
+        const gain = {type:'MODIFY_FATE',targetIid:entry.card.iid,amount:4,sourceIid:status.sourceIid,sourceController:status.playerIndex,permanentFateGain:false,reason:'REVOLUTIONARY_SPIRIT'};
+        if(inspectOperation(state,gain).ok) applyOperation(ctx,gain);
+      }
+    }
     const effectId = entry.card.id;
     if(startPassiveTargetReaction(state, ctx, entry.card, actorIndex, command.commandId)){}
     else if(startFieldEntryDeclaration(state, ctx, entry.card, actorIndex, command.commandId)){}

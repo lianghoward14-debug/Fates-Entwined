@@ -3,6 +3,8 @@
   // Cue times follow the reviewed two-second visual beats. Each character gets
   // a distinct attack, material texture and finishing accent.
   const cues={
+    'military-blockade':[['chain-link',0,.16,930],['chain-link',.065,.18,710],['chain-link',.14,.17,1080],['chain-link',.23,.22,620],['chain-link',.34,.28,410]],
+    'military-blockade-release':[['chain-link',0,.20,1150],['chain-link',.09,.19,820],['chain-link',.19,.22,570],['chain-link',.32,.25,350],['chain-link',.48,.26,230]],
     // Knight's Gambit: trace .16–.74s; eased leap .62–1.40s; landing at 1.40s.
     '107':[['anne-plan',.16,.58,1600],['anne-leap',.62,.78,360],['anne-land',1.40,.18,420],['anne-resolve',1.42,.48,880]],
     'jose-clock':[['metal',.12,.10,520],['metal',.36,.09,680],['metal',.60,.10,520],['metal',.84,.09,680],['ping',1.12,.70,880],['ping',1.24,.60,1320]],
@@ -315,6 +317,11 @@
       source.connect(filter);filter.connect(gain);gain.connect(stereo);stereo.connect(out);source.start(now);source.stop(now+1.985);
     }
     for(const [kind,at,dur,f] of score){
+      if(kind==='chain-link'){
+        [1,2.41,4.17].forEach((ratio,j)=>tone('sine',f*ratio,f*ratio*.94,at,dur,.19/(j+1)));
+        noise(at,Math.min(.075,dur),2800,.15,'highpass');
+        continue;
+      }
       if(kind==='anne-plan'){
         noise(at,dur,f,.13,'bandpass');
         tone('sine',520,640,at,.12,.10);

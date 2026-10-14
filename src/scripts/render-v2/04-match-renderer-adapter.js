@@ -736,6 +736,7 @@
   }
 
   function presentFateDelta(payload){
+    if(window.deferDonJulioFate?.(payload?.iid||payload?.targetIid,()=>presentFateDelta(payload)))return true;
     if(animationsOff()) return false;
     const p = payload || {};
     const delta = Number(p.delta != null ? p.delta : p.fateDelta != null ? p.fateDelta : p.amount);
@@ -1252,6 +1253,10 @@
       const before = deferred.payload.fromValue != null ? deferred.payload.fromValue : deferred.payload.before;
       if(Number.isFinite(Number(before))) visual = Object.assign({}, visual, {displayFate:String(before), currentFate:Number(before)});
     }
+    const julioHeld = window.donJulioHeldFate?.(iid);
+    if(julioHeld != null && visual && !visual.isHidden){
+      visual = Object.assign({},visual,{displayFate:String(julioHeld),currentFate:Number(julioHeld),_placementFateHeld:true});
+    }
     const fate = visual && visual.displayFate != null ? String(visual.displayFate) : '';
     if(!fate) return;
     const bh21Concealed = fate.indexOf('bh21-concealed-fate-icon') >= 0;
@@ -1547,6 +1552,8 @@
   }
 
   function getCardFateValue(card, visual){
+    const held=window.donJulioHeldFate?.(card?.iid);
+    if(held!=null)return String(held);
     if(visual && visual.displayFate != null) return String(visual.displayFate);
     if(card && card.currentFate != null) return String(card.currentFate);
     if(card && card.fate != null) return String(card.fate);
@@ -1721,7 +1728,7 @@
     return true;
   }
 
-  function placementFateRevealUntil(card, existingUntil){
+  function placementFateRevealUntil(card, existingUntil, settleOnly){
     const now = Date.now();
     const meta = card && card._placementFateReveal;
     const mode = String(meta && meta.mode || 'set');
@@ -1745,6 +1752,7 @@
       until = createdAt + settleMs;
       if(until <= now) until = now + 180;
     }
+    if(settleOnly) return until;
     const animationUntil = postConsolidationAnimationUntil();
     if(animationUntil > now) until = Math.max(until, animationUntil + 24);
     if(gameLockUntil > now) until = Math.max(until, gameLockUntil + 100);
@@ -1772,11 +1780,12 @@
     record.timer = setTimeout(function finishPlacementFateReveal(){
       const pending = deferredPlacementFatePulseByIid.get(record.iid);
       if(!pending || pending !== record) return;
-      const extendedUntil = placementFateRevealUntil(card, pending.until);
-      const gameLockUntil = typeof G !== 'undefined' && G ? Number(G._cinematicUiLockUntil) || 0 : 0;
-      const actionLockUntil = typeof G !== 'undefined' && G ? Number(G._actionPresentationLockUntil) || 0 : 0;
-      if(extendedUntil > pending.until || gameLockUntil > Date.now() || actionLockUntil > Date.now()) {
-        pending.until = Math.max(extendedUntil, gameLockUntil + 100, actionLockUntil + 100);
+      // Reservation deadlines can shrink when a cinematic finishes early.
+      // Recompute from the physical placement floor, not yesterday's lock.
+      const batchUntil = Number(pendingBh07OverclockByPlacedIid.get(record.iid)?.until) || 0;
+      const extendedUntil = Math.max(placementFateRevealUntil(card, pending.settleUntil), batchUntil);
+      pending.until = extendedUntil;
+      if(extendedUntil > Date.now()) {
         schedulePlacementFateReveal(card, pending);
         return;
       }
@@ -1786,6 +1795,10 @@
       clearLivePlacementFateReveal(record.iid);
       const delta = Number(pending.toValue) - Number(pending.fromValue);
       let incomingCoordinatorFeedback = {flashed:false, hasNonKvetka:false, kvetkaGainAmount:0};
+      if(pending.majaBoost && delta > 0 && typeof window.flashCardEffect === 'function') {
+        const live = typeof window.findBoardCardByIid === 'function' ? window.findBoardCardByIid(record.iid) : null;
+        window.flashCardEffect(live || card, 'maja_tank', {label:'Oblique Order', soundKey:'maja-placement:' + record.iid + ':' + record.createdAt});
+      }
       try {
         if(Number.isFinite(delta) && delta !== 0 && typeof window.flashIncomingCoordinatorEffects === 'function') {
           incomingCoordinatorFeedback = window.flashIncomingCoordinatorEffects(record.iid, {
@@ -1829,7 +1842,7 @@
         } catch(e) {}
       }
       scheduleRender('placement-fate-after-settle');
-    }, Math.max(0, Number(record.until || 0) - Date.now()));
+    }, Math.min(80, Math.max(0, Number(record.until || 0) - Date.now())));
   }
 
   function deferPlacementFateReveal(card, fateValue){
@@ -1849,7 +1862,9 @@
         toValue:String(fateValue),
         genericSoundRequested:!!meta.genericSoundRequested,
         forceFateGainSound:!!meta.forceFateGainSound,
+        majaBoost:!!meta.majaBoost,
         kvetkaGainAmount:Math.max(0, Number(meta.kvetkaGainAmount) || 0),
+        settleUntil:placementFateRevealUntil(card, 0, true),
         until:Math.max(placementFateRevealUntil(card, 0), bh07BatchUntil),
         timer:null
       };
@@ -1859,7 +1874,7 @@
       record.genericSoundRequested = record.genericSoundRequested || !!meta.genericSoundRequested;
       record.forceFateGainSound = record.forceFateGainSound || !!meta.forceFateGainSound;
       record.kvetkaGainAmount = Math.max(record.kvetkaGainAmount || 0, Number(meta.kvetkaGainAmount) || 0);
-      record.until = Math.max(placementFateRevealUntil(card, record.until), bh07BatchUntil);
+      record.until = Math.max(placementFateRevealUntil(card, record.settleUntil), bh07BatchUntil);
     }
     schedulePlacementFateReveal(card, record);
     return Date.now() < Number(record.until || 0);
@@ -3274,6 +3289,10 @@
     drawCardContent(ctx, entry, visual, r, onChange, contentOpts);
     if(opts.opponent) drawOpponentTint(ctx, r);
     drawCardPlaneGleam(ctx, r, tilt);
+    if(showStatus){
+      presentMilitaryBlockadeTransition(entry.card,!!flags.militaryBlockade);
+      if(flags.militaryBlockade) drawMilitaryBlockadeChains(ctx,r,entry.card);
+    }
     if(statusState.lowMoraleExpiry){
       drawLowMoraleSupporterOverlay(ctx, r, entry && entry.card);
       scheduleLowMoraleSupporterPulse();
@@ -3298,6 +3317,47 @@
       scheduleLowMoraleSupporterPulse();
     }
     if(!opts.hideFateBadge) drawFateBadge(ctx, visual, r, entry && entry.card);
+    ctx.restore();
+  }
+
+  const militaryBlockadeSoundSeen = new Map();
+  let militaryBlockadeTransitionSequence = 0;
+  function presentMilitaryBlockadeTransition(card,active){
+    if(!card?.iid) return;
+    const key=String(card.iid)+':'+String(card._setTurn ?? card.counters?.fieldEnteredTurn);
+    const previous=militaryBlockadeSoundSeen.get(key) === true;
+    militaryBlockadeSoundSeen.set(key,active);
+    if(militaryBlockadeSoundSeen.size>1000) militaryBlockadeSoundSeen.delete(militaryBlockadeSoundSeen.keys().next().value);
+    if(previous===active) return;
+    window.playCardEffectFlashSfx?.(active?'military_blockade':'military_blockade_release',{key:'blockade:'+key+':'+(++militaryBlockadeTransitionSequence)});
+  }
+  function drawMilitaryBlockadeChains(ctx,r,card){
+    // The approved chains are static. Rasterize once, instead of shading 66
+    // individual links on every card on every animation frame.
+    if(!drawMilitaryBlockadeChains.building && typeof document !== 'undefined'){
+      if(!drawMilitaryBlockadeChains.texture){
+        const texture=document.createElement('canvas');
+        texture.width=480;texture.height=672;
+        const textureCtx=texture.getContext('2d');
+        if(textureCtx){
+          drawMilitaryBlockadeChains.building=true;
+          try{drawMilitaryBlockadeChains(textureCtx,{x:0,y:0,w:480,h:672},null);}
+          finally{drawMilitaryBlockadeChains.building=false;}
+          drawMilitaryBlockadeChains.texture=texture;
+        }
+      }
+      if(drawMilitaryBlockadeChains.texture){
+        ctx.drawImage(drawMilitaryBlockadeChains.texture,r.x,r.y,r.w,r.h);
+        return;
+      }
+    }
+    ctx.save();roundedPath(ctx,r.x,r.y,r.w,r.h,4);ctx.clip();ctx.translate(r.x,r.y);ctx.scale(r.w/120,r.h/168);
+    ctx.fillStyle='rgba(12,19,29,.10)';ctx.fillRect(0,0,120,168);
+    function link(x,y,a,n){ctx.save();ctx.translate(x,y);ctx.rotate(a);ctx.shadowColor='#05080e';ctx.shadowBlur=2;ctx.shadowOffsetY=1.2;const w=n%2?2.5:4.5;ctx.beginPath();ctx.roundRect(-6,-w,12,w*2,w);ctx.strokeStyle='#111722';ctx.lineWidth=3.6;ctx.stroke();ctx.shadowBlur=0;ctx.shadowOffsetY=0;ctx.strokeStyle=n%2?'#8295a9':'#d1dae1';ctx.lineWidth=1.8;ctx.stroke();ctx.beginPath();ctx.moveTo(-3,-w+.5);ctx.lineTo(2,-w+.5);ctx.strokeStyle='#f0e7cf';ctx.lineWidth=.6;ctx.stroke();ctx.restore();}
+    function chain(fn,count){for(let i=0;i<count;i++){const t=i/(count-1),p=fn(t),p2=fn(Math.min(1,t+.002)),p0=fn(Math.max(0,t-.002));link(p[0],p[1],Math.atan2(p2[1]-p0[1],p2[0]-p0[0]),i);}}
+    chain(t=>[-5+37*t,31-37*t],7);chain(t=>[88+37*t,-6+37*t],7);
+    chain(t=>[-5+37*t,137+37*t],7);chain(t=>[88+37*t,174-37*t],7);
+    chain(t=>[-5+130*t,15+25*t],19);chain(t=>[-5+130*t,145-25*t],19);
     ctx.restore();
   }
 
@@ -3380,6 +3440,9 @@
   }
 
   const CARD_EFFECT_FLASH_PALETTE = Object.freeze({
+    military_blockade:{color:'#efce99',glow:'rgba(222,150,70,.66)',tint:'rgba(126,66,30,.22)'},
+    revolutionary_spirit:{color:'rgba(255,226,163,.99)',glow:'rgba(238,148,71,.66)',tint:'rgba(142,46,34,.18)'},
+    don_julio_dice:{color:'rgba(255,235,188,.99)',glow:'rgba(235,183,91,.66)',tint:'rgba(117,79,29,.16)'},
     jorge_pineapple:{color:'rgba(255,233,173,.99)',glow:'rgba(236,183,83,.72)',tint:'rgba(145,99,30,.18)'},
     jake_burger:{color:'rgba(255,236,176,.99)',glow:'rgba(235,173,62,.72)',tint:'rgba(139,86,28,.20)'},
     specter_ghost:{color:'rgba(224,239,255,.98)',glow:'rgba(140,184,255,.58)',tint:'rgba(104,126,174,.16)'},
@@ -3402,6 +3465,8 @@
     bh19_high_t:{color:'rgba(255,231,166,.99)',glow:'rgba(220,174,85,.70)',tint:'rgba(137,96,28,.18)'},
     sebastyen_visegrad:{color:'rgba(224,255,189,.99)',glow:'rgba(145,223,85,.70)',tint:'rgba(65,135,31,.18)'},
     rozsi_dance:{color:'rgba(255,208,242,.98)',glow:'rgba(246,108,203,.60)',tint:'rgba(142,51,119,.15)'},
+    sebastian_fish:{color:'rgba(232,246,255,.98)',glow:'rgba(126,183,255,.62)',tint:'rgba(48,91,168,.16)'},
+    maja_tank:{color:'rgba(232,246,255,.98)',glow:'rgba(126,183,255,.62)',tint:'rgba(48,91,168,.16)'},
     british_union_jack:{color:'rgba(232,246,255,.98)',glow:'rgba(126,183,255,.62)',tint:'rgba(48,91,168,.16)'},
     oathbound_crescent:{color:'rgba(255,185,177,.98)',glow:'rgba(240,93,82,.60)',tint:'rgba(146,36,40,.17)'},
     isaac_beaker:{color:'rgba(220,252,255,.98)',glow:'rgba(106,222,244,.58)',tint:'rgba(34,128,148,.15)'},
@@ -3682,7 +3747,38 @@
     const circle = function(x,y,r){ ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.stroke(); };
     const dot = function(x,y,r){ ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill(); };
 
-    if(kind === 'jorge_pineapple') {
+    if(kind === 'military_blockade') {
+      line([[8,22],[56,22],[56,39],[8,39]],true);
+      line([[15,39],[11,55]],false);line([[49,39],[53,55]],false);
+      for(let x=13;x<50;x+=14) line([[x,36],[x+9,25]],false);
+    }else if(kind === 'revolutionary_spirit') {
+      ctx.stroke(new Path2D('M25 39H40L36 56H29Z M24 34C9 22 28 17 28 5C43 12 53 25 40 34 M30 31C23 24 35 21 34 15C43 24 40 29 36 32'));
+    }else if(kind === 'don_julio_dice') {
+      ctx.lineWidth=3.8;
+      line([[10,19],[32,7],[54,19],[54,45],[32,57],[10,45]],true);
+      line([[10,19],[32,31],[54,19]],false);
+      line([[32,31],[32,57]],false);
+      dot(32,19,2.5);
+      dot(18,30,2.4);dot(24,44,2.4);
+      dot(40,32,2.4);dot(47,28,2.4);dot(40,46,2.4);dot(47,42,2.4);
+    }else if(kind === 'sebastian_fish') {
+      ctx.lineWidth=3.8;
+      ctx.beginPath();ctx.moveTo(17,32);
+      ctx.bezierCurveTo(28,13,47,13,58,32);
+      ctx.bezierCurveTo(47,51,28,51,17,32);ctx.closePath();ctx.stroke();
+      line([[17,32],[5,21],[5,43],[17,32]],false);
+      line([[28,21],[34,12],[40,20]],false);
+      line([[28,43],[35,51],[40,44]],false);
+      ctx.beginPath();ctx.moveTo(44,23);ctx.quadraticCurveTo(37,32,44,41);ctx.stroke();
+      dot(49,29,2);
+    } else if(kind === 'maja_tank') {
+      ctx.lineWidth=4.2;
+      ctx.beginPath();ctx.roundRect(9,34,46,18,9);ctx.stroke();
+      line([[14,33],[20,23],[43,23],[50,33]],false);
+      line([[26,23],[26,15],[39,15],[44,23]],false);
+      line([[40,18],[58,18]],false);
+      circle(21,43,3);circle(32,43,3);circle(43,43,3);
+    } else if(kind === 'jorge_pineapple') {
       ctx.translate(32,32);
       ctx.scale(1.3,1.3);
       ctx.translate(-32,-32);
@@ -6183,6 +6279,12 @@
       const sceneUiKey = s=>JSON.stringify([s.viewer,s.mode,s.players,s.interaction,s.landscape]);
       if(sceneUiKey(lastSnapshot) === sceneUiKey(snapshot)) dirtyMask &= ~(DIRTY_HAND | DIRTY_OPP_HAND | DIRTY_PILES);
     }
+    // A turn can expire a blockade without changing Fate, positions or hand.
+    // Its chains live on the card layer, which must still be repainted.
+    const blockadeKey = value=>JSON.stringify((value?.board || []).flatMap(zone=>
+      (zone.rows || []).flatMap(row=>(row.cells || []).filter(cell=>cell.card?.flags?.militaryBlockade)
+        .map(cell=>[cell.z,cell.r,cell.c,cell.card.iid]))));
+    if(lastSnapshot && blockadeKey(lastSnapshot) !== blockadeKey(snapshot)) dirtyMask |= DIRTY_BOARD_CARDS;
     lastSnapshot = snapshot;
 
     const measuredBoardRect = board.getBoundingClientRect ? board.getBoundingClientRect() : {left:0, top:0, width:board.clientWidth || 1280, height:board.clientHeight || 720};

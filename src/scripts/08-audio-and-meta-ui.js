@@ -417,6 +417,100 @@ function playFateOverlayFamilySfx(family, kind, effectiveVol, pitchStep) {
 }
 window.playFateOverlayFamilySfx = playFateOverlayFamilySfx;
 
+// Shared by the Ledger-keeper and Oligarch deck-order panels.
+function playDonJulioDiceSfx(stage,index=0){
+  if(_masterVol<=0 || _sfxVol<=0)return false;
+  try{
+    const ctx=getAudioCtx(),out=ctx.createGain(),now=ctx.currentTime;
+    out.gain.value=_masterVol*_sfxVol*.8;out.connect(getSfxBus(ctx).input);
+    const impact=stage==='impact',landing=stage==='land',exit=stage==='exit';
+    const duration=impact?.14:landing?.5:.45;
+    const buffer=ctx.createBuffer(1,Math.ceil(ctx.sampleRate*duration),ctx.sampleRate),data=buffer.getChannelData(0);
+    for(let i=0;i<data.length;i++)data[i]=(Math.random()*2-1)*Math.pow(1-i/data.length,impact?4:2)*.38;
+    const noise=ctx.createBufferSource(),filter=ctx.createBiquadFilter();noise.buffer=buffer;
+    filter.type='lowpass';filter.frequency.setValueAtTime(impact?2200:1200,now);
+    filter.frequency.exponentialRampToValueAtTime(exit?180:impact?700:2000,now+duration);
+    noise.connect(filter).connect(out);noise.start(now);
+    const osc=ctx.createOscillator(),gain=ctx.createGain();osc.type='sine';
+    osc.frequency.setValueAtTime(impact?170-index*10:landing?90:exit?160:55,now);
+    osc.frequency.exponentialRampToValueAtTime(impact?65:landing?45:exit?45:130,now+duration);
+    gain.gain.setValueAtTime(.0001,now);gain.gain.exponentialRampToValueAtTime(landing?.45:impact?.26:.2,now+.009);
+    gain.gain.exponentialRampToValueAtTime(.0001,now+duration);
+    osc.connect(gain).connect(out);osc.start(now);osc.stop(now+duration+.02);
+    setTimeout(()=>out.disconnect(),1000);return true;
+  }catch(e){return false;}
+}
+window.playDonJulioDiceSfx=playDonJulioDiceSfx;
+
+function playLedgerPanelSfx(closing=false,oligarch=false){
+  if(_masterVol<=0 || _sfxVol<=0)return false;
+  try{
+    const ctx=getAudioCtx(),out=ctx.createGain(),now=ctx.currentTime;
+    out.gain.value=_masterVol*_sfxVol*.95;
+    out.connect(getSfxBus(ctx).input);
+    if(oligarch && !closing){
+      // A vault-like bass swell and staggered metallic partials, without paper.
+      [[65,98,0,.65,.38],[1046,1046,.13,.65,.16],
+        [1673,1673,.13,.46,.075],[2636,2636,.13,.25,.04],
+        [784,784,.3,.65,.14],[1254,1254,.3,.4,.065]].forEach(([from,to,delay,len,level])=>{
+        const osc=ctx.createOscillator(),gain=ctx.createGain(),t=now+delay;
+        osc.type='sine';osc.frequency.setValueAtTime(from,t);osc.frequency.exponentialRampToValueAtTime(to,t+len);
+        gain.gain.setValueAtTime(.0001,t);gain.gain.exponentialRampToValueAtTime(level,t+(delay===0?.12:.005));
+        gain.gain.exponentialRampToValueAtTime(.0001,t+len);
+        osc.connect(gain).connect(out);osc.start(t);osc.stop(t+len+.02);
+      });
+      setTimeout(()=>out.disconnect(),1400);
+      return true;
+    }
+    const duration=closing?.28:.46;
+    const buffer=ctx.createBuffer(1,Math.ceil(ctx.sampleRate*duration),ctx.sampleRate);
+    const data=buffer.getChannelData(0);
+    for(let i=0;i<data.length;i++){
+      const t=i/data.length;
+      data[i]=(Math.random()*2-1)*Math.pow(1-t,2)*(.45+.25*Math.sin(t*70));
+    }
+    const paper=ctx.createBufferSource(),filter=ctx.createBiquadFilter();
+    paper.buffer=buffer;filter.type='lowpass';filter.frequency.setValueAtTime(closing?1900:1100,now);
+    filter.frequency.exponentialRampToValueAtTime(closing?450:3200,now+duration);
+    paper.connect(filter).connect(out);paper.start(now);
+    // Weighty book-cover impact, followed by a short resonant seal/open chord.
+    [[closing?135:95,closing?55:160,0,.42,.5],
+      [closing?330:440,closing?220:660,.06,.48,.18],
+      [closing?440:660,closing?330:880,.11,.45,.12]].forEach(([from,to,delay,len,level])=>{
+      const osc=ctx.createOscillator(),gain=ctx.createGain(),t=now+delay;
+      osc.type='sine';osc.frequency.setValueAtTime(from,t);osc.frequency.exponentialRampToValueAtTime(to,t+len);
+      gain.gain.setValueAtTime(.0001,t);gain.gain.exponentialRampToValueAtTime(level,t+.009);gain.gain.exponentialRampToValueAtTime(.0001,t+len);
+      osc.connect(gain).connect(out);osc.start(t);osc.stop(t+len+.02);
+    });
+    setTimeout(()=>out.disconnect(),1200);
+    return true;
+  }catch(e){return false;}
+}
+window.playLedgerPanelSfx=playLedgerPanelSfx;
+
+function playSebastianFishSfx(){
+  if(_masterVol<=0 || _sfxVol<=0)return false;
+  try{
+    const ctx=getAudioCtx(),out=ctx.createGain(),now=ctx.currentTime;
+    out.gain.value=_masterVol*_sfxVol*.65;
+    out.connect(getSfxBus(ctx).input);
+    // A soft splash followed by two rising, watery plucks: the fresh catch.
+    const buffer=ctx.createBuffer(1,Math.ceil(ctx.sampleRate*.32),ctx.sampleRate);
+    const data=buffer.getChannelData(0);
+    for(let i=0;i<data.length;i++)data[i]=(Math.random()*2-1)*Math.pow(1-i/data.length,3)*.22;
+    const splash=ctx.createBufferSource(),filter=ctx.createBiquadFilter();
+    splash.buffer=buffer;filter.type='bandpass';filter.frequency.value=1100;filter.Q.value=.6;
+    splash.connect(filter).connect(out);splash.start(now);
+    [440,660,880].forEach((freq,i)=>{
+      const osc=ctx.createOscillator(),gain=ctx.createGain(),t=now+.05+i*.12;
+      osc.type='sine';osc.frequency.setValueAtTime(freq*1.6,t);osc.frequency.exponentialRampToValueAtTime(freq,t+.12);
+      gain.gain.setValueAtTime(.0001,t);gain.gain.exponentialRampToValueAtTime(.16,t+.012);gain.gain.exponentialRampToValueAtTime(.0001,t+.4);
+      osc.connect(gain).connect(out);osc.start(t);osc.stop(t+.42);
+    });
+    setTimeout(()=>out.disconnect(),1200);
+    return true;
+  }catch(e){return false;}
+}
 function playCardEffectFlashSfx(kind, options) {
   const opts = options || {};
   const cleanKind = String(kind || '').toLowerCase();
@@ -430,6 +524,9 @@ function playCardEffectFlashSfx(kind, options) {
     _cardEffectFlashSfxKeys.forEach(function(stamp, storedKey){ if(nowMs - stamp > 15000) _cardEffectFlashSfxKeys.delete(storedKey); });
   }
   if(cleanKind === 'jose_clock') return !!window.FateApprovedActivationSfx?.play('jose-clock');
+  if(cleanKind === 'military_blockade') return !!window.FateApprovedActivationSfx?.play('military-blockade');
+  if(cleanKind === 'military_blockade_release') return !!window.FateApprovedActivationSfx?.play('military-blockade-release');
+  if(cleanKind === 'sebastian_fish') return playSebastianFishSfx();
   window._fateCardFlashPitchStep = Math.max(0, Number(opts.pitchStep) || 0);
   const effectiveVol = typeof _sfxVol === 'number' ? _sfxVol : 1;
   return playFateOverlayFamilySfx(family, cleanKind, effectiveVol, opts.pitchStep);
@@ -2103,6 +2200,9 @@ window.playEffectActivationClickSfx = playEffectActivationClickSfx;
 //  AUDIO SYSTEM
 // ═══════════════════════════════════════════════════════
 const CARD_SOUNDS = {
+  '110': '110',
+  '109': '109',
+  '108': '108',
   '107': '107',
   '106': '106',
   '105': '105',
@@ -2146,6 +2246,9 @@ const IGB17_BACKGROUND_FILES = Object.freeze([
   'igb17/9.png','igb17/10.png'
 ]);
 const AVAILABLE_CARD_SOUND_FILES = new Set([
+  '110',
+  '109',
+  '108',
   '107',
   '106',
   '105',
@@ -2277,7 +2380,7 @@ function crossfadeIgb17ScreenBackground(screen, bgImg, coin, force) {
   if(!screen) return;
   prepareIgb17FadeTarget(screen);
   const nextImage = igb17BackgroundImageCss(bgImg, coin);
-  if(force || !screen.dataset.igb17BgReady) {
+  if(!screen.dataset.igb17BgReady) {
     applyLandscapeBackgroundToScreen(screen, bgImg, coin);
     screen.dataset.igb17BgReady = '1';
     screen.dataset.igb17BgImage = nextImage;
@@ -2288,6 +2391,7 @@ function crossfadeIgb17ScreenBackground(screen, bgImg, coin, force) {
   const layer = document.createElement('div');
   layer.className = 'igb17-bg-fade-layer';
   layer.dataset.seq = String(++_igb17FadeLayerSeq);
+  screen.dataset.igb17BgSeq = layer.dataset.seq;
   layer.style.cssText = [
     'position:absolute',
     'inset:0',
@@ -2302,21 +2406,34 @@ function crossfadeIgb17ScreenBackground(screen, bgImg, coin, force) {
     'will-change:opacity'
   ].join(';');
   screen.appendChild(layer);
-  requestAnimationFrame(function(){ layer.style.opacity = '1'; });
   screen.dataset.igb17BgImage = nextImage;
-  setTimeout(function(){
-    applyLandscapeBackgroundToScreen(screen, bgImg, coin);
-    if(layer.parentNode) layer.remove();
-    screen.querySelectorAll(':scope > .igb17-bg-fade-layer').forEach(function(other){
-      if(other !== layer && Number(other.dataset.seq || 0) < Number(layer.dataset.seq || 0)) other.remove();
-    });
-  }, 1500);
+  // Wait for the bitmap and a transparent paint before starting the fade.
+  const image = new Image();
+  image.onload = function(){
+    if(screen.dataset.igb17BgSeq !== layer.dataset.seq){ layer.remove(); return; }
+    requestAnimationFrame(function(){ requestAnimationFrame(function(){
+      if(!layer.parentNode) return;
+      layer.style.opacity = '1';
+      setTimeout(function(){
+        if(screen.dataset.igb17BgSeq !== layer.dataset.seq) return;
+        applyLandscapeBackgroundToScreen(screen, bgImg, coin);
+        if(layer.parentNode) layer.remove();
+        screen.querySelectorAll(':scope > .igb17-bg-fade-layer').forEach(function(other){
+          if(other !== layer && Number(other.dataset.seq || 0) < Number(layer.dataset.seq || 0)) other.remove();
+        });
+      }, 1500);
+    }); });
+  };
+  image.onerror = function(){
+    layer.remove();
+    if(screen.dataset.igb17BgSeq === layer.dataset.seq) delete screen.dataset.igb17BgImage;
+  };
+  image.src = bgImg;
 }
 
 function applyIgb17RotatingBackground(force) {
   const active = typeof G !== 'undefined' && G && String(G.landscapeId || '') === 'igb17';
   if(!active) {
-    removeIgb17FadeLayers();
     return false;
   }
   const index = getIgb17RotationIndex();
@@ -2344,7 +2461,6 @@ function scheduleIgb17BackgroundRotation(song, options) {
   _igb17RotationTimer = null;
   if(String(song || '') !== 'board17') {
     _igb17LastRotationIndex = -1;
-    removeIgb17FadeLayers();
     return;
   }
   if(!options.skipApply) applyIgb17RotatingBackground(false);
@@ -2378,13 +2494,7 @@ function applyGameBackground(song=null) {
     scheduleIgb17BackgroundRotation(pickedSong, {skipApply:true});
     return pickedSong;
   }
-  if(gameScreen){
-    gameScreen.style.setProperty('--game-bg-img', `url(${bgImg})`);
-    gameScreen.style.backgroundImage = `linear-gradient(180deg,rgba(6,8,14,.04),rgba(6,8,14,.12)), url(${bgImg})`;
-    gameScreen.style.backgroundSize = 'cover, cover';
-    gameScreen.style.backgroundPosition = 'center, center';
-    gameScreen.style.backgroundRepeat = 'no-repeat, no-repeat';
-  }
+  crossfadeIgb17ScreenBackground(gameScreen, bgImg, false);
   window.__fateLastGameBackground = {
     song:pickedSong,
     cssVar:`url(${bgImg})`,
@@ -2393,13 +2503,7 @@ function applyGameBackground(song=null) {
     backgroundPosition:'center, center',
     backgroundRepeat:'no-repeat, no-repeat'
   };
-  if(coinScreen){
-    coinScreen.style.setProperty('--game-bg-img', `url(${bgImg})`);
-    coinScreen.style.backgroundImage = `linear-gradient(180deg,rgba(6,8,14,.16),rgba(6,8,14,.28)), url(${bgImg})`;
-    coinScreen.style.backgroundSize = 'cover, cover';
-    coinScreen.style.backgroundPosition = 'center, center';
-    coinScreen.style.backgroundRepeat = 'no-repeat, no-repeat';
-  }
+  crossfadeIgb17ScreenBackground(coinScreen, bgImg, true);
   scheduleIgb17BackgroundRotation(pickedSong);
   return pickedSong;
 }
@@ -2407,7 +2511,7 @@ function applyGameBackground(song=null) {
 function transitionGameLandscape(song, opts = {}) {
   const pickedSong = (song && GAME_SONGS.includes(song)) ? song : pickGameSong();
   const bgNum = Math.max(1, Math.min(24, parseInt(String(pickedSong).replace('board',''), 10) || 1));
-  if(!opts.remote && typeof getFelicitaLandscapeChangeBlockReason === 'function') {
+  if(!opts.remote && !opts.restore && typeof getFelicitaLandscapeChangeBlockReason === 'function') {
     const reason = getFelicitaLandscapeChangeBlockReason('igb' + bgNum);
     if(reason) {
       if(typeof showFelicitaLandscapeChangeBlockedBanner === 'function') showFelicitaLandscapeChangeBlockedBanner(reason);
@@ -2415,74 +2519,40 @@ function transitionGameLandscape(song, opts = {}) {
     }
   }
   if(typeof G !== 'undefined' && G) {
+    const previousId = G.landscapeId;
+    if(!opts.remote){
+      G._landscapeReturnId ||= previousId;
+      G._landscapeHistory ||= {};
+      if(previousId && G._landscapeState) G._landscapeHistory[previousId] = G._landscapeState;
+      const sourceId = String(typeof getCardRuntimeEffectId==='function' ? getCardRuntimeEffectId(opts.sourceCard || {}) : opts.sourceCard?.id || '');
+      if(sourceId === '111'){
+        if(previousId === 'igb'+bgNum) return false;
+        G._temporaryLandscape = {endingPlayer:1-Number(opts.player),expiresTurn:Number(G.turn)+1};
+      }else{
+        G._temporaryLandscape = null;
+        if(!opts.restore) G._landscapeReturnId = 'igb'+bgNum;
+      }
+    }
     G.landscapeId = 'igb' + bgNum;
     G.landscapeBgNum = bgNum;
     G.landscape = (typeof LANDSCAPES !== 'undefined' && LANDSCAPES) ? LANDSCAPES[G.landscapeId] : null;
     if(!opts.remote) {
-      G._landscapeState = {id:'', twilightRecoveryUses:G._landscapeState?.twilightRecoveryUses?.slice() || [0, 0]};
+      G._landscapeState = G._landscapeHistory[G.landscapeId] || {id:'', twilightRecoveryUses:G._landscapeState?.twilightRecoveryUses?.slice() || [0, 0]};
       G._landscapeDrawQueue = [];
     }
     G._onlineGameSong = pickedSong;
     if(!opts.remote && typeof initLandscapeForSong === 'function') initLandscapeForSong(pickedSong);
+    if(!opts.remote && typeof ignoreBattleOfPellaThresholdsReachedBeforeEntry==='function') ignoreBattleOfPellaThresholdsReachedBeforeEntry(previousId);
     if(typeof syncTurnTimerToCurrentLimit === 'function') syncTurnTimerToCurrentLimit();
   }
 
   const gameScreen = document.getElementById('s-game');
-  const bgImg = getGameLandscapeBackgroundPath(bgNum);
-  let layer = null;
-  if(gameScreen) {
-    layer = document.createElement('div');
-    layer.className = 'landscape-transition-layer';
-    layer.style.backgroundImage = `linear-gradient(180deg,rgba(6,8,14,.04),rgba(6,8,14,.12)), url(${bgImg})`;
-    gameScreen.appendChild(layer);
-    requestAnimationFrame(()=>{ layer.style.opacity = '1'; });
-  }
-
-  const oldMusic = _gameMusic;
-  const targetVol = _musicVol * _masterVol;
-  if(oldMusic) {
-    const startVol = oldMusic.volume || targetVol;
-    const started = Date.now();
-    const fade = setInterval(()=>{
-      const t = Math.min(1, (Date.now() - started) / 1200);
-      oldMusic.volume = startVol * (1 - t);
-      if(t >= 1){
-        clearInterval(fade);
-        try{ oldMusic.pause(); oldMusic.currentTime = 0; }catch(e){}
-      }
-    }, 80);
-  }
-
   _lastGameSong = pickedSong;
-  scheduleIgb17BackgroundRotation(pickedSong);
-  setTimeout(function(){
-    applyGameBackground(pickedSong);
-    if(!opts.remote && typeof initLandscapeForSong === 'function') initLandscapeForSong(pickedSong);
-    if(layer) {
-      layer.style.opacity = '0';
-      setTimeout(()=>{ try{ layer.remove(); }catch(e){} }, 1300);
-    }
-    if(_musicEnabled && _currentScreen === 's-game') {
-      clearGameMusicLoopState();
-      try {
-        const runId = ++_musicRunId;
-        const src = SET_VOICELINE_PATH(getGameAudioSong(pickedSong));
-        if(isBadMusicSource(src)) return;
-        const audio = new Audio(src);
-        audio.loop = true;
-        audio.volume = 0;
-        audio.onerror = function(e){ markBadMusicSource(src, e); if(_gameMusic === audio) _gameMusic = null; };
-        _gameMusic = audio;
-        const p = audio.play();
-        const fadeIn = ()=>{ if(runId === _musicRunId) fadeInGameMusic(audio, targetVol, 1600); };
-        if(p) p.then(fadeIn).catch(()=>{});
-        else fadeIn();
-      } catch(e) {}
-    }
-    if(typeof renderLandscapePanel === 'function') renderLandscapePanel();
-    if(typeof updateTopBar === 'function') updateTopBar();
-    if(typeof triggerLandscapeFlash === 'function') triggerLandscapeFlash('Landscape changed', 'none');
-  }, 1150);
+  applyGameBackground(pickedSong);
+  if(gameScreen && _currentScreen === 's-game') playGameMusic();
+  if(typeof renderLandscapePanel === 'function') renderLandscapePanel();
+  if(typeof updateTopBar === 'function') updateTopBar();
+  if(typeof triggerLandscapeFlash === 'function') triggerLandscapeFlash('Landscape changed', 'none');
   return pickedSong;
 }
 window.transitionGameLandscape = transitionGameLandscape;
@@ -2774,25 +2844,42 @@ function clearGameMusicLoopState() {
   }
 }
 
+const _outgoingLandscapeMusic = new Map();
+
+function fadeOutGameMusic(audio, durationMs=1600) {
+  if(!audio) return;
+  const startVolume = audio.volume;
+  const started = Date.now();
+  audio.onended = null;
+  const timer = setInterval(()=>{
+    const t = Math.min(1, (Date.now() - started) / durationMs);
+    audio.volume = startVolume * (1 - t * t * (3 - 2 * t));
+    if(t >= 1){
+      clearInterval(timer);
+      _outgoingLandscapeMusic.delete(audio);
+      try{ audio.pause(); audio.currentTime = 0; }catch(e){}
+    }
+  }, 30);
+  _outgoingLandscapeMusic.set(audio, timer);
+}
+
 function fadeInGameMusic(audio, targetVolume, durationMs=1800) {
   if(!audio) return;
   if(_gameMusicFadeInterval) clearInterval(_gameMusicFadeInterval);
   audio.volume = 0;
-  const steps = Math.max(8, Math.floor(durationMs / 120));
-  let step = 0;
+  const started = Date.now();
   _gameMusicFadeInterval = setInterval(()=>{
     if(!_gameMusic || _gameMusic !== audio){
       clearGameMusicLoopState();
       return;
     }
-    step++;
-    audio.volume = targetVolume * Math.min(1, step / steps);
-    if(step >= steps){
-      audio.volume = targetVolume;
+    const t = Math.min(1, (Date.now() - started) / durationMs);
+    audio.volume = Math.min(targetVolume, _musicVol * _masterVol) * t * t * (3 - 2 * t);
+    if(t >= 1){
       clearInterval(_gameMusicFadeInterval);
       _gameMusicFadeInterval = null;
     }
-  }, Math.max(80, Math.floor(durationMs / steps)));
+  }, 30);
 }
 
 function clearBh19TurnSongFade() {
@@ -2877,9 +2964,10 @@ window.playBh19TurnSongOnce = playBh19TurnSongOnce;
 window.stopBh19TurnSong = stopBh19TurnSong;
 
 function playGameMusic() {
+  _musicRunId++;
   clearGameMusicLoopState();
   if(_bgMusic){ try{ _bgMusic.pause(); _bgMusic.currentTime=0; }catch(e){} _bgMusic=null; }
-  if(_gameMusic){ try{ _gameMusic.pause(); _gameMusic.currentTime=0; }catch(e){} _gameMusic=null; }
+  if(_gameMusic){ fadeOutGameMusic(_gameMusic); _gameMusic=null; }
   const onlineSong = (typeof G !== 'undefined' && G && G._onlineGameSong) ? G._onlineGameSong : null;
   const song = applyGameBackground(onlineSong || _lastGameSong || null);
   _lastGameSong = song;
@@ -2921,12 +3009,23 @@ function playGameMusic() {
         if(_gameMusic === audio) _gameMusic = null;
         return;
       }
-      setTimeout(()=>{ if(runId===_musicRunId && !isBadMusicSource(src)) audio.play().catch(()=>{}); }, 200);
+      setTimeout(()=>{
+        if(runId !== _musicRunId || isBadMusicSource(src)) return;
+        audio.play().then(()=>{
+          if(runId !== _musicRunId){ audio.pause(); return; }
+          fadeInGameMusic(audio, _musicVol * _masterVol, 1800);
+        }).catch(()=>{});
+      }, 200);
     });
   } catch(e){}
 }
 
 function stopAllMusic() {
+  for(const [audio, timer] of _outgoingLandscapeMusic){
+    clearInterval(timer);
+    try{ audio.pause(); audio.currentTime = 0; }catch(e){}
+  }
+  _outgoingLandscapeMusic.clear();
   // Invalidate any pending play() promises.
   _musicRunId++;
   clearGameMusicLoopState();
@@ -3358,7 +3457,7 @@ function stopProfilePickerObserver() {
 
 function profilePickerThumbSrc(pfpId) {
   const id = Math.max(1, parseInt(pfpId, 10) || 1);
-  if(id >= 126 && id <= 132) return PFP_PATH(id, 'square');
+  if(id >= 126 && id <= 135) return PFP_PATH(id, 'square');
   // Lydia's full portrait was replaced after the thumbnail sheet was built.
   // Use the versioned source so the picker and cropper always show the same art.
   if(id === 56) return PFP_PATH(id, 'square');

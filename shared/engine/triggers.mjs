@@ -191,6 +191,15 @@ export function collectTriggeredOperations(state, event){
   if(event.type === 'CARD_SET'){
     const placed = boardEntries(state).find(entry=>String(entry.card.iid) === String(event.cardIid));
     if(placed && event.consolidated !== true && effectiveCardType(state, placed.card) === 'Supporter'){
+      for(const source of boardEntries(state).filter(entry=>
+        runtimeRuleId(entry.card) === '109' && entry.z === placed.z && !entry.card.faceDown
+        && controllerOf(entry.card) !== controllerOf(placed.card)
+        && !isEffectSourceSuppressed(state, entry)
+      )){
+        operations.push({type:'ROLL_FATE_DIE',targetIid:source.card.iid,
+          sourceIid:source.card.iid,sourceController:controllerOf(source.card),
+          semanticSourceCardId:'109',reason:'DON_JULIO_SUPPORTER_SET',bypassReaction:true});
+      }
       for(const status of state.statuses.filter(item=>
         item?.type === 'CONSOLIDATION_FATE_BONUS'
         && Number(item.playerIndex) === Number(event.playerIndex)
@@ -328,6 +337,15 @@ export function collectTriggeredOperations(state, event){
     }
   }
   if(event.type === 'CARD_CONSOLIDATED'){
+    for(const source of boardEntries(state)){
+      if(controllerOf(source.card) !== Number(event.playerIndex)
+        || String(source.card.iid) === String(event.cardIid)
+        || runtimeRuleId(source.card) !== '110'
+        || source.card.faceDown || isEffectSourceSuppressed(state, source)) continue;
+      operations.push({type:'CREATE_TOKENS', tokenKind:'FISH', count:1,
+        playerIndex:Number(event.playerIndex), sourceController:Number(event.playerIndex),
+        sourceIid:source.card.iid, semanticSourceCardId:'110', reason:'FISHMONGER'});
+    }
     const consolidated = boardEntries(state).find(entry=>
       String(entry.card.iid) === String(event.cardIid)
     );

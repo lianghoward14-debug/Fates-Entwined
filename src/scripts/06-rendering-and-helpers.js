@@ -4249,6 +4249,7 @@ function getAnnePlanningStatusEffects(game,viewer) {
 
 function getStatusEffectIcon(kind) {
   const icons = {
+    revolutionary_spirit: '<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round"><path d="M25 39H40L36 56H29Z M24 34C9 22 28 17 28 5C43 12 53 25 40 34 M30 31C23 24 35 21 34 15C43 24 40 29 36 32"/></g></svg>',
     private_anne_planning: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 52V15h31M48 31v21H12M18 20h13m-13 9h8" stroke-width="3.5"/><path d="M24 47l4-13 19-21 8 8-20 21zM29 34l7 7M44 17l8 8" stroke-width="4"/><path d="M21 53h23" stroke-width="3" opacity=".5"/></g></svg>`,
     private_black_rose: `<svg class="private-black-rose-icon" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="30" cy="39" r="16.5" stroke-width="4"/><path d="M27 22v-6h8v7M31 16c0-7 11-5 13-11" stroke-width="4"/><path d="M46 7l5-3M48 13l6 1M40 5l-1-4" stroke-width="3"/><path d="M19 36c1-5 4-8 8-10" stroke-width="3" opacity=".45"/></g></svg>`,
     private_rivera_converge: `<svg class="private-rivera-converge-icon" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 17h13c7 0 11 5 11 12M56 17H43c-7 0-11 5-11 12"/><path d="M8 17l7-7M8 17l7 7M56 17l-7-7M56 17l-7 7" stroke-width="4"/><path d="M32 27l14 14-14 16-14-16z"/></g></svg>`,
@@ -4324,6 +4325,8 @@ function getAuthoritativeEffectOverlayDescriptor(event, source, target) {
   const type = String(event?.type || '').toUpperCase();
   const sourceId = String(event?.semanticSourceCardId || source?.id || '');
   const targetId = String(target?.id || '');
+  if(type === 'FATE_CHANGED' && event.reason === 'REVOLUTIONARY_SPIRIT' && Number(event.after) > Number(event.before))
+    return {kind:'revolutionary_spirit',label:'Revolutionary Spirit'};
   if(type === 'FATE_CHANGED' && String(event?.reason || '') === 'MORALE_HEAL_FATE_CONVERSION' && targetId === '101')
     return {kind:'jorge_pineapple',label:'El Viaje Del Hombre Piña'};
   if(type === 'CARD_MOVED') return sourceId === 'bh01' || targetId === 'bh01'
@@ -4540,7 +4543,7 @@ function renderHand() {
   const cp = getPerspectivePlayerIndex();
   const canActFromHand = (cp === G.currentPlayer);
   const canInspectHand = !G._isSpectator || G._onlineRole === 'spectator';
-  const hand = G.players[cp].hand.filter(function(card){ return !(card && card._drawPresentationPending); });
+  const hand = G.players[cp].hand.filter(function(card){ return !(card && card._drawPresentationPending) && !window.isSebastianFishHidden?.(card); });
   const hc = document.getElementById('hand-cards');
   if(!hc) return;
   if(window.FateMatchRendererAdapter && typeof window.FateMatchRendererAdapter.ownsHand === 'function' && window.FateMatchRendererAdapter.ownsHand()){
@@ -5753,6 +5756,7 @@ function getTopBarEffectsSourceSignature() {
     // that is created or expires without changing a legacy mirror still
     // mounts/unmounts its normal production top-bar banner immediately.
     JSON.stringify(G._phase7Statuses || []),
+    JSON.stringify(G._revolutionaryFlipGains || []),
     JSON.stringify(G._bh24DefenseInDepth || []),
     handBits.join(','),
     boardBits.join(',')
@@ -5779,6 +5783,11 @@ function renderTopbarEffects() {
   if(typeof normalizeRiveraEffects === 'function') normalizeRiveraEffects();
   const allEffects = [];
 
+  for(const status of G._revolutionaryFlipGains || []){
+    if(status.turn !== G.turn) continue;
+    allEffects.push({icon:getStatusEffectIcon('revolutionary_spirit'),label:'Revolutionary Spirit',cardName:'Caribbea Revolutionary',cardAbility:'Revolutionary Spirit',cardEffect:'For the rest of this turn, cards that flip face up gain 4 Fate.',owner:status.owner,sourceIid:status.sourceIid,extraClass:'effect-pill-revolutionary-spirit',turnsLeft:1,statusInstanceKey:'revolutionary:'+String(status.sourceIid)});
+  }
+
   // Phase 7 owns these statuses on the authority.  Render them directly from
   // the canonical snapshot instead of requiring the retired multiplayer path
   // to rebuild a parallel collection of client-only flags.
@@ -5794,6 +5803,7 @@ function renderTopbarEffects() {
     if([
       'NEXT_CHARACTER_HAND_ARRIVAL',
       'RIVERA_AFFILIATION_BONUS',
+      'REVOLUTIONARY_FLIP_GAIN',
       'CONSOLIDATION_FATE_BONUS',
       'DELAYED_HAND_DELIVERY',
       'SUPPORTERS_AS_CHARACTERS',
@@ -5829,7 +5839,10 @@ function renderTopbarEffects() {
         statusInstanceKey:'phase7-status:' + String(status.statusId || status.sourceIid || type + ':' + index)
       });
     };
-    if(type === 'FORT_CALVIN_WATCHER' && remaining > 0){
+    if(type === 'REVOLUTIONARY_FLIP_GAIN' && Number(status.turn) === Number(G.turn)){
+      add('112','revolutionary_spirit','Caribbea Revolutionary','Revolutionary Spirit','For the rest of this turn, cards that flip face up gain 4 Fate.','effect-pill-revolutionary-spirit');
+      allEffects[allEffects.length-1].turnsLeft = 1;
+    }else if(type === 'FORT_CALVIN_WATCHER' && remaining > 0){
       const redirect = status.characterRedirected ? 'Its Character redirect has already been used.' : 'The next revealed Character is sent to the bottom of the deck.';
       add('71', 'fort_calvin', 'Fort Calvin Watcher', 'All Eyes on the I-15', 'Reveals the next ' + remaining + ' eligible opponent Draw Phase card' + (remaining === 1 ? '' : 's') + '. ' + redirect, 'effect-pill-fort-calvin');
     }else if(type === 'SUPPORTER_EFFECTS_BLOCKED' && remaining > 0){
@@ -7649,7 +7662,7 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
       return;
     }
     const isAchillesToken = typeof isAchillesAdaptiveToken === 'function' && isAchillesAdaptiveToken(card);
-    const isDirectSetCard = isAchillesToken
+    const isDirectSetCard = isFishCounter(card) || isAchillesToken
       // Blame Game Supporters still use normal Supporter placement despite counting as Characters for effects.
       || card.type==='Supporter'
       || (typeof isWojciechPierogiCounter === 'function' && isWojciechPierogiCounter(card))
@@ -10525,11 +10538,14 @@ function showMariaDiscardBadge(targetCard, count, z, r, c) {
 
 
 const CINEMATIC_VOICELINES = Object.freeze({
+  '110': 'At the wharf, the fish we catch come and go. But rumors...they linger.',
+  '108': 'Papa! Papa! Look in the clouds! I can see a firey dragon, an apple and a big boat!',
   "101": "Sometimes, happiness is as simple as a fresh bowl of diced pineapples",
   "103": "Unravel their delusions with the point of our bayonets",
   "102": "Rarely is justice dealt by an unforced hand",
   "104": "Remember who you fight for!",
   "107": "The path forward is winding and treacherous - but it is the only one that leads to liberation.",
+  "109": "Only those who are willing to put their cards down...are the ones who stand to gain anything.",
   "106": "These peasants call for revolution...without understanding that they must pay for it with their lives.",
   "105": "Together, brothers and sisters, we advance toward Havano!",
   "1": "Duty to one's country first",
@@ -11843,7 +11859,7 @@ function showFaceDownEffectChoice(card, onFlip, onActivate, options = {}) {
   const title=options.title || (placement?'Choose your entrance':'Reveal or remain unseen');
   const portraitId = ({'101':126,'102':127,'103':128})[String(card?.id)] || card?.pfpId
     || (/^bh0?(\d+)$/i.test(String(card?.id)) ? 100 + Number(String(card.id).match(/\d+/)[0]) : Number(card?.id));
-  const dedicatedPortrait = String(card?.id) === '107' ? 'pfp/card-107-portrait.svg?v=20261010' : ['104','105','106'].includes(String(card?.id)) ? 'pfp/card-'+card.id+'-portrait.png?v=20261009' : '';
+  const dedicatedPortrait = ['108','109','110'].includes(String(card?.id)) ? 'pfp/card-'+card.id+'-portrait.svg?v=20261014-full-art' : String(card?.id) === '107' ? 'pfp/card-107-portrait.svg?v=20261010' : ['104','105','106'].includes(String(card?.id)) ? 'pfp/card-'+card.id+'-portrait.png?v=20261009' : '';
   const art=e(dedicatedPortrait || card?.cinematicPortrait || (portraitId ? (typeof PFP_PATH === 'function' ? PFP_PATH(portraitId, 'square') : 'pfp/pfp'+portraitId+'.png') : card?.runtimeImg || card?.img || 'back.png'));
   showModal(title,
     '<section class="hidden-effect-choice tactical-choice'+(placement?' placement-choice':'')+'"><aside class="tactical-art"><img src="'+art+'" alt=""><div class="tactical-art-shade"></div>'+(placement?'':'<span class="tactical-edition">HIDDEN IN PLAIN SIGHT</span>')+'<div class="tactical-identity"><small>'+e(card?.ability || 'Tactical decision')+'</small><h3>'+e(card?.name || 'Your card')+'</h3></div></aside>'+

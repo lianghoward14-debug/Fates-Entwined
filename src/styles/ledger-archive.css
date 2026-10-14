@@ -68,3 +68,21 @@
 #ledger-archive .ledger-effect-marker:focus-visible{outline:2px solid #efd29a;outline-offset:3px;border-radius:50%}
 /* Tooltip contents are a source for the body-level portal, never inline text. */
 #ledger-archive .ledger-effect-marker .hand-effect-tooltip{display:none!important}
+
+/* Elite Influence: burgundy velvet, dark mahogany and aged brass. */
+#ledger-archive.oligarch-archive{background:radial-gradient(circle at 50% 24%,#76334044,transparent 42%),linear-gradient(#12070beF,#080306f5)}
+#ledger-archive.oligarch-archive .ledger-panel{background:linear-gradient(135deg,#42232d,#211219 54%,#130c11);border-color:#c49a61}
+#ledger-archive.oligarch-archive .ledger-panel:before{content:"ELITE INFLUENCE";color:#dbb77b99}
+#ledger-archive.oligarch-archive header{background:linear-gradient(90deg,#522632,#2b141e 72%,#190d14);border-color:#c49a61}
+#ledger-archive.oligarch-archive h2{color:#f6e6cb}
+#ledger-archive.oligarch-archive header p,#ledger-archive.oligarch-archive footer>span{color:#cbb4ba}
+#ledger-archive.oligarch-archive .ledger-direction{background:#1b0e15;border-color:#a475634d;color:#e7c18c}
+#ledger-archive.oligarch-archive .ledger-card{background:linear-gradient(165deg,#4d2b36,#2b1822 58%,#190e15);border-color:#8b626a}
+#ledger-archive.oligarch-archive .ledger-card:first-child{background:linear-gradient(165deg,#683342,#3b1e2c 58%,#25131d);border-color:#ebc286}
+#ledger-archive.oligarch-archive .ledger-position{color:#ddbec6}
+#ledger-archive.oligarch-archive button{background:linear-gradient(#482734,#28151f);border-color:#a67f63;color:#f1ddc3}
+#ledger-archive.oligarch-archive button:hover:not(:disabled){background:linear-gradient(#683747,#3b1e2a);border-color:#edc893}
+#ledger-archive.oligarch-archive button:focus-visible{outline-color:#f3cd96}
+#ledger-archive.oligarch-archive .ledger-confirm{background:linear-gradient(#e7c18c,#ac7b49);color:#28101a;border-color:#f4d6a8}
+#ledger-archive.oligarch-archive .ledger-confirm:hover:not(:disabled){background:linear-gradient(#f8d9aa,#c28e57);color:#28101a}
+#ledger-archive.oligarch-archive .ledger-announcement{color:#e8b9c5}

@@ -796,6 +796,31 @@
       return expired.length > 0 || events.length > 0;
     }
     const system = state._moralePressure;
+    // Healing precedes damage; it cannot revive a player after lethal cycle damage.
+    if(String(state.landscapeId||'')==='igb23'){
+      for(let player=0;player<2;player+=1){
+        const before=Math.max(0,Number(system.morale[player])||0);
+        const requested=Math.max(0,Number(state.players?.[player]?.hand?.length||0)*2);
+        const after=before+requested;
+        const amount=after-before;
+        system.morale[player]=after;
+        if(amount)events.push({type:'MORALE_HEALED',playerIndex:player,amount:amount,before:before,after:after,sourceIid:'landscape:igb23',semanticSourceCardId:'igb23',reason:'SHORES_OF_LA_HELENA'});
+      }
+    }
+    (state.blockedCells||[]).filter(function(block){return block&&block.type==='jaime';}).forEach(function(block){
+      const player=Number(block.owner);
+      const card=state.board?.[Number(block.z)]?.[Number(block.r)]?.[Number(block.c)]||null;
+      if((player!==0&&player!==1)||!card)return;
+      const fate=typeof getEffectiveFate==='function'?getEffectiveFate(card,Number(block.z)):Number(card.currentFate??card.fate??0);
+      const before=Math.max(0,Number(system.morale[player])||0);
+      const after=before+Math.max(0,Number(fate)||0);
+      const amount=after-before;
+      if(!amount)return;
+      system.morale[player]=after;
+      const source=legacyBoardEntries(state).filter(function(entry){return entry.card&&!legacySuppressed(entry);}).map(function(entry){return entry.card;}).find(function(entryCard){return String(entryCard.iid||'')===String(block.sourceIid||'');});
+      if(source)source._moraleRecoveredFromSquare=Math.max(0,Number(source._moraleRecoveredFromSquare)||0)+amount;
+      events.push({type:'MORALE_HEALED',playerIndex:player,amount:amount,before:before,after:after,sourceZone:Number(block.z),sourceIid:block.sourceIid,overlayTargetIid:String(card.iid||''),semanticSourceCardId:'bh22',reason:'A_MOONLIT_SHORE'});
+    });
     const zoneResults=[0,1,2].map(function(zone){
       const scores=[getZoneScore(zone,0),getZoneScore(zone,1)];
       const controller=scores[0]>scores[1]?0:(scores[1]>scores[0]?1:null);
@@ -894,30 +919,6 @@
       });
       if(before>0&&system.morale[player]===0)events.push({type:'MORALE_BROKEN',playerIndex:player,sourcePlayerIndex:1-player});
     }
-    if(String(state.landscapeId||'')==='igb23'){
-      for(let player=0;player<2;player+=1){
-        const before=Math.max(0,Number(system.morale[player])||0);
-        const requested=Math.max(0,Number(state.players?.[player]?.hand?.length||0)*2);
-        const after=before+requested;
-        const amount=after-before;
-        system.morale[player]=after;
-        if(amount)events.push({type:'MORALE_HEALED',playerIndex:player,amount:amount,before:before,after:after,sourceIid:'landscape:igb23',semanticSourceCardId:'igb23',reason:'SHORES_OF_LA_HELENA'});
-      }
-    }
-    (state.blockedCells||[]).filter(function(block){return block&&block.type==='jaime';}).forEach(function(block){
-      const player=Number(block.owner);
-      const card=state.board?.[Number(block.z)]?.[Number(block.r)]?.[Number(block.c)]||null;
-      if((player!==0&&player!==1)||!card)return;
-      const fate=typeof getEffectiveFate==='function'?getEffectiveFate(card,Number(block.z)):Number(card.currentFate??card.fate??0);
-      const before=Math.max(0,Number(system.morale[player])||0);
-      const after=before+Math.max(0,Number(fate)||0);
-      const amount=after-before;
-      if(!amount)return;
-      system.morale[player]=after;
-      const source=entries.map(function(entry){return entry.card;}).find(function(entryCard){return String(entryCard.iid||'')===String(block.sourceIid||'');});
-      if(source)source._moraleRecoveredFromSquare=Math.max(0,Number(source._moraleRecoveredFromSquare)||0)+amount;
-      events.push({type:'MORALE_HEALED',playerIndex:player,amount:amount,before:before,after:after,sourceZone:Number(block.z),sourceIid:block.sourceIid,overlayTargetIid:String(card.iid||''),semanticSourceCardId:'bh22',reason:'A_MOONLIT_SHORE'});
-    });
     const lowMoraleDiscard = resolveLegacyMoraleLowHandDiscard(Number(endingPlayer));
     if(lowMoraleDiscard) events.push(lowMoraleDiscard);
     system.cycle+=1;

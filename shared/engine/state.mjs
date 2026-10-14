@@ -76,6 +76,7 @@ export function createInitialState(input = {}){
   const playerStates = players.map((player, playerIndex)=>{
     const ids = Array.isArray(player.deckIds) ? player.deckIds.map(String) : [];
     const deck = makeDeck(definitionsById, ids, playerIndex, matchId, instanceCounter);
+    const originalDeck = cloneSerializable(deck);
     shuffleInPlace(deck, rngState);
     const openingExtras = deck.filter(card=>String(card.id || '')==='98');
     const guaranteed = deck.filter(card=>String(card.id || '')==='84');
@@ -85,6 +86,7 @@ export function createInitialState(input = {}){
     const hand = [...guaranteed,...deck.splice(0, handSize)];
     hand.push(...openingExtras);
     return {
+      originalDeck,
       flowerPickingEligible:!ids.some(id=>DRAW_EFFECT_CARD_IDS.includes(id)),
       id:playerIds[playerIndex],
       name:String(player.name || `Player ${playerIndex + 1}`),

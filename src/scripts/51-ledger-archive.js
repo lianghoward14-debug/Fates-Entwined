@@ -29,6 +29,13 @@
     root.dataset.ledgerUiVersion = '2';
     root.innerHTML = '<section class="ledger-panel" role="dialog" aria-modal="true" aria-labelledby="ledger-title" aria-describedby="ledger-help"><header><span class="ledger-eyebrow">THE LEDGER-KEEPERS</span><h2 id="ledger-title">The Hidden Archive</h2><p id="ledger-help">Arrange your next draws. Drag cards or use the arrow buttons.</p></header><div class="ledger-direction"><span>01 · DRAWS NEXT</span><span>LATER DRAWS →</span></div><div class="ledger-cards" role="list"></div><p class="ledger-announcement" aria-live="polite"></p><footer><span>The rest of your deck stays in order.</span><div><button type="button" class="ledger-reset">Reset order</button><button type="button" class="ledger-confirm">Confirm order</button></div></footer></section>';
     const list = root.querySelector('.ledger-cards');
+    if(options.title) root.querySelector('#ledger-title').textContent = options.title;
+    if(options.opponentDeck){
+      root.classList.add('oligarch-archive');
+      root.querySelector('.ledger-eyebrow').textContent = 'OLD ELITE OLIGARCH';
+      root.querySelector('#ledger-help').textContent = 'Arrange your opponent’s next draws. Drag cards or use the arrow buttons.';
+      root.querySelector('footer>span').textContent = 'The rest of your opponent’s deck stays in order.';
+    }
     const announce = root.querySelector('.ledger-announcement');
     const confirm = root.querySelector('.ledger-confirm');
     if(options.readOnly){
@@ -116,7 +123,8 @@
         if(accepted === false) throw new Error('The order could not be saved. Please try again.');
         try {
           const soundKey = 'ledger-confirm:' + String(options.key || Date.now());
-          if(typeof window.playFateSfxOnce === 'function') window.playFateSfxOnce('modalConfirm', soundKey, 500);
+          if(typeof window.playLedgerPanelSfx === 'function') window.playLedgerPanelSfx(true);
+          else if(typeof window.playFateSfxOnce === 'function') window.playFateSfxOnce('modalConfirm', soundKey, 500);
           else if(typeof playSfx === 'function') playSfx('modalConfirm');
         } catch(e) {}
         if(active === session){ active = null; root.remove(); session.focus?.focus?.(); }
@@ -141,6 +149,7 @@
       event.stopPropagation();
     });
     document.body.append(root);
+    window.playLedgerPanelSfx?.(false,!!options.opponentDeck);
     render();
     confirm.focus();
     return promise;
@@ -148,25 +157,27 @@
 
   window.resolveLedgerArchive = async function(player, source, options = {}){
     const game = G;
-    const deck = game.players[player].deck;
+    const deckOwner = options.deckOwner ?? player;
+    const title = options.title || 'The Hidden Archive';
+    const deck = game.players[deckOwner].deck;
     const top = deck.slice(0,5);
-    if(!top.length){ if(typeof toast === 'function') toast('The Hidden Archive: your deck is empty.'); return; }
+    if(!top.length){ if(typeof toast === 'function') toast(title+': the deck is empty.'); return; }
     const apply = ordered=>{
       if(G !== game) return false;
-      const remaining = new Map(game.players[player].deck.map(card=>[String(card.iid),card]));
+      const remaining = new Map(game.players[deckOwner].deck.map(card=>[String(card.iid),card]));
       const arranged = ordered.map(card=>remaining.get(String(card.iid))).filter(Boolean);
       const ids = new Set(arranged.map(card=>String(card.iid)));
-      game.players[player].deck = arranged.concat(game.players[player].deck.filter(card=>!ids.has(String(card.iid))));
-      if(typeof log === 'function') log(player === 0 ? 'p1' : 'p2','The Hidden Archive: rearranged '+arranged.length+' cards.');
+      game.players[deckOwner].deck = arranged.concat(game.players[deckOwner].deck.filter(card=>!ids.has(String(card.iid))));
+      if(typeof log === 'function') log(player === 0 ? 'p1' : 'p2',title+': rearranged '+arranged.length+' cards.');
       return true;
     };
-    if(typeof log === 'function') log(player === 0 ? 'p1' : 'p2','The Hidden Archive revealed: '+top.map(card=>card.name).join(', '));
+    if(deckOwner === player && typeof log === 'function') log(player === 0 ? 'p1' : 'p2',title+' revealed: '+top.map(card=>card.name).join(', '));
     if(options.ai){
       const strategy = game._selectedAI?._deckStrategy || '';
       const priority = typeof aiDeckSearchPriority === 'function' ? aiDeckSearchPriority(strategy,'character') : [];
       top.sort((a,b)=>{
         const rank = card=>{ const index = priority.indexOf(String(card.id)); return index < 0 ? 1000-Number(card.currentFate ?? card.fate ?? 0) : index; };
-        return rank(a)-rank(b);
+        return (rank(a)-rank(b)) * (deckOwner === player ? 1 : -1);
       });
       apply(top);
       return;
@@ -174,7 +185,7 @@
     game._ledgerArchivePending = true;
     try{
       if(typeof waitForEffectPresentationBeforeChoice === 'function') await waitForEffectPresentationBeforeChoice();
-      await window.openLedgerArchive(top,{key:'local-ledger:'+source.iid+':'+game.turn,onConfirm:apply});
+      await window.openLedgerArchive(top,{key:'local-ledger:'+source.iid+':'+game.turn,title,opponentDeck:deckOwner !== player,onConfirm:apply});
     }finally{ delete game._ledgerArchivePending; }
   };
 })();

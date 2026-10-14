@@ -156,7 +156,7 @@ export function eligibleBoardTargets(state, frame, filter = {}){
         if(!eligibleDestinations(state, targetFrame, filter.requiresDestination).length) return false;
       }
       if(filter.requiresSourceDestination && !eligibleDestinations(state, frame, filter.requiresSourceDestination).length) return false;
-      if(filter.copyableSupporterPassive && (!['25','24','44','49','53','59','65','92','93'].includes(String(entry.card.id))
+      if(filter.copyableSupporterPassive && (!['25','24','44','49','53','59','65','92','93','114'].includes(String(entry.card.id))
         || (String(entry.card.id) === '65' && state.gameSettings?.pressureCardReworks !== true)
         || isEffectSourceSuppressed(state, entry))) return false;
       if(filter.excludeSource && String(entry.card.iid) === String(frame.sourceIid)) return false;

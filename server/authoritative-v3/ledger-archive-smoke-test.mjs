@@ -18,7 +18,7 @@ assert.match(ledgerUiSource,/hydratePickerCardPresentation\(card\)/,'sparse mult
 assert.match(ledgerUiSource,/bindPickerEffectMarkers/, 'archive markers must support hover and keyboard focus');
 assert.match(ledgerUiSource,/ledger-archive-v2/,'shared Ledger Archive window must use the current UI');
 assert.match(ledgerUiSource,/playFateSfxOnce\('modalConfirm', soundKey, 500\)/,'confirming a Ledger Archive order must play confirmation audio');
-assert.match(indexSource,/ledger-archive\.css\?v=20260912-confirm-audio[\s\S]*51-ledger-archive\.js\?v=20260912-confirm-audio/,'Ledger Archive script and style cache versions must remain synchronized');
+assert.match(indexSource,/ledger-archive\.css\?v=([^"\s]+)[\s\S]*51-ledger-archive\.js\?v=\1"/,'Ledger Archive script and style cache versions must remain synchronized');
 assert.match(cardDataSource,/id:'75'[\s\S]{0,600}img:'75\.png\?v=20260907-ledger2'/,'Ledger Keepers must use the current card art cache key');
 assert.match(indexSource,/01-data-and-state\.js\?v=[^"\s]+/,'the card database cache must use the current card catalog version');
 

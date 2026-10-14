@@ -182,6 +182,7 @@
 
   function isDirectSetCard(card){
     if(!card) return false;
+    if(typeof isFishCounter === 'function' && isFishCounter(card)) return true;
     if(typeof isAchillesAdaptiveToken === 'function' && isAchillesAdaptiveToken(card)) return true;
     if(typeof isWojciechPierogiCounter === 'function' && isWojciechPierogiCounter(card)) return true;
     if(typeof isWhisperOfTheHeartToken === 'function' && isWhisperOfTheHeartToken(card)) return true;

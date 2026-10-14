@@ -663,6 +663,8 @@ export class FateAuthoritativeV3SinglePlayerScreen {
 
   presentEvents(events = [], metadata = {}){
     for(const event of events){
+      if(event?.type==='FISH_COUNTER_CREATED') this.window.queueSebastianFishOverlay?.(this.findCard(event.sourceIid),`${this.view?.state?.matchId}:${metadata.revision}:${events.indexOf(event)}:fish`,event.createdIids);
+      this.window.queueDonJulioDieRoll?.(event, `${this.view?.state?.matchId}:${metadata.revision}:${events.indexOf(event)}`, this.findCard(event.sourceIid));
       this.window.presentJoseLongGameEvent?.(event, `${this.view?.state?.matchId}:${metadata.revision}:${event.cardIid}:${event.value}`, this.findCard(event.cardIid), this.view?.state);
       if(event?.type === 'SUPPORT_COMPANY_USED') this.window.presentSupportCompanyUse?.(event,
         `${this.view?.state?.matchId}:${metadata.revision}:${event.playerIndex}:support`);
@@ -708,6 +710,10 @@ export class FateAuthoritativeV3SinglePlayerScreen {
       const source = this.findCard(event.sourceIid);
       const descriptor = this.window.getAuthoritativeEffectOverlayDescriptor?.(event, source, target);
       if(!descriptor || !target) continue;
+      if(type === 'FATE_CHANGED' && descriptor.kind === 'revolutionary_spirit' && this.window.queuePairedOverlayFateGain){
+        this.window.queuePairedOverlayFateGain(target,{kind:descriptor.kind,label:descriptor.label,sourceIid:String(event.sourceIid || ''),before:Number(event.before),after:Number(event.after),onlineRemote:true,waitForConsolidationCinematic:true,waitForMoraleCalculation:true});
+        continue;
+      }
       if(type === 'FATE_CHANGED' && Number(event?.presentationDelayMs) > 0){
         this.window.setTimeout?.(()=>{
           const delayedTarget=this.findCard(event.cardIid || event.targetIid || event.sourceIid) || target;
@@ -722,6 +728,8 @@ export class FateAuthoritativeV3SinglePlayerScreen {
       }
     }
     if(batch.length) this.render(metadata?.view || this.view);
+    void this.window.flushDonJulioDieRolls?.(this.view?.state);
+    void this.window.flushSebastianFishOverlays?.(this.view?.state);
   }
 
   statusPresentation(status){
@@ -880,6 +888,7 @@ export class FateAuthoritativeV3SinglePlayerScreen {
   }
 
   renderHand(cards){
+    cards=cards.filter(card=>!this.window.isSebastianFishHidden?.(card));
     const root = this.document.getElementById('hand-cards');
     if(!root) return;
     root.replaceChildren();

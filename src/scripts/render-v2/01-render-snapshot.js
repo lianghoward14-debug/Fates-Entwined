@@ -171,6 +171,7 @@
         createdAt:Number(card._placementFateReveal.createdAt) || Date.now(),
         genericSoundRequested:!!card._placementFateReveal.genericSoundRequested,
         forceFateGainSound:!!card._placementFateReveal.forceFateGainSound,
+        majaBoost:!!card._placementFateReveal.majaBoost,
         kvetkaGainAmount:Math.max(0, Number(card._placementFateReveal.kvetkaGainAmount) || 0)
       };
     }
@@ -196,6 +197,7 @@
       && typeof window.canShowBoardActivateEffect === 'function'
       && window.canShowBoardActivateEffect(card, boardPos.z, boardPos.r, boardPos.c, viewer));
     base.flags = {
+      militaryBlockade:!!(boardPos && window.getMilitaryBlockadeTurns?.(card,boardPos.z)>0),
       faceDown:!!card.faceDown,
       immune:!!showProtectionIcon,
       markedForDeath:!!(onBoard && card._markedForDeath),
@@ -337,7 +339,7 @@
   function buildPlayerSnapshot(g, player, viewer){
     const p = g.players && g.players[player] ? g.players[player] : {};
     const isViewer = player === viewer;
-    const hand = Array.isArray(p.hand) ? p.hand.filter(function(card){ return !(card && card._drawPresentationPending); }) : [];
+    const hand = Array.isArray(p.hand) ? p.hand.filter(function(card){ return !(card && card._drawPresentationPending) && !window.isSebastianFishHidden?.(card); }) : [];
     const handCards = hand.map(function(card, index){
       const revealed = isViewer || canRevealHandCard(g, card);
       return revealed

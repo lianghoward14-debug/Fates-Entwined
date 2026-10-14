@@ -285,7 +285,7 @@ function initLandscapeForSong(song) {
     if (id === 'igb19' && Array.isArray(G.players)) {
       G.players.forEach(function(player, playerIndex){
         if (!player || !Array.isArray(player.hand)) return;
-        player.hand.forEach(function(card){ resetCaliforniqueHandTenure(card, playerIndex); });
+        player.hand.forEach(function(card){ if(card._igb19HandOwner !== playerIndex || !Number.isFinite(card._igb19HandTurnsRemaining)) resetCaliforniqueHandTenure(card, playerIndex); });
       });
     }
   }
@@ -557,6 +557,10 @@ function isInnatelyFullyEffectImmuneCard(card) {
   return isAnickaVoyagerCard(card) || isAliIndomitableHandCard(card);
 }
 
+function isFishCounter(card) {
+  return !!card && (card.fishCounter === true || card.counters?.fishCounter === true || String(card.id) === 'token-fish');
+}
+
 function isWojciechPierogiCounter(card) {
   return !!(card && (card.pierogiCounter === true || String(card.id || '') === 'token1'));
 }
@@ -818,6 +822,7 @@ function isCardSupporterForRules(card, owner) {
 }
 
 function isCardCharacterForRules(card, owner) {
+  if(isFishCounter(card)) return false;
   if(!card || isWojciechPierogiCounter(card)) return false;
   if(getCardStructuralType(card) !== 'Supporter') return true;
   const resolvedOwner = typeof owner === 'number' ? owner : card.owner;
@@ -872,6 +877,7 @@ function getFelicitaLandscapeChangeBlockReason(targetId) {
   const current = typeof getCurrentLandscape === 'function' ? getCurrentLandscape() : null;
   const currentId = String((current && current.id) || G.landscapeId || '');
   const nextId = String(targetId || '');
+  if(nextId && nextId === currentId) return 'Choose a different landscape.';
   const state = typeof getLandscapeState === 'function' ? getLandscapeState() : G._landscapeState;
   const resolvedTurns = state && state.resolvedTurns ? state.resolvedTurns : {};
   if(currentId === 'igb24' && turn >= 16 && (!nextId || nextId !== currentId)) {
@@ -1089,6 +1095,7 @@ function getHandCardEffectModifiers(card) {
 }
 
 function getSupportReinforcementValue(card) {
+  if(isFishCounter(card)) return 0.5;
   if (!card) return 0;
   applyPermanentEffectImmunity(card);
   if (isCardEffectImmutable(card)) {
@@ -1412,6 +1419,7 @@ function getSetEffectModalDelayMs() {
 }
 
 function getInteractionAnimationDelayMs() {
+  if(typeof window!=='undefined' && window.donJulioDiceBusy) return 100;
   const game = typeof G !== 'undefined' ? G : null;
   return Math.max(getPlacementUiDelayMs(), getCinematicUiDelayMs(), getSetEffectModalDelayMs(),
     (Number(game?._coordinatorSignatureUntil) || 0)-Date.now(),
