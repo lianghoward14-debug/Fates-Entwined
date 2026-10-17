@@ -1,0 +1,26 @@
+[
+  {
+    "file": "mark-kemper-projector-and-paper.wav",
+    "seconds": 2.35,
+    "peak": 0.78,
+    "rms": 0.064
+  },
+  {
+    "file": "mark-menz-pencil-and-seals.wav",
+    "seconds": 2.35,
+    "peak": 0.78,
+    "rms": 0.067
+  },
+  {
+    "file": "hugh-roberts-coins-and-case.wav",
+    "seconds": 2.35,
+    "peak": 0.78,
+    "rms": 0.064
+  },
+  {
+    "file": "duncan-heyward-river-and-echo.wav",
+    "seconds": 2.35,
+    "peak": 0.78,
+    "rms": 0.079
+  }
+]

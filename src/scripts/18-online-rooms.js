@@ -5521,6 +5521,7 @@
       withOnlinePromptBypass(gameState(), function(){
         window.showZonePickerVisual({
           title:sourceId === '50' ? 'Artillery Distance' : 'Choose a Zone',
+          sourceCard:source,
           subtitle:sourceId === '50'
             ? "Select a zone. On your opponent's next turn, they cannot set, consolidate, or activate effects there."
             : 'Select the zone for this effect.',

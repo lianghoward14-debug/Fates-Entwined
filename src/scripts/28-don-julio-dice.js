@@ -1,4 +1,4 @@
-/* Don Julio: selected sideways-tumble from the October 7 plain-dice-motion preview. */
+/* Don Julio: stationary monochrome Loaded Verdict with a final red seal. */
 (function(){
   let queue=Promise.resolve();
   const seen=new Set();
@@ -112,41 +112,64 @@
   function animate(roll){return new Promise(resolve=>{
     const scene=document.createElement('div');
     scene.className='don-julio-dice-overlay';
-    scene.style.cssText='position:fixed;inset:0;z-index:2147483600;pointer-events:auto;background:radial-gradient(ellipse,#080b1020,#07080ada);display:grid;place-items:center;color:#f0dfb7;font:25px Georgia,serif';
-    scene.innerHTML='<div style="position:relative;width:min(700px,100vw);height:390px"><canvas role="img" style="width:100%;height:390px"></canvas><div style="position:absolute;top:26px;left:0;right:0;text-align:center;letter-spacing:.15em">DON JULIO</div><output aria-live="polite" style="position:absolute;top:342px;left:0;right:0;text-align:center;font-size:27px;color:#fff3d3"></output></div>';
+    scene.style.cssText='position:fixed;inset:0;z-index:2147483600;pointer-events:auto;background:radial-gradient(ellipse,#080b1065,#020406f5);display:grid;place-items:center';
+    scene.innerHTML='<canvas role="img" style="width:100%;height:100%;position:absolute;inset:0"></canvas><output aria-live="polite" style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)"></output>';
     document.body.appendChild(scene);
-    window.playDonJulioDiceSfx?.('enter');
-    // The die touches the floor when |sin(t * 3π)| returns to zero: at one
-    // third and two thirds of the 2.1-second tumble. The final contact is the
-    // dedicated landing cue fired by the animation frame below.
-    const impactTimers=[700,1400].map((delay,index)=>setTimeout(()=>window.playDonJulioDiceSfx?.('impact',index),delay));
     const canvas=scene.querySelector('canvas'),ctx=canvas.getContext('2d'),out=scene.querySelector('output');
-    if(!ctx){impactTimers.forEach(clearTimeout);scene.remove();resolve(false);return;}
-    const dots=[[4],[0,8],[0,4,8],[0,2,6,8],[0,2,4,6,8],[0,2,3,5,6,8]],W=canvas.clientWidth;
-    let pose={x:0,y:0,rx:-.13,ry:.18,rz:0,scale:1};
-    const dpr=Math.min(devicePixelRatio||1,2);canvas.width=W*dpr;canvas.height=390*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);
-    const faces=[{n:[0,0,1],u:[1,0,0],v:[0,1,0]},{n:[1,0,0],u:[0,0,-1],v:[0,1,0]},{n:[0,-1,0],u:[1,0,0],v:[0,0,1]},{n:[0,1,0],u:[1,0,0],v:[0,0,-1]},{n:[-1,0,0],u:[0,0,1],v:[0,1,0]},{n:[0,0,-1],u:[-1,0,0],v:[0,1,0]}];
-function rotate(p){let[x,y,z]=p,c=Math.cos(pose.rx),s=Math.sin(pose.rx);[y,z]=[y*c-z*s,y*s+z*c];c=Math.cos(pose.ry);s=Math.sin(pose.ry);[x,z]=[x*c+z*s,-x*s+z*c];c=Math.cos(pose.rz);s=Math.sin(pose.rz);return[x*c-y*s,x*s+y*c,z]}
-function project(p){const t=rotate(p),f=650/(650-t[2]);return[W/2+pose.x+t[0]*f,225+pose.y+t[1]*f]}
-function draw(){ctx.clearRect(0,0,W,390);const h=55*pose.scale;ctx.save();ctx.translate(W/2+pose.x*.6,300);ctx.scale(1,.2);const shadow=ctx.createRadialGradient(0,0,8,0,0,90);shadow.addColorStop(0,'#0008');shadow.addColorStop(1,'#0000');ctx.fillStyle=shadow;ctx.fillRect(-100,-100,200,200);ctx.restore();const side=[1,2,3,4,5,6].filter(n=>n!==roll&&n!==7-roll);const values=[roll,side[0],side[1],7-side[1],7-side[0],7-roll];
-faces.map((face,i)=>({face,i,n:rotate(face.n)})).filter(f=>f.n[2]>.01).sort((a,b)=>a.n[2]-b.n[2]).forEach(({face,i,n})=>{const local=(u,v)=>face.n.map((t,j)=>h*(t+face.u[j]*u+face.v[j]*v));const poly=[[-1,-1],[1,-1],[1,1],[-1,1]].map(p=>project(local(...p)));ctx.beginPath();poly.forEach((p,j)=>j?ctx.lineTo(...p):ctx.moveTo(...p));ctx.closePath();const shade=Math.round(175+70*n[2]-20*n[0]-10*n[1]);ctx.fillStyle='rgb('+shade+','+shade+','+(shade-5)+')';ctx.fill();ctx.strokeStyle='#777870';ctx.lineWidth=1.5;ctx.stroke();for(const d of dots[values[i]-1]){const u=(d%3-1)*.55,v=(Math.floor(d/3)-1)*.55;ctx.beginPath();for(let q=0;q<=24;q++){const a=q/24*Math.PI*2,p=project(local(u+Math.cos(a)*.12,v+Math.sin(a)*.12));q?ctx.lineTo(...p):ctx.moveTo(...p)}ctx.fillStyle='#181919';ctx.fill()}})}
-
-    const start=performance.now(),duration=matchMedia('(prefers-reduced-motion: reduce)').matches?100:2100;
+    if(!ctx){scene.remove();resolve(false);return;}
+    const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const times=[0,160,320,490,680,900,1160,1460,1810,2220],duration=reduced?0:3200;
+    const result=roll,patterns={1:[[0,0]],2:[[-32,-32],[32,32]],3:[[-32,-32],[0,0],[32,32]],4:[[-32,-32],[32,-32],[-32,32],[32,32]],5:[[-32,-32],[32,-32],[0,0],[-32,32],[32,32]],6:[[-32,-32],[32,-32],[-32,0],[32,0],[-32,32],[32,32]]};
+    let w=0,h=0,step=-1,lastTick=-999,value=1,locked=false,playing=true;
+    function pips(n,color,rad){ctx.fillStyle=color;for(const [x,y] of patterns[n]){ctx.beginPath();ctx.arc(x,y,rad,0,7);ctx.fill();}}
+    function draw(t){
+      const width=canvas.clientWidth||window.innerWidth||600,height=canvas.clientHeight||window.innerHeight||510;
+      if(w!==width||h!==height){w=width;h=height;const dpr=Math.min(devicePixelRatio||1,2);canvas.width=w*dpr;canvas.height=h*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);}
+      ctx.clearRect(0,0,w,h);ctx.save();ctx.translate(w/2,h/2-25);
+      const since=t-lastTick,after=t-duration;
+      const ink='#111111';
+const strike=playing&&!locked?Math.max(0,1-since/160):locked?Math.max(0,1-after/200):0;
+const scale=Math.min(w*.62,h*.43)/118;
+ctx.save();
+ctx.textAlign='center';ctx.textBaseline='middle';
+const titleY=-h*.36,subtitleY=-h*.285,titleSize=Math.min(58,w*.105);
+const gold=ctx.createLinearGradient(0,titleY-titleSize*.6,0,titleY+titleSize*.6);
+gold.addColorStop(0,'#fff0b7');gold.addColorStop(.4,'#efd085');gold.addColorStop(.58,'#b88032');gold.addColorStop(1,'#f5d895');
+ctx.font='500 '+titleSize+'px Georgia, serif';
+ctx.letterSpacing=Math.min(7,w*.012)+'px';
+ctx.shadowColor='#000000';ctx.shadowBlur=5;ctx.shadowOffsetY=3;
+ctx.fillStyle=gold;ctx.fillText('DON JULIO',0,titleY);
+ctx.shadowBlur=0;ctx.shadowOffsetY=0;ctx.letterSpacing='1px';
+ctx.font='italic '+Math.min(23,w*.045)+'px Georgia, serif';ctx.fillStyle='#e6bf72';
+ctx.fillText('Oppression of the Ruling Class',0,subtitleY);
+// Fine gold rules frame the name without competing with the dice reveal.
+const ruleY=titleY-titleSize*.85,ruleWidth=Math.min(w*.23,170);
+ctx.strokeStyle='#bb8c466e';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(-ruleWidth,ruleY);ctx.lineTo(-10,ruleY);ctx.moveTo(10,ruleY);ctx.lineTo(ruleWidth,ruleY);ctx.stroke();
+ctx.fillStyle='#e6bf72';ctx.beginPath();ctx.moveTo(0,ruleY-4);ctx.lineTo(4,ruleY);ctx.lineTo(0,ruleY+4);ctx.lineTo(-4,ruleY);ctx.closePath();ctx.fill();
+ctx.restore();
+ctx.save();ctx.scale(scale,scale);ctx.translate(0,-5-strike*9);ctx.globalAlpha=1-strike*.5;
+ctx.fillStyle='#ffffff';ctx.beginPath();ctx.roundRect(-59,-59,118,118,12);ctx.fill();ctx.strokeStyle=ink;ctx.lineWidth=5;ctx.stroke();pips(value,ink,9);ctx.lineWidth=1;ctx.beginPath();ctx.roundRect(-53,-53,106,106,8);ctx.stroke();ctx.restore();
+if(strike>0){ctx.fillStyle=ink;for(let i=0;i<28;i++){const angle=i*2.399,r=scale*68+(1-strike)*35;ctx.globalAlpha=strike*.7;ctx.fillRect(Math.cos(angle)*r,Math.sin(angle)*r-5,2+i%3,2);}ctx.globalAlpha=1;}
+if(locked){
+ const settle=reduced?1:Math.min(1,after/180),sw=Math.min(w*.81,490);
+ ctx.save();ctx.translate(0,scale*65+55);ctx.rotate(-.035);ctx.globalAlpha=.9;ctx.scale(1+(1-settle)*.12,1+(1-settle)*.12);
+ ctx.fillStyle='#8d2622';ctx.fillRect(-sw/2,-27,sw,54);ctx.strokeStyle='#e0b488';ctx.lineWidth=2;ctx.strokeRect(-sw/2,-27,sw,54);ctx.lineWidth=1;ctx.strokeRect(-sw/2+6,-21,sw-12,42);
+ ctx.fillStyle='#f6e4c5';ctx.textAlign='center';ctx.textBaseline='middle';ctx.font=`500 ${w<440?21:28}px Georgia`;ctx.fillText('FATE SEALED  /  +'+result,0,0);ctx.restore();
+}
+      ctx.restore();
+    }
+    window.playDonJulioDiceSfx?.('enter');
+    const start=performance.now();
     function frame(now){
-      const t=Math.min(1,(now-start)/duration),remain=Math.pow(1-t,3);
-      pose={x:-Math.min(W*.35,220)*remain,y:-Math.abs(Math.sin(t*Math.PI*3))*55*(1-t),
-        rx:-.13+remain*Math.PI*4,ry:.18,rz:remain*Math.PI*3,scale:1};
-      draw();
-      if(t<1) requestAnimationFrame(frame);
-      else{
-        impactTimers.forEach(clearTimeout);
-        window.playDonJulioDiceSfx?.('land');
-        out.textContent='Rolled '+roll;
-        canvas.setAttribute('aria-label','Die showing '+roll+' on its large front face');
-        setTimeout(()=>{window.playDonJulioDiceSfx?.('exit');scene.remove();resolve(true)},900);
-      }
+      try{
+        const t=Math.max(0,now-start);
+        if(!reduced&&t<duration){let changed=false;while(step+1<times.length&&t>=times[step+1]){step++;value=(step*5+6)%6+1;lastTick=times[step];changed=true;}if(changed)window.playDonJulioDiceSfx?.('impact',step);}
+        if(t>=duration&&!locked){locked=true;value=roll;window.playDonJulioDiceSfx?.('land');out.textContent='Fate Sealed / +'+roll;canvas.setAttribute('aria-label','Die showing '+roll+'; Fate Sealed, gain '+roll+' Fate');}
+        draw(t);
+        if(t<duration+1500)requestAnimationFrame(frame);
+        else{window.playDonJulioDiceSfx?.('exit');scene.remove();resolve(true);}
+      }catch(error){scene.remove();resolve(false);console.warn('Don Julio dice presentation failed',error);}
     }
     requestAnimationFrame(frame);
   });}
 })();
-

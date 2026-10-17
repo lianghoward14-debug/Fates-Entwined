@@ -990,6 +990,7 @@ const REGISTRY = Object.freeze({
         ],
         defaultChoice:'reality'
       },
+      {kind:'OPERATION',operation:{type:'SET_CARD_COUNTER',targetIid:'$sourceIid',counterKey:'lastDeclaredAffiliation',value:'$affiliation'}},
       {
         kind:'OPERATION',
         operation:{
@@ -1134,6 +1135,7 @@ const REGISTRY = Object.freeze({
         ],
         defaultChoice:'reality'
       },
+      {kind:'OPERATION',operation:{type:'SET_CARD_COUNTER',targetIid:'$sourceIid',counterKey:'lastDeclaredAffiliation',value:'$affiliation'}},
       {
         kind:'OPERATION',
         operation:{
@@ -1223,6 +1225,7 @@ const REGISTRY = Object.freeze({
         ],
         defaultChoice:'reality'
       },
+      {kind:'OPERATION',operation:{type:'SET_CARD_COUNTER',targetIid:'$sourceIid',counterKey:'lastDeclaredAffiliation',value:'$affiliation'}},
       {
         kind:'OPERATION',
         operation:{
@@ -1339,6 +1342,7 @@ const REGISTRY = Object.freeze({
         ],
         defaultChoice:'reality'
       },
+      {kind:'OPERATION',operation:{type:'SET_CARD_COUNTER',targetIid:'$sourceIid',counterKey:'lastDeclaredAffiliation',value:'$affiliation'}},
       {
         kind:'OPERATION',
         operation:{
@@ -1873,6 +1877,7 @@ const PRESSURE_REWORK_REGISTRY = Object.freeze({
   '33':{timings:['WHEN_SET'],operations:['MODIFY_MORALE'],prompts:[],program:[{kind:'OPERATION',operation:{type:'MODIFY_MORALE',playerIndex:'$controller',sourceIid:'$sourceIid',amount:16}}]},
   '34':{timings:['WHEN_SET','PASSIVE'],operations:['SET_CARD_COUNTER'],prompts:['MODAL_CHOICE','REACTION'],havanoTargeting:'OPPONENT',program:[
     {kind:'CHOOSE_OPTION',local:'affiliation',options:[{value:'reality',label:'Reality'},{value:'third_great_war',label:'Third Great War'},{value:'expanded_worlds',label:'Expanded Worlds'},{value:'eventide',label:'Eventide'}],defaultChoice:'reality'},
+      {kind:'OPERATION',operation:{type:'SET_CARD_COUNTER',targetIid:'$sourceIid',counterKey:'lastDeclaredAffiliation',value:'$affiliation'}},
     {kind:'OPERATION',operation:{type:'SET_CARD_COUNTER',targetIid:'$sourceIid',counterKey:'moraleAffiliation',value:'$affiliation'}}
   ]},
   '35':{timings:['PASSIVE'],operations:[],prompts:['REACTION'],havanoPassiveEntry:true},

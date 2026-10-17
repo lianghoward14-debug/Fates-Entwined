@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Landscape listening room</title>
+<style>
+body{margin:0;background:#101820;color:#f2eee4;font:16px system-ui}main{max-width:1150px;margin:auto;padding:40px 24px}h1{font:38px Georgia;margin:8px 0}p{color:#afbec5;line-height:1.6}.controls{position:sticky;top:0;background:#101820f5;padding:18px 0;z-index:1;display:flex;gap:22px;align-items:center;flex-wrap:wrap}button{font:inherit;color:inherit;cursor:pointer}#stop{background:#344955;border:1px solid #76919e;border-radius:7px;padding:10px 24px}#grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(235px,1fr));gap:18px;margin-top:18px}.card{background:#1b2a33;border:1px solid #374d58;border-radius:12px;overflow:hidden;text-align:left;padding:0 0 18px}.card[aria-pressed=true]{outline:2px solid #e3bd77}.card img{width:100%;height:145px;object-fit:cover}.card strong,.card span{display:block;margin:12px 16px 0}.card span{color:#adc0ca;font-size:13px}label{display:flex;gap:12px;align-items:center}#status{color:#e3bd77}
+</style>
+<main><small>FATES ENTWINED · SOUND STUDY · SCENERY EDITION</small><h1>Landscape listening room</h1><p>Recorded waves, birds, insects and engines, mixed with designed environmental cues. Choose a landscape and listen for 30–60 seconds to hear the sparse, varied details. Try Peaceful Seas → ALPINE → Moffitt Library → Moscow for a quick comparison. <a href="soundeffects/landscapes/credits.html" style="color:#e3bd77">Sound credits</a></p><div class="controls"><button id="stop">Stop</button><label>Volume <input id="volume" type="range" min="0" max="100" value="55"></label><span id="status" role="status">Choose a landscape</span></div><div id="grid"></div></main>
+<script src="src/scripts/08-landscape-ambience.js?v=20261016-recorded-6"></script>
+<script>
+const ambience=window.FateLandscapeAmbience;
+ambience.volume(.55);
+ambience.profiles.forEach((p,i)=>{
+ const button=document.createElement('button');button.className='card';button.setAttribute('aria-pressed','false');
+ button.dataset.id='igb'+(i+1);
+ button.innerHTML=`<img src="ingamebackgrouds/igb${i+1}.png" alt=""><strong>${p[0]}</strong><span>${p[1]}</span>`;
+ button.onclick=async()=>{try{await ambience.unlock();await ambience.play(button.dataset.id);}catch(e){document.getElementById('status').textContent='Audio unavailable: '+e.message;}};
+ document.getElementById('grid').appendChild(button);
+});
+function updateStatus(){const s=ambience.getState();const id=s.loading||s.playing;const name=id?ambience.profiles[Number(id.slice(3))-1][0]:'';document.querySelectorAll('.card').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.id===s.playing)));document.getElementById('status').textContent=s.error?'Audio unavailable: '+s.error:s.loading?'Loading: '+name:s.playing?'Playing: '+name:'Stopped';}
+window.addEventListener('fate-ambience-state',updateStatus);
+document.getElementById('stop').onclick=()=>ambience.stop();
+document.getElementById('volume').oninput=e=>ambience.volume(e.target.value/100);
+</script></html>

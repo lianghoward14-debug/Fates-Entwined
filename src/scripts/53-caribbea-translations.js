@@ -31,7 +31,7 @@ const rows=[
  ['Arrange your opponent’s next five draws.','相手が次に引く5枚を並べ替える。','排列对手接下来要抽的5张牌。'],
  ['Infantry of Havano','ハバノ歩兵','哈瓦诺步兵'],
  ['Military Blockade','軍事封鎖','军事封锁'],
- ['While this card is on the field, enemy Supporters in this zone cannot be used for consolidation until your opponent’s next turn. Each additional active copy in this zone adds one more of your opponent’s turns to the wait, counted from when the Supporter entered the field.','このカードがフィールドにある間、このゾーンの敵サポーターは相手の次のターンまで統合に使用できない。このゾーンに有効な同名カードが1枚増えるごとに、サポーターがフィールドに出た時点から数えて、待機期間が相手のターン1回分延びる。','只要此牌在场，此区域内的敌方支援者在对手的下个回合前不能用于整合。此区域内每多一张生效的同名牌，等待时间便从该支援者进场时起再增加一个对手回合。'],
+ ['While this card is on the field, enemy Supporters anywhere on the field cannot be used for consolidation until your opponent’s next turn. Each additional active copy on the field adds one more of your opponent’s turns to the wait, counted from when the Supporter entered the field.','このカードがフィールドにある間、フィールド全体の敵サポーターは相手の次のターンまで統合に使用できない。フィールドに有効な同名カードが1枚増えるごとに、サポーターがフィールドに出た時点から数えて、待機期間が相手のターン1回分延びる。','只要此牌在场，全场的敌方支援者在对手的下个回合前不能用于整合。场上每多一张生效的同名牌，等待时间便从该支援者进场时起再增加一个对手回合。'],
  ['Caribba Loyalist','カリバ王党派','卡里巴保皇派'],
  ['Loyalist Call','王党派の召集','保皇派号召'],
  ['When set, if 30 or more cards in your original deck share an affiliation, trigger a Call to Arms.','セット時、初期デッキ内に同じ所属を持つカードが30枚以上ある場合、「召集」を発動する。','放置时，如果你的初始牌组中有30张或更多牌具有相同阵营，则触发“战斗号召”。'],

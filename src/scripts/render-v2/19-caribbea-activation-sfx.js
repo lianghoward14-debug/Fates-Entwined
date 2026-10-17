@@ -3,7 +3,7 @@
 const cues={
  // Three from the Cup: weight at the lift, a sustained dice spill, three
  // exact table contacts, then a bright result flourish.
- '109':[['click',.3,.18,165],['roll',.34,.48,920],['click',.59,.14,310],['click',.665,.14,255],['click',.74,.16,205],['bell',.82,.52,659],['bell',.91,.58,988],['swell',1.02,.72,392]],
+ '109':[['click',.60,.12,165],['roll',.68,.76,920],['dice-impact',1.18,.14,310],['dice-impact',1.33,.14,255],['dice-impact',1.48,.16,205],['bell',1.64,.25,659],['bell',1.78,.18,988]],
  '108':[['swell',.2,1.1,420],['bell',.5,.42,523],['bell',.66,.42,659],['bell',.82,.42,784],['bell',.98,.42,1047],['bell',1.14,.42,1319],['spark',1.24,.55,1800]],
  // Harbor Tide: an audible wave bed follows the full sweep, with three
  // splashes matching the fish crossings and a clear star/chime finish.
@@ -20,6 +20,19 @@ function schedule(ac,destination,key,volume=.5,stretch=1){
  const out=ac.createGain();out.gain.value=volume*cinematicGain;out.connect(destination);nodes.push(out);
  for(const [kind,at,duration,f] of rows){
   const when=start+at*stretch,dur=duration*stretch,g=ac.createGain();g.connect(out);nodes.push(g);
+  if(kind==='dice-impact'){
+   // Broadband contact and inharmonic wooden resonance at the visual landing.
+   const b=ac.createBuffer(1,Math.ceil(ac.sampleRate*dur),ac.sampleRate),data=b.getChannelData(0);
+   let seed=17+Math.round(f);
+   for(let i=0;i<data.length;i++){
+    seed=(Math.imul(seed,1664525)+1013904223)>>>0;
+    const t=i/ac.sampleRate,n=seed/2147483648-1;
+    data[i]=n*.48*Math.exp(-t*120)+(Math.sin(2*Math.PI*f*t)*.32+Math.sin(2*Math.PI*f*2.37*t)*.15)*Math.exp(-t*35);
+   }
+   g.gain.setValueAtTime(.8,when);g.gain.exponentialRampToValueAtTime(.0001,when+dur);
+   const source=ac.createBufferSource();source.buffer=b;source.connect(g);source.start(when);source.stop(when+dur);sources.push(source);
+   continue;
+  }
   g.gain.setValueAtTime(.0001,when);g.gain.exponentialRampToValueAtTime(kind==='water'?.11:kind==='click'?.7:.3,when+Math.min(.025,dur*.15));g.gain.exponentialRampToValueAtTime(.0001,when+dur);
   if(['bell','swell','click'].includes(kind)){
    const o=ac.createOscillator();o.type=kind==='click'?'triangle':'sine';o.frequency.setValueAtTime(f,when);o.frequency.exponentialRampToValueAtTime(kind==='click'?f*.45:kind==='swell'?f*2:f*1.005,when+dur);o.connect(g);o.start(when);o.stop(when+dur+.02);sources.push(o);

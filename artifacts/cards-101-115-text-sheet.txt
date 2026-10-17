@@ -1,0 +1,166 @@
+FATES ENTWINED — CARDS 101–115
+
+CARD 101
+Name: Jorge Alvarez (El Hombre Piña)
+Ability: El Viaje Del Hombre Piña
+Card Type: Dauntless
+Affiliation: Eventide
+Fate: 4
+Cost: 4
+Rarity: Square
+Text: One third of all Morale healed from this zone is transferred to this card’s Fate (rounded down).
+Flavor Text: “For the impoverished and sick of Caribbea, the Pineapple Man brings hope”
+
+CARD 102
+Name: Anne Stone (Anarchist)
+Ability: The Black Rose
+Card Type: Improvisor
+Affiliation: Eventide
+Fate: 4
+Cost: 1
+Rarity: Square
+Text: At any time during your turn, mark up to three squares on the field. Your opponent cannot see this mark, and they cannot see the activation of this effect. On your opponent's next turn, if a card is set or consolidated on any of those marked squares, that card is discarded and its effect does not activate. When this card is put on the field in any way, you can put it face down.
+Flavor Text: “A commitment to Social Justice, backed by the blunt Cordiality of hand grenades”
+
+CARD 103
+Name: Santiago Alvarez (General)
+Ability: Sangre Por Victoria
+Card Type: Initiator
+Affiliation: Eventide
+Fate: 2
+Cost: 2
+Rarity: Triangle
+Text: Discard all cards on your side of the field with 7 or more Fate, then trigger a Call to Arms.
+Flavor Text: “An upstart general, dedicated to the Loyalist cause-and willing to shed blood”
+
+CARD 104
+Name: Rivera (Revolutionary)
+Ability: A Brighter Future
+Card Type: Improvisor
+Affiliation: Eventide
+Fate: 2
+Cost: 1
+Rarity: Square
+Text: At any time during your turn, you can activate this effect. On your opponent’s next turn, whenever another card gains Fate, this card gains the same amount. The original card keeps its gain. This includes new continuous Fate bonuses. When this card is put on the field in any way, you can put it face down.
+Flavor Text: Today, I fight for not only my family, but for all of the People of Caribbea
+
+CARD 105
+Name: Jorge Alvarez (Revolutionary)
+Ability: A Caribbea for All
+Card Type: Improvisor
+Affiliation: Eventide
+Fate: 3
+Cost: 1
+Rarity: Triangle
+Text: At any time during your turn, you can activate this effect. Declare a character card type, and if your opponent consolidates a card of that type on their next turn, trigger a Call to Arms for yourself. When this card is put on the field in any way, you can put it face down.
+Flavor Text: The Old Elite must be deposed. For too long has their greed caused pain and woe to all the people of Caribbea.
+
+CARD 106
+Name: Jose Garcia
+Ability: The Long Game
+Card Type: Coordinator
+Affiliation: Eventide
+Fate: 4
+Cost: 3
+Rarity: Square
+Text: Every turn, pay 5 Morale. All cards you control in this card’s zone gain 1 Fate for every 3 turns this card has been on the field.
+Flavor Text: I believe with adequate time, this protest will simply resolve itself—as it always does
+
+CARD 107
+Name: Anne Stone (Revolutionary)
+Ability: Strategy of a Revolution
+Card Type: Initiator
+Affiliation: Eventide
+Fate: 2
+Cost: 1
+Rarity: Triangle
+Text: At any time during your turn, you can activate this effect. Declare an effect: Draw, Search, Fate Increase/Decrease, Movement, Status Effect Activation, or Morale Increase/Decrease. The first time your opponent performs the declared action through an effect on their next turn, this card gains 8 Fate. Only effects qualify; normal draws and other normal game actions do not count. (2 uses.) When this card is put on the field in any way, you can put it face down.
+Flavor Text: I’ve made mistakes in the past. Let me atone for them.
+
+CARD 108
+Name: Sofia
+Ability: Star of my World
+Card Type: Initiator
+Affiliation: Eventide
+Fate: 4
+Cost: 4
+Rarity: Triangle
+Text: Discard your hand. Copy your opponent’s original deck, add its opening-hand cards to your hand, then draw 6 cards from the new deck.
+Flavor Text: “Daddy, come home safe! I want to play catch soon!”
+
+CARD 109
+Name: Don Julio
+Ability: Oppression of the Ruling Class
+Card Type: Dauntless
+Affiliation: Eventide
+Fate: 2
+Cost: 4
+Rarity: Triangle
+Text: Whenever your opponent sets a Supporter in this card’s zone, roll a six-sided die. This card gains Fate equal to the result (1–6).
+Flavor Text: These foolish revolutionaries simply do not understand—Money is power.
+
+CARD 110
+Name: Sebastian
+Ability: Fishmonger
+Card Type: Improvisor
+Affiliation: Eventide
+Fate: 2
+Cost: 2
+Rarity: Triangle
+Text: Whenever you consolidate a card, add a Fish counter to your hand. Fish counters count as 0.5 Reinforcement and can be set for free.
+Flavor Text: At the wharf, the fish we catch come and go. But rumors...they linger.
+
+CARD 111
+Name: West Caribbea Villager
+Ability: Destitute Farmers
+Card Type: Supporter
+Affiliation: Eventide
+Fate: 1
+Cost: 0
+Rarity: Circle
+Text: Select a landscape. It becomes active for this turn and your opponent’s next turn, then returns to the starting landscape or the latest landscape chosen by Felicyta.
+Flavor Text: “Much of the population of Caribbea resides in the countryside as farmers.”
+
+CARD 112
+Name: Caribbea Revolutionary
+Ability: Revolutionary Spirit
+Card Type: Supporter
+Affiliation: Eventide
+Fate: 1
+Cost: 0
+Rarity: Circle
+Text: When set, for the rest of this turn, every card that flips from face down to face up gains 4 Fate.
+Flavor Text: None
+
+CARD 113
+Name: Old Elite Oligarch
+Ability: Elite Influence
+Card Type: Supporter
+Affiliation: Eventide
+Fate: 1
+Cost: 0
+Rarity: Circle
+Text: When set, rearrange the top 5 cards of your opponent’s deck.
+Flavor Text: None
+
+CARD 114
+Name: Infantry of Havano
+Ability: Military Blockade
+Card Type: Supporter
+Affiliation: Eventide
+Fate: 1
+Cost: 0
+Rarity: Circle
+Text: While this card is on the field, enemy Supporters in this zone cannot be used for consolidation until your opponent’s next turn. Each additional active copy in this zone adds one more of your opponent’s turns to the wait, counted from when the Supporter entered the field.
+Flavor Text: None
+
+CARD 115
+Name: Caribba Loyalist
+Ability: Loyalist Call
+Card Type: Supporter
+Affiliation: Eventide
+Fate: 1
+Cost: 0
+Rarity: Circle
+Text: When set, if 30 or more cards in your original deck share an affiliation, trigger a Call to Arms.
+Flavor Text: None

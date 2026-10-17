@@ -390,8 +390,7 @@ export function canUseAsConsolidationTribute(state, entry, playerIndex, consolid
     return {ok:true, reinforcement:1};
   }
   if(!isEffectImmutable(card) && !isImmuneToOpponentEffects(card,state)){
-    const blockade = boardEntries(state).filter(source=>source.z === entry.z
-      && controllerOf(source.card) !== Number(playerIndex)
+    const blockade = boardEntries(state).filter(source=>controllerOf(source.card) !== Number(playerIndex)
       && runtimeRuleId(source.card) === '114' && !source.card.faceDown && activeAuraSource(state,source)).length;
     const entered = Number(card.counters?.fieldEnteredTurn);
     // A waiting turn belongs to the Supporter's controller, not either player's turn.

@@ -512,7 +512,7 @@ const CARDS = [
     effect:'When set, rearrange the top 5 cards of your opponent’s deck.',img:'113.png'},
   {id:'114',name:'Infantry of Havano',ability:'Military Blockade',type:'Supporter',aff:'eventide',
     fate:1,cost:0,rarity:'circle',
-    effect:'While this card is on the field, enemy Supporters in this zone cannot be used for consolidation until your opponent’s next turn. Each additional active copy in this zone adds one more of your opponent’s turns to the wait, counted from when the Supporter entered the field.',img:'114.png'},
+    effect:'While this card is on the field, enemy Supporters anywhere on the field cannot be used for consolidation until your opponent’s next turn. Each additional active copy on the field adds one more of your opponent’s turns to the wait, counted from when the Supporter entered the field.',img:'114.png'},
   {id:'115',name:'Caribba Loyalist',ability:'Loyalist Call',type:'Supporter',aff:'eventide',
     fate:1,cost:0,rarity:'circle',
     effect:'When set, if 30 or more cards in your original deck share an affiliation, trigger a Call to Arms.',img:'115.png'},

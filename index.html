@@ -40,9 +40,12 @@
 <script defer src="src/scripts/53-japanese-lore.js?v=20260929-lore"></script>
 <script defer src="src/scripts/53-japanese-warfront.js?v=20261006-ja-warfront"></script>
 <script defer src="src/scripts/53-chinese.js?v=20261011-zh"></script>
-<script defer src="src/scripts/53-caribbea-translations.js?v=20261014-cards-108-115"></script>
+<script defer src="src/scripts/53-caribbea-translations.js?v=20261015-approved-declarations"></script>
 <script defer src="src/scripts/54-localization.js?v=20261011-zh"></script>
 <link rel="stylesheet" href="src/styles/card-info-affiliation.css?v=20261011-affiliation-outline-text">
+<link rel="stylesheet" href="src/styles/declaration-picker-designs.css?v=20261017-no-grenadier-arrows">
+<link rel="stylesheet" href="src/styles/approved-berkeley-selva.css?v=20261017-final">
+<link rel="stylesheet" href="src/styles/affiliation-banner-match.css?v=20261017-sample-match">
 </head>
 <body>
 <div id="fate-loading-screen" class="fate-loading-screen fate-startup-loading-screen">
@@ -186,7 +189,8 @@
         <div id="game-version" class="btn sm title-version-badge" aria-label="Version" style="margin-top:.2rem;">Version 1.39.95</div>
       </div>
       <div class="title-language-controls">
-      <button type="button" class="btn sm" id="title-language-btn" lang="ja" aria-label="日本語に切り替える" aria-pressed="false">日本語</button>
+      <button type="button" class="btn sm" id="title-language-btn" lang="ja" aria-label="日本語に切り替える" aria-pressed="false">日本語</button>
+
       <button type="button" class="btn sm" id="title-chinese-btn" lang="zh-CN" aria-label="切换为简体中文" aria-pressed="false">简体中文</button>
       </div>
       </div>
@@ -636,7 +640,7 @@
 <div id="toast"></div>
 
   <script src="src/scripts/00-structural-helpers.js?v=20261014-julio-after-resolution"></script>
-<script src="src/scripts/01-data-and-state.js?v=20261014-full-art-portraits"></script>
+<script src="src/scripts/01-data-and-state.js?v=20261015-approved-declarations"></script>
   <script src="src/scripts/01a-pressure-card-reworks.js?v=2026083002"></script>
 <script src="src/scripts/02-screen-and-deckbuilder.js?v=20261011-affiliation-pill-only"></script>
 <script src="src/scripts/02-effect-rule-metadata.js?v=2026083102"></script>
@@ -645,17 +649,18 @@
   <script src="shared/preset-sync.js?v=20260920-durable-presets"></script>
   <script src="src/scripts/03-profile-and-progression.js?v=20261014-full-art-portraits"></script>
 <script src="src/scripts/04-game-setup.js?v=20261013-villager-landscape"></script>
-<script src="src/scripts/05-gameplay-core.js?v=20261014-vigilantes-ai-picker"></script>
+<script src="src/scripts/declaration-picker-designs.js?v=20261017-banner-match"></script>
+<script src="src/scripts/05-gameplay-core.js?v=20261017-picker-routing"></script>
 <script src="src/scripts/render-v2/19-caribbea-selected-art.js?v=20261014"></script>
 <script src="src/scripts/render-v2/19-julio-dice-art.js?v=20261014-cup"></script>
-<script src="src/scripts/render-v2/19-caribbea-activation-sfx.js?v=20261014-cup"></script>
+<script src="src/scripts/render-v2/19-caribbea-activation-sfx.js?v=20261015-julio-landing-sync"></script>
 <script src="src/scripts/render-v2/19-caribbea-activation-art.js?v=20261014-cup"></script>
 <script src="src/scripts/render-v2/19-approved-activation-art.js?v=20261014-caribbea"></script>
-<script src="src/scripts/render-v2/19-approved-activation-sfx.js?v=20261014-chain-appear-release"></script>
+<script src="src/scripts/render-v2/19-approved-activation-sfx.js?v=20261017-selva-continuous-final"></script>
 <script src="src/scripts/render-v2/19-signature-activation-fx.js?v=20261014-caribbea"></script>
   <script src="src/scripts/render-v2/23-consolidation-sfx.js?v=20260917-strong-fracture"></script>
   <script src="src/scripts/render-v2/23-rarity-consolidation-fx.js?v=20260917-fixed-star-triangle-count"></script>
-<script src="src/scripts/06-rendering-and-helpers.js?v=20261014-full-art-portraits"></script>
+<script src="src/scripts/06-rendering-and-helpers.js?v=20261017-declaration-tracker-canyon"></script>
 <link rel="stylesheet" href="src/styles/support-company.css?v=20261008-selected-title">
 <script type="module" src="src/scripts/support-company.mjs?v=20261011-jorge-after-placement-resolution"></script>
   <script src="src/scripts/51-ledger-archive.js?v=20261014-oligarch-opening"></script>
@@ -687,13 +692,13 @@
   <!-- Deck grid canvas disabled for now: the DOM deck builder path matches the faster Copy (2) baseline. -->
   <script src="src/scripts/07-ai-intelligence.js?v=2026083002"></script>
   <script src="src/scripts/07-ai-learning.js?v=1784382001"></script>
-<script src="src/scripts/07-ai.js?v=20261014-julio-after-resolution"></script>
-  <script src="src/scripts/08-audio-and-meta-ui.js?v=20261014-julio-dice-sounds"></script>
+<script src="src/scripts/07-ai.js?v=20261017-declaration-tracker-canyon"></script>
+  <script src="src/scripts/08-audio-and-meta-ui.js?v=20261017-ambience-disabled"></script>
   <script src="src/scripts/48-zone-click-voices.js?v=2026090303"></script>
   <script src="src/scripts/50-free-world-zone-voices.js?v=2026090401"></script>
   <script src="src/scripts/08a-profile-performance.js?v=20260912-profile-save-fix"></script>
   <script src="src/scripts/27-morale-pressure-ui.js?v=20261013-healing-before-damage"></script>
-  <script src="src/scripts/28-don-julio-dice.js?v=20261014-julio-dice-overlay"></script>
+  <script src="src/scripts/28-don-julio-dice.js?v=20261015-loaded-verdict-gold-heading"></script>
   <script src="src/scripts/34-hand-viewer.js?v=1788073001"></script>
   <script src="src/scripts/45-match-ui-codex.js?v=20260927-performance"></script>
 <script src="src/scripts/46-bh21-hooks.js?v=1788372001"></script>
@@ -725,7 +730,7 @@
     './src/scripts/15-online-auth.js?v=20260912-profile-save-fix',
     './src/scripts/16-online-core.js?v=2026090501',
     './src/scripts/17-online-social.js?v=1788000401',
-    './src/scripts/18-online-rooms.js?v=20261014-blockade-fish-resolution',
+    './src/scripts/18-online-rooms.js?v=20261017-picker-routing',
     './src/scripts/19-online-elo.js?v=2026090501',
     './src/scripts/20-online-economy.js?v=20261006-public-deck-name-language'
   ];

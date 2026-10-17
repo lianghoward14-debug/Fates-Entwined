@@ -4673,6 +4673,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       const affiliation = strat === 'ai_wintertide_family_reunion' && pools.expanded_worlds
         ? 'expanded_worlds'
         : Object.keys(pools).sort(function(a,b){ return pools[b].length - pools[a].length; })[0];
+      if(affiliation){inst.counters ||= {};inst.counters.lastDeclaredAffiliation=affiliation;}
       const candidates = affiliation ? pools[affiliation].slice() : [];
       const chosen = [];
       while(candidates.length && chosen.length < 2) {
@@ -5164,6 +5165,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
         ? ['third_great_war', Number(affCounts.third_great_war || 0)]
         : Object.entries(affCounts).sort((a,b)=>b[1]-a[1])[0];
       if(bestAff){
+        inst.counters ||= {};inst.counters.lastDeclaredAffiliation=bestAff[0];
         let changed = 0;
         G.board[z].forEach(row=>row.forEach(cell=>{
           if(cell && cell.owner===cp && !isFullyEffectImmuneCard(cell) && cell.aff!==bestAff[0]){

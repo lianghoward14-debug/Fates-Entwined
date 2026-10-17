@@ -1,0 +1,79 @@
+/* Approved banners, enamel insignia, delegation seals, and layered-blue paradise. */
+html body #modal .modal.declaration-sov .soviet-type-choice>span:last-child{text-align:center!important;position:relative!important;}
+html body #modal .modal.declaration-sov .soviet-type-choice>span:last-child b{display:none!important;}
+html body #modal .modal.declaration-approved.declaration-aff .aff-pick-shell{padding:0!important;margin:0!important;}
+html body #modal .modal.declaration-approved.declaration-aff .aff-pick-herald{padding:18px 24px 0!important;margin:0!important;}
+html body #modal .modal.declaration-approved.declaration-aff .aff-pick-square{width:100%!important;height:auto!important;aspect-ratio:auto!important;gap:16px!important;box-sizing:border-box!important;transform:none!important;}
+html body #modal .modal.declaration-approved.declaration-aff .aff-pick-square .aff-pick-icon-frame svg{max-width:76px!important;max-height:76px!important;}
+html body #modal .modal.declaration-approved.declaration-aff .aff-pick-square .aff-pick-icon-frame{min-width:86px!important;flex-shrink:0!important;}
+html body #modal .modal.declaration-approved.declaration-aff .aff-pick-note{line-height:1.4!important;letter-spacing:0!important;}
+html body #modal .modal.declaration-approved.declaration-berkeley{background:linear-gradient(145deg,#153248,#0d1c30)!important;border-color:#c3a56b!important;}
+html body #modal .modal.declaration-berkeley .declaration-profile{background:linear-gradient(100deg,#14283f,#245269)!important;}
+html body #modal .modal.declaration-berkeley .declaration-profile img{border-radius:50%!important;}
+html body #modal .modal.declaration-berkeley .zone-picker-subtitle{margin:0!important;padding:20px 26px!important;color:#cee0e9!important;font:14px/1.5 Georgia,serif!important;}
+html body #modal .modal.declaration-berkeley .zone-picker-grid{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:16px!important;padding:0 26px 26px!important;}
+html body #modal .modal.declaration-berkeley .zone-picker-tile{display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:18px!important;min-height:215px!important;padding:24px 10px!important;background:linear-gradient(#294a60,#132b40)!important;border:1px solid #b79b67!important;border-radius:9px!important;transform:none!important;box-shadow:inset 0 0 0 5px #10283a!important;}
+html body #modal .modal.declaration-berkeley .zone-picker-num{display:grid!important;place-items:center!important;width:90px!important;height:90px!important;border:3px double #d9bf89!important;border-radius:50%!important;color:#efdbad!important;background:#10283a!important;font:20px Georgia,serif!important;}
+html body #modal .modal.declaration-berkeley .zone-picker-name{font:16px Georgia,serif!important;color:#e6edf0!important;}
+html body #modal .modal.declaration-berkeley .zone-picker-count{font:12px Georgia,serif!important;color:#b4cad6!important;}
+@media(max-width:600px){html body #modal .modal.declaration-berkeley .zone-picker-grid{grid-template-columns:1fr!important;}html body #modal .modal.declaration-berkeley .zone-picker-tile{min-height:120px!important;}}
+html body #modal .modal.declaration-selva .bh04-type-picker{display:block!important;gap:0!important;}
+html body #modal .modal.declaration-selva .bh04-picker-prompt{margin:0!important;padding:20px 28px 0!important;border:0!important;background:none!important;box-shadow:none!important;text-align:left!important;font:14px/1.5 Georgia,serif!important;text-transform:none!important;letter-spacing:0!important;}
+html body #modal .modal.declaration-selva .bh04-picker-prompt span{font:inherit!important;color:inherit!important;text-transform:none!important;letter-spacing:0!important;}
+html body #modal .modal.declaration-selva .bh04-type-name{font:16px/1.3 Georgia,serif!important;text-transform:none!important;letter-spacing:0!important;color:#f0dfc5!important;margin:0!important;}
+html body #modal .modal.declaration-selva :is(.bh04-type-meta,.bh04-type-result){font:12px/1.4 Georgia,serif!important;text-transform:none!important;letter-spacing:0!important;padding:0!important;margin:0!important;border:0!important;background:none!important;box-shadow:none!important;}
+html body #modal .modal.declaration-approved{width: min(760px,94vw)!important;max-width:760px!important;padding:0!important;border:1px solid #9b997b!important;border-radius:12px!important;background:#222b2a!important;color:#eee3cc!important;overflow:hidden!important;max-height:90vh!important;overflow-y:auto!important;}
+html body #modal .modal.declaration-approved::before,html body #modal .modal.declaration-approved::after{display:none!important;}
+html body #modal .declaration-approved #modal-body{padding:0!important;overflow:visible!important;}
+html body #modal .declaration-approved #modal-title{padding:22px 26px 0!important;color:#ecd5a4!important;}
+html body #modal .declaration-approved:not(.declaration-aff) #modal-title{display:none!important;}
+html body #modal .declaration-approved #modal-acts:empty{display:none!important;}
+html body #modal .declaration-profile{display:flex!important;gap:22px!important;align-items:center!important;padding:26px!important;border-bottom:1px solid #b29a7255!important;}
+html body #modal .declaration-profile img{display:block!important;width:108px!important;height:108px!important;flex:0 0 108px!important;object-fit:cover!important;object-position:center!important;border:3px solid #baa778!important;border-radius:16px!important;box-shadow:0 0 0 5px #101d2644!important;}
+html body #modal .declaration-profile h2{font:28px Georgia,serif!important;color:#f0e4cc!important;margin:10px 0!important;}
+html body #modal .declaration-name{font-size:12px!important;letter-spacing:1.8px!important;text-transform:uppercase!important;color:#d4bd91!important;}
+html body #modal .declaration-ability{font:italic 15px Georgia,serif!important;color:#c5cfc5!important;}
+html body #modal .declaration-approved :is(.soviet-type-hero,.bh14-charter-head,.soviet-type-index,.soviet-type-glyph,.bh14-charter-number,.bh14-charter-glyph,.bh14-charter-desc,.bh14-charter-select){display:none!important;}
+html body #modal .declaration-approved :is(.soviet-type-picker,.bh14-charter-picker,.bh04-type-picker){background:none!important;border:0!important;padding:0!important;}
+html body #modal .declaration-approved :is(.soviet-type-grid,.bh14-charter-grid,.bh04-type-grid){display:grid!important;gap:16px!important;padding:26px!important;margin:0!important;}
+html body #modal .declaration-approved :is(.soviet-type-choice,.bh14-charter-choice,.bh04-type-choice){position:relative!important;transform:none!important;min-width:0!important;color:#eee3cc!important;text-align:center!important;white-space:normal!important;transition:background .16s,border-color .16s!important;}
+html body #modal .declaration-approved :is(.soviet-type-choice,.bh14-charter-choice,.bh04-type-choice)::before,html body #modal .declaration-approved :is(.soviet-type-choice,.bh14-charter-choice,.bh04-type-choice)::after{display:none!important;}
+html body #modal .declaration-type-icon{width:86px!important;height:86px!important;display:flex!important;align-items:center!important;justify-content:center!important;flex-shrink:0!important;color:#d6efff!important;}
+html body #modal .declaration-type-icon svg{display:block!important;width:64px!important;height:64px!important;}
+html body #modal .declaration-approved button:focus-visible{outline:3px solid #f5d58f!important;outline-offset:3px!important;}
+html body #modal .declaration-approved button:hover{filter:brightness(1.18)!important;}
+html body #modal .declaration-sov .soviet-type-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;}
+html body #modal .declaration-sov .soviet-type-choice{display:grid!important;grid-template-columns:86px 1fr!important;align-items:center!important;gap:8px 14px!important;min-height:139px!important;padding:18px 14px!important;background:linear-gradient(120deg,#47483b,#2b3530)!important;border:1px solid #b19a6577!important;border-radius:6px!important;text-align:left!important;}
+html body #modal .declaration-sov .soviet-type-choice:last-child{grid-column:1/-1!important;width:calc((100% - 16px) / 2)!important;justify-self:center!important;}
+html body #modal .declaration-sov .declaration-type-icon{grid-row:1/4!important;background:radial-gradient(#aa5144,#642c29)!important;border:3px double #d4b277!important;border-radius:50%!important;color:#f2d8a2!important;box-shadow:0 3px 0 #111b18!important;}
+html body #modal .declaration-sov .soviet-type-choice strong{font:17px Georgia,serif!important;color:#eee3cc!important;}
+html body #modal .declaration-sov .soviet-type-choice em{font-size:12px!important;color:#c6c9b6!important;}
+html body #modal .declaration-sov .soviet-type-choice>span:last-child{font-size:12px!important;color:#d4bd91!important;}
+html body #modal .modal.declaration-chloe{background:linear-gradient(90deg,#0d253b,#213f53,#0d253b)!important;border-color:#8babb7!important;}
+html body #modal .declaration-chloe .declaration-profile img{border-radius:50%!important;border-color:#b8c9c2!important;}
+html body #modal .declaration-chloe .bh14-charter-grid{grid-template-columns:repeat(5,minmax(0,1fr))!important;gap:0!important;padding:30px 18px!important;}
+html body #modal .declaration-chloe .bh14-charter-choice{display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:25px!important;min-height:250px!important;padding:22px 5px!important;border:0!important;border-right:1px solid #9cb7b74a!important;border-radius:0!important;background:linear-gradient(#244657,#122b3e)!important;box-shadow:none!important;}
+html body #modal .declaration-chloe .declaration-type-icon{width:80px!important;height:100px!important;border:4px double #b6b58a!important;border-radius:50%!important;background:radial-gradient(#395c69,#193848)!important;color:#e8d6a1!important;}
+html body #modal .declaration-chloe .bh14-charter-name{font:15px Georgia,serif!important;color:#eee3cc!important;}
+html body #modal .modal.declaration-selva{background:linear-gradient(145deg,#344e6c,#243d57 48%,#172d46)!important;border-color:#83a9c4!important;}
+html body #modal .declaration-selva .declaration-profile{background:linear-gradient(110deg,#172c48,#3c607c)!important;border-bottom-color:#8bb9d5!important;}
+html body #modal .declaration-selva .declaration-profile img{border-radius:50%!important;border-color:#b1d6e8!important;}
+html body #modal .declaration-selva .bh04-picker-prompt{padding:20px 26px 0!important;color:#c4dfec!important;font-size:14px!important;}
+html body #modal .declaration-selva .bh04-type-grid{grid-template-columns:repeat(6,minmax(0,1fr))!important;gap:22px!important;padding:28px!important;}
+html body #modal .declaration-selva .bh04-type-choice{grid-column:span 2!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:12px!important;min-height:220px!important;padding:20px 8px!important;background:linear-gradient(145deg,#557d9a,#2d4b68)!important;border:1px solid #88b2d2!important;border-radius:4px 34px 4px 34px!important;box-shadow:6px 6px 0 #102238!important;}
+html body #modal .declaration-selva .bh04-type-choice:nth-child(2){background:linear-gradient(145deg,#526b99,#2b4168)!important;}
+html body #modal .declaration-selva .bh04-type-choice:nth-child(3){background:linear-gradient(145deg,#477e91,#244e68)!important;}
+html body #modal .declaration-selva .bh04-type-choice:nth-child(4){grid-column:2/span 2!important;background:linear-gradient(145deg,#667e9b,#354b69)!important;}
+html body #modal .declaration-selva .bh04-type-choice:nth-child(5){grid-column:4/span 2!important;background:linear-gradient(145deg,#3f6c94,#243d61)!important;}
+html body #modal .declaration-selva .declaration-type-icon{border:1px solid #a2cce6!important;border-radius:50%!important;background:radial-gradient(circle at 35% 25%,#3b6383,#142c48)!important;box-shadow:0 0 0 6px #97c9e322!important;}
+html body #modal .declaration-selva .bh04-type-name{font:16px Georgia,serif!important;}
+html body #modal .declaration-selva :is(.bh04-type-meta,.bh04-type-result){font-size:12px!important;color:#dcecf4!important;}
+html body #modal .modal.declaration-aff{background:#151e29!important;}
+html body #modal .modal.declaration-approved.declaration-aff .aff-pick-grid{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:14px!important;padding:24px!important;}
+html body #modal .modal.declaration-approved.declaration-aff .aff-pick-square{display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:flex-start!important;min-height:245px!important;padding:28px 8px 38px!important;clip-path:polygon(0 0,100% 0,100% 90%,50% 100%,0 90%)!important;border:0!important;border-top:4px solid var(--aff-accent)!important;border-radius:0!important;background:linear-gradient(180deg,#35404b,#19232f)!important;box-shadow:none!important;}
+html body #modal .modal.declaration-approved.declaration-aff .aff-pick-square::before,html body #modal .modal.declaration-approved.declaration-aff .aff-pick-square::after{display:none!important;}
+html body #modal .modal.declaration-approved.declaration-aff .aff-pick-icon-frame{width:86px!important;height:86px!important;border:0!important;background:none!important;box-shadow:none!important;}
+html body #modal .modal.declaration-approved.declaration-aff .aff-pick-icon-frame svg{width:76px!important;height:76px!important;}
+html body #modal .modal.declaration-approved.declaration-aff .aff-pick-label{font:16px Georgia,serif!important;color:#eee3cc!important;white-space:normal!important;}
+html body #modal .modal.declaration-approved.declaration-aff .aff-pick-note{font-size:12px!important;color:#bcc7cd!important;}
+@media(max-width:600px){html body #modal .declaration-profile{padding:22px!important;gap:16px!important;flex-wrap:wrap!important;}html body #modal .declaration-profile img{width:80px!important;height:80px!important;flex-basis:80px!important;}html body #modal .declaration-profile h2{font-size:23px!important;}html body #modal .declaration-sov .soviet-type-grid{grid-template-columns:1fr!important;}html body #modal .declaration-sov .soviet-type-choice:last-child{width:100%!important;}html body #modal .declaration-chloe .bh14-charter-grid,html body #modal .declaration-selva .bh04-type-grid,html body #modal .modal.declaration-approved.declaration-aff .aff-pick-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;padding:18px!important;gap:12px!important;}html body #modal .declaration-selva .bh04-type-choice{grid-column:auto!important;}html body #modal .declaration-chloe .bh14-charter-choice:last-child,html body #modal .declaration-selva .bh04-type-choice:last-child{grid-column:1/-1!important;width:calc((100% - 16px) / 2)!important;justify-self:center!important;}html body #modal .declaration-type-icon svg{width:58px!important;height:58px!important;}}

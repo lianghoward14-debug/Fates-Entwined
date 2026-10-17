@@ -5095,7 +5095,7 @@ function getMilitaryBlockadeTurns(card, zone) {
   const owner = Number(card.controller ?? card.owner);
   if(typeof isTargetImmuneToEffectOwner === 'function' && isTargetImmuneToEffectOwner(card,1-owner)) return 0;
   let count = 0;
-  (G.board[zone] || []).forEach(row=>(row || []).forEach(source=>{
+  (G.board || []).flat().forEach(row=>(row || []).forEach(source=>{
     if(source && Number(source.controller ?? source.owner) !== owner && cardActsAsPassive(source,'114')
       && !source.faceDown && source.contributesAuras !== false
       && !(typeof isSupporterAuraSuppressed === 'function' && isSupporterAuraSuppressed(source))
@@ -7529,6 +7529,7 @@ function chooseDestructionOfParadiseType(sourceCard, z, sourceOwner, authoritati
     onOpen:function(){
       const modalBox = document.querySelector('#modal .modal');
       if(modalBox) modalBox.classList.add('bh04-type-picker-modal');
+      window.applyDeclarationPickerDesign?.('selva');
       document.querySelectorAll('#modal .bh04-type-choice[data-bh04-type]').forEach(function(button){
         button.onclick = function(){
           const declaredType = String(button.getAttribute('data-bh04-type') || '');
@@ -7919,6 +7920,7 @@ function showCharterTypeDeclarationPicker(onChoose) {
     showModal('Charter of the United Nations', body, actions, {onOpen:function(){
       const modalBox = document.querySelector('#modal .modal');
       if(modalBox) modalBox.classList.add('bh14-type-picker-modal');
+      window.applyDeclarationPickerDesign?.('chloe');
       document.querySelectorAll('#modal .bh14-charter-choice[data-bh14-type]').forEach(function(button){
         button.onclick = function(){
           const type = String(button.getAttribute('data-bh14-type') || '');
@@ -7946,6 +7948,7 @@ function showSovietTypeDeclarationPicker(onChoose){
     const choose=function(type){if(settled||!types.includes(type))return;settled=true;closeModal();if(typeof onChoose==='function')onChoose(type);resolve(type);};
     showModal('Soviet Grenadiers',body,types.map(function(type){return {label:'Declare '+labels[type],pri:true,hidden:true,action:function(){choose(type);}};}),{onOpen:function(){
       const modalBox=document.querySelector('#modal .modal');if(modalBox)modalBox.classList.add('soviet-type-picker-modal');
+      window.applyDeclarationPickerDesign?.('sov');
       document.querySelectorAll('#modal .soviet-type-choice[data-soviet-type]').forEach(function(button){button.onclick=function(){if(typeof playEffectActivationButtonSound==='function')playEffectActivationButtonSound();choose(String(button.dataset.sovietType||''));};});
     }});
   });
@@ -8344,6 +8347,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       if(typeof showZonePickerVisual === 'function'){
         showZonePickerVisual({
           title:'Artillery Distance',
+          sourceCard:inst,
           subtitle:"Select a zone. On your opponent's next turn, they cannot set, consolidate, or activate effects there.",
           allowCancel:false
         }, function(selectedZone){ applyArtilleryLock(selectedZone, cp); });
@@ -9115,6 +9119,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
       break;
     case '02':
     case '84':
+    case '66':
       await _executeWhenSetSwitch(card, z, r, c, cp, opp, id);
       break;
     case '103': {

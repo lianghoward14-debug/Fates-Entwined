@@ -423,11 +423,11 @@ function playDonJulioDiceSfx(stage,index=0){
     const ctx=getAudioCtx(),out=ctx.createGain(),now=ctx.currentTime;
     out.gain.value=_masterVol*_sfxVol*.8;out.connect(getSfxBus(ctx).input);
     const impact=stage==='impact',landing=stage==='land',exit=stage==='exit',rolling=stage==='enter';
-    const duration=rolling?2.05:impact?.14:landing?.5:.45;
+    const duration=rolling?.08:impact?.085:landing?.5:.15;
     const buffer=ctx.createBuffer(1,Math.ceil(ctx.sampleRate*duration),ctx.sampleRate),data=buffer.getChannelData(0);
     for(let i=0;i<data.length;i++){
       const t=i/data.length;
-      const envelope=rolling?(.22+.78*Math.pow(Math.max(0,Math.sin(t*Math.PI*13)),8))*Math.pow(1-t,.28):Math.pow(1-t,impact?4:2);
+      const envelope=Math.pow(1-t,impact?3:2);
       data[i]=(Math.random()*2-1)*envelope*(rolling?.2:.38);
     }
     const noise=ctx.createBufferSource(),filter=ctx.createBiquadFilter();noise.buffer=buffer;
@@ -436,8 +436,8 @@ function playDonJulioDiceSfx(stage,index=0){
     filter.frequency.exponentialRampToValueAtTime(exit?180:impact?700:2000,now+duration);
     noise.connect(filter).connect(out);noise.start(now);
     const osc=ctx.createOscillator(),gain=ctx.createGain();osc.type='sine';
-    osc.frequency.setValueAtTime(impact?170-index*18:landing?90:exit?160:105,now);
-    osc.frequency.exponentialRampToValueAtTime(impact?65:landing?45:exit?45:62,now+duration);
+    osc.frequency.setValueAtTime(impact?130:landing?65:exit?160:105,now);
+    osc.frequency.exponentialRampToValueAtTime(impact?45:landing?27:exit?45:62,now+duration);
     gain.gain.setValueAtTime(.0001,now);gain.gain.exponentialRampToValueAtTime(landing?.45:impact?.26:rolling?.13:.2,now+.009);
     gain.gain.exponentialRampToValueAtTime(.0001,now+duration);
     osc.connect(gain).connect(out);osc.start(now);osc.stop(now+duration+.02);

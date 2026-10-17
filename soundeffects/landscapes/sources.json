@@ -1,0 +1,241 @@
+[
+  {
+    "key": "gull1",
+    "file": "gull1.wav",
+    "source": "https://opengameart.org/content/solo-seagull-sound-effects",
+    "download": "https://opengameart.org/sites/default/files/Seagull%20Ambient%201.wav",
+    "author": "Rango Mango",
+    "license": "CC0"
+  },
+  {
+    "key": "gull2",
+    "file": "gull2.wav",
+    "source": "https://opengameart.org/content/solo-seagull-sound-effects",
+    "download": "https://opengameart.org/sites/default/files/Seagull%20Ambient%202.wav",
+    "author": "Rango Mango",
+    "license": "CC0"
+  },
+  {
+    "key": "gull3",
+    "file": "gull3.wav",
+    "source": "https://opengameart.org/content/solo-seagull-sound-effects",
+    "download": "https://opengameart.org/sites/default/files/Seagull%20Ambient%203.wav",
+    "author": "Rango Mango",
+    "license": "CC0"
+  },
+  {
+    "key": "ocean",
+    "file": "ocean.flac",
+    "source": "https://opengameart.org/content/beach-ocean-waves",
+    "download": "https://opengameart.org/sites/default/files/wave_01_cc0-18363__jasinski__alkaibeach.flac",
+    "author": "jasinski / qubodup",
+    "license": "CC0"
+  },
+  {
+    "key": "ocean2",
+    "file": "ocean2.flac",
+    "source": "https://opengameart.org/content/beach-ocean-waves",
+    "download": "https://opengameart.org/sites/default/files/wave_04_cc0-18363__jasinski__alkaibeach.flac",
+    "author": "jasinski / qubodup",
+    "license": "CC0"
+  },
+  {
+    "key": "river",
+    "file": "river.mp3",
+    "source": "https://opengameart.org/content/sea-and-river-wave-sounds",
+    "download": "https://opengameart.org/sites/default/files/VistulaShort_0.mp3",
+    "author": "RandomMind",
+    "license": "CC0"
+  },
+  {
+    "key": "birds",
+    "file": "birds.ogg",
+    "source": "https://opengameart.org/content/ambient-bird-sounds",
+    "download": "https://opengameart.org/sites/default/files/birds-isaiah658_0.ogg",
+    "author": "isaiah658",
+    "license": "CC0"
+  },
+  {
+    "key": "wind",
+    "file": "wind.wav",
+    "source": "https://opengameart.org/content/wind1",
+    "download": "https://opengameart.org/sites/default/files/wind1.wav",
+    "author": "Luke.RUSTLTD",
+    "license": "CC0"
+  },
+  {
+    "key": "crickets",
+    "file": "crickets.mp3",
+    "source": "https://opengameart.org/content/crickets",
+    "download": "https://opengameart.org/sites/default/files/crickets_0.mp3",
+    "author": "dklon",
+    "license": "CC-BY-3.0"
+  },
+  {
+    "key": "machine",
+    "file": "machine.wav",
+    "source": "https://opengameart.org/content/steam-boiler-sound-loop",
+    "download": "https://opengameart.org/sites/default/files/generator_loop.wav",
+    "author": "bart",
+    "license": "CC0"
+  },
+  {
+    "key": "engine",
+    "file": "engine.ogg",
+    "source": "https://opengameart.org/content/engine-loop-heavy-vehicletank",
+    "download": "https://opengameart.org/sites/default/files/engine_heavy_loop_1.ogg",
+    "author": "Nayckron / qubodup",
+    "license": "CC-BY-3.0"
+  },
+  {
+    "key": "paper",
+    "file": "paper.mp3",
+    "source": "https://opengameart.org/content/various-paper-sound-effects",
+    "download": "https://opengameart.org/sites/default/files/paper_sound_-_1.mp3",
+    "author": "Luckius",
+    "license": "CC0"
+  },
+  {
+    "key": "boom",
+    "file": "boom.wav",
+    "source": "https://opengameart.org/content/muffled-distant-explosion",
+    "download": "https://opengameart.org/sites/default/files/NenadSimic%20-%20Muffled%20Distant%20Explosion.wav",
+    "author": "NenadSimic",
+    "license": "CC0"
+  },
+  {
+    "key": "conversation",
+    "file": "conversation.mp3",
+    "source": "https://freesound.org/people/tfsound/sounds/82171/",
+    "download": "https://cdn.freesound.org/previews/82/82171_1284893-hq.mp3",
+    "author": "tfsound",
+    "license": "CC0",
+    "note": "Publicly available audio preview"
+  },
+  {
+    "key": "leaves",
+    "file": "leaves.mp3",
+    "source": "https://freesound.org/people/Cinetony/sounds/575380/",
+    "download": "https://cdn.freesound.org/previews/575/575380_5985747-hq.mp3",
+    "author": "Cinetony",
+    "license": "CC0",
+    "note": "Public audio preview; leading excerpt capped at 3 MB"
+  },
+  {
+    "key": "tokyo",
+    "file": "tokyo.mp3",
+    "source": "https://freesound.org/people/xef6/sounds/95655/",
+    "download": "https://cdn.freesound.org/previews/95/95655_607076-hq.mp3",
+    "author": "xef6",
+    "license": "CC0",
+    "note": "Public audio preview; leading excerpt capped at 3 MB"
+  },
+  {
+    "key": "shipwood",
+    "file": "shipwood.mp3",
+    "source": "https://freesound.org/people/Walter_Odington/sounds/31574/",
+    "download": "https://cdn.freesound.org/previews/31/31574_48671-hq.mp3",
+    "author": "Walter_Odington",
+    "license": "CC0",
+    "note": "Public audio preview; leading excerpt capped at 3 MB"
+  },
+  {
+    "key": "canvas",
+    "file": "canvas.mp3",
+    "source": "https://freesound.org/people/ani_music/sounds/244982/",
+    "download": "https://cdn.freesound.org/previews/244/244982_3008343-hq.mp3",
+    "author": "ani_music",
+    "license": "CC0",
+    "note": "Public audio preview; leading excerpt capped at 3 MB"
+  },
+  {
+    "key": "marching",
+    "file": "marching.mp3",
+    "source": "https://freesound.org/people/stib/sounds/240724/",
+    "download": "https://cdn.freesound.org/previews/240/240724_470543-hq.mp3",
+    "author": "stib",
+    "license": "CC0",
+    "note": "Public audio preview; leading excerpt capped at 3 MB"
+  },
+  {
+    "key": "towerbell",
+    "file": "towerbell.mp3",
+    "source": "https://freesound.org/people/lartti/sounds/523834/",
+    "download": "https://cdn.freesound.org/previews/523/523834_1654547-hq.mp3",
+    "author": "lartti",
+    "license": "CC0",
+    "note": "Public audio preview; leading excerpt capped at 3 MB"
+  },
+  {
+    "key": "nightcrickets",
+    "file": "nightcrickets.mp3",
+    "source": "https://freesound.org/people/ellie.vanderlip/sounds/704381/",
+    "download": "https://cdn.freesound.org/previews/704/704381_8525021-hq.mp3",
+    "author": "ellie.vanderlip",
+    "license": "CC0",
+    "note": "Public audio preview; leading excerpt capped at 3 MB"
+  },
+  {
+    "key": "artillery",
+    "file": "artillery.mp3",
+    "source": "https://freesound.org/people/craigsmith/sounds/486036/",
+    "download": "https://cdn.freesound.org/previews/486/486036_2524442-hq.mp3",
+    "author": "craigsmith",
+    "license": "CC0",
+    "note": "Public audio preview; leading excerpt capped at 3 MB"
+  },
+  {
+    "key": "woodsteps",
+    "file": "woodsteps.mp3",
+    "source": "https://freesound.org/people/Mydo1/sounds/198962/",
+    "download": "https://cdn.freesound.org/previews/198/198962_3138963-hq.mp3",
+    "author": "Mydo1",
+    "license": "CC0",
+    "note": "Public audio preview; leading excerpt capped at 3 MB"
+  },
+  {
+    "key": "typing",
+    "file": "typing.mp3",
+    "source": "https://freesound.org/people/Trollarch2/sounds/331656/",
+    "download": "https://cdn.freesound.org/previews/331/331656_5825863-hq.mp3",
+    "author": "Trollarch2",
+    "license": "CC0",
+    "note": "Public audio preview; leading excerpt capped at 3 MB"
+  },
+  {
+    "key": "pavement",
+    "file": "pavement.mp3",
+    "source": "https://freesound.org/people/soundmary/sounds/117628/",
+    "download": "https://cdn.freesound.org/previews/117/117628_1160789-hq.mp3",
+    "author": "soundmary",
+    "license": "CC0",
+    "note": "Public audio preview; leading excerpt capped at 3 MB"
+  },
+  {
+    "key": "pinetrees",
+    "file": "pinetrees.mp3",
+    "source": "https://freesound.org/people/nicotep/sounds/843928/",
+    "download": "https://cdn.freesound.org/previews/843/843928_7529214-hq.mp3",
+    "author": "nicotep",
+    "license": "CC0",
+    "note": "Public audio preview; leading excerpt capped at 3 MB"
+  },
+  {
+    "key": "dove",
+    "file": "dove.mp3",
+    "source": "https://freesound.org/people/nathankwright/sounds/456930/",
+    "download": "https://cdn.freesound.org/previews/456/456930_5948823-hq.mp3",
+    "author": "nathankwright",
+    "license": "CC0",
+    "note": "Public audio preview; leading excerpt capped at 3 MB"
+  },
+  {
+    "key": "winterbird",
+    "file": "winterbird.mp3",
+    "source": "https://freesound.org/people/nfrae/sounds/703254/",
+    "download": "https://cdn.freesound.org/previews/703/703254_1540717-hq.mp3",
+    "author": "nfrae",
+    "license": "CC0",
+    "note": "Public audio preview; leading excerpt capped at 3 MB"
+  }
+]

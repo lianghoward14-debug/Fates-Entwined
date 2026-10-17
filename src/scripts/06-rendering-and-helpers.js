@@ -3467,13 +3467,11 @@ function showHowardDevDeckList(player) {
   if(!G || !G.players || !G.players[player]) return;
   const cards = (typeof CARDS !== 'undefined' && Array.isArray(CARDS))
     ? sortHowardDevDeckCards(CARDS.filter(function(card){
-      if(!card || !card.id) return false;
-      if(card.devOnly === true) return true;
+      if(!card || !card.id || card.devOnly === true) return false;
       if(typeof isRetiredCardForBuilder === 'function') return !isRetiredCardForBuilder(card);
       return card.retired !== true;
     }))
     : [];
-  if(typeof window.getHowardPerspectiveTestCards === 'function') cards.unshift(...window.getHowardPerspectiveTestCards());
   if(!cards.length){
     showModal('Howard Dev Deck List',
       '<div class="di-window"><p class="di-note">No cards are available.</p></div>',
@@ -7162,7 +7160,13 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
   let value = '';
   let sub = '';
 
-  if(trackerId==='107'){
+  const declaredAffiliation = card.counters?.lastDeclaredAffiliation || card.counters?.declaredAffiliation || card.counters?.moraleAffiliation || card._declaredAff || card._moraleAffiliation || card._riveraDeclaredAff;
+  if(['34','51','66','77','90'].includes(trackerId) || declaredAffiliation){
+    label='Declared Affiliation';
+    const affiliationNames={reality:'Reality',third_great_war:'Third Great War',expanded_worlds:'Expanded Worlds',eventide:'Eventide'};
+    value=affiliationNames[declaredAffiliation] || 'Not declared yet';
+    sub=declaredAffiliation ? 'Most recent declaration by this card' : 'Choose an affiliation when this effect resolves';
+  } else if(trackerId==='107'){
     const remaining=Math.max(0,2-Number(card.counters?.effectUses ?? card._anneEffectUses ?? 0));
     const gained=Math.max(0,Number(card.counters?.anneFateGained ?? card._anneFateGained)||0);
     label='Strategy of a Revolution';
@@ -9537,10 +9541,14 @@ function showAffiliationPicker(callback) {
 
 // Visual affiliation picker with 4 icon squares (used by Duncan Heyward)
 function showAffiliationPickerVisual(callback, sourceCard, confirmCharacterBanner) {
-  if(deferPickerUntilAnimationFinishes(()=>showAffiliationPickerVisual(callback, sourceCard, confirmCharacterBanner))) return;
+  // Mark's declaration is part of the resolving effect. Queued presentations
+  // may depend on that choice, so wait for visible animation locks, not the queue.
+  const markDeclaration = String(sourceCard?.id || '') === '66';
+  if(!markDeclaration && deferPickerUntilAnimationFinishes(()=>showAffiliationPickerVisual(callback, sourceCard, confirmCharacterBanner))) return;
   confirmCharacterBanner = confirmCharacterBanner || window.FateActivationBanner?.pickerConfirmation(sourceCard);
   const wait = (typeof getInteractionAnimationDelayMs === 'function' ? getInteractionAnimationDelayMs() : (typeof getPlacementUiDelayMs === 'function' ? getPlacementUiDelayMs() : 0));
   if(wait > 0){ setTimeout(()=>showAffiliationPickerVisual(callback, sourceCard, confirmCharacterBanner), wait); return; }
+  if(typeof resetModalChrome === 'function') resetModalChrome();
   const affs = [
     {key:'reality', label:'Reality', note:'Anchors and anomalies', accent:'#e2c657', glow:'226,198,87'},
     {key:'third_great_war', label:'Third Great War', note:'Front lines and banners', accent:'#e25a4f', glow:'226,90,79'},
@@ -9574,10 +9582,17 @@ function showAffiliationPickerVisual(callback, sourceCard, confirmCharacterBanne
       `).join('')}
       </div>
     </div>`;
+  // Presentation must not consult or alter the deferred effect session.
+  try { window.applyDeclarationPickerDesign?.('aff', sourceCard); }
+  catch(error) { console.warn('Affiliation picker presentation failed', error); }
   body.querySelectorAll('.aff-pick-square').forEach(sq=>{
     sq.onclick=()=>{
       closeModal();
       if(typeof playSfx==='function') playSfx('effect');
+      if(sourceCard){
+        sourceCard.counters=sourceCard.counters||{};
+        sourceCard.counters.lastDeclaredAffiliation=sq.dataset.aff;
+      }
       callback(sq.dataset.aff);
       confirmCharacterBanner?.();
     };
@@ -9618,6 +9633,9 @@ function showZonePickerVisual(options, callback) {
           </button>`;
       }).join('')}
     </div>`;
+  if(String(options.sourceCard?.id || '') === '50' || options.title === 'Artillery Distance') {
+    window.applyDeclarationPickerDesign?.('berkeley', options.sourceCard);
+  }
   body.querySelectorAll('.zone-picker-tile').forEach(tile=>{
     tile.onclick = function(){
       const zone = Number(tile.dataset.zone);

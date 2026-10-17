@@ -41,14 +41,14 @@ for(const seat of [0,1]){
 // The selected canvas animation receives the authoritative result, never rerolls it.
 for(let roll=1;roll<=6;roll++){
  let result='',aria='',removed=false,cinematics=0;
- const ctx=new Proxy({}, {get:(_,key)=>key==='createRadialGradient'?()=>({addColorStop(){}}):()=>{},set:()=>true});
+ const ctx=new Proxy({}, {get:(_,key)=>(key==='createRadialGradient'||key==='createLinearGradient')?()=>({addColorStop(){}}):()=>{},set:()=>true});
  const canvas={clientWidth:600,getContext:()=>ctx,setAttribute:(k,v)=>{aria=v}};
  const output={set textContent(v){result=v}};
  const scene={style:{},querySelector:s=>s==='canvas'?canvas:output,remove(){removed=true}};
- const runtime={window:{showEffectActivationCinematic:async()=>{cinematics++}},CARDS:cards,document:{createElement:()=>scene,body:{appendChild(){}}},devicePixelRatio:1,performance:{now:()=>0},matchMedia:()=>({matches:false}),requestAnimationFrame:fn=>fn(2200),setTimeout:fn=>fn(),clearTimeout(){}};
+ const runtime={window:{showEffectActivationCinematic:async()=>{cinematics++}},CARDS:cards,document:{createElement:()=>scene,body:{appendChild(){}}},devicePixelRatio:1,performance:{now:()=>0},matchMedia:()=>({matches:false}),requestAnimationFrame:fn=>fn(5000),setTimeout:fn=>fn(),clearTimeout(){}};
  vm.runInNewContext(readFileSync('src/scripts/28-don-julio-dice.js','utf8'),runtime);
  await runtime.window.presentDonJulioDieRoll({type:'FATE_DIE_ROLLED',roll,sourceIid:'julio'},'test');
- assert.equal(result,'Rolled '+roll);assert(aria.includes('showing '+roll));assert(removed);assert.equal(cinematics,0);
+ assert.equal(result,'Fate Sealed / +'+roll);assert(aria.includes('showing '+roll));assert(removed);assert.equal(cinematics,0);
  assert.equal(runtime.window.presentDonJulioDieRoll({type:'FATE_DIE_ROLLED',roll,sourceIid:'julio'},'test'),undefined);
 }
 console.log('Don Julio: both seats, seeded rolls 1–6, repeated and multiple triggers, exclusions, illegal placement, dice-only sequencing, authoritative faces and dedupe passed.');
