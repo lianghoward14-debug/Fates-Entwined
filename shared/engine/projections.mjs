@@ -1,9 +1,11 @@
+import {emeraldChildrenEligible} from './emerald-children.mjs';
 import {cloneSerializable} from './serialization.mjs';
 import {effectiveFate, isEffectSourceSuppressed} from './modifiers.mjs';
 import {zoneScore} from './scoring.mjs';
 import {flowerPickingStatus} from './cards/flower-picking.mjs';
 
 function flowerPickingProjection(state, card){
+  if(String(card.id)==='120')return {emeraldChildrenEligible:emeraldChildrenEligible(state,Number(card.controller ?? card.owner))};
   if(String(card.id) === '115'){
     const counts = new Map();
     for(const original of state.players[Number(card.controller ?? card.owner)]?.originalDeck || []){
@@ -101,7 +103,7 @@ function handLimitProjection(requirement, viewerIndex){
   };
 }
 
-export function projectStateForPlayer(state, playerIndex){
+function unfrozenStateForPlayer(state, playerIndex){
   const viewer = Number(playerIndex);
   if(viewer !== 0 && viewer !== 1) throw new Error('player projection requires player index 0 or 1');
   const projection = {
@@ -159,7 +161,7 @@ export function projectStateForPlayer(state, playerIndex){
   return projection;
 }
 
-export function projectStateForSpectator(state, teammateIndex = null){
+function unfrozenStateForSpectator(state, teammateIndex = null){
   const viewer = teammateIndex;
   return {
     schemaVersion:state.schemaVersion,
@@ -209,6 +211,36 @@ export function projectStateForSpectator(state, teammateIndex = null){
     outcome:cloneSerializable(state.outcome ?? null)
   };
 }
+
+function applySaboteurView(state,projection,viewer){
+  const veil=state.saboteurVeil;
+  if(!veil || state.turn>veil.untilTurn || state.outcome || viewer===veil.owner)return projection;
+  const frozen=viewer==null ? veil.spectator : veil.opponent;
+  const livePlayer=viewer==null ? null : cloneSerializable(projection.players[viewer]);
+  const liveBoard=viewer==null ? null : cloneSerializable(projection.board);
+  // Retain live turn/revision and actionable prompts. Freeze public game data so
+  // board changes, counts, scores and status metadata cannot disclose actions.
+  for(const key of Object.keys(frozen))if(!['revision','phase','turn','activePlayer','pendingPrompt','pendingHandLimit','outcome','completedHands'].includes(key))projection[key]=cloneSerializable(frozen[key]);
+  // The opponent must still see their own draws and placements during the
+  // intervening turn of this three-turn effect.
+  if(livePlayer){
+    projection.players[viewer]=livePlayer;
+    for(let z=0;z<liveBoard.length;z++)for(let r=0;r<liveBoard[z].length;r++)for(let c=0;c<liveBoard[z][r].length;c++){
+      const live=liveBoard[z][r][c],old=projection.board[z][r][c];
+      if(live && Number(live.controller ?? live.owner)===viewer)projection.board[z][r][c]=live;
+      else if(old && Number(old.controller ?? old.owner)===viewer)projection.board[z][r][c]=null;
+    }
+  }
+  projection.saboteurConcealment={active:true,owner:veil.owner,untilTurn:veil.untilTurn};
+  if(projection.pendingPrompt && state.activePlayer===veil.owner && !projection.pendingPrompt.waitingForOpponent){
+    delete projection.pendingPrompt.sourceIid;
+    projection.pendingPrompt.title='Hidden card action';
+    projection.pendingPrompt.prompt='An action is concealed by Anarquista Saboteur.';
+  }
+  return projection;
+}
+export function projectStateForPlayer(state,playerIndex){return applySaboteurView(state,unfrozenStateForPlayer(state,playerIndex),Number(playerIndex));}
+export function projectStateForSpectator(state,teammateIndex=null){return applySaboteurView(state,unfrozenStateForSpectator(state,teammateIndex),teammateIndex);}
 
 export function projectEvents(events, playerIndex){
   return (events || [])

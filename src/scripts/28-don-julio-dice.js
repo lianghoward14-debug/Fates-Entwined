@@ -141,7 +141,7 @@ ctx.shadowColor='#000000';ctx.shadowBlur=5;ctx.shadowOffsetY=3;
 ctx.fillStyle=gold;ctx.fillText('DON JULIO',0,titleY);
 ctx.shadowBlur=0;ctx.shadowOffsetY=0;ctx.letterSpacing='1px';
 ctx.font='italic '+Math.min(23,w*.045)+'px Georgia, serif';ctx.fillStyle='#e6bf72';
-ctx.fillText('Oppression of the Ruling Class',0,subtitleY);
+ctx.fillText('An Oligarch’s Gamble',0,subtitleY);
 // Fine gold rules frame the name without competing with the dice reveal.
 const ruleY=titleY-titleSize*.85,ruleWidth=Math.min(w*.23,170);
 ctx.strokeStyle='#bb8c466e';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(-ruleWidth,ruleY);ctx.lineTo(-10,ruleY);ctx.moveTo(10,ruleY);ctx.lineTo(ruleWidth,ruleY);ctx.stroke();

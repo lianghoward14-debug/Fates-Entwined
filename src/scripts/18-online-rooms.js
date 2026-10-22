@@ -1668,7 +1668,7 @@
   const ONLINE_HAVANO_FIRST_SET_SOURCE_IDS = new Set([
     '04','10','14','16','17','18','21','26','30','31','36','39','50','52','53','61','62','64','71','72'
   ]);
-  const ONLINE_SECULES_WHEN_SET_IDS = new Set(['108','111','112','113','115',
+  const ONLINE_SECULES_WHEN_SET_IDS = new Set(['108','111','112','113','115','116','117','118',
     '02','03','04','05','06','07','08','12','13','14','16','17','18','21','22','25','26','27','29','30','31','32','33','34','35','37','38','39','40','42','43','45','46','48','50','51','52','54','56','58','60','61','62','66','68','69','71','72','73','75','76','77','80','84','91','94','bh09','bh23','bh24','bh25'
   ]);
   const resumedOnlinePlacementReactionPrompts = new Set();
@@ -2943,7 +2943,7 @@
       '_serverPendingModalAction','_serverPendingZonePick','_serverPendingMove','_serverPendingCardPick','_westCaribNext',
       '_consolidating','_wolfCreekMoving','_expMoving','_berkeleyMoving','_bh01Moving',
       '_landscapeMoving','_busserMoving','_busserMovingCard','_markSelecting','_havanoDeploying','_boardTargeting',
-      '_phase7CoinFlip','_phase7PendingPrompt','_phase7PendingHandLimit','_phase7Outcome','_phase7Geometry','_phase7Statuses','_phase7Revision','_phase7ViewerIndex','_moralePressure'
+      '_phase7CoinFlip','_phase7PendingPrompt','_phase7PendingHandLimit','_phase7Outcome','_phase7Geometry','_phase7Statuses','_phase7Revision','_phase7ViewerIndex','_moralePressure','_saboteurConcealment'
     ].forEach(function(k){
       if(Object.prototype.hasOwnProperty.call(state, k)) g[k] = cloneOnlinePlain(state[k]);
     });
@@ -3399,7 +3399,7 @@
       next._phase7RozsiYouthCharacterCount = projectedCharacterCount;
     }
     if(card.counters?.fishCounter === true || card.fishCounter === true || String(card.id) === 'token-fish'){
-      Object.assign(next,{fishCounter:true,token:true,img:'token-fish.svg',type:'Counter',cost:0,ability:'Fresh Catch',effect:'Counts as 0.5 Reinforcement. Can be set for free.'});
+      Object.assign(next,{fishCounter:true,token:true,img:'fishtoken.png?v=20261021',type:'Counter',cost:0,ability:'The Daily Catch',effect:'This card counts as a token. This card counts as 0.5 Reinforcement and can be set for free.'});
     }
     if(card.counters?.whisperLandscapeToken === true || String(card.id || '') === 'whisper17'){
       // Concrete Roads stores the copied rule in authoritative counters. The
@@ -3744,6 +3744,7 @@
       _phase7Outcome:cloneOnlinePlain(projected.outcome || null),
       _phase7Geometry:cloneOnlinePlain(projected.geometry || null),
       _phase7Statuses:cloneOnlinePlain(projected.statuses || []),
+      _saboteurConcealment:cloneOnlinePlain(projected.saboteurConcealment || null),
       _phase7ZoneScores:cloneOnlinePlain(projected.zoneScores || null),
       _snowyVillageUses:[0,1].map(function(playerIndex){
         return Math.max(0, Number((projected.statuses || []).find(function(status){

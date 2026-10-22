@@ -1,3 +1,4 @@
+import {emeraldChildrenEligible,emeraldChildrenFreeSet} from './emerald-children.mjs';
 import {havanoDestinations} from './havano-destinations.mjs';
 import {supportCompanyCommands} from './support-company.mjs';
 import {cardRule} from './cards/registry.mjs';
@@ -321,7 +322,7 @@ export function legalCommandTemplates(state, playerIndex){
     if(card.counters?.adaptiveToken === true) continue;
     if(String(card.type || '') !== 'Supporter' || (Number(card.cost || 0) !== 0 && !card.counters?.chauffeurFreeSet)) continue;
     if(Number(state.supportersSetForCapThisTurn?.[player] || 0) >= MAX_SUPPORTERS_SET_PER_TURN) break;
-    if(!defenseInDepthReady && !card.counters?.chauffeurFreeSet
+    if(!defenseInDepthReady && !card.counters?.chauffeurFreeSet && !emeraldChildrenFreeSet(state,player,card)
       && state.supportersSetThisTurn[player]
         >= Math.min(MAX_SUPPORTERS_SET_PER_TURN, state.baseSupportersPerTurn + Number(state.extraSupportersThisTurn[player] || 0))) continue;
     if(String(card.id || '') === '70' && card.statuses?.includes('GUERILLA_INFILTRATING')) continue;
@@ -422,7 +423,7 @@ export function legalCommandTemplates(state, playerIndex){
         const permission = state.statuses.some(status=>
           status?.type === 'FACE_DOWN_CONSOLIDATION_PERMISSION'
           && Number(status.playerIndex) === player
-          && Number(status.zone) === destination.z
+          && (status.zone == null || Number(status.zone) === destination.z)
           && Number(status.remaining || 0) > 0
         );
         if(permission||['102','104','105','107'].includes(String(card.id||''))){

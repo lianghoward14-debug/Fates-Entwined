@@ -1,4 +1,6 @@
+import {emeraldChildrenEligible,emeraldChildrenFreeSet} from './emerald-children.mjs';
 import {havanoDestinations} from './havano-destinations.mjs';
+import {projectStateForPlayer,projectStateForSpectator} from './projections.mjs';
 import {resolveSupportCompany, addSupportCompanyCard} from './support-company.mjs';
 import {SUPPORT_COMPANY_CATEGORIES, supportCompanyOffers} from '../support-company.mjs';
 import {
@@ -1121,6 +1123,10 @@ function runEffectStack(state, ctx){
     const frame = state.effectStack[state.effectStack.length - 1];
     if(frame.waitingFor) return;
     const instruction = frame.program[frame.instructionIndex];
+    if(instruction?.kind === 'REQUIRE_NO_ORIGINAL_STARS'){
+      frame.instructionIndex=emeraldChildrenEligible(state,frame.controller)?frame.instructionIndex+1:frame.program.length;
+      continue;
+    }
     if(instruction?.kind === 'REQUIRE_ORIGINAL_AFFILIATION_COUNT'){
       const counts = new Map();
       for(const card of state.players[frame.controller].originalDeck || []){
@@ -1598,13 +1604,14 @@ function completeEndTurn(state, ctx, actorIndex){
   emitRuleEvent(ctx, {type:RULE_EVENT_TYPES.TURN_STARTED, playerIndex:state.activePlayer, turn:state.turn});
   const landscapeDrawSkipped = shouldSkipLandscapeDraw(state, state.activePlayer);
   const moraleDrawSkipped = shouldSkipMoraleDraw(state, state.activePlayer);
-  const drawSkipped = landscapeDrawSkipped || moraleDrawSkipped;
+  const emeraldDrawSkipped = state.statuses.some(status=>status.type==='PERMANENT_DRAW_PHASE_LOCK' && Number(status.playerIndex)===state.activePlayer);
+  const drawSkipped = emeraldDrawSkipped || landscapeDrawSkipped || moraleDrawSkipped;
   if(drawSkipped){
     ctx.events.push({
       type:'DRAW_PHASE_SKIPPED',
       playerIndex:state.activePlayer,
       turn:state.turn,
-      reason:landscapeDrawSkipped ? 'LANDSCAPE_IGB13_ALTERNATING_SKIP' : 'MORALE_60_ALTERNATING_DRAW'
+      reason:emeraldDrawSkipped ? 'PERMANENT_DRAW_PHASE_LOCK' : landscapeDrawSkipped ? 'LANDSCAPE_IGB13_ALTERNATING_SKIP' : 'MORALE_60_ALTERNATING_DRAW'
     });
   }else{
     applyOperation(ctx, {type:'DRAW_CARD', playerIndex:state.activePlayer, count:1, activatedEffect:false});
@@ -1920,6 +1927,7 @@ function startEffect(state, ctx, source, controller, timing, commandId, ruleId =
   }
   if(timing === 'WHEN_SET'){ source.counters ||= {}; source.counters.whenSetResolved = true; }
   const frame = openEffectFrame(state, source, controller, timing, commandId, ruleId);
+  if(frame && String(ruleId)==='116') frame.locals.zone=sourceEntry?.z ?? null;
   if(frame && timing !== 'ACTIVATE'){
     ctx.events.push({
       type:RULE_EVENT_TYPES.EFFECT_ACTIVATED,
@@ -2555,7 +2563,7 @@ function performCommand(state, ctx, command, actorIndex, options){
       MAX_SUPPORTERS_SET_PER_TURN,
       state.baseSupportersPerTurn + Number(state.extraSupportersThisTurn[actorIndex] || 0)
     );
-    if(!isPierogi && !isFish && !isWhisperToken && !defenseInDepthReady && !entry.card.counters?.chauffeurFreeSet && state.supportersSetThisTurn[actorIndex] >= normalSupporterAllowance){
+    if(!isPierogi && !isFish && !isWhisperToken && !defenseInDepthReady && !entry.card.counters?.chauffeurFreeSet && !emeraldChildrenFreeSet(state,actorIndex,entry.card) && state.supportersSetThisTurn[actorIndex] >= normalSupporterAllowance){
       throw Object.assign(new Error('the Supporter set limit has been reached'), {code:'SUPPORTER_SET_LIMIT_REACHED'});
     }
     const placementBlock = zoneActionBlock(state, actorIndex, payload.destination?.z);
@@ -2759,7 +2767,7 @@ function performCommand(state, ctx, command, actorIndex, options){
     const faceDownPermission = state.statuses.find(status=>
       status?.type === 'FACE_DOWN_CONSOLIDATION_PERMISSION'
       && Number(status.playerIndex) === actorIndex
-      && Number(status.zone) === Number(payload.destination?.z)
+      && (status.zone == null || Number(status.zone) === Number(payload.destination?.z))
       && Number(status.remaining || 0) > 0
     );
     if((payload.contributesFate !== undefined || payload.contributesAuras !== undefined) && !faceDownPermission && !['102','104','105','107'].includes(String(entry.card.id||''))){
@@ -2781,7 +2789,7 @@ function performCommand(state, ctx, command, actorIndex, options){
     });
     recordMoraleConsolidation(state, actorIndex);
     const card = findBoardCard(state, result.cardIid)?.card;
-    if(payload.faceDown === true && faceDownPermission){
+    if(faceDownPermission){
       state.statuses = state.statuses.filter(status=>status.statusId !== faceDownPermission.statusId);
       ctx.events.push({type:'STATUS_REMOVED', statusId:faceDownPermission.statusId, reason:'FACE_DOWN_CONSOLIDATION_USED'});
     }
@@ -2808,8 +2816,8 @@ function performCommand(state, ctx, command, actorIndex, options){
     entry.card.counters.flippedFaceUpTurn = state.turn;
     ctx.events.push({type:'CARD_FLIPPED', cardIid:entry.card.iid, playerIndex:actorIndex, faceDown:false});
     for(const status of state.statuses){
-      if(status.type === 'REVOLUTIONARY_FLIP_GAIN' && status.turn === state.turn){
-        const gain = {type:'MODIFY_FATE',targetIid:entry.card.iid,amount:4,sourceIid:status.sourceIid,sourceController:status.playerIndex,permanentFateGain:false,reason:'REVOLUTIONARY_SPIRIT'};
+      if(status.type === 'REVOLUTIONARY_FLIP_GAIN' && status.turn === state.turn && Number(status.playerIndex) === actorIndex){
+        const gain = {type:'MODIFY_FATE',targetIid:entry.card.iid,amount:4,sourceIid:status.sourceIid,sourceController:status.playerIndex,permanentFateGain:true,reason:'REVOLUTIONARY_SPIRIT'};
         if(inspectOperation(state,gain).ok) applyOperation(ctx,gain);
       }
     }
@@ -3076,6 +3084,24 @@ export function reduceCommand(currentState, rawCommand, options = {}){
         commendationsEligible:state.outcome.commendationsEligible !== false};
     }
     resolveAnneActionEvents(ctx);
+    const newVeil=state.statuses.find(status=>status.type==='SABOTEUR_FIELD_VEIL' && !status.started);
+    if(newVeil){
+      newVeil.started=true;
+      if(!state.saboteurVeil || state.turn>state.saboteurVeil.untilTurn){
+        const owner=Number(newVeil.playerIndex);
+        state.saboteurVeil={owner,turn:state.turn,untilTurn:state.turn+2,opponent:projectStateForPlayer(currentState,1-owner),spectator:projectStateForSpectator(currentState)};
+      }else{
+        state.saboteurVeil.untilTurn=Math.max(state.saboteurVeil.untilTurn,state.turn+2);
+      }
+    }
+    const activeVeil=currentState.saboteurVeil && currentState.turn<=currentState.saboteurVeil.untilTurn ? currentState.saboteurVeil : state.saboteurVeil;
+    if(activeVeil && actorIndex===activeVeil.owner)for(const event of ctx.events){
+      event.privateTo=Array.isArray(event.privateTo)?event.privateTo.filter(p=>Number(p)===activeVeil.owner):[activeVeil.owner];
+    }
+    if(state.saboteurVeil && (state.turn>state.saboteurVeil.untilTurn || state.outcome)){
+      delete state.saboteurVeil;
+      state.statuses=state.statuses.filter(status=>status.type!=='SABOTEUR_FIELD_VEIL');
+    }
     state.revision += 1;
     assertInvariants(state);
     const hiddenSources = new Map();

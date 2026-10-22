@@ -19,7 +19,7 @@ function set(s,seat,id,col=0){
   return run(s,seat,'SET_CARD',{cardIid:s.players[seat].hand.find(c=>c.id===id).iid,destination:{z:0,r:row(seat),c:col}});
 }
 for(const id of ['112','113','114','115']){
-  const def=cards.find(c=>c.id===id);assert.equal(def.type,'Supporter');assert.equal(def.aff,'eventide');assert.equal(def.img,id+'.png');
+  const def=cards.find(c=>c.id===id);assert.equal(def.type,'Supporter');assert.equal(def.aff,'eventide');assert.equal(def.img.split('?')[0],id+'.png');
 }
 for(const seat of [0,1]){
   // Arm only future flips; repeated copies stack and immunity does not reject the flip.
@@ -39,7 +39,7 @@ for(const seat of [0,1]){
   s=set(s,seat,'112');
   s.statuses.push({...s.statuses.find(x=>x.type==='REVOLUTIONARY_FLIP_GAIN'),statusId:'second-revolution',playerIndex:1-seat});
   s.board[0][row(seat)][0]=null;
-  s=run(s,seat,'FLIP_CARD',{cardIid:flipped.iid});assert.equal(s.board[1][row(seat)][0].currentFate,9,'both players’ resolved effects stack even after the source leaves');
+  s=run(s,seat,'FLIP_CARD',{cardIid:flipped.iid});assert.equal(s.board[1][row(seat)][0].currentFate,5,'only the flipping player’s effect applies, even after its source leaves');
 
   // Opponent order only, private choices, short/empty decks, and unchanged tail.
   for(const count of [0,1,3,7]){

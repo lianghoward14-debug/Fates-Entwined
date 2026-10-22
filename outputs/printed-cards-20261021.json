@@ -1,0 +1,92 @@
+[
+  [
+    "108",
+    "Sofia",
+    "Childlike Whimsy",
+    2,
+    3,
+    "Your deck becomes your opponent’s original deck. Discard your entire hand, then draw 6 cards.",
+    "\"Daddy, come home safe! I want to play catch soon!\""
+  ],
+  [
+    "109",
+    "Don Julio",
+    "An Oligarch’s Gamble",
+    6,
+    4,
+    "Whenever your opponent would set a Supporter in this card’s zone, roll a 6-sided die. This card gains Fate equal to the result.",
+    "\"To quell a revolution, you have to be revolutionary.\""
+  ],
+  [
+    "110",
+    "Sebastián",
+    "Fishmonger",
+    2,
+    2,
+    "Whenever you would consolidate a card, add a Fish Token to your hand. Fish Tokens count as 0.5 Reinforcement and can be set for free.",
+    "\"A longtime friend of Jorge Alvarez, working in the dockyards of Havano.\""
+  ],
+  [
+    "111",
+    "West Caribbea Villager",
+    "Till the Land",
+    1,
+    0,
+    "When set, select a Landscape. It becomes active for this turn and your opponent’s next turn.",
+    "\"Much of the population of Caribbea resides in the countryside as farmers.\""
+  ],
+  [
+    "112",
+    "Caribbea Revolutionary",
+    "The Revolution Victorious!",
+    1,
+    0,
+    "When set, for this turn, all cards you flip face up gain 4 Fate permanently.",
+    "\"For the first time in our lives, our spirits may now soar freely.\""
+  ],
+  [
+    "113",
+    "Old Elite Oligarch",
+    "Oppression of the Old Elite",
+    1,
+    0,
+    "When set, rearrange the top 5 cards of your opponent’s deck.",
+    "\"For those that sit upon that high seat in Havano, all water is wine.\""
+  ],
+  [
+    "114",
+    "Loyalist Soldier",
+    "Suppression",
+    1,
+    0,
+    "While this card is on the field, all of your opponent’s newly set Supporters on the field cannot be used for consolidation until at least one of their turns has passed. This effect can stack.",
+    "\"These soldiers are too well paid to let abstract moral quandaries influence their line of work.\""
+  ],
+  [
+    "115",
+    "Caribbea Loyalist",
+    "Loyalty to Tradition",
+    1,
+    0,
+    "When set, if your original deck has 30 or more cards of the same affiliation, initiate a Call to Arms.",
+    "\"Particularly amongst the artisans and merchants, there is a belief that Caribbea couldn’t have survived the tribulations of the Ash Age without the Old Elite.\""
+  ],
+  [
+    "116",
+    "Anarquista Revolutionary",
+    "The Underground Resistance",
+    1,
+    0,
+    "When set, on your next consolidation, you can choose for the card to be set face down on the field.",
+    "\"A good man is not one that never goes to war—rather he is one that knows when he has to raise a sword in the face of great injustice.\""
+  ],
+  [
+    "117",
+    "Anarquista Saboteur",
+    "Covert Operations",
+    1,
+    0,
+    "When set, for three turns, all of your card actions are hidden from your opponent.",
+    "\"They call it a tantrum—we call it fighting for our future.\""
+  ]
+]

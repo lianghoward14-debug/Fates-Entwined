@@ -1,0 +1,16 @@
+const fs=require('fs'),base='src/scripts/render-v2/';
+let art=fs.readFileSync(base+'19-approved-activation-art.js','utf8');
+const preview=fs.readFileSync('C:/Users/user/.codex/visualizations/2026/10/14/01a13a30-afc7-76c1-8766-3c8e46d4f8bd/jakob-heraldic-studies.html','utf8');
+const line=preview.slice(preview.indexOf('function line('),preview.indexOf('function ring('));
+const drawing=fs.readFileSync('outputs/dylan-new-drawings.js','utf8').split('function standard(')[0];
+const wrapper=`function drawDylanLibertyTorch(c,t,w,h){const gold='#efd29a';${line}${drawing}c.clearRect(0,0,w,h);c.save();c.translate(w/2,h/2+12);const scale=Math.min(w/460,h/350);c.scale(scale,scale);torch(c,t);c.restore();}\n`;
+if(art.includes('function drawDylanLibertyTorch'))throw Error('Already installed');
+art=art.replace('function draw(ctx,id,t,w=700,h=430,options={}){',wrapper+"function draw(ctx,id,t,w=700,h=430,options={}){\nif(String(id)==='29')return drawDylanLibertyTorch(ctx,t,w,h);").replace('Wings of the free world','Liberty torch');
+let src=fs.readFileSync('outputs/dylan-torch-three-sounds.js','utf8');
+let helpers=src.slice(src.indexOf('function tone('),src.indexOf("if(kind==='ember')"));
+helpers=helpers.replaceAll('now+at','now+at*5/6').replaceAll('+dur','+dur*5/6').replaceAll('+attack','+attack*5/6').replaceAll('ac.sampleRate*dur','ac.sampleRate*dur*5/6');
+let score=src.slice(src.indexOf('noise(.48,.14'),src.indexOf('}setTimeout'));
+const sound=`function scheduleDylanRadiance(ac,destination,volume){const now=ac.currentTime,torchNodes=[],out=ac.createGain();out.gain.value=.65*Math.min(1,volume);out.connect(destination);${helpers}${score}return {stop(){torchNodes.forEach(n=>{try{n.stop()}catch(e){}});out.disconnect();}};}\n`;
+let sfx=fs.readFileSync(base+'19-approved-activation-sfx.js','utf8');sfx=sfx.replace('  function schedule(ac,destination,id,volume=1){',sound+"  function schedule(ac,destination,id,volume=1){\nif(String(id)==='29')return scheduleDylanRadiance(ac,destination,volume);");
+new Function(art);new Function(sfx);fs.writeFileSync(base+'19-approved-activation-art.js',art);fs.writeFileSync(base+'19-approved-activation-sfx.js',sfx);
+let index=fs.readFileSync('index.html','utf8').replace(/19-approved-activation-art.js\?v=[^"]+/, '19-approved-activation-art.js?v=20261018-dylan-torch').replace(/19-approved-activation-sfx.js\?v=[^"]+/, '19-approved-activation-sfx.js?v=20261018-dylan-torch');fs.writeFileSync('index.html',index);console.log('Dylan Liberty Torch + Radiant Chorus installed.');

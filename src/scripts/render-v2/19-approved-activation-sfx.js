@@ -140,9 +140,23 @@
   delete motion['77'];
   delete motion['bh04'];
   const sampleBuffers = new Map();
-  const selvaWhirlpoolUrl='soundeffects/codex-redesign/selva_continuous_whirlpool.wav?v=20261017-continuous';
-  const selvaWhirlpool=typeof Audio==='function'?new Audio(selvaWhirlpoolUrl):null;
-  if(selvaWhirlpool)selvaWhirlpool.preload='auto';
+  const approvedMediaFiles={
+    '07':'maja_armored_advance.wav',
+    '43':'mark_kemper_projector_and_paper.wav',
+    '46':'phil_pillars_and_crown.wav',
+    '77':'duncan_heyward_river_and_echo.wav',
+    '86':'boleslaw_three_firework_blooms.wav',
+    '90':'wojciech_net_cast_and_haul.wav',
+    'bh04':'selva_continuous_whirlpool.wav',
+    'bh13':'hugh_roberts_coins_and_case.wav',
+    'bh20':'makenna_three_birds_in_flight.wav',
+    'bh22':'jaime_moonlit_healing_shore.wav'
+  };
+  const approvedMedia={};
+  if(typeof Audio==='function')for(const [id,file] of Object.entries(approvedMediaFiles)){
+    const audio=new Audio('soundeffects/codex-redesign/'+file+'?v=20261018-theme-diversity');
+    audio.preload='auto';approvedMedia[id]=audio;
+  }
   // Forged in Revolution: converge, hammer impact at .96s, sparks, star chime.
   cues['21']=[['forge-sweep',.16,.78,650],['forge-strike',.96,.55,210],['forge-sparks',1.02,.48,2400],['forge-star',1.40,.48,784]];
   delete motion['21'];
@@ -165,7 +179,17 @@
     }
     return buffer;
   }
+function scheduleJakobShield(ctx,destination){const at=ctx.currentTime,activeSounds=[];function tone(time,freq,dur,amp,end=freq){let o=ctx.createOscillator(),g=ctx.createGain();o.frequency.setValueAtTime(freq,at+time*5/6);o.frequency.exponentialRampToValueAtTime(end,at+time*5/6+dur*5/6);g.gain.setValueAtTime(.0001,at+time*5/6);g.gain.exponentialRampToValueAtTime(amp,at+time*5/6+.008);g.gain.exponentialRampToValueAtTime(.0001,at+time*5/6+dur*5/6);o.connect(g).connect(destination);o.start(at+time*5/6);o.stop(at+time*5/6+dur*5/6);activeSounds.push(o)}
+function noise(time,dur,hz,amp){let b=ctx.createBuffer(1,Math.ceil(ctx.sampleRate*dur*5/6),ctx.sampleRate),d=b.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;let s=ctx.createBufferSource(),f=ctx.createBiquadFilter(),g=ctx.createGain();s.buffer=b;f.type='bandpass';f.frequency.value=hz;f.Q.value=.65;g.gain.setValueAtTime(.0001,at+time*5/6);g.gain.exponentialRampToValueAtTime(amp,at+time*5/6+.025);g.gain.exponentialRampToValueAtTime(.0001,at+time*5/6+dur*5/6);s.connect(f).connect(g).connect(destination);s.start(at+time*5/6);activeSounds.push(s)}
+noise(.65,.55,900,.09);noise(1.272,.12,2300,.28);noise(1.29,.43,380,.24);tone(1.272,138,.45,.25,47);[317,479,827,1349].forEach((f,i)=>tone(1.278,f,.95-i*.14,.075/(i+1),f*.97));[1.48,1.66,1.85].forEach((t,i)=>{noise(t,.08,1800+i*700,.06/(i+1));tone(t,660+i*230,.2,.035/(i+1))})
+return {stop(){activeSounds.forEach(s=>{try{s.stop()}catch(e){}})}};}
+function scheduleDylanRadiance(ac,destination,volume){const now=ac.currentTime,torchNodes=[],out=ac.createGain();out.gain.value=.65*Math.min(1,volume);out.connect(destination);function tone(at,hz,dur,amp,type='sine',end=hz){const o=ac.createOscillator(),g=ac.createGain();o.type=type;o.frequency.setValueAtTime(hz,now+at*5/6);o.frequency.exponentialRampToValueAtTime(end,now+at*5/6+dur*5/6);g.gain.setValueAtTime(.0001,now+at*5/6);g.gain.exponentialRampToValueAtTime(amp,now+at*5/6+.03);g.gain.exponentialRampToValueAtTime(.0001,now+at*5/6+dur*5/6);o.connect(g).connect(out);o.start(now+at*5/6);o.stop(now+at*5/6+dur*5/6);torchNodes.push(o)}
+function noise(at,dur,hz,amp,attack=.06,type='bandpass'){let b=ac.createBuffer(1,Math.ceil(ac.sampleRate*dur*5/6),ac.sampleRate),d=b.getChannelData(0),low=0;for(let i=0;i<d.length;i++){let n=Math.random()*2-1;low=low*.96+n*.04;d[i]=n*.6+low*2}const s=ac.createBufferSource(),f=ac.createBiquadFilter(),g=ac.createGain();s.buffer=b;f.type=type;f.frequency.setValueAtTime(hz,now+at*5/6);f.frequency.exponentialRampToValueAtTime(hz*.5,now+at*5/6+dur*5/6);f.Q.value=.6;g.gain.setValueAtTime(.0001,now+at*5/6);g.gain.exponentialRampToValueAtTime(amp,now+at*5/6+attack*5/6);g.gain.exponentialRampToValueAtTime(.0001,now+at*5/6+dur*5/6);s.connect(f).connect(g).connect(out);s.start(now+at*5/6);torchNodes.push(s)}
+noise(.48,.14,2100,.18,.03);noise(.57,1.4,900,.25,.24,'lowpass');for(let j=0;j<5;j++){let f=[174.61,261.63,349.23,523.25,698.46][j];tone(.63+j*.055,f,1.5,.065/(1+j*.45));tone(.635+j*.055,f*1.003,1.4,.018)}for(let j=0;j<7;j++)tone(1.22+j*.055,1046.5*(1+j*.125),.42,.018/(1+j*.2));
+return {stop(){torchNodes.forEach(n=>{try{n.stop()}catch(e){}});out.disconnect();}};}
   function schedule(ac,destination,id,volume=1){
+if(String(id)==='29')return scheduleDylanRadiance(ac,destination,volume);
+if(String(id)==='bh17'){const gain=ac.createGain();gain.gain.value=Math.min(1,volume);gain.connect(destination);const sound=scheduleJakobShield(ac,gain);return {stop(){sound.stop();gain.disconnect();}};}
     const score=cues[String(id)];if(!score||volume<=0)return null;
     const now=ac.currentTime,out=ac.createGain(),nodes=[out],sources=[];
     // Stronger attacks than the old quiet signature tones; the game's existing
@@ -491,8 +515,9 @@
     try{
       const master=typeof _masterVol==='number'?_masterVol:1,sfx=typeof _sfxVol==='number'?_sfxVol:.8;
       if(master<=0||sfx<=0||document.hidden||typeof getAudioCtx!=='function'||typeof getSfxBus!=='function')return null;
-      if(String(id)==='bh04'&&selvaWhirlpool?.readyState>=2){
-        const audio=selvaWhirlpool.cloneNode();
+      const media=approvedMedia[String(id)];
+      if(media?.readyState>=2){
+        const audio=media.cloneNode();
         audio.volume=Math.min(1,master*sfx*.92);
         audio.currentTime=0;
         let stopped=false;

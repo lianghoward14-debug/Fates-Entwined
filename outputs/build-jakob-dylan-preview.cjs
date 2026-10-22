@@ -1,0 +1,14 @@
+const fs=require('fs');
+const dir='C:/Users/user/.codex/visualizations/2026/10/14/01a13a30-afc7-76c1-8766-3c8e46d4f8bd/';
+let s=fs.readFileSync(dir+'jakob-heraldic-studies.html','utf8');
+s=s.replaceAll('jakob-heraldic','jakob-dylan-sound');
+s=s.replace(/<section data-variant="Gauntlet[\s\S]*?<\/section>\n/,'').replace(/<section data-variant="The broken crown"[\s\S]*?<\/section>\n/,'');
+s=s.replace('data-variant="The sundered shield" hidden','data-variant="Jakob · Sundered shield"');
+const section=s.match(/<section[\s\S]*?<\/section>/)[0];
+const dylan=section.replace('Jakob · Sundered shield','Dylan Kirby · Liberty bell').replace('<section ','<section hidden ').replace('data-kind="shield"','data-kind="bell"').replace('JAKOB ELTZHOLTZ','DYLAN KIRBY').replace('CRUSHING MOMENTUM','LEADER OF THE FREE WORLD').replace('A violet heraldic shield splits after one heavy strike','A ceremonial liberty bell swings, rings, and unfurls a star-spangled ribbon');
+s=s.replace(section,section+'\n'+dylan).replaceAll('Play animation','Play with sound');
+const extra=fs.readFileSync('outputs/preview-sound-functions.js','utf8');
+s=s.replace("root.querySelectorAll('.stage')",extra+"\nroot.querySelectorAll('.stage')").replace('({gauntlet,crown,shield}[kind])','({gauntlet,crown,shield,bell}[kind])').replace("cancelAnimationFrame(raf);let start", "cancelAnimationFrame(raf);playSound(kind);let start");
+new Function(s.match(/<script>([\s\S]*?)<\/script>/)[1]);
+fs.writeFileSync(dir+'jakob-dylan-sound-preview.html',s);
+console.log('Two playable samples written; JavaScript valid.');

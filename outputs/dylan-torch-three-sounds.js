@@ -1,0 +1,11 @@
+let torchAudio,torchNodes=[];
+function playTorchSound(kind){try{torchAudio=torchAudio||new(window.AudioContext||window.webkitAudioContext)();torchAudio.resume();torchNodes.forEach(n=>{try{n.stop()}catch(e){}});torchNodes=[];const ac=torchAudio,now=ac.currentTime,out=ac.createGain();out.gain.value=.65;out.connect(ac.destination);
+function tone(at,hz,dur,amp,type='sine',end=hz){const o=ac.createOscillator(),g=ac.createGain();o.type=type;o.frequency.setValueAtTime(hz,now+at);o.frequency.exponentialRampToValueAtTime(end,now+at+dur);g.gain.setValueAtTime(.0001,now+at);g.gain.exponentialRampToValueAtTime(amp,now+at+.03);g.gain.exponentialRampToValueAtTime(.0001,now+at+dur);o.connect(g).connect(out);o.start(now+at);o.stop(now+at+dur);torchNodes.push(o)}
+function noise(at,dur,hz,amp,attack=.06,type='bandpass'){let b=ac.createBuffer(1,Math.ceil(ac.sampleRate*dur),ac.sampleRate),d=b.getChannelData(0),low=0;for(let i=0;i<d.length;i++){let n=Math.random()*2-1;low=low*.96+n*.04;d[i]=n*.6+low*2}const s=ac.createBufferSource(),f=ac.createBiquadFilter(),g=ac.createGain();s.buffer=b;f.type=type;f.frequency.setValueAtTime(hz,now+at);f.frequency.exponentialRampToValueAtTime(hz*.5,now+at+dur);f.Q.value=.6;g.gain.setValueAtTime(.0001,now+at);g.gain.exponentialRampToValueAtTime(amp,now+at+attack);g.gain.exponentialRampToValueAtTime(.0001,now+at+dur);s.connect(f).connect(g).connect(out);s.start(now+at);torchNodes.push(s)}
+if(kind==='ember'){
+noise(.48,.09,3400,.38,.006);noise(.56,1.75,780,.65,.2,'lowpass');tone(.57,105,.55,.14,'sine',48);for(let i=0;i<10;i++)noise(.7+i*.13,.035+(i%3)*.012,1800+(i%4)*570,.07,.004);noise(1.26,.8,1800,.16,.2);
+}else if(kind==='fanfare'){
+noise(.54,.8,650,.24,.12,'lowpass');const notes=[[.58,196,.25],[.83,261.63,.3],[1.15,392,.88]];for(const [at,f,d] of notes){tone(at,f,d,.095,'triangle');tone(at,f*2,d,.027);tone(at,f*3,d*.8,.012)}tone(1.23,130.81,.85,.055);noise(.55,.14,220,.26,.01,'lowpass');noise(1.2,.7,2200,.08,.1);
+}else{
+noise(.48,.14,2100,.18,.03);noise(.57,1.4,900,.25,.24,'lowpass');for(let j=0;j<5;j++){let f=[174.61,261.63,349.23,523.25,698.46][j];tone(.63+j*.055,f,1.5,.065/(1+j*.45));tone(.635+j*.055,f*1.003,1.4,.018)}for(let j=0;j<7;j++)tone(1.22+j*.055,1046.5*(1+j*.125),.42,.018/(1+j*.2));
+}setTimeout(()=>out.disconnect(),3200)}catch(e){}}

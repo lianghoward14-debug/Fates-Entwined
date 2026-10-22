@@ -3,7 +3,7 @@ import {createRequire} from 'node:module';
 import {createInitialState,applyOperation,assertInvariants,projectStateForPlayer} from '../../shared/engine/index.mjs';
 import {cardRule} from '../../shared/engine/cards/registry.mjs';
 const require=createRequire(import.meta.url);const {cards,byId}=require('../fate-card-catalog.js').getCardCatalog();
-assert.equal(byId.get('108').fate,4);assert.equal(byId.get('108').cost,4);assert.equal(byId.get('108').type,'Initiator');assert.equal(byId.get('103').aff,'eventide');assert.equal(byId.get('88').name,'Rozsi Szocs (Youth)');
+assert.equal(byId.get('108').fate,2);assert.equal(byId.get('108').cost,3);assert.equal(byId.get('108').type,'Initiator');assert.equal(byId.get('103').aff,'eventide');assert.equal(byId.get('88').name,'Rozsi Szocs (Youth)');
 for(const seat of [0,1]){
  const ids=['01','01','02','03','04','05','06','07'];
  const state=createInitialState({matchId:'sofia',seed:'sofia',handSize:1,players:[{id:'a',deckIds:seat===0?['108']:ids},{id:'b',deckIds:seat===1?['108']:ids}],cardDefinitions:cards});

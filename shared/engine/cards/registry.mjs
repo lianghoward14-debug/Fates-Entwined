@@ -1,8 +1,21 @@
 import {TEMPORARILY_RETIRED_CARD_IDS as retiredCardIds} from '../../card-availability.mjs';
 const REGISTRY = Object.freeze({
+  '120':{timings:['WHEN_SET'],operations:[],prompts:['MODAL_CHOICE','CARD_SELECTION'],program:[
+    {kind:'REQUIRE_NO_ORIGINAL_STARS'},
+    {kind:'SELECT_HOPLITE_CALL',local:'callCardId',unconditional:true},
+    {kind:'RESOLVE_HOPLITE_CALL',cardId:'$callCardId'}
+  ]},
+  '117':{timings:['WHEN_SET'],operations:['CREATE_MATCH_STATUS'],prompts:[],program:[
+    {kind:'OPERATION',operation:{type:'CREATE_MATCH_STATUS',status:{type:'SABOTEUR_FIELD_VEIL',playerIndex:'$controller',sourceIid:'$sourceIid'}}}
+  ]},
+  '118':{timings:['WHEN_SET'],operations:['CREATE_MATCH_STATUS'],prompts:['MODAL_CHOICE','CARD_SELECTION'],program:[
+    {kind:'OPERATION',operation:{type:'CREATE_MATCH_STATUS',status:{type:'PERMANENT_DRAW_PHASE_LOCK',playerIndex:'$controller',sourceIid:'$sourceIid'}}},
+    {kind:'SELECT_HOPLITE_CALL',local:'callCardId',unconditional:true},
+    {kind:'RESOLVE_HOPLITE_CALL',cardId:'$callCardId'}
+  ]},
   '112':{timings:['WHEN_SET'],operations:['MODIFY_FATE'],prompts:[],program:[{kind:'REVOLUTIONARY_FLIPPED_FATE'}]},
   '113':{timings:['WHEN_SET'],havanoTargeting:'OPPONENT',operations:[],prompts:['CARD_SELECTION'],program:[
-    {kind:'SELECT_CARDS',local:'orderedIids',reorderTopCount:5,exactUpToAvailable:5,filter:{locations:['deck'],playerIndex:'opponent'},title:'Elite Influence',prompt:'Arrange your opponent’s next five draws.'},
+    {kind:'SELECT_CARDS',local:'orderedIids',reorderTopCount:5,exactUpToAvailable:5,filter:{locations:['deck'],playerIndex:'opponent'},title:'Oppression of the Old Elite',prompt:'Arrange your opponent’s next five draws.'},
     {kind:'APPLY_DECK_ORDER',local:'orderedIids',count:5,playerIndex:'opponent'}
   ]},
   '114':{timings:['PASSIVE'],havanoTargeting:'OPPONENT',havanoPassiveEntry:true,operations:[],prompts:[],program:[]},
@@ -468,6 +481,9 @@ const REGISTRY = Object.freeze({
     prompts:[],
     triggerSubscriptions:['CARD_DRAWN', 'CARD_TRANSFERRED']
   },
+  '116':{timings:['WHEN_SET'],operations:['CREATE_MATCH_STATUS'],prompts:[],program:[
+    {kind:'OPERATION',operation:{type:'CREATE_MATCH_STATUS',status:{type:'FACE_DOWN_CONSOLIDATION_PERMISSION',playerIndex:'$controller',sourceIid:'$sourceIid',remaining:1}}}
+  ]},
   '78':{timings:['WHEN_SET'],operations:[],prompts:['CARD_SELECTION'],program:[
     {kind:'SELECT_HOPLITE_CALL',local:'callCardId'},
     {kind:'RESOLVE_HOPLITE_CALL',cardId:'$callCardId'}

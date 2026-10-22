@@ -1,3 +1,11 @@
+function emeraldChildrenEligibleLocal(player){
+ const original=G.players[player]?.originalDeckIds || (player===0?G.p1Deck:G.p2Deck);
+ return Array.isArray(original) && original.every(value=>{
+   const card=typeof value==='object'?value:CARDS.find(c=>String(c.id)===String(value));
+   return !!card && String(card.rarity).toLowerCase()!=='star';
+ });
+}
+function emeraldChildrenFreeSetLocal(card,player){return String(card?.id)==='120' && (typeof card.emeraldChildrenEligible==='boolean'?card.emeraldChildrenEligible:emeraldChildrenEligibleLocal(player));}
 function triggerDonJulioSupporterSet(placed, zone){
   const owner = placed.controller ?? placed.owner;
   forEachBoardCard(function(card,z,r,c){
@@ -2033,7 +2041,7 @@ async function nextPlayerTurn() {
     toast('Big Sur: draw phase skipped.');
     if(typeof triggerLandscapeFlash === 'function') triggerLandscapeFlash('Big Sur skipped draw phase', 'major');
     log('sys', 'Big Sur skipped P' + (currentPlayer + 1) + ' draw phase.');
-  } else if(!moraleDrawSkipped) {
+  } else if(!moraleDrawSkipped && !G.players[currentPlayer]._emeraldDrawPhaseLocked) {
     const drawParams = new URLSearchParams(window.location.search || '');
     const legacyCorpusCapture = drawParams.get('fateV3LegacyCorpus') === '1'
       && drawParams.get('fateV3Recorder') === '1'
@@ -2776,7 +2784,7 @@ function placeSelected() {
   if(typeof tutorialCanStartHandAction === 'function' && !tutorialCanStartHandAction(card, 'place')) return;
 
   // Free-set effects skip reinforcement/supporter limits, but still obey board placement rules.
-  const isLinaFree = !!(isFishCounter(card) || card.counters?.chauffeurFreeSet || card._linaFree || (G._linaFreeIids && G._linaFreeIids.has(card.iid)) || (typeof isAchillesAdaptiveToken === 'function' && isAchillesAdaptiveToken(card)));
+  const isLinaFree = !!(isFishCounter(card) || emeraldChildrenFreeSetLocal(card,G.currentPlayer) || card.counters?.chauffeurFreeSet || card._linaFree || (G._linaFreeIids && G._linaFreeIids.has(card.iid)) || (typeof isAchillesAdaptiveToken === 'function' && isAchillesAdaptiveToken(card)));
 
   const defenseInDepthReady = Array.isArray(G._bh24DefenseInDepth)
     && G._bh24DefenseInDepth[G.currentPlayer]
@@ -4429,7 +4437,7 @@ async function clickCell(z,r,c) {
   }
   // Supporter limit re-check (skip for Lina free-set cards and Adaptive Tactic Tokens).
   const achillesCountsAsConsolidated = isAchillesToken && card._achillesPlayMode === 'consolidated';
-  const isLinaFree = !!(isFishCounter(card) || card.counters?.chauffeurFreeSet || card._linaFree || (G._linaFreeIids && G._linaFreeIids.has(card.iid)) || isAchillesToken);
+  const isLinaFree = !!(isFishCounter(card) || emeraldChildrenFreeSetLocal(card,G.currentPlayer) || card.counters?.chauffeurFreeSet || card._linaFree || (G._linaFreeIids && G._linaFreeIids.has(card.iid)) || isAchillesToken);
   const cardIsSupporterForRules = typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, cp) : card.type === 'Supporter';
   const freeCharacterCountsAsConsolidated = !cardIsSupporterForRules
     && ['lina-free-set', 'kvetka-svoboda-free-set'].includes(String(card._freePlacementCinematicKind || ''));
@@ -4768,7 +4776,14 @@ function applyArtilleryLock(zone, sourceOwner) {
   updateTopBar();
 }
 
-function getUnusedChaparralAmbusherInZone() { return null; }
+function getUnusedChaparralAmbusherInZone(z,owner) {
+  for(let z=0;z<G.board.length;z++)for(let r=0;r<(G.board[z]||[]).length;r++)for(let c=0;c<(G.board[z][r]||[]).length;c++){
+    const card=G.board[z][r][c];
+    if(card && card.owner===owner && String(card.id)==='116' && !card._chaparralAmbushUsed
+      && cardContributesAura(card,'116') && !isCardEffectSuppressed(card,z,r,c))return {card,z,r,c};
+  }
+  return null;
+}
 
 function getSuperiorMarksMultiplier(z, owner) {
   let sourceCount = 0;
@@ -5058,9 +5073,9 @@ function flipFaceDownBoardCard(card, z, r, c) {
   if(!card || !isFaceDownCard(card)) return 0;
   card.faceDown = false;
   for(const effect of G._revolutionaryFlipGains || []){
-    if(effect.turn !== G.turn) continue;
+    if(effect.turn !== G.turn || effect.owner !== card.owner) continue;
     if(typeof isTargetImmuneToEffectOwner === 'function' && isTargetImmuneToEffectOwner(card,effect.owner)) continue;
-    applyPairedOverlayFateGain(card,4,effect.owner,{type:'unclassified',kind:'revolutionary_spirit',label:'Revolutionary Spirit',sourceIid:effect.sourceIid,waitForConsolidationCinematic:true,waitForMoraleCalculation:true});
+    applyPairedOverlayFateGain(card,4,effect.owner,{type:'permanent',kind:'revolutionary_spirit',label:'The Revolution Victorious!',sourceIid:effect.sourceIid,waitForConsolidationCinematic:true,waitForMoraleCalculation:true});
   }
   delete card._suppressPlacementAnimation;
   delete card._suppressCinematicSubtitle;
@@ -5775,7 +5790,7 @@ function finalizeConsolidate(card, tributes, targetIdx, conContext) {
     const cinematicDelay = _consolidationMotionMs
       ? Math.max(0, Number(_consolidationMotionMs) || 0) + 120
       : Math.max(0, placementDelay || 0) + 90;
-    if(useFaceDown && chaparralSource?.card) chaparralSource.card._chaparralAmbushUsed = true;
+    if(chaparralSource?.card) chaparralSource.card._chaparralAmbushUsed = true;
 
     const cinematicWaitsForPresentation = !!(tx && typeof tx.onFinished === 'function');
     if(tributes.length && !useFaceDown && typeof showConsolidationCinematic === 'function' && !cinematicWaitsForPresentation) {
@@ -6195,10 +6210,10 @@ function noteBalladConsolidation(player, card) {
   forEachBoardCard(function(source){
     if(source.owner !== player || source.iid === card.iid || source.faceDown
       || !cardActsAsPassive(source, '110') || isCardEffectSuppressed(source)) return;
-    const fish = createCardInstance({id:'token-fish',name:'Fish Counter',ability:'Fresh Catch',
+    const fish = createCardInstance({id:'token-fish',name:'Fish Token',ability:'The Daily Catch',
       type:'Counter',aff:'eventide',rarity:'circle',fate:0,cost:0,token:true,fishCounter:true,
-      img:'token-fish.svg',effect:'Counts as 0.5 Reinforcement. Can be set for free.',
-      flavor:'A fresh catch from the wharf.'}, player);
+      img:'fishtoken.png?v=20261021',effect:'This card counts as a token. This card counts as 0.5 Reinforcement and can be set for free.',
+      flavor:'"Never bring an exotic fish fan to the docks of Havano."'}, player);
     G.players[player].hand.push(fish);
     window.holdSebastianFishCards?.([fish.iid]);
     (card._pendingSebastianFishOverlays ||= []).push({source,key:'fish:'+source.iid+':'+fish.iid,fishIid:fish.iid});
@@ -6591,7 +6606,7 @@ const INITIAL_SET_INITIATOR_IDS = new Set(['108','03','04','06','07','08','13','
 // Browser timing mirror for shared/engine/cards/registry.mjs. This is the seam
 // that keeps single-player interaction timing identical to authoritative play.
 const AUTHORITATIVE_ACTIVATE_EFFECT_IDS = new Set(['03','06','20','22','27','29','30','38','39','40','48','83','93','102','104','105','107','bh01']);
-const AUTHORITATIVE_WHEN_SET_EFFECT_IDS = new Set(['108','111','112','113','115',
+const AUTHORITATIVE_WHEN_SET_EFFECT_IDS = new Set(['120','108','111','112','113','115','116','117','118',
   '02','04','05','07','08','12','13','14','16','17','18','25','26','31','32','33','37','42','43','50','51','52','54','58','60','61','62','65','66','68','69','71','72','73','75','76','77','78','80','81','82','84','87','90','94','96','97','99','103','bh04','bh05','bh06','bh09','bh10','bh12','bh13','bh14','bh18','bh19','bh20','bh21','bh22','bh23','bh24','bh25'
 ]);
 const PRESSURE_REWORK_TIMING_CARD_IDS = new Set(['20','25','33','34','35','44','45','47','64','65','69','73']);
@@ -8057,9 +8072,6 @@ async function resolveSofiaOriginalDeck(card, cp) {
   }
   const original = G.players[1-cp].originalDeckIds || (cp===0 ? G.p2Deck : G.p1Deck);
   G.players[cp].deck = shuffle(original.map(id=>CARDS.find(c=>c.id===String(id))).filter(Boolean).map(def=>createCardInstance(def,cp)));
-  const openingExtras=G.players[cp].deck.filter(item=>['98','84'].includes(String(item.id)));
-  G.players[cp].deck=G.players[cp].deck.filter(item=>!['98','84'].includes(String(item.id)));
-  for(const extra of openingExtras) addCardToHand(cp,extra,{openingHand:true,announce:false});
   await drawCard(cp,6,{afterSetOrCinematic:true,activatedDrawEffect:true,effectSource:card});
   markInitialEffectResolved(card);
 }
@@ -8070,7 +8082,7 @@ async function resolveCaribbeaSupporter(inst, cp, id, ai = false) {
     G._revolutionaryFlipGains.push({turn:G.turn,owner:cp,sourceIid:inst.iid});
     if(typeof renderTopbarEffects === 'function') renderTopbarEffects();
   }else if(id === '113'){
-    await window.resolveLedgerArchive(cp,inst,{ai,deckOwner:1-cp,title:'Elite Influence'});
+    await window.resolveLedgerArchive(cp,inst,{ai,deckOwner:1-cp,title:'Oppression of the Old Elite'});
   }else if(id === '115'){
     const counts = new Map();
     const original = G.players[cp].originalDeckIds || (cp === 0 ? G.p1Deck : G.p2Deck) || [];
@@ -8084,6 +8096,23 @@ async function resolveCaribbeaSupporter(inst, cp, id, ai = false) {
 }
 
 async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
+  if(id==='120'){
+    if(emeraldChildrenEligibleLocal(cp))await window.resolveHopliteCallToArms(inst,cp);
+    return;
+  }
+  if(id === '117'){
+    G._saboteurCloudTurn=G.turn;
+    G._saboteurCloudUntilTurn=G.turn+2;
+    G._saboteurCloudOwner=cp;
+    if(window.FateSaboteurClouds) window.FateSaboteurClouds.sync();
+    return;
+  }
+  if(id === '118'){
+    G.players[cp]._emeraldDrawPhaseLocked=true;
+    await window.resolveHopliteCallToArms(inst,cp);
+    return;
+  }
+  if(id === '116'){ inst._chaparralAmbushUsed=false; return; }
   if(['112','113','115'].includes(id)) return resolveCaribbeaSupporter(inst,cp,id);
   if(id === '108') return resolveSofiaOriginalDeck(inst, cp);
   if(id === '111') return resolveVillagerLandscapeChoice(inst, cp);

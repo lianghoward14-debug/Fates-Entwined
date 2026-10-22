@@ -12,11 +12,11 @@ for(const seat of [0,1]){
     isCardEffectImmutable:()=>false,isZoeConsolidationBlockedAt:()=>false};
   vm.createContext(ctx);
   for(const name of ['resolveCaribbeaSupporter','flipFaceDownBoardCard','getMilitaryBlockadeTurns','canUseAsConsolidationTribute'])vm.runInContext(extract(name),ctx);
-  const prior={faceDown:true,currentFate:1};ctx.flipFaceDownBoardCard(prior,0,0,0);
+  const prior={owner:seat,faceDown:true,currentFate:1};ctx.flipFaceDownBoardCard(prior,0,0,0);
   await ctx.resolveCaribbeaSupporter({iid:'rev'},seat,'112');assert.equal(prior.currentFate,1);
-  const future={faceDown:true,currentFate:1};ctx.flipFaceDownBoardCard(future,0,0,0);assert.equal(future.currentFate,5);
+  const future={owner:seat,faceDown:true,currentFate:1};ctx.flipFaceDownBoardCard(future,0,0,0);assert.equal(future.currentFate,5);
   ctx.flipFaceDownBoardCard(future,0,0,0);assert.equal(future.currentFate,5);
-  g.turn++;const late={faceDown:true,currentFate:1};ctx.flipFaceDownBoardCard(late,0,0,0);assert.equal(late.currentFate,1);
+  g.turn++;const late={owner:seat,faceDown:true,currentFate:1};ctx.flipFaceDownBoardCard(late,0,0,0);assert.equal(late.currentFate,1);
   for(const count of [29,30]){g.players[seat].originalDeckIds=Array(count).fill('114');await ctx.resolveCaribbeaSupporter({},seat,'115');assert.equal(calls,count===30?1:0);}
   const target={type:'Supporter',owner:seat,_setTurn:5};g.board[0][0]=[{id:'114',owner:1-seat},{id:'114',owner:1-seat}];
   assert.equal(ctx.canUseAsConsolidationTribute(target,seat,0,2,0),false);

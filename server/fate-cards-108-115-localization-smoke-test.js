@@ -46,5 +46,5 @@ for(const id of ['108','109','110','111','112','113','114','115']){
   }
 }
 
-assert.match(index, /53-caribbea-translations\.js\?v=20261014-cards-108-115/);
+assert.match(index, /53-caribbea-translations\.js\?v=20261022-card120/);
 console.log('cards 108-115 Japanese and Chinese localization smoke passed');

@@ -818,7 +818,7 @@ function aiGenerateAllMoves() {
   {
     const supporters = hand.filter(c=>{
       const isSupporter = typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(c, cp) : c.type==='Supporter';
-      const ignoresSetLimit = !!c.counters?.chauffeurFreeSet || (typeof isAchillesAdaptiveToken === 'function' && isAchillesAdaptiveToken(c))
+      const ignoresSetLimit = emeraldChildrenFreeSetLocal(c,cp) || !!c.counters?.chauffeurFreeSet || (typeof isAchillesAdaptiveToken === 'function' && isAchillesAdaptiveToken(c))
         || !!(G._linaFreeIids && G._linaFreeIids.has(c.iid));
       return hardCapAvailable && isSupporter && c.id!=='70' && (canPlaceSup || ignoresSetLimit);
     }).map(card=>({card, fromDeck:false}));
@@ -3755,7 +3755,7 @@ async function aiDoPlace(choice) {
     return;
   }
   const isAchillesToken = typeof isAchillesAdaptiveToken === 'function' && isAchillesAdaptiveToken(card);
-  const isEffectFree = isFishCounter(card) || !!(G._linaFreeIids && G._linaFreeIids.has(card.iid)) || isAchillesToken;
+  const isEffectFree = emeraldChildrenFreeSetLocal(card,cp) || isFishCounter(card) || !!(G._linaFreeIids && G._linaFreeIids.has(card.iid)) || isAchillesToken;
   const cardIsSupporterForRules = typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, cp) : card.type === 'Supporter';
   const placementCountsAsConsolidated = (isAchillesToken && card._achillesPlayMode === 'consolidated')
     || (!isFishCounter(card) && !cardIsSupporterForRules && !isAchillesToken && isEffectFree);
@@ -3950,7 +3950,7 @@ async function aiDoConsolidate(choice) {
     if(typeof noteBalladConsolidation === 'function') noteBalladConsolidation(cp, inst);
     if(typeof applyRiveraBuffToPlacedCard === 'function') applyRiveraBuffToPlacedCard(inst, inst.owner);
     const placementDelay = motionMs ? 0 : Math.min(360, 180 + choice.tributes.length * 40);
-    if(useFaceDown && chaparralSource?.card) chaparralSource.card._chaparralAmbushUsed = true;
+    if(chaparralSource?.card) chaparralSource.card._chaparralAmbushUsed = true;
     let cinematicRequested = false;
     const requestConsolidationCinematic = function(){
       if(cinematicRequested || typeof showConsolidationCinematic !== 'function') return;

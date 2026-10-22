@@ -396,7 +396,7 @@ export function canUseAsConsolidationTribute(state, entry, playerIndex, consolid
     // A waiting turn belongs to the Supporter's controller, not either player's turn.
     const elapsedOwnerTurns = Math.floor(Math.max(0,state.turn-entered)/2);
     if(blockade && Number.isFinite(entered) && elapsedOwnerTurns < blockade){
-      return rejection('TRIBUTE_PREVENTED','Infantry of Havano: this Supporter must wait before consolidation');
+      return rejection('TRIBUTE_PREVENTED','Loyalist Soldier: this Supporter must wait before consolidation');
     }
   }
   if(((String(card.id || '') === '62' && !isEffectSourceSuppressed(state, entry))

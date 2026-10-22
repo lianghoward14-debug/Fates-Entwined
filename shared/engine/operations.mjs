@@ -1,3 +1,4 @@
+import {emeraldChildrenEligible,emeraldChildrenFreeSet} from './emerald-children.mjs';
 import {MAX_SUPPORTERS_SET_PER_TURN, OPERATION_TYPES, RULE_EVENT_TYPES} from './constants.mjs';
 import {
   canUseAsConsolidationTribute,
@@ -418,7 +419,7 @@ function setCard(ctx, operation){
       });
     }
   }
-  if(operation.countTowardSupporterLimit === true && !defenseInDepthStatus && !card.counters.chauffeurFreeSet){
+  if(operation.countTowardSupporterLimit === true && !defenseInDepthStatus && !card.counters.chauffeurFreeSet && !emeraldChildrenFreeSet(ctx.state,playerIndex,card)){
     ctx.state.supportersSetThisTurn[playerIndex] += 1;
   }
   delete card.counters.chauffeurFreeSet;
@@ -1825,7 +1826,7 @@ function createTokens(ctx, operation){
   for(let index = 0; index < count; index += 1){
     const fish = String(operation.tokenKind || '') === 'FISH';
     const pierogi = String(operation.tokenKind || '') === 'PIEROGI';
-    const base = fish ? {id:'token-fish', name:'Fish Counter'} : pierogi
+    const base = fish ? {id:'token-fish', name:'Fish Token'} : pierogi
       ? {id:'token1', name:"Wojciech's Pierogi"}
       : ADAPTIVE_TOKEN_BASES[index % ADAPTIVE_TOKEN_BASES.length];
     ctx.state.instanceCounter += 1;
@@ -1856,10 +1857,10 @@ function createTokens(ctx, operation){
         : {adaptiveToken:true}
     };
     if(fish) Object.assign(card, {
-      ability:'Fresh Catch', type:'Counter', affiliation:'eventide',
-      baseFate:0, currentFate:0, img:'token-fish.svg', token:true,
-      effect:'Counts as 0.5 Reinforcement. Can be set for free.',
-      flavor:'A fresh catch from the wharf.', statuses:[], counters:{fishCounter:true}
+      ability:'The Daily Catch', type:'Counter', affiliation:'eventide',
+      baseFate:0, currentFate:0, img:'fishtoken.png?v=20261021', token:true,
+      effect:'This card counts as a token. This card counts as 0.5 Reinforcement and can be set for free.',
+      flavor:'"Never bring an exotic fish fan to the docks of Havano."', statuses:[], counters:{fishCounter:true}
     });
     ctx.state.players[playerIndex].hand.push(card);
     createdIids.push(card.iid);
@@ -2293,15 +2294,6 @@ function dispatchOperation(ctx, operation){
         return card;
       });
       shuffleInPlace(ctx.state.players[playerIndex].deck, ctx.state.rngState);
-      const player=ctx.state.players[playerIndex];
-      const extras=player.deck.filter(card=>['98','84'].includes(String(card.id)));
-      player.deck=player.deck.filter(card=>!['98','84'].includes(String(card.id)));
-      for(const card of extras){
-        player.hand.push(card);
-        applySpecialHandArrival(ctx,playerIndex,card);
-        emit(ctx,{type:RULE_EVENT_TYPES.CARD_TRANSFERRED,cardIid:card.iid,playerIndex,
-          from:'deck',to:'hand',sourceIid:operation.sourceIid,reason:'SOFIA_OPENING_HAND'});
-      }
       return ctx.state.players[playerIndex].deck;
     }
     case OPERATION_TYPES.DRAW_CARD: return drawCards(ctx, operation);

@@ -505,10 +505,12 @@ function isElectronCardImageRuntime() {
   }
 }
 function getRuntimeCardImageSrc(src, role) {
+  if(/^(116|117|120)\.png(?:[?#]|$)/.test(String(src||''))) src=String(src).split(/[?#]/)[0]+'?v=20261022';
+  else if(/^(101|10[89]|11[0-7]|fishtoken)\.png(?:[?#]|$)/.test(String(src||''))) src=String(src).split(/[?#]/)[0]+'?v=20261021-printed';
   if(/^107\.png(?:[?#]|$)/.test(String(src||''))) return '107.png?v=20261011';
   if(/^106\.png(?:[?#]|$)/.test(String(src||''))) return '106.png?v=1a1e0a223fc3';
   if(/^105\.png(?:[?#]|$)/.test(String(src||''))) return '105.png?v=20261009-triangle';
-  if(/^(101|102|103|104|105)\.png(?:[?#]|$)/.test(String(src||''))) return String(src).split(/[?#]/)[0]+'?v=20261008-card-art';
+  if(/^(102|103|104|105)\.png(?:[?#]|$)/.test(String(src||''))) return String(src).split(/[?#]/)[0]+'?v=20261008-card-art';
   if(/^bh10\.png(?:[?#]|$)/.test(String(src||'')))return src;
   if(!src) return src;
   const raw = String(src);
@@ -4247,6 +4249,7 @@ function getAnnePlanningStatusEffects(game,viewer) {
 
 function getStatusEffectIcon(kind) {
   const icons = {
+    concealed_cards: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12.83 2.18 8.18 4.5a.93.93 0 0 1 0 1.64l-8.18 4.5a1.75 1.75 0 0 1-1.66 0l-8.18-4.5a.93.93 0 0 1 0-1.64l8.18-4.5a1.75 1.75 0 0 1 1.66 0Z"/><path d="m2 12 9.17 5.04a1.75 1.75 0 0 0 1.66 0L22 12"/></svg>',
     revolutionary_spirit: '<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round"><path d="M25 39H40L36 56H29Z M24 34C9 22 28 17 28 5C43 12 53 25 40 34 M30 31C23 24 35 21 34 15C43 24 40 29 36 32"/></g></svg>',
     private_anne_planning: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 52V15h31M48 31v21H12M18 20h13m-13 9h8" stroke-width="3.5"/><path d="M24 47l4-13 19-21 8 8-20 21zM29 34l7 7M44 17l8 8" stroke-width="4"/><path d="M21 53h23" stroke-width="3" opacity=".5"/></g></svg>`,
     private_black_rose: `<svg class="private-black-rose-icon" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="30" cy="39" r="16.5" stroke-width="4"/><path d="M27 22v-6h8v7M31 16c0-7 11-5 13-11" stroke-width="4"/><path d="M46 7l5-3M48 13l6 1M40 5l-1-4" stroke-width="3"/><path d="M19 36c1-5 4-8 8-10" stroke-width="3" opacity=".45"/></g></svg>`,
@@ -4324,7 +4327,7 @@ function getAuthoritativeEffectOverlayDescriptor(event, source, target) {
   const sourceId = String(event?.semanticSourceCardId || source?.id || '');
   const targetId = String(target?.id || '');
   if(type === 'FATE_CHANGED' && event.reason === 'REVOLUTIONARY_SPIRIT' && Number(event.after) > Number(event.before))
-    return {kind:'revolutionary_spirit',label:'Revolutionary Spirit'};
+    return {kind:'revolutionary_spirit',label:'The Revolution Victorious!'};
   if(type === 'FATE_CHANGED' && String(event?.reason || '') === 'MORALE_HEAL_FATE_CONVERSION' && targetId === '101')
     return {kind:'jorge_pineapple',label:'El Viaje Del Hombre Piña'};
   if(type === 'CARD_MOVED') return sourceId === 'bh01' || targetId === 'bh01'
@@ -4902,7 +4905,7 @@ function canPlayCard(card) {
     && isSupporterHardCapReached(card.owner)) return false;
   if(typeof isAchillesAdaptiveToken === 'function' && isAchillesAdaptiveToken(card)) return true;
   // Lina free-set: always playable
-  if(card.counters?.chauffeurFreeSet || (G._linaFreeIids && G._linaFreeIids.has(card.iid))) return true;
+  if(emeraldChildrenFreeSetLocal(card,card.owner) || card.counters?.chauffeurFreeSet || (G._linaFreeIids && G._linaFreeIids.has(card.iid))) return true;
   if(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, card.owner) : card.type==='Supporter') {
     const defenseInDepthReady = (Array.isArray(G._bh24DefenseInDepth)
       && G._bh24DefenseInDepth[card.owner]
@@ -4926,7 +4929,7 @@ function isSupporterLimitReachedForCard(card) {
   if(!(typeof isCardSupporterForRules === 'function' ? isCardSupporterForRules(card, card.owner) : card.type === 'Supporter')) return false;
   if(typeof isAchillesAdaptiveToken === 'function' && isAchillesAdaptiveToken(card)) return false;
   if(G.phase !== 'main') return false;
-  if(card.counters?.chauffeurFreeSet || (G._linaFreeIids && G._linaFreeIids.has(card.iid))) return false;
+  if(emeraldChildrenFreeSetLocal(card,card.owner) || card.counters?.chauffeurFreeSet || (G._linaFreeIids && G._linaFreeIids.has(card.iid))) return false;
   if(G.majaEffectThisTurn) return false;
   const defenseInDepthReady = (Array.isArray(G._bh24DefenseInDepth)
     && G._bh24DefenseInDepth[card.owner]
@@ -5784,7 +5787,7 @@ function renderTopbarEffects() {
 
   for(const status of G._revolutionaryFlipGains || []){
     if(status.turn !== G.turn) continue;
-    allEffects.push({icon:getStatusEffectIcon('revolutionary_spirit'),label:'Revolutionary Spirit',cardName:'Caribbea Revolutionary',cardAbility:'Revolutionary Spirit',cardEffect:'For the rest of this turn, cards that flip face up gain 4 Fate.',owner:status.owner,sourceIid:status.sourceIid,extraClass:'effect-pill-revolutionary-spirit',turnsLeft:1,statusInstanceKey:'revolutionary:'+String(status.sourceIid)});
+    allEffects.push({icon:getStatusEffectIcon('revolutionary_spirit'),label:'The Revolution Victorious!',cardName:'Caribbea Revolutionary',cardAbility:'The Revolution Victorious!',cardEffect:'For the rest of this turn, your cards that flip face up gain 4 Fate permanently.',owner:status.owner,sourceIid:status.sourceIid,extraClass:'effect-pill-revolutionary-spirit',turnsLeft:1,statusInstanceKey:'revolutionary:'+String(status.sourceIid)});
   }
 
   // Phase 7 owns these statuses on the authority.  Render them directly from
@@ -5839,7 +5842,7 @@ function renderTopbarEffects() {
       });
     };
     if(type === 'REVOLUTIONARY_FLIP_GAIN' && Number(status.turn) === Number(G.turn)){
-      add('112','revolutionary_spirit','Caribbea Revolutionary','Revolutionary Spirit','For the rest of this turn, cards that flip face up gain 4 Fate.','effect-pill-revolutionary-spirit');
+      add('112','revolutionary_spirit','Caribbea Revolutionary','The Revolution Victorious!','For the rest of this turn, your cards that flip face up gain 4 Fate permanently.','effect-pill-revolutionary-spirit');
       allEffects[allEffects.length-1].turnsLeft = 1;
     }else if(type === 'FORT_CALVIN_WATCHER' && remaining > 0){
       const redirect = status.characterRedirected ? 'Its Character redirect has already been used.' : 'The next revealed Character is sent to the bottom of the deck.';
@@ -5898,9 +5901,12 @@ function renderTopbarEffects() {
         'Wine Country Guerilla is infiltrating the opposing hand. At the start of that player\'s turn, it reduces a random eligible hand card by 2 Fate. ' + remaining + ' turn' + (remaining === 1 ? '' : 's') + ' remaining.',
         'effect-pill-guerilla'
       );
+    }else if(type === 'PERMANENT_DRAW_PHASE_LOCK'){
+      add('118', 'emerald-draw-lock', 'The Children with Emerald Eyes', 'Draw Phase Locked', 'You cannot draw cards during your draw phase for the rest of the game. Other card effects can still draw cards.', 'effect-pill-chaparral');
+      if(allEffects.length && (affected === 0 || affected === 1)) allEffects[allEffects.length - 1].owner = affected;
     }else if(type === 'FACE_DOWN_CONSOLIDATION_PERMISSION' && remaining > 0){
       const zone = Number.isInteger(Number(status.zone)) ? 'Zone ' + (Number(status.zone) + 1) : 'this zone';
-      add('78', 'chaparral', 'Chaparral Hoplite', 'Chaparral Ambush', 'The next consolidation in ' + zone + ' may be set face down.', 'effect-pill-chaparral');
+      add('116', 'concealed_cards', 'Anarquista Revolutionary', 'The Underground Resistance', 'Your next consolidation may be set face down.', 'effect-pill-chaparral');
       if(allEffects.length && (affected === 0 || affected === 1)) allEffects[allEffects.length - 1].owner = affected;
     }else if(type === 'MOVEMENT_GRANT' || type === 'BUSSER_INITIATOR_MORALE'){
       // Retired Breakfast Republic Busser statuses are deliberately invisible.
@@ -7188,7 +7194,7 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
     value='Aura: +'+(tier+boost)+' Fate';
     sub='Next Tier in '+untilNext+' Turn'+(untilNext===1?'':'s');
   } else if(trackerId==='115'){
-    label='Loyalist Call';
+    label='Loyalty to Tradition';
     let eligible=card.loyalistEligible;
     if(typeof eligible !== 'boolean' && !G._phase7CurrentMultiplayer){
       const original=G.players[owner].originalDeckIds || (owner===0 ? G.p1Deck : G.p2Deck);

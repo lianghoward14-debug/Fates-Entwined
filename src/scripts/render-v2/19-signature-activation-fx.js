@@ -1,7 +1,7 @@
 (function(){'use strict';if(window.FateSignatureActivationFx)return;
 const studies={
-'108':['108','Sofia','Star of my World','A World in Bloom','approved','#c7a8ed',2000],
-'109':['109','Don Julio','Oppression of the Ruling Class','Three from the Cup','approved','#8dbbdf',2000],
+'108':['108','Sofia','Childlike Whimsy','A World in Bloom','approved','#c7a8ed',2000],
+'109':['109','Don Julio','An Oligarch’s Gamble','Three from the Cup','approved','#8dbbdf',2000],
 '110':['110','Sebastian','Fishmonger','The Big Catch','approved','#8bd2cf',2000],
 '107':['107','Anne Stone (Revolutionary)','Strategy of a Revolution','Knight’s Gambit','approved','#99d5ba',2000],
 '104':['104','Rivera (Revolutionary)','A Brighter Future','Palms of Caribbea — sea breeze','approved','#8fc9dd',2000],

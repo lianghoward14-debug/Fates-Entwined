@@ -749,7 +749,7 @@ export class FateAuthoritativeV3SinglePlayerScreen {
       CONSOLIDATION_COST_MODIFIER:['97','administrative_bloat','Administrative Bloat',`The opponent's next ${remaining || 1} consolidation${remaining === 1 ? '' : 's'} cost 1 extra Reinforcement.`,'effect-pill-administrative-bloat'],
       DELAYED_HAND_DELIVERY:['94','mail_delivery','Mail Delivery',`A scheduled card arrives after ${remaining || 1} owner turn${remaining === 1 ? '' : 's'}.`,'effect-pill-mail'],
       WINE_COUNTRY_GUERILLA_INFILTRATION:['70','guerilla','A Gun Behind Every Grapevine',`Reduces a random eligible opposing hand card by 2 Fate at turn start for ${remaining} more turn${remaining === 1 ? '' : 's'}.`,'effect-pill-guerilla'],
-      FACE_DOWN_CONSOLIDATION_PERMISSION:['78','chaparral','Chaparral Ambush','The next consolidation in this zone may be set face down.','effect-pill-chaparral'],
+      FACE_DOWN_CONSOLIDATION_PERMISSION:['116','concealed_cards','The Underground Resistance','Your next consolidation may be set face down.','effect-pill-chaparral'],
       PERMANENT_FATE_GAIN_POTENCY:['bh19','high_t','High-T','Permanent Fate gain effects have doubled potency for this turn.','effect-pill-high-t']
     };
     const descriptor = definitions[type];
