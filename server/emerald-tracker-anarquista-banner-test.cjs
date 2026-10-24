@@ -1,0 +1,13 @@
+const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const source=fs.readFileSync('src/scripts/06-rendering-and-helpers.js','utf8');
+const rt={G:{},document:{getElementById:()=>({classList:{contains:()=>true}})},escapeHtml:s=>s,emeraldChildrenEligibleLocal:()=>true};vm.createContext(rt);
+vm.runInContext(source.slice(source.indexOf('function buildCardDetailTrackerHTML('),source.indexOf('function refreshWojciechInformationBanners(')),rt);
+assert.match(rt.buildCardDetailTrackerHTML({id:'120',owner:0},0,false),/Deck eligible/);
+assert.match(rt.buildCardDetailTrackerHTML({id:'120',owner:0,emeraldChildrenEligible:false},0,false),/Deck not eligible/);
+rt.G._phase7CurrentMultiplayer=true;assert.match(rt.buildCardDetailTrackerHTML({id:'120',owner:0},0,false),/Eligibility unavailable/);
+assert.equal(rt.buildCardDetailTrackerHTML({id:'120',owner:0},0,true),'');
+const start=source.indexOf('  if(!G._phase7CurrentMultiplayer && typeof getUnusedChaparralAmbusherInZone');const end=source.indexOf('  const phase7StatusCard',start);
+const local={G:{},phase7Statuses:[],allEffects:[],getUnusedChaparralAmbusherInZone:(z,p)=>p===0?{card:{iid:'rev'}}:null,getStatusEffectIcon:s=>s};vm.createContext(local);vm.runInContext(source.slice(start,end),local);assert.equal(local.allEffects.length,1);assert.equal(local.allEffects[0].owner,0);
+local.allEffects=[];local.phase7Statuses=[{type:'FACE_DOWN_CONSOLIDATION_PERMISSION',playerIndex:0,remaining:1}];vm.runInContext(source.slice(start,end),local);assert.equal(local.allEffects.length,0);
+local.phase7Statuses=[];local.getUnusedChaparralAmbusherInZone=()=>null;vm.runInContext(source.slice(start,end),local);assert.equal(local.allEffects.length,0);
+console.log('Eligibility states, hidden cards, local banner, consumed permission and duplicate prevention passed.');

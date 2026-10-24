@@ -8,6 +8,5 @@ const jorge=place('101',0,2,0);const paid=place('05',1,2,0,7);const a=place('05'
 modifyMorale({state,events:[],ruleEvents:[]},{playerIndex:0,amount:9,sourceIid:a.iid});assert.equal(jorge.currentFate,7);assert.equal(state.moralePressure.morale[0],209);
 modifyMorale({state,events:[],ruleEvents:[]},{playerIndex:0,amount:12,sourceIid:paid.iid});assert.equal(jorge.currentFate,7,'other-zone healing must not convert');
 modifyMorale({state,events:[],ruleEvents:[]},{playerIndex:0,amount:12});assert.equal(jorge.currentFate,7,'unattributed healing must not convert');
-const s=state.players[0].hand[0];const result=reduceCommand(state,command(state,'p0',1,'CONSOLIDATE_CARD',{cardIid:s.iid,tributeIids:[a.iid,b.iid],destination:{z:0,r:2,c:1}}),{playerId:'p0'});
-assert.equal(result.ok,true,JSON.stringify(result));assert(result.state.players[0].discard.some(c=>c.iid===paid.iid));assert(result.state.players[0].discard.some(c=>c.iid===jorge.iid));assert.equal(result.state.pendingPrompt?.type,'MODAL_CHOICE');assert.equal(result.state.pendingPrompt?.title,'Call to Arms');
-console.log('Jorge healing/overheal and removal of immunity; Santiago all 7+ Fate discard and shared Call to Arms passed');
+console.log('Jorge healing, overheal, and removal of immunity passed.');
+await import('./santiago-morale-payment-test.mjs');

@@ -5386,6 +5386,12 @@
       if(window.toast) toast('That choice is no longer legal.');
       return false;
     };
+    if(prompt?.type==='MODAL_CHOICE' && sourceId==='103' && prompt.local==='moralePayment' && typeof window.showSangrePorVictoriaMoralePicker==='function'){
+      withOnlinePromptBypass(gameState(),function(){
+        window.showSangrePorVictoriaMoralePicker(prompt.playerIndex,amount=>submitChoice(String(amount),'choice'),()=>submitChoice('0','choice'),{promptId,maximum:Math.max(...prompt.options.map(option=>Number(option.value)))});
+      });
+      return;
+    }
     if(prompt?.type==='MODAL_CHOICE' && prompt.title==='Call to Arms' && typeof window.showSupportCompanyCategoryWindow==='function'){
       withOnlinePromptBypass(gameState(),function(){
         window.showSupportCompanyCategoryWindow({cancellable:false,promptId,
@@ -7423,6 +7429,10 @@
         resultMotionStarted = !!window.FateV2CardMotionFx.turnHandoff(gameState()?.currentPlayer, Number(event.playerIndex), {turn:event.turn}) || resultMotionStarted;
         return;
       }
+      if(type === 'DRAW_PHASE_SKIPPED' && event.reason === 'MERCHANT_DRAW_DENIAL'){
+        window.showMerchantDrawSkippedBanner?.(event.playerIndex);
+        return;
+      }
       if(type === 'LANDSCAPE_RESOLUTION_STARTED'){
         if(typeof window.triggerLandscapeFlash === 'function') window.triggerLandscapeFlash('Landscape resolving', 'major');
         else if(window.toast) toast('Resolving the landscape.');
@@ -7682,6 +7692,7 @@
     if(!view?.state || !Number.isInteger(Number(view.playerIndex))) return false;
     if(typeof window.clearHowardDevMode === 'function') window.clearHowardDevMode();
     const previousView = phase7CurrentUiSession.view;
+    window.FateSaboteurClouds?.prepareReveal(previousView?.state,view.state);
     const previousPhase = String(previousView?.state?.phase || '');
     const sameInteractionRevision = !!previousView
       && String(previousView?.state?.matchId || '') === String(view?.state?.matchId || '')
@@ -7741,6 +7752,7 @@
     // Mark authority before rendering the projection. Shared rendering calls
     // enforceHandLimit(), which must not open the legacy client-owned modal.
     g._phase7CurrentMultiplayer = true;
+    g._devRewardsDisabled = false;
     const previousSquareState = {blockedCells:cloneOnlinePlain(g.blockedCells || [])};
     const hadCurrentBoard = !!g._phase7PendingPrompt || !!phase7CurrentUiSession.committedCarolynMatch;
     const applied = applyOnlineCanonicalState(legacy, reason || 'Phase 7 current UI snapshot', null);

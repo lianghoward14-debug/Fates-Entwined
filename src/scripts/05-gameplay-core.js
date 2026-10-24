@@ -745,16 +745,18 @@ function resolveBlackRoseBombAt(card,z,r,c,player){
   return true;
 }
 
-function showSangrePorVictoriaMoralePicker(player,onConfirm,onCancel){
+function showSangrePorVictoriaMoralePicker(player,onConfirm,onCancel,options={}){
   const system=G?._moralePressure;
-  const current=Math.max(0,Number(system?.morale?.[player])||0);
-  const maximum=Math.floor(current/15)*15;
+  const current=Math.max(0,Number(options.currentMorale ?? system?.morale?.[player])||0);
+  const maximum=Math.min(Math.floor(current/15)*15,options.maximum ?? Infinity);
   if(maximum<15){toast('You need at least 15 Morale to use Sangre Por Victoria.');if(onCancel)onCancel();return false;}
-  showModal('Sangre Por Victoria','<div class="sangre-morale-picker tactical-payment"><div class="payment-portrait"><img src="103.png" alt=""><span>SANTIAGO ALVAREZ</span></div><div class="payment-controls"><h3>Victory has a price.</h3><p>Commit Morale to replenish your hand.</p><div class="sangre-kicker">MORALE COMMITMENT</div><div class="sangre-amount"><span>Pay</span><strong id="sangre-pay-value">15</strong><span>Morale</span></div><input id="sangre-pay-slider" type="range" min="15" max="'+maximum+'" step="15" value="15" aria-label="Morale to pay"><div class="sangre-stepper"><button type="button" id="sangre-pay-minus">−15</button><output id="sangre-draw-count">Draw 1 card</output><button type="button" id="sangre-pay-plus">+15</button></div><div class="sangre-balance">Available Morale: <b>'+current+'</b><span>After payment: <b id="sangre-remaining">'+(current-15)+'</b></span></div></div></div>',[
+  showModal('Sangre Por Victoria','<div class="sangre-morale-picker tactical-payment"><div class="payment-portrait"><img src="pfp/card-103-portrait.png?v=20261023-tight-crop" alt=""><span>SANTIAGO ALVAREZ</span></div><div class="payment-controls"><h3>Victory has a price.</h3><p>Commit Morale to replenish your hand.</p><div class="sangre-kicker">MORALE COMMITMENT</div><div class="sangre-amount"><span>Pay</span><strong id="sangre-pay-value">15</strong><span>Morale</span></div><input id="sangre-pay-slider" type="range" min="15" max="'+maximum+'" step="15" value="15" aria-label="Morale to pay"><div class="sangre-stepper"><button type="button" id="sangre-pay-minus">−15</button><output id="sangre-draw-count">Draw 1 card</output><button type="button" id="sangre-pay-plus">+15</button></div><div class="sangre-balance">Available Morale: <b>'+current+'</b><span>After payment: <b id="sangre-remaining">'+(current-15)+'</b></span></div></div></div>',[
     {label:'Cancel',action:function(){closeModal();if(onCancel)onCancel();}},
-    {label:'Pay Morale & Draw',pri:true,action:function(){const slider=document.getElementById('sangre-pay-slider');const amount=Math.max(15,Math.min(maximum,Number(slider?.value)||15));closeModal();return onConfirm(amount);}}
+    {label:'Pay Morale & Draw',pri:true,action:function(){const slider=document.getElementById('sangre-pay-slider');const amount=Math.max(15,Math.min(maximum,Math.floor(Number(slider?.value)/15)*15||15));closeModal();return onConfirm(amount);}}
   ],{onOpen:function(){
     const slider=document.getElementById('sangre-pay-slider'),value=document.getElementById('sangre-pay-value'),count=document.getElementById('sangre-draw-count');
+    const panel=slider?.closest('.sangre-morale-picker');
+    if(panel && options.promptId)panel.dataset.phase7PromptId=String(options.promptId);
     const update=function(next){slider.value=String(Math.max(15,Math.min(maximum,Number(next)||15)));value.textContent=slider.value;count.textContent='Draw '+(Number(slider.value)/15)+' card'+(Number(slider.value)===15?'':'s');const remaining=document.getElementById('sangre-remaining');if(remaining)remaining.textContent=String(current-Number(slider.value));};
     slider.addEventListener('input',function(){update(slider.value);});
     document.getElementById('sangre-pay-minus')?.addEventListener('click',function(){update(Number(slider.value)-15);});
@@ -2029,6 +2031,12 @@ async function nextPlayerTurn() {
   renderHand();
 
   // Draw 1 card unless the current landscape skips this draw phase.
+  const merchantDrawSkipped=Number(G.players[currentPlayer]._merchantDrawPhases)>0;
+  if(merchantDrawSkipped){
+    G.players[currentPlayer]._merchantDrawPhases--;
+    window.showMerchantDrawSkippedBanner?.(currentPlayer);
+    log('sys','Art of the Deal: P'+(currentPlayer+1)+' skips this draw. '+G.players[currentPlayer]._merchantDrawPhases+' Draw Phases remaining.');
+  }
   const landscapeDrawSkipped = typeof shouldSkipLandscapeDrawPhase === 'function' && shouldSkipLandscapeDrawPhase(currentPlayer);
   const moraleDrawSkipped = typeof window.shouldSkipLegacyMoraleDraw === 'function' && window.shouldSkipLegacyMoraleDraw(currentPlayer);
   if(landscapeDrawSkipped || moraleDrawSkipped) {
@@ -2041,7 +2049,7 @@ async function nextPlayerTurn() {
     toast('Big Sur: draw phase skipped.');
     if(typeof triggerLandscapeFlash === 'function') triggerLandscapeFlash('Big Sur skipped draw phase', 'major');
     log('sys', 'Big Sur skipped P' + (currentPlayer + 1) + ' draw phase.');
-  } else if(!moraleDrawSkipped && !G.players[currentPlayer]._emeraldDrawPhaseLocked) {
+  } else if(!merchantDrawSkipped && !moraleDrawSkipped && !G.players[currentPlayer]._emeraldDrawPhaseLocked) {
     const drawParams = new URLSearchParams(window.location.search || '');
     const legacyCorpusCapture = drawParams.get('fateV3LegacyCorpus') === '1'
       && drawParams.get('fateV3Recorder') === '1'
@@ -6606,7 +6614,7 @@ const INITIAL_SET_INITIATOR_IDS = new Set(['108','03','04','06','07','08','13','
 // Browser timing mirror for shared/engine/cards/registry.mjs. This is the seam
 // that keeps single-player interaction timing identical to authoritative play.
 const AUTHORITATIVE_ACTIVATE_EFFECT_IDS = new Set(['03','06','20','22','27','29','30','38','39','40','48','83','93','102','104','105','107','bh01']);
-const AUTHORITATIVE_WHEN_SET_EFFECT_IDS = new Set(['120','108','111','112','113','115','116','117','118',
+const AUTHORITATIVE_WHEN_SET_EFFECT_IDS = new Set(['119','120','108','111','112','113','115','116','117','118',
   '02','04','05','07','08','12','13','14','16','17','18','25','26','31','32','33','37','42','43','50','51','52','54','58','60','61','62','65','66','68','69','71','72','73','75','76','77','78','80','81','82','84','87','90','94','96','97','99','103','bh04','bh05','bh06','bh09','bh10','bh12','bh13','bh14','bh18','bh19','bh20','bh21','bh22','bh23','bh24','bh25'
 ]);
 const PRESSURE_REWORK_TIMING_CARD_IDS = new Set(['20','25','33','34','35','44','45','47','64','65','69','73']);
@@ -8107,9 +8115,22 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
     if(window.FateSaboteurClouds) window.FateSaboteurClouds.sync();
     return;
   }
-  if(id === '118'){
-    G.players[cp]._emeraldDrawPhaseLocked=true;
+  if(id === '119'){
+    G.players[cp]._merchantDrawPhases=(Number(G.players[cp]._merchantDrawPhases)||0)+3;
     await window.resolveHopliteCallToArms(inst,cp);
+    return;
+  }
+  if(id === '118'){
+    const deck=G.players[1-cp].deck;
+    if(deck.length){
+      const deterministic=deterministicOnlineRandomIndex(deck.length,'treacherousSeas',cp);
+      const rng=typeof G._onlineRng==='function'?G._onlineRng:Math.random;
+      const card=deck.splice(deterministic>=0?deterministic:Math.floor(rng()*deck.length),1)[0];
+      card.owner=cp;
+      addCardToHand(cp,card,{arrivalKind:'treacherous-seas'});
+      playSfx('draw');
+      renderHand();
+    }
     return;
   }
   if(id === '116'){ inst._chaparralAmbushUsed=false; return; }
@@ -9152,10 +9173,17 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
       await _executeWhenSetSwitch(card, z, r, c, cp, opp, id);
       break;
     case '103': {
-      const targets=[];
-      forEachBoardCard(function(target,tz,tr,tc){if(Number(target.owner)===Number(cp)&&getEffectiveFate(target,tz)>=7)targets.push({card:target,z:tz,r:tr,c:tc});});
-      for(const target of targets)discardBoardCard(target.card,target.z,target.r,target.c);
-      if(typeof window.resolveHopliteCallToArms==='function')await window.resolveHopliteCallToArms(card,cp);
+      const current=Math.max(0,Number(G._moralePressure?.morale?.[cp])||0);
+      const amount=G.aiEnabled && cp===G.aiPlayer
+        ? Math.min(45,Math.floor(Math.max(0,current-30)/15)*15,G.players[cp].deck.length*15)
+        : await new Promise(resolve=>showSangrePorVictoriaMoralePicker(cp,resolve,()=>resolve(0)));
+      if(amount>0 && amount<=Number(G._moralePressure?.morale?.[cp])){
+        const before=G._moralePressure.morale[cp];
+        const paid=typeof isLandscapeActive==='function'&&isLandscapeActive('igb23')?0:amount;
+        G._moralePressure.morale[cp]-=paid;
+        window.presentLegacyMoraleDelta?.({playerIndex:cp,before,after:G._moralePressure.morale[cp],sourceIid:card.iid,semanticSourceCardId:'103',reason:'SANGRE_POR_VICTORIA_COST'});
+        if(paid)await drawCard(cp,paid/15,{afterSetOrCinematic:true,activatedDrawEffect:true,effectSource:card});
+      }
       markInitialEffectResolved(card);
       break;
     }
@@ -11619,7 +11647,9 @@ function checkWin() {
   let result = null;
   let starlightGained = 0;
   let freePackGained = false;
-  if(G.aiEnabled && winner >= 0){
+  if(typeof window.isFateDevRewardBlocked === 'function' && window.isFateDevRewardBlocked()){
+    result={eloChange:0,xpGained:0,levelsGained:0,newLevel:USER_PROFILE.level};
+  } else if(G.aiEnabled && winner >= 0){
     const humanP = 1 - G.aiPlayer;
     const humanWon = winner === humanP;
     const settings = getAIDifficultySettings();

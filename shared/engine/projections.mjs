@@ -218,9 +218,9 @@ function applySaboteurView(state,projection,viewer){
   const frozen=viewer==null ? veil.spectator : veil.opponent;
   const livePlayer=viewer==null ? null : cloneSerializable(projection.players[viewer]);
   const liveBoard=viewer==null ? null : cloneSerializable(projection.board);
-  // Retain live turn/revision and actionable prompts. Freeze public game data so
-  // board changes, counts, scores and status metadata cannot disclose actions.
-  for(const key of Object.keys(frozen))if(!['revision','phase','turn','activePlayer','pendingPrompt','pendingHandLimit','outcome','completedHands'].includes(key))projection[key]=cloneSerializable(frozen[key]);
+  // Conceal individual board changes and action metadata, while keeping the
+  // aggregate zone Fate totals public and current throughout the veil.
+  for(const key of Object.keys(frozen))if(!['revision','phase','turn','activePlayer','pendingPrompt','pendingHandLimit','outcome','completedHands','zoneScores'].includes(key))projection[key]=cloneSerializable(frozen[key]);
   // The opponent must still see their own draws and placements during the
   // intervening turn of this three-turn effect.
   if(livePlayer){

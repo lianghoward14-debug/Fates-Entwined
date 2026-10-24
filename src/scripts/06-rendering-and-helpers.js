@@ -505,12 +505,13 @@ function isElectronCardImageRuntime() {
   }
 }
 function getRuntimeCardImageSrc(src, role) {
-  if(/^(116|117|120)\.png(?:[?#]|$)/.test(String(src||''))) src=String(src).split(/[?#]/)[0]+'?v=20261022';
-  else if(/^(101|10[89]|11[0-7]|fishtoken)\.png(?:[?#]|$)/.test(String(src||''))) src=String(src).split(/[?#]/)[0]+'?v=20261021-printed';
+  const refreshedArtVersions={"103": "81d808eb3faf", "bh21": "eafe10d4d5b1", "108": "3a31783c0a90", "109": "c05844967b27", "110": "9a612fa44a10", "111": "74d40b6aa868", "112": "e4f6f817509c", "113": "6f1a7a14be76", "114": "311af41dcce1", "115": "b85cd436dea2", "116": "b779d5cc4592", "117": "c69ad94a9997", "118": "3c4bd09948da", "120": "b549245e0626"};
+  const refreshedArtId=String(src||'').split(/[.?]/)[0];
+  if(refreshedArtVersions[refreshedArtId]) src=refreshedArtId+'.png?v='+refreshedArtVersions[refreshedArtId];
   if(/^107\.png(?:[?#]|$)/.test(String(src||''))) return '107.png?v=20261011';
   if(/^106\.png(?:[?#]|$)/.test(String(src||''))) return '106.png?v=1a1e0a223fc3';
   if(/^105\.png(?:[?#]|$)/.test(String(src||''))) return '105.png?v=20261009-triangle';
-  if(/^(102|103|104|105)\.png(?:[?#]|$)/.test(String(src||''))) return String(src).split(/[?#]/)[0]+'?v=20261008-card-art';
+  if(/^(102|104|105)\.png(?:[?#]|$)/.test(String(src||''))) return String(src).split(/[?#]/)[0]+'?v=20261008-card-art';
   if(/^bh10\.png(?:[?#]|$)/.test(String(src||'')))return src;
   if(!src) return src;
   const raw = String(src);
@@ -4249,7 +4250,9 @@ function getAnnePlanningStatusEffects(game,viewer) {
 
 function getStatusEffectIcon(kind) {
   const icons = {
-    concealed_cards: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12.83 2.18 8.18 4.5a.93.93 0 0 1 0 1.64l-8.18 4.5a1.75 1.75 0 0 1-1.66 0l-8.18-4.5a.93.93 0 0 1 0-1.64l8.18-4.5a1.75 1.75 0 0 1 1.66 0Z"/><path d="m2 12 9.17 5.04a1.75 1.75 0 0 0 1.66 0L22 12"/></svg>',
+    covert_moon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6.25 6.25 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg>',
+    merchant_bargain: '<svg class="merchant-bargain-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 15h2a2 2 0 1 0 0-4h-3c-.6 0-1.1.2-1.4.6L3 17"/><path d="m7 21 1.6-1.4c.3-.4.8-.6 1.4-.6h4c1.1 0 2.1-.4 2.8-1.2l4.6-4.4a2 2 0 0 0-2.75-2.91l-4.2 3.9"/><path d="m2 16 6 6"/><circle cx="16" cy="9" r="2.9"/><circle cx="6" cy="5" r="3"/></svg>',
+    concealed_cards: '<svg viewBox="0 -2.25 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12.83 2.18 8.18 4.5a.93.93 0 0 1 0 1.64l-8.18 4.5a1.75 1.75 0 0 1-1.66 0l-8.18-4.5a.93.93 0 0 1 0-1.64l8.18-4.5a1.75 1.75 0 0 1 1.66 0Z"/><path d="m2 12 9.17 5.04a1.75 1.75 0 0 0 1.66 0L22 12"/></svg>',
     revolutionary_spirit: '<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round"><path d="M25 39H40L36 56H29Z M24 34C9 22 28 17 28 5C43 12 53 25 40 34 M30 31C23 24 35 21 34 15C43 24 40 29 36 32"/></g></svg>',
     private_anne_planning: `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 52V15h31M48 31v21H12M18 20h13m-13 9h8" stroke-width="3.5"/><path d="M24 47l4-13 19-21 8 8-20 21zM29 34l7 7M44 17l8 8" stroke-width="4"/><path d="M21 53h23" stroke-width="3" opacity=".5"/></g></svg>`,
     private_black_rose: `<svg class="private-black-rose-icon" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="30" cy="39" r="16.5" stroke-width="4"/><path d="M27 22v-6h8v7M31 16c0-7 11-5 13-11" stroke-width="4"/><path d="M46 7l5-3M48 13l6 1M40 5l-1-4" stroke-width="3"/><path d="M19 36c1-5 4-8 8-10" stroke-width="3" opacity=".45"/></g></svg>`,
@@ -5710,6 +5713,7 @@ function getTopBarEffectsSourceSignature() {
   if(typeof forEachBoardCard === 'function') {
     forEachBoardCard(function(c, z, r, col){
       if(!c) return;
+      if(String(c.id)==='116') boardBits.push(['anarquista',c.iid,c.owner,c.faceDown?1:0,c._chaparralAmbushUsed?1:0,typeof isCardEffectSuppressed==='function'&&isCardEffectSuppressed(c)?1:0].join(':'));
       if(String(c.id)==='107'){
         boardBits.push(['anne',c.iid,c.controller??c.owner,c.faceDown?1:0,G.turn,
           JSON.stringify(c.counters?.anneDeclarations || c._anneDeclarations || [])].join(':'));
@@ -5758,11 +5762,50 @@ function getTopBarEffectsSourceSignature() {
     // that is created or expires without changing a legacy mirror still
     // mounts/unmounts its normal production top-bar banner immediately.
     JSON.stringify(G._phase7Statuses || []),
+    JSON.stringify(G._saboteurConcealment || null),
+    G._saboteurCloudUntilTurn ?? "", G._saboteurCloudOwner ?? "",
     JSON.stringify(G._revolutionaryFlipGains || []),
     JSON.stringify(G._bh24DefenseInDepth || []),
     handBits.join(','),
     boardBits.join(',')
   ].join('|');
+}
+
+function showMerchantDrawSkippedBanner(playerIndex){
+  const viewer=typeof getPerspectivePlayerIndex==='function'?getPerspectivePlayerIndex():0;
+  if(Number(playerIndex)!==Number(viewer))return;
+  const t=text=>window.FateI18n?.t(text)||text;
+  let banner=document.getElementById('merchant-draw-skipped-banner');
+  if(!banner){
+    banner=document.createElement('div');banner.id='merchant-draw-skipped-banner';
+    banner.setAttribute('role','status');banner.setAttribute('aria-live','polite');
+    banner.appendChild(document.createElement('strong'));banner.appendChild(document.createElement('span'));
+    document.body.appendChild(banner);
+  }
+  banner.children[0].textContent=t('Havano Merchant')+' — '+t('Art of the Deal');
+  banner.children[1].textContent=t('Your Draw Phase draw was skipped by Art of the Deal.');
+  clearTimeout(banner._hideTimer);banner.classList.add('on');
+  banner._hideTimer=setTimeout(()=>banner.classList.remove('on'),4800);
+}
+window.showMerchantDrawSkippedBanner=showMerchantDrawSkippedBanner;
+function getMerchantStatusBanners(g){
+  if(!g || g.winner!=null || g._phase7Outcome)return [];
+  return [0,1].flatMap(owner=>{
+    const canonical=(g._phase7Statuses||[]).filter(s=>s.type==='MERCHANT_DRAW_DENIAL' && Number(s.playerIndex)===owner);
+    const remaining=canonical.length?canonical.reduce((sum,s)=>sum+Math.max(0,Number(s.remainingDrawPhases)||0),0):g._phase7CurrentMultiplayer?0:Number(g.players?.[owner]?._merchantDrawPhases)||0;
+    if(remaining<=0)return [];
+    return [{icon:getStatusEffectIcon('merchant_bargain'),label:'Art of the Deal',cardName:'Havano Merchant',cardAbility:'Art of the Deal',cardEffect:remaining===1?'Skip your next Draw Phase draw. Card effects can still draw cards.':'Skip your next '+remaining+' Draw Phase draws. Card effects can still draw cards.',owner,extraClass:'effect-pill-chaparral',statusInstanceKey:'merchant:'+owner+':'+remaining}];
+  });
+}
+function getSaboteurStatusBanner(g){
+  if(!g || g.winner!=null || g._phase7Outcome)return null;
+  const canonical=(g._phase7Statuses||[]).find(s=>s.type==='SABOTEUR_FIELD_VEIL');
+  const veil=g._saboteurConcealment;
+  const owner=veil?.active?veil.owner:canonical?canonical.playerIndex:g._saboteurCloudOwner;
+  const until=veil?.active?veil.untilTurn:canonical?canonical.untilTurn:g._saboteurCloudUntilTurn;
+  const remaining=Number(until)-Number(g.turn)+1;
+  if(![0,1].includes(Number(owner)) || !Number.isFinite(remaining) || remaining<=0)return null;
+  return {icon:getStatusEffectIcon('covert_moon'),label:'Covert Operations',cardName:'Anarquista Saboteur',cardAbility:'Covert Operations',cardEffect:'Your card actions are concealed.',owner:Number(owner),turnsLeft:remaining,extraClass:'effect-pill-chaparral',statusInstanceKey:'saboteur:'+owner};
 }
 
 function renderTopbarEffects() {
@@ -5784,6 +5827,9 @@ function renderTopbarEffects() {
   // Collect all active effects with ownership
   if(typeof normalizeRiveraEffects === 'function') normalizeRiveraEffects();
   const allEffects = [];
+  allEffects.push(...getMerchantStatusBanners(G));
+  const saboteurBanner=getSaboteurStatusBanner(G);
+  if(saboteurBanner)allEffects.push(saboteurBanner);
 
   for(const status of G._revolutionaryFlipGains || []){
     if(status.turn !== G.turn) continue;
@@ -5794,6 +5840,13 @@ function renderTopbarEffects() {
   // the canonical snapshot instead of requiring the retired multiplayer path
   // to rebuild a parallel collection of client-only flags.
   const phase7Statuses = Array.isArray(G && G._phase7Statuses) ? G._phase7Statuses : [];
+  if(!G._phase7CurrentMultiplayer && typeof getUnusedChaparralAmbusherInZone==='function'){
+    for(const owner of [0,1]){
+      if(phase7Statuses.some(status=>status.type==='FACE_DOWN_CONSOLIDATION_PERMISSION' && Number(status.playerIndex)===owner && Number(status.remaining)>0))continue;
+      const source=getUnusedChaparralAmbusherInZone(0,owner)?.card;
+      if(source)allEffects.push({icon:getStatusEffectIcon('concealed_cards'),label:'The Underground Resistance',cardName:'Anarquista Revolutionary',cardAbility:'The Underground Resistance',cardEffect:'Your next consolidation may be set face down.',owner,sourceIid:source.iid,extraClass:'effect-pill-chaparral',statusInstanceKey:'anarquista:'+owner});
+    }
+  }
   const phase7StatusCard = function(id){ return CARDS.find(function(card){ return String(card.id) === String(id); }); };
   const phase7StatusOwner = function(status, type, fallback){
     const sourceOwner = Number(status && status.sourceController);
@@ -7193,6 +7246,12 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
       ? Math.max(0,Number(getWhisperAuraPotencyBoost({card:card,z:sourcePos.z,r:sourcePos.r,c:sourcePos.c}))||0) : 0;
     value='Aura: +'+(tier+boost)+' Fate';
     sub='Next Tier in '+untilNext+' Turn'+(untilNext===1?'':'s');
+  } else if(trackerId==='120'){
+    label='The Story Never Ends';
+    let eligible=card.emeraldChildrenEligible;
+    if(typeof eligible!=='boolean' && !G._phase7CurrentMultiplayer && typeof emeraldChildrenEligibleLocal==='function') eligible=emeraldChildrenEligibleLocal(owner);
+    value=typeof eligible==='boolean'?(eligible?'Deck eligible':'Deck not eligible'):'Eligibility unavailable';
+    sub=eligible===true?'No Stars in the original deck — Call to Arms and a free set.':eligible===false?'The original deck contains a Star card.':'Waiting for the original deck eligibility.';
   } else if(trackerId==='115'){
     label='Loyalty to Tradition';
     let eligible=card.loyalistEligible;
@@ -11901,7 +11960,7 @@ function showFaceDownEffectChoice(card, onFlip, onActivate, options = {}) {
   const title=options.title || (placement?'Choose your entrance':'Reveal or remain unseen');
   const portraitId = ({'101':126,'102':127,'103':128})[String(card?.id)] || card?.pfpId
     || (/^bh0?(\d+)$/i.test(String(card?.id)) ? 100 + Number(String(card.id).match(/\d+/)[0]) : Number(card?.id));
-  const dedicatedPortrait = ['108','109','110'].includes(String(card?.id)) ? 'pfp/card-'+card.id+'-portrait.svg?v=20261014-full-art' : String(card?.id) === '107' ? 'pfp/card-107-portrait.svg?v=20261010' : ['104','105','106'].includes(String(card?.id)) ? 'pfp/card-'+card.id+'-portrait.png?v=20261009' : '';
+  const dedicatedPortrait = String(card?.id) === '107' ? 'pfp/card-107-portrait.svg?v=20261010' : ['104','105','106'].includes(String(card?.id)) ? 'pfp/card-'+card.id+'-portrait.png?v=20261009' : '';
   const art=e(dedicatedPortrait || card?.cinematicPortrait || (portraitId ? (typeof PFP_PATH === 'function' ? PFP_PATH(portraitId, 'square') : 'pfp/pfp'+portraitId+'.png') : card?.runtimeImg || card?.img || 'back.png'));
   showModal(title,
     '<section class="hidden-effect-choice tactical-choice'+(placement?' placement-choice':'')+'"><aside class="tactical-art"><img src="'+art+'" alt=""><div class="tactical-art-shade"></div>'+(placement?'':'<span class="tactical-edition">HIDDEN IN PLAIN SIGHT</span>')+'<div class="tactical-identity"><small>'+e(card?.ability || 'Tactical decision')+'</small><h3>'+e(card?.name || 'Your card')+'</h3></div></aside>'+

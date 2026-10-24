@@ -212,6 +212,7 @@ function startGame(vsAI=false, options={}) {
   if(!options.spectatorBootstrap) resetSpectatorStateBeforeGame();
   clearCompletedOnlineSessionBeforeLocalGame();
   const keepHowardDevMode = !!window.__fateHowardDevLaunchPending;
+  G._devRewardsDisabled=keepHowardDevMode;
   window.__fateHowardDevLaunchPending = false;
   if(!keepHowardDevMode) clearHowardDevMode();
   const authoritativeV3SinglePlayerRequested = new URLSearchParams(window.location.search || '')
@@ -297,6 +298,7 @@ function startGame(vsAI=false, options={}) {
 
 function startOnlineServerBootstrappedGame(options) {
   clearHowardDevMode();
+  G._devRewardsDisabled = false;
   const opts = options || {};
   if(typeof cleanupLeavingGameScreenArtifacts === 'function') cleanupLeavingGameScreenArtifacts();
   if(typeof G !== 'undefined' && G && G._bootInitPromise) G._bootInitPromise = null;
@@ -398,6 +400,7 @@ function startHowardDevMode() {
   if(typeof CURRENT_MODE !== 'undefined') CURRENT_MODE = 'free';
   window.__fateHowardDevMode = true;
   G._howardDevMode = true;
+  G._devRewardsDisabled = true;
   const launchToken = {};
   window.__fateHowardDevLaunchToken = launchToken;
   G._onlineRoomCode = null;

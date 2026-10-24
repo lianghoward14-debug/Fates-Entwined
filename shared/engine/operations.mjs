@@ -1015,7 +1015,7 @@ function transferCards(ctx, operation){
   const entries = targetIids.map(iid=>findCard(ctx.state, iid));
   if(entries.some(entry=>!entry)) throw operationError('CARD_NOT_FOUND', 'a transferred card no longer exists');
   entries.filter(entry=>entry.zone==='board').forEach(entry=>assertZoeFieldDepartureAllowed(ctx.state,entry));
-  const searchedDeck = entries.some(entry=>entry.zone === 'deck');
+  const searchedDeck = operation.randomSelection !== true && entries.some(entry=>entry.zone === 'deck');
   const transferred = [];
   for(const iid of targetIids){
     const entry = findCard(ctx.state, iid);
@@ -1304,6 +1304,16 @@ function createMatchStatus(ctx, operation){
     throw operationError('INVALID_STATUS', 'match status requires a source and player');
   }
   const type = String(input.type).toUpperCase();
+  if(type === 'MERCHANT_DRAW_DENIAL'){
+    const existing=ctx.state.statuses.filter(status=>status.type===type && Number(status.playerIndex)===playerIndex);
+    const remaining=existing.reduce((sum,status)=>sum+Math.max(0,Number(status.remainingDrawPhases)||0),0);
+    const status={...input,type,sourceIid,playerIndex,statusId:'rule:merchant_draw_denial:p'+playerIndex,
+      remainingDrawPhases:remaining+Math.max(0,Number(input.remainingDrawPhases)||0)};
+    ctx.state.statuses=ctx.state.statuses.filter(status=>!existing.includes(status));
+    ctx.state.statuses.push(status);
+    ctx.events.push({type:'STATUS_CREATED',status:JSON.parse(JSON.stringify(status)),stacked:remaining>0});
+    return {statusId:status.statusId};
+  }
   if(type === 'PERMANENT_FATE_GAIN_POTENCY'){
     const active = ctx.state.statuses.find(status => status.type === type
       && Number(status.playerIndex) === playerIndex && Number(status.remainingOwnerTurns || 0) > 0);

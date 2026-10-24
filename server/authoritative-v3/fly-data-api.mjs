@@ -37,6 +37,10 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
   let aiSimulationSchedule = snapshot.aiSimulationSchedule && typeof snapshot.aiSimulationSchedule === 'object'
     ? clone(snapshot.aiSimulationSchedule)
     : {};
+  // Access is a global entitlement; player collections are never rewritten.
+  let challengerAccess=snapshot.challengerAccess && typeof snapshot.challengerAccess.enabled==='boolean'
+    ? {...snapshot.challengerAccess} : {enabled:true,revision:0};
+  const challengerAccessAdmins=new Set(String(process.env.FATE_CHALLENGER_ACCESS_ADMIN_UIDS || 'nNbfvYwsoDfnvTHQhK4lwN5a2B22').split(',').map(value=>value.trim()).filter(Boolean));
   const saves = mapBy(snapshot.playerSaves, 'uid');
   const decks = mapBy(snapshot.publicDecks, 'deckId');
   const listings = mapBy(snapshot.marketplaceListings, 'listingId');
@@ -67,6 +71,7 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
 
   function serialize(){
     return Object.assign({}, snapshot, {
+      challengerAccess:clone(challengerAccess),
       playerStats:[...profiles.values()], warfrontBindings:[...warfrontBindings.values()], challengerResultReceipts:[...challengerResultReceipts.values()].sort((a,b)=>Number(a.createdAt||0)-Number(b.createdAt||0)).slice(-2000),
       aiRecords:[...aiRecords.values()], playerSaves:[...saves.values()], publicDecks:[...decks.values()],
       aiMatches:aiMatches.slice(-500), aiSimulationSchedule:clone(aiSimulationSchedule),
@@ -650,7 +655,22 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
       res.once?.('finish',()=>console.info('Warfront deployment response',res.statusCode,'elapsedMs',Date.now()-started));
     }
     try{
+      if(p[1]==='challenger-access' && p.length===2){
+        res.setHeader?.('Cache-Control','no-store');
+        if(req.method==='GET'){writeJson(res,200,{ok:true,access:clone(challengerAccess)});return true;}
+        if(req.method!=='POST'){writeJson(res,405,{ok:false,error:'Method not allowed'});return true;}
+        const uid=await verifiedUid(req);
+        if(!challengerAccessAdmins.has(uid)){writeJson(res,403,{ok:false,error:'Only the game owner can change Challenger free access.'});return true;}
+        const body=await readBody(req);
+        if(typeof body.enabled!=='boolean'||!Number.isInteger(body.expectedRevision)){writeJson(res,400,{ok:false,error:'Expected enabled and revision'});return true;}
+        if(body.expectedRevision!==challengerAccess.revision){writeJson(res,409,{ok:false,error:'Challenger access changed. Run the command again.',access:clone(challengerAccess)});return true;}
+        const previous=challengerAccess;
+        challengerAccess={enabled:body.enabled,revision:previous.revision+1,updatedAt:Date.now()};
+        try{flush();}catch(error){challengerAccess=previous;throw error;}
+        writeJson(res,200,{ok:true,access:clone(challengerAccess)});return true;
+      }
       if(req.method==='GET' && p[1]==='warfront' && p[2]==='replays'){
+
         await verifiedUid(req);
         const key=p[3];
         const reports=[warfrontEvent,warfrontEvent?.lastResult,...(warfrontEvent?.archives||[])];

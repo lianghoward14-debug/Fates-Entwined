@@ -582,6 +582,18 @@ export class FateAuthoritativeV3SinglePlayerScreen {
   syncVisualCardPrompt(view){
     const prompt = view?.state?.pendingPrompt;
     const ownsPrompt = Number(prompt?.playerIndex) === Number(view?.playerIndex);
+    if(ownsPrompt && prompt?.local==='moralePayment' && prompt.type==='MODAL_CHOICE' && typeof this.window.showSangrePorVictoriaMoralePicker==='function'){
+      const key=`prompt:${prompt.promptId}`;
+      if(this.visualPromptKey===key)return true;
+      this.visualPromptKey=key;
+      const choose=amount=>{
+        const command=this.view.legalCommands.find(c=>c.type==='ANSWER_PROMPT'&&c.payload?.promptId===prompt.promptId&&String(c.payload?.choice)===String(amount));
+        this.visualPromptKey='';
+        if(command)this.submit(command);
+      };
+      this.window.showSangrePorVictoriaMoralePicker(prompt.playerIndex,choose,()=>choose(0),{currentMorale:view.state.moralePressure?.morale?.[prompt.playerIndex],maximum:Math.max(...prompt.options.map(o=>Number(o.value)))});
+      return true;
+    }
     if(!ownsPrompt || !['CARD_SELECTION', 'HAND_SELECTION'].includes(String(prompt?.type || ''))){
       if(this.visualPromptKey) this.window.closeModal?.({cardChoiceResolved:true,forceHandLimitClose:true,authoritativeHandLimitResolved:true,deferQueuedModals:true});
       this.clearVisualPromptGuard();
@@ -680,6 +692,9 @@ export class FateAuthoritativeV3SinglePlayerScreen {
     }
     for(const event of batch){
       const type = String(event?.type || '').toUpperCase();
+      if(type === 'DRAW_PHASE_SKIPPED' && event.reason === 'MERCHANT_DRAW_DENIAL'){
+        this.window.showMerchantDrawSkippedBanner?.(event.playerIndex);
+      }
       if(type === 'EFFECT_ACTIVATED' || type === 'EFFECT_REACTED'){
         const source = this.findCard(type === 'EFFECT_REACTED' ? event.reactionIid : event.sourceIid);
         if(type === 'EFFECT_ACTIVATED' && String(source?.id || '') === '18') this.window.playFateReactionSfx?.(true, source);

@@ -1,5 +1,10 @@
 import {TEMPORARILY_RETIRED_CARD_IDS as retiredCardIds} from '../../card-availability.mjs';
 const REGISTRY = Object.freeze({
+  '119':{timings:['WHEN_SET'],operations:['CREATE_MATCH_STATUS'],prompts:['MODAL_CHOICE','CARD_SELECTION'],program:[
+    {kind:'OPERATION',operation:{type:'CREATE_MATCH_STATUS',status:{type:'MERCHANT_DRAW_DENIAL',playerIndex:'$controller',sourceIid:'$sourceIid',remainingDrawPhases:3}}},
+    {kind:'SELECT_HOPLITE_CALL',local:'callCardId',unconditional:true},
+    {kind:'RESOLVE_HOPLITE_CALL',cardId:'$callCardId'}
+  ]},
   '120':{timings:['WHEN_SET'],operations:[],prompts:['MODAL_CHOICE','CARD_SELECTION'],program:[
     {kind:'REQUIRE_NO_ORIGINAL_STARS'},
     {kind:'SELECT_HOPLITE_CALL',local:'callCardId',unconditional:true},
@@ -8,11 +13,7 @@ const REGISTRY = Object.freeze({
   '117':{timings:['WHEN_SET'],operations:['CREATE_MATCH_STATUS'],prompts:[],program:[
     {kind:'OPERATION',operation:{type:'CREATE_MATCH_STATUS',status:{type:'SABOTEUR_FIELD_VEIL',playerIndex:'$controller',sourceIid:'$sourceIid'}}}
   ]},
-  '118':{timings:['WHEN_SET'],operations:['CREATE_MATCH_STATUS'],prompts:['MODAL_CHOICE','CARD_SELECTION'],program:[
-    {kind:'OPERATION',operation:{type:'CREATE_MATCH_STATUS',status:{type:'PERMANENT_DRAW_PHASE_LOCK',playerIndex:'$controller',sourceIid:'$sourceIid'}}},
-    {kind:'SELECT_HOPLITE_CALL',local:'callCardId',unconditional:true},
-    {kind:'RESOLVE_HOPLITE_CALL',cardId:'$callCardId'}
-  ]},
+  '118':{timings:['WHEN_SET'],havanoTargeting:'OPPONENT',operations:['TRANSFER_CARDS'],prompts:[],program:[{kind:'CARIBBEA_FISHERMAN'}]},
   '112':{timings:['WHEN_SET'],operations:['MODIFY_FATE'],prompts:[],program:[{kind:'REVOLUTIONARY_FLIPPED_FATE'}]},
   '113':{timings:['WHEN_SET'],havanoTargeting:'OPPONENT',operations:[],prompts:['CARD_SELECTION'],program:[
     {kind:'SELECT_CARDS',local:'orderedIids',reorderTopCount:5,exactUpToAvailable:5,filter:{locations:['deck'],playerIndex:'opponent'},title:'Oppression of the Old Elite',prompt:'Arrange your opponent’s next five draws.'},
@@ -1813,8 +1814,8 @@ const REGISTRY = Object.freeze({
   ]},
   '106':{timings:['PASSIVE'],effectLabels:['GROWING_ZONE_FATE_AURA'],operations:['MODIFY_MORALE','SET_CARD_COUNTER'],prompts:[],program:[]},
   '103':{
-    timings:['WHEN_SET'],effectLabels:['DISCARD_HIGH_FATE_CALL_TO_ARMS'],operations:['DISCARD_CARD'],prompts:['MODAL_CHOICE','CARD_SELECTION'],
-    program:[{kind:'SANTIAGO_CALL_COST'},{kind:'SELECT_HOPLITE_CALL',local:'callCardId',unconditional:true},{kind:'RESOLVE_HOPLITE_CALL',cardId:'$callCardId'}]
+    timings:['WHEN_SET'],effectLabels:['PAY_MORALE_DRAW'],operations:['MODIFY_MORALE','DRAW_CARD'],prompts:['MODAL_CHOICE'],
+    program:[{kind:'CHOOSE_OPTION',local:'moralePayment',moralePaymentStep:15,options:[{value:'0',label:'Do not pay'}],defaultChoice:'0'},{kind:'SANTIAGO_MORALE_DRAW'}]
   },
   'test-p3-chain':{
     testOnly:true,

@@ -280,6 +280,7 @@ function booster2PackChance() { return 0.10; }
 function booster3PackChance() { return 0.10; }
 
 function awardVictoryDrops(didWin) {
+  if(typeof window.isFateDevRewardBlocked === 'function' && window.isFateDevRewardBlocked())return [];
   if(!didWin) return [];
   const drops = [];
   if(Math.random() < freePackChance()){
@@ -336,6 +337,7 @@ function zeroXpResult(){
 
 // Free Play: XP only, no ELO change and no permanent win/loss tracking.
 function recordFreePlayResult(didWin, opponentElo=1000, opts={}) {
+  if(typeof window.isFateDevRewardBlocked === 'function' && window.isFateDevRewardBlocked())return {eloChange:0,xpGained:0,levelsGained:0,newLevel:USER_PROFILE.level};
   opts = normalizeResultOptions(opts);
   const xpAmount = Math.floor(calculateXpReward(didWin, opponentElo) * 0.5); // Half XP in free play
   const xpResult = (opts.forfeit || opts.skipXp) ? zeroXpResult() : awardXp(xpAmount);
@@ -355,6 +357,7 @@ function recordFreePlayResult(didWin, opponentElo=1000, opts={}) {
 // Challenger: uses challengerElo, separate win/loss counters. AI and human matches
 // use the same ELO/XP curve; Starlight rewards stay tuned separately.
 function recordChallengerResult(didWin, opponentElo=1000, isAI=false, opts={}) {
+  if(typeof window.isFateDevRewardBlocked === 'function' && window.isFateDevRewardBlocked())return {eloChange:0,xpGained:0,levelsGained:0,newLevel:USER_PROFILE.level};
   if(isAI && typeof isAI === 'object'){
     opts = isAI;
     isAI = !!opts.isAI;
@@ -461,6 +464,7 @@ setTimeout(processPendingAiChallengeForfeit, 0);
 // Hook into awardXp: grant starlight on level-up (enough for ~2 packs, scales up)
 const _origAwardXp = awardXp;
 awardXp = function(amount){
+  if(typeof window.isFateDevRewardBlocked === 'function' && window.isFateDevRewardBlocked())return {eloChange:0,xpGained:0,levelsGained:0,newLevel:USER_PROFILE.level};
   const before = USER_PROFILE.level;
   const result = _origAwardXp(amount);
   if(typeof updateDailyChallengeProgress === 'function' && amount > 0){
@@ -2388,7 +2392,7 @@ function getChRendererForTab(tab) {
 function getChTabStateSig(tab) {
   const p = typeof USER_PROFILE !== 'undefined' ? USER_PROFILE : {};
   const presets = p.challengerPresets || {};
-  const owned = p.ownedCards || {};
+  const owned = (window.FateChallengerAccess?.collection() || p.ownedCards || {});
   const cdbDeck = typeof _cdbDeck !== 'undefined' && Array.isArray(_cdbDeck) ? _cdbDeck.join(',') : '';
   const cdbSaved = typeof _cdbCurrentDeckId !== 'undefined' ? (_cdbCurrentDeckId || '') : '';
   const base = [
@@ -3026,6 +3030,7 @@ window.startRandomAiChallenge = function(){
 window.chPickDeckAndStart = function(pid){
   const preset = getDeckPickPresetsForCurrentMode()?.[pid];
   if(!preset) return;
+  if(CURRENT_MODE!=='free' && window.FateChallengerAccess && !window.FateChallengerAccess.requireDeck(preset.ids))return;
   G.p1Deck = [...preset.ids];
   closeModal();
   if(G._pickDeckAfterMatchmaking){
@@ -3052,6 +3057,7 @@ function chStartWithDeck(pid) {
   if(preset.ids.length!==40){toast('Deck must have 40 cards');return;}
   CURRENT_MODE = 'challenger';
   // Load as P1 deck then go to difficulty picker
+  if(CURRENT_MODE!=='free' && window.FateChallengerAccess && !window.FateChallengerAccess.requireDeck(preset.ids))return;
   G.p1Deck = [...preset.ids];
   showAIDifficultyPicker();
 }
@@ -3981,7 +3987,7 @@ let _collFilter = 'all';
 function renderChCollectionTab(content) {
   content = resolveChRenderTarget(content, 'collection');
   if(!content) return;
-  const owned = USER_PROFILE.ownedCards || {};
+  const owned = (window.FateChallengerAccess?.collection() || USER_PROFILE.ownedCards || {});
   const collectionPool = getChallengerCardPool();
   const collectionIds = new Set(collectionPool.map(c=>c.id));
   const totalCards = collectionPool.length;
@@ -4101,7 +4107,7 @@ window.showChallengerStarterDeckWarning = showChallengerStarterDeckWarning;
 function renderChDeckBuilderTab(content) {
   content = resolveChRenderTarget(content, 'deckbuilder');
   if(!content) return;
-  const owned = USER_PROFILE.ownedCards || {};
+  const owned = (window.FateChallengerAccess?.collection() || USER_PROFILE.ownedCards || {});
   const presets = USER_PROFILE.challengerPresets || {};
   const presetKeys = Object.keys(presets);
   const currentPreset = _cdbCurrentDeckId ? presets[_cdbCurrentDeckId] : null;
@@ -4513,7 +4519,7 @@ function renderCdbCollection() {
   col.innerHTML = '';
   const searchEl = document.getElementById('cdb-search');
   if(searchEl && searchEl.value !== _cdbSearch) searchEl.value = _cdbSearch;
-  const owned = USER_PROFILE.ownedCards || {};
+  const owned = (window.FateChallengerAccess?.collection() || USER_PROFILE.ownedCards || {});
   const rarities = ['star','square','triangle','circle'];
   const cards = sortCardsByArtNumber(getChallengerCardPool().filter(c=>{
     const ct = owned[c.id] || 0;
@@ -4531,7 +4537,7 @@ function renderCdbCollection() {
   }
   if(typeof renderCanvasDeckCollection === 'function') {
     const entries = cards.map(c=>{
-      const owned_n = USER_PROFILE.ownedCards[c.id] || 0;
+      const owned_n = (window.FateChallengerAccess?.collection() || USER_PROFILE.ownedCards || {})[c.id] || 0;
       const inDeck = _cdbCurrentDeckIds.filter(id=>id===c.id).length;
       const avail = owned_n - inDeck;
       return {
@@ -4554,7 +4560,7 @@ function renderCdbCollection() {
     })) return;
   }
   cards.forEach(c=>{
-    const owned_n = USER_PROFILE.ownedCards[c.id] || 0;
+    const owned_n = (window.FateChallengerAccess?.collection() || USER_PROFILE.ownedCards || {})[c.id] || 0;
     const inDeck = _cdbCurrentDeckIds.filter(id=>id===c.id).length;
     const avail = owned_n - inDeck;
     const el = document.createElement('div');
@@ -4575,7 +4581,7 @@ function renderCdbCollection() {
 }
 
 function refreshCdbCollectionCounts() {
-  const owned = USER_PROFILE.ownedCards || {};
+  const owned = (window.FateChallengerAccess?.collection() || USER_PROFILE.ownedCards || {});
   if(typeof refreshCanvasDeckCollectionCounts === 'function' && refreshCanvasDeckCollectionCounts(document.getElementById('cdb-collection'), function(entry){
     const id = entry.card.id;
     const owned_n = owned[id] || 0;
@@ -4698,7 +4704,7 @@ function cdbNewDeck() {
 
 function buildChallengerImportDeck(ids) {
   const rawIds = Array.isArray(ids) ? ids : [];
-  const owned = USER_PROFILE.ownedCards || {};
+  const owned = (window.FateChallengerAccess?.collection() || USER_PROFILE.ownedCards || {});
   const deck = [];
   let missingOwned = 0;
   let skipped = 0;
@@ -4788,7 +4794,7 @@ function cdbAdd(id) {
   if(_cdbCurrentDeckIds.length >= 40){toast('Deck is full (40 cards)');return;}
   const c = CARDS.find(x=>x.id===id);
   if(!c) return;
-  const owned_n = USER_PROFILE.ownedCards[id] || 0;
+  const owned_n = (window.FateChallengerAccess?.collection() || USER_PROFILE.ownedCards || {})[id] || 0;
   const inDeck = _cdbCurrentDeckIds.filter(x=>x===id).length;
   if(inDeck >= owned_n){toast(`You don't own any more copies of ${c.name}`);return;}
   // Rarity copy limits match the main deck builder: Star cards are singleton, every other rarity can use up to 3 owned copies.
@@ -4810,7 +4816,7 @@ function cdbAdd(id) {
 function getChallengerDeckBuilderAddBlockReason(card) {
   if(!card) return 'Card unavailable';
   if(_cdbCurrentDeckIds.length >= 40) return 'Deck is full (40 cards)';
-  const owned = Number(USER_PROFILE.ownedCards?.[card.id]) || 0;
+  const owned = Number((window.FateChallengerAccess?.collection() || USER_PROFILE.ownedCards || {})[card.id]) || 0;
   const inDeck = _cdbCurrentDeckIds.filter(id=>id===card.id).length;
   if(inDeck >= owned) return 'No owned copies remaining';
   const copyLimit = card.rarity === 'star' ? 1 : 3;
@@ -4876,6 +4882,7 @@ function cdbClear() {
 }
 
 function cdbSaveDeck() {
+  if(window.FateChallengerAccess && !window.FateChallengerAccess.requireDeck(_cdbCurrentDeckIds))return;
   if(_cdbCurrentDeckIds.length !== 40){toast(`Deck must be exactly 40 cards (currently ${_cdbCurrentDeckIds.length})`);return;}
   openCdbSaveAsNewDialog();
 }
@@ -5401,6 +5408,7 @@ window.chStartMatchmaking = chStartMatchmaking;
 window.chPickDeckAndStartMatchmaking = function(pid){
   const preset = USER_PROFILE.challengerPresets?.[pid];
   if(!preset) return;
+  if(CURRENT_MODE!=='free' && window.FateChallengerAccess && !window.FateChallengerAccess.requireDeck(preset.ids))return;
   G.p1Deck = [...preset.ids];
   G._aiRewardMultiplier = 1;
   window.FATE_ONLINE_PENDING_ROOM_DECK = {
@@ -7448,6 +7456,7 @@ window.showDivisionPage = showDivisionPage;
 
 // --- DIVISION REWARDS (first-time achievement) ---
 function checkDivisionReward(elo) {
+  if(typeof window.isFateDevRewardBlocked === 'function' && window.isFateDevRewardBlocked())return;
   const rank = getRank(elo);
   if(!USER_PROFILE._achievedDivisions) USER_PROFILE._achievedDivisions = [];
   if(USER_PROFILE._achievedDivisions.includes(rank.name)) return;
@@ -7672,6 +7681,7 @@ function getDailyChallengeProgress(key) {
 }
 
 function updateDailyChallengeProgress(key, value, mode) {
+  if(typeof window.isFateDevRewardBlocked === 'function' && window.isFateDevRewardBlocked())return;
   // mode: 'add' | 'max' | 'set'
   var today = getDailyChallengeDate();
   var prog = getDailyChallengeProgress();

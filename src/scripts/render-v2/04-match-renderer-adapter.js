@@ -342,7 +342,7 @@
     const s = String(source || '').toLowerCase();
     if(!s) return DIRTY_ALL;
     if(s === 'low-morale-supporter-pulse' || s === 'high-t-beat') return DIRTY_BOARD_CARDS;
-    if(s === 'square-feedback') return DIRTY_BOARD_CARDS;
+    if(s === 'square-feedback' || s === 'saboteur-card-reveal') return DIRTY_BOARD_CARDS;
     if(s.indexOf('vfx') >= 0) return DIRTY_EFFECTS | DIRTY_PARTICLES;
     if(s.indexOf('final-zone-flash') >= 0) return DIRTY_EFFECTS;
     if(s.indexOf('consolidat') >= 0 || s.indexOf('tribute') >= 0) return DIRTY_BOARD_CARDS | DIRTY_HOVER | DIRTY_HAND | DIRTY_EFFECTS;
@@ -3226,6 +3226,13 @@
   }
 
   function drawCardVisual(ctx, entry, visual, r, onChange, options){
+    const alpha=entry?.z!=null ? (window.FateSaboteurClouds?.cardAlpha(entry.card) ?? 1) : 1;
+    if(alpha<=0)return;
+    ctx.save();ctx.globalAlpha*=alpha;
+    try{return drawCardVisualContent(ctx,entry,visual,r,onChange,options);}
+    finally{ctx.restore();}
+  }
+  function drawCardVisualContent(ctx, entry, visual, r, onChange, options){
     const opts = options || {};
     const showStatus = opts.showStatus !== false;
     const tilt = Number.isFinite(opts.tilt) ? opts.tilt : stableCardTilt(entry);
@@ -6176,7 +6183,7 @@
 
     const sourceText = sourceLower;
     const overlayPulseOnly = isCardOverlayPulseSource(sourceText);
-    const cardLayerOnly = (overlayPulseOnly || sourceText.indexOf('zone-scroll') >= 0 || sourceText.indexOf('texture-ready') >= 0 || sourceText.indexOf('square-feedback') >= 0)
+    const cardLayerOnly = (overlayPulseOnly || sourceText === 'saboteur-card-reveal' || sourceText.indexOf('zone-scroll') >= 0 || sourceText.indexOf('texture-ready') >= 0 || sourceText.indexOf('square-feedback') >= 0)
       && !!(lastReport && lastReport.available && lastLayout && lastSnapshot && lastCanvasMetrics)
       && !!(dirtyMask & DIRTY_BOARD_CARDS)
       && !(dirtyMask & (DIRTY_LAYOUT | DIRTY_BACKGROUND | DIRTY_HAND | DIRTY_OPP_HAND | DIRTY_PILES | DIRTY_MOTION));

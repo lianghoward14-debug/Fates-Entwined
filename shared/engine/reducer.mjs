@@ -849,6 +849,10 @@ function openInstructionPrompt(state, frame, instruction, ctx){
       instruction.landscapeChoices !== true
       || (option.value !== state.landscapeId && !landscapeChangeBlockReason(state, option.value))
     );
+    if(instruction.moralePaymentStep){
+      const maximum=Math.floor(Math.max(0,Number(state.moralePressure?.morale?.[frame.controller])||0)/15);
+      options=Array.from({length:maximum+1},(_,i)=>({value:String(i*15),label:i?'Pay '+(i*15)+' Morale — Draw '+i:'Do not pay'}));
+    }
     if(instruction.maxByControllerMorale===true){
       const morale=Math.max(0,Number(state.moralePressure?.morale?.[frame.controller])||0);
       options=options.filter(option=>Number(option.value)<=morale);
@@ -873,6 +877,7 @@ function openInstructionPrompt(state, frame, instruction, ctx){
       sourceIid:frame.sourceIid,
       options,
       local:instruction.local,
+      ...(instruction.moralePaymentStep ? {title:'Sangre Por Victoria',moralePaymentStep:15} : {}),
       cancellable:instruction.cancellable !== false,
       cancelBehavior:instruction.cancelBehavior || 'END_EFFECT',
       defaultChoice,
@@ -1165,6 +1170,25 @@ function runEffectStack(state, ctx){
       state.effectStack.pop();
       ctx.events.push({type:'EFFECT_RESOLVED', sourceIid:frame.sourceIid, frameId:frame.frameId});
       continue;
+    }
+    if(instruction.kind === 'CARIBBEA_FISHERMAN'){
+      const deck=state.players[1-frame.controller].deck;
+      if(deck.length){
+        const card=deck[nextInt(state.rngState,deck.length)];
+        card.controller=frame.controller;
+        applyOperation(ctx,{type:'TRANSFER_CARDS',targetIid:card.iid,playerIndex:frame.controller,destinationPile:'hand',sourceIid:frame.sourceIid,sourceController:frame.controller,randomSelection:true,reason:'TREACHEROUS_SEAS'});
+      }
+      frame.instructionIndex++;continue;
+    }
+    if(instruction.kind === 'SANTIAGO_MORALE_DRAW'){
+      const amount=Number(frame.locals.moralePayment||0),before=Math.max(0,Number(state.moralePressure?.morale?.[frame.controller])||0);
+      if(!Number.isInteger(amount)||amount<0||amount%15||amount>before)throw Object.assign(new Error('Invalid Morale payment'),{code:'INVALID_CHOICE'});
+      if(amount){
+        applyOperation(ctx,{type:'MODIFY_MORALE',playerIndex:frame.controller,amount:-amount,sourceIid:frame.sourceIid,sourceController:frame.controller,reason:'SANGRE_POR_VICTORIA_COST'});
+        const paid=Math.max(0,before-Number(state.moralePressure?.morale?.[frame.controller]));
+        if(paid>=15)applyOperation(ctx,{type:'DRAW_CARD',playerIndex:frame.controller,count:Math.floor(paid/15),activatedEffect:true,sourceIid:frame.sourceIid,sourceController:frame.controller});
+      }
+      frame.instructionIndex++;continue;
     }
     if(instruction.kind === 'SANTIAGO_CALL_COST'){
       const targets=boardEntries(state).filter(entry=>controllerOf(entry.card)===frame.controller && effectiveFate(state,entry)>=7);
@@ -1605,13 +1629,18 @@ function completeEndTurn(state, ctx, actorIndex){
   const landscapeDrawSkipped = shouldSkipLandscapeDraw(state, state.activePlayer);
   const moraleDrawSkipped = shouldSkipMoraleDraw(state, state.activePlayer);
   const emeraldDrawSkipped = state.statuses.some(status=>status.type==='PERMANENT_DRAW_PHASE_LOCK' && Number(status.playerIndex)===state.activePlayer);
-  const drawSkipped = emeraldDrawSkipped || landscapeDrawSkipped || moraleDrawSkipped;
+  const merchantDenials=state.statuses.filter(status=>status.type==='MERCHANT_DRAW_DENIAL' && Number(status.playerIndex)===state.activePlayer && status.remainingDrawPhases>0);
+  const merchantDrawSkipped=merchantDenials.length>0;
+  if(merchantDrawSkipped)merchantDenials[0].remainingDrawPhases--;
+  state.statuses=state.statuses.filter(status=>status.type!=='MERCHANT_DRAW_DENIAL'||status.remainingDrawPhases>0);
+  const drawSkipped = merchantDrawSkipped || emeraldDrawSkipped || landscapeDrawSkipped || moraleDrawSkipped;
   if(drawSkipped){
     ctx.events.push({
       type:'DRAW_PHASE_SKIPPED',
       playerIndex:state.activePlayer,
       turn:state.turn,
-      reason:emeraldDrawSkipped ? 'PERMANENT_DRAW_PHASE_LOCK' : landscapeDrawSkipped ? 'LANDSCAPE_IGB13_ALTERNATING_SKIP' : 'MORALE_60_ALTERNATING_DRAW'
+      remainingDrawPhases:merchantDenials.reduce((sum,status)=>sum+Math.max(0,status.remainingDrawPhases),0),
+      reason:merchantDrawSkipped ? 'MERCHANT_DRAW_DENIAL' : emeraldDrawSkipped ? 'PERMANENT_DRAW_PHASE_LOCK' : landscapeDrawSkipped ? 'LANDSCAPE_IGB13_ALTERNATING_SKIP' : 'MORALE_60_ALTERNATING_DRAW'
     });
   }else{
     applyOperation(ctx, {type:'DRAW_CARD', playerIndex:state.activePlayer, count:1, activatedEffect:false});
@@ -3087,15 +3116,16 @@ export function reduceCommand(currentState, rawCommand, options = {}){
     const newVeil=state.statuses.find(status=>status.type==='SABOTEUR_FIELD_VEIL' && !status.started);
     if(newVeil){
       newVeil.started=true;
+      newVeil.untilTurn=state.turn+2;
       if(!state.saboteurVeil || state.turn>state.saboteurVeil.untilTurn){
         const owner=Number(newVeil.playerIndex);
-        state.saboteurVeil={owner,turn:state.turn,untilTurn:state.turn+2,opponent:projectStateForPlayer(currentState,1-owner),spectator:projectStateForSpectator(currentState)};
+        state.saboteurVeil={owner,turn:state.turn,untilTurn:state.turn+2,opponent:projectStateForPlayer(state,1-owner),spectator:projectStateForSpectator(state)};
       }else{
         state.saboteurVeil.untilTurn=Math.max(state.saboteurVeil.untilTurn,state.turn+2);
       }
     }
     const activeVeil=currentState.saboteurVeil && currentState.turn<=currentState.saboteurVeil.untilTurn ? currentState.saboteurVeil : state.saboteurVeil;
-    if(activeVeil && actorIndex===activeVeil.owner)for(const event of ctx.events){
+    if(activeVeil && currentState.saboteurVeil && actorIndex===activeVeil.owner)for(const event of ctx.events){
       event.privateTo=Array.isArray(event.privateTo)?event.privateTo.filter(p=>Number(p)===activeVeil.owner):[activeVeil.owner];
     }
     if(state.saboteurVeil && (state.turn>state.saboteurVeil.untilTurn || state.outcome)){

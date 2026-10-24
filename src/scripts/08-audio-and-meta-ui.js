@@ -3491,10 +3491,10 @@ function stopProfilePickerObserver() {
 
 function profilePickerThumbSrc(pfpId) {
   const id = Math.max(1, parseInt(pfpId, 10) || 1);
-  if(id >= 126 && id <= 135) return PFP_PATH(id, 'square');
+  if(id >= 126 && id <= 145) return PFP_PATH(id, 'square');
   // Lydia's full portrait was replaced after the thumbnail sheet was built.
   // Use the versioned source so the picker and cropper always show the same art.
-  if(id === 56) return PFP_PATH(id, 'square');
+  if(id === 56 || id === 121) return PFP_PATH(id, 'square');
   return `optimized/pfp-thumbs/pfp${id}.jpg?v=pfp-picker-20260831a`;
 }
 

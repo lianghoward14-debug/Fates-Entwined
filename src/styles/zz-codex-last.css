@@ -29180,6 +29180,7 @@ html body #modal .board-target-picker.is-multi-zone:not(.allows-board-scroll) .b
   min-height:0!important;
   aspect-ratio:5 / 7!important;
 }
+html body #merchant-draw-skipped-banner,
 html body #supporter-hard-cap-banner{
   position:fixed;
   left:50%;
@@ -29203,15 +29204,18 @@ html body #supporter-hard-cap-banner{
   transition:opacity .2s ease,transform .24s ease;
   text-align:center;
 }
+html body #merchant-draw-skipped-banner.on,
 html body #supporter-hard-cap-banner.on{
   opacity:1;
   transform:translate(-50%,0);
 }
+html body #merchant-draw-skipped-banner strong,
 html body #supporter-hard-cap-banner strong{
   font:800 .78rem/1.15 'Cinzel',serif;
   letter-spacing:.16em;
   color:#ffd866;
 }
+html body #merchant-draw-skipped-banner span,
 html body #supporter-hard-cap-banner span{
   font:600 .72rem/1.25 'Inter',sans-serif;
   color:rgba(255,248,222,.9);
@@ -29684,3 +29688,35 @@ html body #modal .modal:has(.anne-declaration) #modal-acts .btn{border-color:#55
 html body #modal .modal:has(.anne-declaration) #modal-acts .btn:hover{background:#345447!important;border-color:#a3c6ae!important;}
 html body #modal .modal:has(.anne-declaration){max-height:calc(100dvh - 24px)!important;overflow-y:auto!important;}
 html[lang=ja] body #modal .anne-declaration :is(h3,p){line-height:1.65;}
+
+/* Keep Underground Resistance copy centered beside its existing icon. */
+html body .status-overflow-banner.effect-pill-chaparral .status-overflow-title,
+html body .status-overflow-banner.effect-pill-chaparral .status-overflow-dropdown-effect{
+ text-align:center!important;
+ justify-self:stretch!important;
+ width:100%!important;
+}
+/* Merchant's Bargain: enlarge only the emblem inside the existing circle. */
+html body .status-overflow-banner .status-overflow-dropdown-icon svg.merchant-bargain-icon,
+html body #s-game .mp-status-popover .mp-status-entry .effect-pill-icon svg.merchant-bargain-icon,
+html body #s-game .effect-pill-icon svg.merchant-bargain-icon{
+  width:25.65px!important;height:25.65px!important;max-width:25.65px!important;max-height:25.65px!important;
+  display:block!important;margin:auto!important;
+}
+
+/* Span the full payment column, through the +15 control's right edge. */
+html body #modal .modal:has(.sangre-morale-picker) #modal-body{
+  padding:0 12px!important;
+  box-sizing:border-box!important;
+}
+html body #modal .sangre-morale-picker{
+  width:100%!important;
+  min-width:0!important;
+  box-sizing:border-box!important;
+  overflow:hidden!important;
+}
+html body #modal .sangre-morale-picker #sangre-pay-slider{
+  display:block!important;box-sizing:border-box!important;
+  width:100%!important;min-width:0!important;max-width:none!important;
+  margin-left:0!important;margin-right:0!important;
+}

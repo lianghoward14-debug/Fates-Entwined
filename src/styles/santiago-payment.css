@@ -1,0 +1,18 @@
+#modal .modal:has(.sangre-morale-picker){width:min(760px,94vw)!important;border:1px solid #bda05a!important;border-radius:3px!important;background:#171418!important}
+#modal .sangre-morale-picker{display:grid!important;grid-template-columns:32% 1fr!important;padding:0!important;border:0!important;border-radius:0!important;background:linear-gradient(120deg,#421b20,#1c1920 65%)!important;text-align:center!important;color:#f0e5cc!important;box-shadow:none!important}
+#modal .sangre-morale-picker .payment-portrait{min-height:350px!important;background:#50252a}
+#modal .sangre-morale-picker .payment-portrait img{width:100%!important;height:100%!important;left:0!important;top:0!important;object-fit:cover!important;object-position:48% 50%!important;mask-image:none!important}
+#modal .sangre-morale-picker .payment-portrait::after{background:linear-gradient(0deg,#24151be8,transparent 65%)!important}
+#modal .sangre-morale-picker .payment-portrait span{left:10px!important;right:10px;bottom:20px!important;font:700 11px Georgia,serif!important;letter-spacing:.12em!important}
+#modal .sangre-morale-picker .payment-controls{padding:28px!important}
+#modal .sangre-morale-picker .payment-controls h3{color:#eed9a5!important;font:26px Georgia,serif!important}
+#modal .sangre-morale-picker .payment-controls p{color:#c8bba5!important;margin-bottom:24px!important}
+#modal .sangre-morale-picker .sangre-kicker{color:#c6ac71;letter-spacing:.18em;font:11px Georgia,serif}
+#modal .sangre-morale-picker .sangre-amount strong{color:#f4d991;font:700 54px Georgia,serif;text-shadow:none}
+#modal .sangre-morale-picker input[type=range]{width:100%;height:8px;accent-color:#d9b66c;cursor:ew-resize}
+#modal .sangre-morale-picker .sangre-stepper{grid-template-columns:52px 1fr 52px}
+#modal .sangre-morale-picker .sangre-stepper button{border:1px solid #8f754b;border-radius:2px;background:#291e21;color:#f2dcac;font:14px Georgia,serif}
+#modal .sangre-morale-picker .sangre-stepper output{color:#f2dfb6;font:700 19px Georgia,serif}
+#modal .sangre-morale-picker .sangre-balance{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 14px;margin-top:22px;color:#c3b7a2;font:12px Georgia,serif}
+#modal .sangre-morale-picker .sangre-balance b{color:#eed9a5}
+@media(max-width:620px){#modal .sangre-morale-picker{grid-template-columns:1fr!important}#modal .sangre-morale-picker .payment-portrait{display:none!important}#modal .sangre-morale-picker .payment-controls{padding:24px 18px!important}}

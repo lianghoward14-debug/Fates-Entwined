@@ -402,7 +402,10 @@ const TITLE_BG_PATH = n => FATE_BACKGROUND_URL(`optimized/backgrounds/titlscreen
 const INGAME_BG_PATH = n => FATE_BACKGROUND_URL(Number(n) === 1 ? 'ingamebackgrouds/igb1.png?v=bg20260705' : ([15,18,21,22,23,24].includes(Number(n)) ? `ingamebackgrouds/igb${n}.png` : `optimized/backgrounds/ingamebackgrouds_igb${n}.jpg`));
 const PFP_PATH = (n, shape='circle') => {
   const id = Math.max(1, parseInt(n, 10) || 1);
-  if(id >= 133 && id <= 135) return `pfp/card-${id-25}-portrait.svg?v=20261014-full-art`;
+  if(id===128)return 'pfp/pfp128.png?v=20261023-tight-crop';
+  if(id===141)return 'pfp/pfp141.png?v=b779d5cc4592';
+  if(id===142)return 'pfp/pfp142.png?v=c69ad94a9997';
+  if((id>=133&&id<=145)||id===121||id===128) return `pfp/pfp${id}.png?v=20261023-portraits`;
   if(id === 132) return 'pfp/card-107-portrait.svg?v=20261010';
   if(id >= 126 && id <= 128) return `pfp/card-${id-25}-portrait.svg?v=20261008`;
   if(id >= 129 && id <= 131) return `pfp/card-${id-25}-portrait.png?v=20261009`;
@@ -419,7 +422,7 @@ const SET_VOICELINE_PATH = name => {
   const path = `setvoicelines/${key}.${ext}`;
   return key === 'board22' ? path + '?v=audio20260831-mexico' : path;
 };
-const PFP_CATALOG_SIZE = 135;
+const PFP_CATALOG_SIZE = 145;
 const ALL_PFP_IDS = Array.from({length:PFP_CATALOG_SIZE}, (_,i)=>i+1);
 const DEFAULT_PROFILE_IMG = 'blank.png';
 
@@ -699,8 +702,17 @@ function getBadgeForLevel(lvl){
   return BADGES[0];
 }
 
+// Keep developer-match provenance through the result-screen transition, which
+// clears the interactive developer tools before reward callbacks run.
+function isFateDevRewardBlocked(){
+  return !!(window.__fateHowardDevMode || window.__fateHowardDevLaunchPending
+    || (typeof G !== 'undefined' && G && (G._howardDevMode || G._devRewardsDisabled)));
+}
+window.isFateDevRewardBlocked=isFateDevRewardBlocked;
+
 // Award XP and handle level-ups. Returns {xpGained, levelsGained, newLevel}
 function awardXp(amount){
+  if(isFateDevRewardBlocked())return {eloChange:0,xpGained:0,levelsGained:0,newLevel:USER_PROFILE.level};
   if(amount <= 0) return {xpGained:0, levelsGained:0, newLevel:USER_PROFILE.level};
   let levelsGained = 0;
   USER_PROFILE.totalXp = (USER_PROFILE.totalXp||0) + amount;
@@ -1004,6 +1016,7 @@ function normalizeDailyLoginProfileState() {
 }
 
 function claimDailyLoginReward() {
+  if(isFateDevRewardBlocked())return false;
   const state = normalizeDailyLoginProfileState();
   if(state.claimedToday){
     if(typeof toast === 'function') toast('Daily reward already claimed');
@@ -1172,6 +1185,11 @@ function handleFateChatCommand(text) {
     } else if(typeof renderGame === 'function') {
       renderGame({board:true, hand:true});
     }
+    return true;
+  }
+  if(cmd === '/challengerfree'){
+    if(window.FateChallengerAccess)window.FateChallengerAccess.toggle();
+    else if(typeof toast==='function')toast('Challenger access controls are still loading.');
     return true;
   }
   if(cmd === '/logincheck'){
@@ -1413,6 +1431,7 @@ function calculateElo(playerElo, opponentElo, didWin) {
 }
 
 function recordGameResult(didWin, opponentElo=1000) {
+  if(isFateDevRewardBlocked())return {eloChange:0,xpGained:0,levelsGained:0,newLevel:USER_PROFILE.level};
   const newElo = calculateElo(USER_PROFILE.elo, opponentElo, didWin);
   const change = newElo - USER_PROFILE.elo;
   USER_PROFILE.elo = newElo;

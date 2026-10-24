@@ -1,7 +1,7 @@
 import {pickRoyalSeal} from './support-company-royal-seal.mjs?v=20261011-presentation-order';
 import {callToArmsReserveValue,recruitmentDeckFit,assessRecruitment} from '../../shared/ai/recruitment-timing.mjs';
 window.FateAIRecruitmentTiming={callToArmsReserveValue,recruitmentDeckFit,assessRecruitment};
-import {SUPPORT_COMPANY_NAMES, supportCompanyCardEligible, supportCompanyAvailability, createSupportCompanyPool, SUPPORT_COMPANY_CATEGORIES, supportCompanyOffers} from '../../shared/support-company.mjs';
+import {SUPPORT_COMPANY_NAMES, supportCompanyCardEligible, supportCompanyAvailability, createSupportCompanyPool, SUPPORT_COMPANY_CATEGORIES, supportCompanyOffers} from '../../shared/support-company.mjs?v=20261023-merchant';
 import {playSupportCompanyAnimation} from './support-company-animation.mjs?v=20261008-selected-title';
 
 const escape = value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));

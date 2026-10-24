@@ -52,14 +52,42 @@
  }
 }
 
- let canvas=null,ctx=null,layers=null,rects=[],frame=0,last=0,opacity=0,wanted=false,key='',lastGame=null;
+ let canvas=null,ctx=null,layers=null,rects=[],frame=0,timer=0,last=0,opacity=0,wanted=false,key='',surfaceWidth=1,surfaceHeight=1;
  const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+ const revealCards=new Map();
+ let revealTimer=0;
+ function prepareReveal(previous,next){
+  if(previous?.matchId!==next?.matchId){revealCards.clear();clearTimeout(revealTimer);revealTimer=0;return;}
+  if(!previous?.saboteurConcealment?.active || next?.saboteurConcealment?.active)return;
+  revealCards.clear();clearTimeout(revealTimer);
+  if(reduced)return;
+  const before=new Map();
+  (previous.board||[]).forEach((zone,z)=>zone.forEach((row,r)=>row.forEach((card,c)=>{if(card)before.set(z+':'+r+':'+c,JSON.stringify(card));})));
+  const start=performance.now()+1500;
+  (next.board||[]).forEach((zone,z)=>zone.forEach((row,r)=>row.forEach((card,c)=>{
+   if(card?.iid && before.get(z+':'+r+':'+c)!==JSON.stringify(card))revealCards.set(String(card.iid),start);
+  })));
+  if(!revealCards.size)return;
+  const tick=()=>{
+   window.FateMatchRendererAdapter?.scheduleRender?.('saboteur-card-reveal');
+   if(performance.now()<start+650)revealTimer=setTimeout(tick,50);
+   else {revealCards.clear();revealTimer=0;}
+  };
+  // No repeated board painting while the mist is still fading out.
+  revealTimer=setTimeout(tick,1500);
+ }
+ function cardAlpha(card){
+  const start=revealCards.get(String(card?.iid));
+  if(start==null)return 1;
+  const progress=Math.max(0,Math.min(1,(performance.now()-start)/650));
+  return progress*progress*(3-2*progress);
+ }
  function veilKey(g){
-  if(!g||g._phase7Outcome||g.winner!=null)return '';
-  const projected=g._saboteurConcealment;
-  if(projected?.active)return 'projected:'+projected.owner;
-  const status=(g._phase7Statuses||[]).find(s=>String(s.type||s.statusType)==='SABOTEUR_FIELD_VEIL');
-  if(status)return 'status:'+status.playerIndex;
+  if(!g||g._phase7Outcome||g.outcome||g.winner!=null)return '';
+  const projected=g._saboteurConcealment||g.saboteurConcealment;
+  if(projected?.active && (projected.untilTurn==null || g.turn<=projected.untilTurn))return 'projected:'+projected.owner;
+  const status=(g._phase7Statuses||g.statuses||[]).find(s=>String(s.type||s.statusType)==='SABOTEUR_FIELD_VEIL');
+  if(status && (status.untilTurn==null || g.turn<=status.untilTurn))return 'status:'+status.playerIndex;
   if(g._saboteurCloudTurn<=g.turn && g.turn<=(g._saboteurCloudUntilTurn??g._saboteurCloudTurn))return String(g._saboteurCloudTurn)+':'+g._saboteurCloudOwner;
   return '';
  }
@@ -90,15 +118,47 @@
    layers.push(layer);
   }
  }
+ function cloudRects(board,b){
+  const renderer=window.FateMatchRendererAdapter;
+  if(renderer?.ownsBoard?.()){
+   const bounds=document.getElementById('fate-match-v2-canvas')?.getBoundingClientRect();
+   if(!bounds)return [];
+   const viewer=typeof getPerspectivePlayerIndex==='function'?getPerspectivePlayerIndex():0;
+   return (renderer.getHitMap()?.cells||[]).filter(cell=>{
+    const owner=cell.r===0?1:cell.r===2?0:cell.r===1?-1:typeof getExtraSafeRowOwner==='function'?getExtraSafeRowOwner(cell.z,cell.r):viewer;
+    return owner===-1 || owner!==viewer;
+   }).map(cell=>{const r=cell.rect;return {x:bounds.left+r.x-b.left,y:bounds.top+r.y-b.top,w:r.w,h:r.h};}).filter(r=>r.w>0&&r.h>0);
+  }
+  return [...board.querySelectorAll('.brow.contested,.brow.p2safe')].map(row=>{const r=row.getBoundingClientRect();return {x:r.left-b.left,y:r.top-b.top,w:r.width,h:r.height};}).filter(r=>r.w>0&&r.h>0);
+ }
+ function boardSurface(){
+  if(window.FateMatchRendererAdapter?.ownsBoard?.()){
+   return document.getElementById('fate-match-v2-canvas')?.parentElement || document.getElementById('codex-board-v19') || document.getElementById('board');
+  }
+  return document.getElementById('board');
+ }
  function measure(){
-  const board=document.getElementById('board');if(!board||!canvas)return;
+  const board=boardSurface();if(!board||!canvas)return;
   const b=board.getBoundingClientRect();
   canvas.style.left=b.left+'px';canvas.style.top=b.top+'px';canvas.style.width=b.width+'px';canvas.style.height=b.height+'px';
-  const width=Math.max(1,Math.round(b.width)),height=Math.max(1,Math.round(b.height));
+  surfaceWidth=b.width;surfaceHeight=b.height;
+  // Mist is soft artwork: cap its backing resolution instead of repainting a
+  // full-screen texture. CSS keeps its physical size unchanged.
+  const scale=Math.min(1,1024/b.width);
+  const width=Math.max(1,Math.round(b.width*scale)),height=Math.max(1,Math.round(b.height*scale));
   if(canvas.width!==width||canvas.height!==height){canvas.width=width;canvas.height=height;}
-  rects=[...board.querySelectorAll('.brow.contested,.brow.p2safe')].map(row=>{const r=row.getBoundingClientRect();return {x:r.left-b.left,y:r.top-b.top,w:r.width,h:r.height};});
+  rects=cloudBands(cloudRects(board,b),b.width);
  }
- function remove(){cancelAnimationFrame(frame);frame=0;canvas?.remove();canvas=null;ctx=null;opacity=0;rects=[];}
+ function cloudBands(cells,width){
+  const bands=[];
+  for(const cell of [...cells].sort((a,b)=>a.y-b.y)){
+   const previous=bands[bands.length-1];
+   if(previous && cell.y<=previous.y+previous.h+12)previous.h=Math.max(previous.y+previous.h,cell.y+cell.h)-previous.y;
+   else bands.push({x:0,y:cell.y,w:width,h:cell.h});
+  }
+  return bands;
+ }
+ function remove(){cancelAnimationFrame(frame);clearTimeout(timer);timer=0;frame=0;canvas?.remove();canvas=null;ctx=null;opacity=0;rects=[];}
  function draw(now){
   if(document.hidden){frame=0;return;}
   if(now-last>=66){
@@ -107,7 +167,7 @@
    ctx.clearRect(0,0,canvas.width,canvas.height);
    if(rects.length){
     const left=Math.min(...rects.map(r=>r.x)),top=Math.min(...rects.map(r=>r.y)),right=Math.max(...rects.map(r=>r.x+r.w)),bottom=Math.max(...rects.map(r=>r.y+r.h));
-    ctx.save();ctx.beginPath();rects.forEach(r=>ctx.rect(r.x,r.y,r.w,r.h));ctx.clip();
+    ctx.save();ctx.scale(canvas.width/surfaceWidth,canvas.height/surfaceHeight);ctx.beginPath();rects.forEach(r=>ctx.rect(r.x,r.y,r.w,r.h));ctx.clip();
     ctx.translate(left,top);ctx.scale((right-left)/868,(bottom-top)/344);ctx.translate(-16,-52);
     ctx.globalAlpha=opacity*.93;
     for(let i=0;i<3;i++){const t=reduced?0:now/1000;ctx.drawImage(layers[i],-48+Math.sin(t*(.14+i*.025)+i)*24,Math.sin(t*.21+i)*5);}
@@ -115,26 +175,26 @@
    }
    if(!wanted&&opacity===0){remove();return;}
   }
-  frame=requestAnimationFrame(draw);
+  frame=0;
+  timer=setTimeout(()=>{timer=0;frame=requestAnimationFrame(draw);},66);
  }
  function sync(){
-  const g=typeof G==='undefined'?null:G,board=document.getElementById('board');
-  if(g!==lastGame){remove();key='';lastGame=g;}
+  const g=window.FateAuthorityV3SinglePlayer?.currentScreen?.()?.view?.state || (typeof G==='undefined'?null:G),board=boardSurface();
   const visible=board&&board.getBoundingClientRect().width>0&&board.getBoundingClientRect().height>0;
   const next=visible?veilKey(g):'';
   if(next!==key){
    const was=!!key;key=next;wanted=!!next;
    if(wanted&&!canvas){
     if(!layers)build();canvas=document.createElement('canvas');canvas.id='saboteur-cloud-overlay';canvas.setAttribute('aria-hidden','true');
-    canvas.style.cssText='position:fixed;pointer-events:none;z-index:30;';document.body.appendChild(canvas);ctx=canvas.getContext('2d');
+    canvas.style.cssText='position:fixed;pointer-events:none;z-index:405;';document.body.appendChild(canvas);ctx=canvas.getContext('2d');
    }
    if(wanted&&!was)sound(true);else if(was&&!wanted&&visible)sound(false);
   }
   if(!visible){remove();return;}
-  if(canvas){measure();if(!frame&&!document.hidden){last=performance.now();frame=requestAnimationFrame(draw);}}
+  if(canvas){measure();if(!frame&&!timer&&!document.hidden){last=performance.now();frame=requestAnimationFrame(draw);}}
  }
- window.FateSaboteurClouds={sync,veilKey};
+ window.FateSaboteurClouds={sync,veilKey,cloudRects,cloudBands,prepareReveal,cardAlpha};
  setInterval(sync,250);
- document.addEventListener('visibilitychange',()=>{if(document.hidden){cancelAnimationFrame(frame);frame=0;}else sync();});
+ document.addEventListener('visibilitychange',()=>{if(document.hidden){cancelAnimationFrame(frame);clearTimeout(timer);timer=0;frame=0;}else sync();});
 })();
 

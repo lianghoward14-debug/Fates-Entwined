@@ -1,0 +1,8 @@
+const fs=require('node:fs');
+function edit(p,fn){fs.writeFileSync(p,fn(fs.readFileSync(p,'utf8')));}
+edit('server/printed-card-art-regression.cjs',s=>s.replace("117:['Anarquista Saboteur',1,0]","117:['Anarquista Saboteur',1,0],118:['Caribbea Fisherman',1,0],120:['The Emerald Eyed Children',1,0]").replace("assert.equal(byId.get('118').name,'The Children with Emerald Eyes');","assert(!byId.has('119'));assert.equal(byId.get('bh21').cost,1);assert.equal(byId.get('bh21').rarity,'square');"));
+edit('server/fate-profile-picture-booster-smoke-test.js',s=>s.replaceAll('135','144').replace('through card 110','through card 120').replace('[110,144]','[110,135],[111,136],[112,137],[113,138],[114,139],[115,140],[116,141],[117,142],[118,143],[120,144]').replace("[144,110,'svg']","[135,110,'png']").replace("console.log('fate profile",`for(let id=133;id<=144;id++){assert.deepStrictEqual(pngDimensions('pfp/pfp'+id+'.png'),{width:591,height:453});assert(fs.existsSync(path.join(root,'optimized/pfp-thumbs/pfp'+id+'.jpg')));}
+console.log('fate profile`));
+fs.writeFileSync('server/authoritative-v3/card117-emerald-eyes-test.mjs',"// Card 118's placeholder was replaced by the printed Caribbea Fisherman.\nimport './card118-fisherman-test.mjs';\n");
+edit('server/authoritative-v3/jorge-santiago-rework-regression.mjs',s=>s.slice(0,s.indexOf('const s=state.players[0]'))+"console.log('Jorge healing, overheal, and removal of immunity passed.');\nawait import('./santiago-morale-payment-test.mjs');\n");
+edit('index.html',s=>s.replace(/((?:01-data-and-state|03-profile-and-progression|05-gameplay-core|06-rendering-and-helpers|08-audio-and-meta-ui|18-online-actions|53-caribbea-translations|22-activation-banner)\.js)\?v=[^\"']+/g,'$1?v=20261023-printed-cards'));
