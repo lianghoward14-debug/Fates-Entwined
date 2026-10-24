@@ -697,6 +697,10 @@ export class FateAuthoritativeV3SinglePlayerScreen {
       }
       if(type === 'EFFECT_ACTIVATED' || type === 'EFFECT_REACTED'){
         const source = this.findCard(type === 'EFFECT_REACTED' ? event.reactionIid : event.sourceIid);
+        // The Call to Arms handoff owns this presentation and awaits it before
+        // exposing choices; do not enqueue a second copy from the same event.
+        if(type === 'EFFECT_ACTIVATED' && String(source?.id) === '120'
+          && this.callToArmsActivationKey === `${this.view?.state?.matchId}:${source.iid}`) continue;
         if(type === 'EFFECT_ACTIVATED' && String(source?.id || '') === '18') this.window.playFateReactionSfx?.(true, source);
         if(source && !(String(source.id)==='105' && event.timing==='OPPONENT_CONSOLIDATION') && event?.suppressActivationCinematic !== true && String(source.id || '') !== '66' && typeof this.window.showEffectActivationCinematic === 'function'){
           try{ this.window.showEffectActivationCinematic(this.presentationCard(source), {remote:Number(event.playerIndex) !== Number(this.view?.playerIndex), source:'authoritative-v3-single-player-event', sfx:type === 'EFFECT_REACTED' ? false : undefined, broadcast:false}); }catch(_error){}
@@ -814,6 +818,7 @@ export class FateAuthoritativeV3SinglePlayerScreen {
   render(view){
     if(!view || !this.document) return;
     this.view = view;
+    this.prepareCallToArmsActivation();
     this.resetPromptSelectionIfChanged(view);
     const human = playerById(view, view.playerId);
     const ai = playerById(view, view.aiPlayerId);
@@ -1153,6 +1158,26 @@ export class FateAuthoritativeV3SinglePlayerScreen {
     actions.appendChild(panel);
   }
 
+  prepareCallToArmsActivation(){
+    const prompt = this.view?.state?.pendingPrompt;
+    if(prompt?.title !== 'Call to Arms') return;
+    const source = this.findCard(prompt.sourceIid);
+    if(String(source?.id) !== '120') return;
+    const matchId = this.view.state.matchId;
+    const key = `${matchId}:${source.iid}`;
+    if(this.callToArmsActivationKey === key) return;
+    this.callToArmsActivationKey = key;
+    this.callToArmsActivationPending = true;
+    Promise.resolve().then(()=>this.window.showEffectActivationCinematic?.(this.presentationCard(source), {
+      source:'emerald-children-call-to-arms', broadcast:false,
+      remote:Number(source.owner) !== Number(this.view?.playerIndex)
+    })).catch(error=>console.warn('Call to Arms activation presentation failed', error)).finally(()=>{
+      if(this.callToArmsActivationKey !== key) return;
+      this.callToArmsActivationPending = false;
+      if(this.view?.state?.matchId === matchId) this.renderActions();
+    });
+  }
+
   renderActions(){
     const bar = this.document.getElementById('fate-v3-action-host') || this.document.getElementById('actbar');
     const hint = this.document.getElementById('act-hint');
@@ -1164,7 +1189,7 @@ export class FateAuthoritativeV3SinglePlayerScreen {
       bar.appendChild(actions);
     }
     actions.replaceChildren();
-    if(this.view.state.pendingPrompt?.title==='Call to Arms' && this.window.getSupportCompanyPresentationDelayMs?.()>0){
+    if(this.view.state.pendingPrompt?.title==='Call to Arms' && (this.callToArmsActivationPending || this.window.getSupportCompanyPresentationDelayMs?.()>0)){
       this.visibleActions=[];
       if(hint)hint.textContent='Resolving effect';
       if(!this.supportCompanyPresentationTimer){

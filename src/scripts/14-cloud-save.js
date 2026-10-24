@@ -531,7 +531,7 @@
         wins:0, losses:0, level:1, xp:0, totalXp:0, featuredPresets:[],
         starterChosen:false, ownedCards:{}, ownedPfps:[], ownedMedals:[], displayedMedals:[], warfrontParticipations:0, warfrontWins:0,
         warfrontRewardReceipts:{}, warfrontMatchReceipts:{}, starlight:0,
-        unopenedPacks:0, unopenedProfilePacks:0, unopenedFavoredPacks:0, unopenedBooster2Packs:0, unopenedBooster3Packs:0,
+        unopenedPacks:0, unopenedProfilePacks:0, unopenedFavoredPacks:0, unopenedBooster2Packs:0, unopenedBooster3Packs:0, unopenedBooster4Packs:0,
         challengerElo:600, challengerWins:0, challengerLosses:0,
         humanWins:0, humanLosses:0, matchesPlayed:0,
         challengerPresets:{}, lastFreePackClaim:0, createdAt:Date.now()

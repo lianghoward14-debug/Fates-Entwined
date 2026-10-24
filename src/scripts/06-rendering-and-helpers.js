@@ -11981,7 +11981,7 @@ window.showFaceDownPlacementChoice=function(card,onFaceUp,onFaceDown){
       firstLabel:'Contribute Fate',secondLabel:'Do Not Contribute Fate',
       firstDescription:'Count this card\'s full effective Fate, even face down.',
       secondDescription:'This card contributes zero Fate, including received bonuses.',
-      note:'This choice applies whether the card is face up or face down.'
+      note:'Choose how this face-down card contributes Fate.'
     });
     function chooseAuras(contributesFate){
       if(card?.type !== 'Coordinator') return onPlace({contributesFate});
@@ -11990,9 +11990,9 @@ window.showFaceDownPlacementChoice=function(card,onFaceUp,onFaceDown){
         firstLabel:'Contribute Zone Auras',secondLabel:'Do Not Contribute Zone Auras',
         firstDescription:'Apply this card\'s continuous zone bonuses and penalties.',
         secondDescription:'Keep this card\'s continuous zone auras inactive.',
-        note:'Fate and aura choices remain independent of the card\'s face-up or face-down state.'
+        note:'Fate and aura choices are independent for this face-down card.'
       });
     }
   }
-  return showFaceDownEffectChoice(card,()=>chooseContributions(onFaceUp),()=>chooseContributions(onFaceDown),{placement:true});
+  return showFaceDownEffectChoice(card,()=>onFaceUp({contributesFate:true,contributesAuras:true}),()=>chooseContributions(onFaceDown),{placement:true});
 };

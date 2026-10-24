@@ -207,6 +207,30 @@ function generateBooster2Pack() {
   return cards.map(c=>c.id);
 }
 
+// El Sol Nunca Se Pone contains cards 100-120 and follows the same rarity
+// distribution as Snow on the Carpathians: one Supporter, then either two
+// Triangle Characters (75%) or one Triangle and one Square Character (25%).
+function getBooster4CardPool() {
+  return getChallengerCardPool().filter(c=>{
+    const id = Number(c.id);
+    return id >= 100 && id <= 120;
+  });
+}
+
+function generateBooster4Pack() {
+  const pool = getBooster4CardPool();
+  const supporters = pool.filter(c=>c.type === 'Supporter');
+  const triangles = pool.filter(c=>c.type !== 'Supporter' && c.rarity === 'triangle');
+  const squares = pool.filter(c=>c.type !== 'Supporter' && c.rarity === 'square');
+  const twoTrianglePack = Math.random() < 0.75;
+  const cards = [
+    takeRandomBooster2Card(supporters),
+    takeRandomBooster2Card(triangles),
+    twoTrianglePack ? takeRandomBooster2Card(triangles) : takeRandomBooster2Card(squares),
+  ].filter(Boolean);
+  return cards.map(c=>c.id);
+}
+
 // Brave Horizons is exclusive to Booster 3. Each pack has two cards from the
 // Triangle/Circle pool and a Square, unless the shared 4% Star roll replaces it.
 function getBooster3CardPool() {
@@ -251,6 +275,7 @@ function grantCardsToProfile(cardIds) {
 const PACK_COST_STARLIGHT = 100;
 const BOOSTER2_COST_STARLIGHT = 150;
 const BOOSTER3_COST_STARLIGHT = 150;
+const BOOSTER4_COST_STARLIGHT = 150;
 
 // Starlight earned for winning a game. Human opponents give 3x vs AI of same ELO.
 // Base ~20 + scaled by opponent ELO. At equal ELO 1000, AI gives ~33, human gives 100 (enough for pack).
@@ -3229,6 +3254,28 @@ function openNextBooster3Pack() {
   showPackOpening(results, 'booster3');
 }
 
+function buyBooster4Pack() {
+  if((USER_PROFILE.starlight||0) < BOOSTER4_COST_STARLIGHT){toast('Not enough Starlight');return;}
+  USER_PROFILE.starlight -= BOOSTER4_COST_STARLIGHT;
+  USER_PROFILE.unopenedBooster4Packs = (USER_PROFILE.unopenedBooster4Packs||0) + 1;
+  saveProfile();
+  toast('El Sol Nunca Se Pone Booster purchased!');
+  updateChTopbar();
+  switchChTab('store');
+}
+
+function openNextBooster4Pack() {
+  if((USER_PROFILE.unopenedBooster4Packs||0) <= 0){toast('No El Sol Nunca Se Pone Boosters to open');return;}
+  const ids = generateBooster4Pack();
+  if(ids.length !== 3){toast('El Sol Nunca Se Pone Booster is temporarily unavailable');return;}
+  USER_PROFILE.unopenedBooster4Packs--;
+  if(typeof updateDailyChallengeProgress === 'function') updateDailyChallengeProgress('packsOpened', 1, 'add');
+  const results = grantCardsToProfile(ids);
+  saveProfile();
+  playSfx('packOpen');
+  showPackOpening(results, 'booster4');
+}
+
 function buyFavoredPack() {
   if((USER_PROFILE.starlight||0) < 500){toast('Not enough Starlight');return;}
   USER_PROFILE.starlight -= 500;
@@ -3656,10 +3703,12 @@ function renderChStoreTab(content) {
   const profilePacks = USER_PROFILE.unopenedProfilePacks || 0;
   const booster2Packs = USER_PROFILE.unopenedBooster2Packs || 0;
   const booster3Packs = USER_PROFILE.unopenedBooster3Packs || 0;
+  const booster4Packs = USER_PROFILE.unopenedBooster4Packs || 0;
   const starlight = USER_PROFILE.starlight || 0;
   const canBuy = starlight >= PACK_COST_STARLIGHT;
   const canBuyBooster2 = starlight >= BOOSTER2_COST_STARLIGHT;
   const canBuyBooster3 = starlight >= BOOSTER3_COST_STARLIGHT;
+  const canBuyBooster4 = starlight >= BOOSTER4_COST_STARLIGHT;
   const canBuyFavored = starlight >= 500;
   const canBuyProfile = starlight >= 50;
   content.innerHTML = `
@@ -3724,6 +3773,20 @@ function renderChStoreTab(content) {
                 </div>
               </div>
             </div>
+            <div class="booster-tile ch-store-product ch-store-product-booster4">
+              <div class="booster-art ch-store-product-art">
+                <img src="booster4.png?v=20261024" alt="El Sol Nunca Se Pone Booster" loading="eager" decoding="async" draggable="false" onerror="this.style.display='none';this.parentElement.innerHTML='<div class=\'ch-store-pack-fallback\'>EL SOL NUNCA SE PONE</div>'">
+              </div>
+              <div class="booster-info ch-store-product-info">
+                <div class="ch-store-product-kicker">Third Expansion</div>
+                <div class="booster-name">El Sol Nunca Se Pone Booster</div>
+                <div class="booster-desc">For too long, have the Old Elite has hoarded the wealth of Caribbea. For too long, have the farmers, peasants, and workers of caribbea suffered for their gain. For too long, have we been complicit with our lowly lives. It is time for a new beginning - one, where the sun never sets in Caribbea!</div>
+                <div class="booster-price-row">
+                  <div class="booster-price">${STARLIGHT_ICON} ${BOOSTER4_COST_STARLIGHT}</div>
+                  <button class="btn-buy" onclick="buyBooster4Pack()" ${canBuyBooster4?'':'disabled'}>${canBuyBooster4?'Buy Pack':'Need '+BOOSTER4_COST_STARLIGHT}</button>
+                </div>
+              </div>
+            </div>
             <div class="booster-tile ch-store-product ch-store-product-booster3">
               <div class="booster-art ch-store-product-art">
                 <img src="booster3.png?v=2026090102" alt="Brave Horizons Booster" loading="eager" decoding="async" draggable="false" onerror="this.style.display='none';this.parentElement.innerHTML='<div class=\'ch-store-pack-fallback\'>BRAVE HORIZONS</div>'">
@@ -3760,7 +3823,7 @@ function renderChStoreTab(content) {
               <button class="btn sm" onclick="showMarketplaceTransactions()">Transactions</button>
             </div>
           </aside>
-          ${(packs+booster2Packs+booster3Packs+profilePacks)>0 ? `<div class="ch-store-unopened ch-store-unopened-market">
+          ${(packs+booster2Packs+booster3Packs+booster4Packs+profilePacks)>0 ? `<div class="ch-store-unopened ch-store-unopened-market">
             <div class="ch-store-unopened-head">
               <div class="ch-store-unopened-emblem" aria-hidden="true">
                 <svg viewBox="0 0 64 64" focusable="false"><path d="M16 20.5 32 12l16 8.5v23L32 52l-16-8.5z"/><path d="m16 20.5 16 9 16-9M32 29.5V52"/><path d="m25 16 16 8.7v7.8"/></svg>
@@ -3769,12 +3832,13 @@ function renderChStoreTab(content) {
                 <div class="ch-store-unopened-kicker">Ready to Open</div>
                 <div class="ch-store-unopened-heading">You have booster packs to open</div>
               </div>
-              <div class="ch-store-unopened-total"><strong>${packs+booster2Packs+booster3Packs+profilePacks}</strong> ${(packs+booster2Packs+booster3Packs+profilePacks)===1?'pack':'packs'}</div>
+              <div class="ch-store-unopened-total"><strong>${packs+booster2Packs+booster3Packs+booster4Packs+profilePacks}</strong> ${(packs+booster2Packs+booster3Packs+booster4Packs+profilePacks)===1?'pack':'packs'}</div>
             </div>
             <div class="ch-store-unopened-title" role="region" tabindex="0" aria-label="Unopened booster packs">
               ${packs>0?`<button type="button" onclick="openNextPack()"><strong>${packs}</strong><i>Fates Entwined Booster</i><em>Open</em></button>`:''}
               ${booster2Packs>0?`<button type="button" onclick="openNextBooster2Pack()"><strong>${booster2Packs}</strong><i>Snow on the Carpathians Booster</i><em>Open</em></button>`:''}
               ${booster3Packs>0?`<button type="button" onclick="openNextBooster3Pack()"><strong>${booster3Packs}</strong><i>Brave Horizons Booster</i><em>Open</em></button>`:''}
+              ${booster4Packs>0?`<button type="button" onclick="openNextBooster4Pack()"><strong>${booster4Packs}</strong><i>El Sol Nunca Se Pone Booster</i><em>Open</em></button>`:''}
               ${profilePacks>0?`<button type="button" onclick="openNextProfilePack()"><strong>${profilePacks}</strong><i>Profile Booster</i><em>Open</em></button>`:''}
             </div>
           </div>`:''}
@@ -3799,10 +3863,12 @@ let _chStoreBoosterPage = 1;
 function setChStoreBoosterPage(page, smooth = true){
   const track = document.getElementById('ch-store-booster-track');
   if(!track) return;
-  _chStoreBoosterPage = Math.max(0, Math.min(1, Number(page) || 0));
+  _chStoreBoosterPage = Math.max(0, Math.min(2, Number(page) || 0));
   track.style.transition = 'none';
   track.style.transform = 'none';
-  track.closest('.ch-store-carousel')?.classList.toggle('showing-profile', _chStoreBoosterPage === 0);
+  const carousel = track.closest('.ch-store-carousel');
+  carousel?.classList.toggle('showing-profile', _chStoreBoosterPage === 0);
+  carousel?.classList.toggle('showing-brave', _chStoreBoosterPage === 2);
 }
 function scrollChStoreBoosters(direction){
   if(typeof playMenuSfx === 'function') playMenuSfx();
@@ -3834,6 +3900,7 @@ function showPackOpening(results, packType) {
   const isFavored = packType === 'favored';
   const isBooster2 = packType === 'booster2';
   const isBooster3 = packType === 'booster3';
+  const isBooster4 = packType === 'booster4';
   overlay.classList.add('on');
   if(isFavored) overlay.classList.add('favored-opening');
   else overlay.classList.remove('favored-opening');
@@ -3841,9 +3908,9 @@ function showPackOpening(results, packType) {
   // Stage 1: show the pack, prompt to click
   const packBorder = isFavored
     ? 'border-color:rgba(255,215,0,.8);box-shadow:0 16px 34px rgba(0,0,0,.58);'
-    : (isBooster2 ? 'border-color:rgba(155,220,255,.85);box-shadow:0 16px 34px rgba(0,0,0,.58),0 0 44px rgba(118,196,242,.3);' : (isBooster3 ? 'border-color:rgba(255,151,92,.88);box-shadow:0 16px 34px rgba(0,0,0,.58),0 0 44px rgba(255,104,64,.28);' : ''));
-  const packArtSrc = isBooster3 ? 'booster3.png' : (isBooster2 ? 'booster2.png' : 'Illustration3.png');
-  const packAlt = isBooster3 ? 'Brave Horizons Booster' : (isBooster2 ? 'Snow on the Carpathians Booster' : 'Fates Entwined Booster');
+    : (isBooster2 ? 'border-color:rgba(155,220,255,.85);box-shadow:0 16px 34px rgba(0,0,0,.58),0 0 44px rgba(118,196,242,.3);' : (isBooster3 ? 'border-color:rgba(255,151,92,.88);box-shadow:0 16px 34px rgba(0,0,0,.58),0 0 44px rgba(255,104,64,.28);' : (isBooster4 ? 'border-color:rgba(166,203,83,.88);box-shadow:0 16px 34px rgba(0,0,0,.58),0 0 44px rgba(116,157,47,.3);' : '')));
+  const packArtSrc = isBooster4 ? 'booster4.png' : (isBooster3 ? 'booster3.png' : (isBooster2 ? 'booster2.png' : 'Illustration3.png'));
+  const packAlt = isBooster4 ? 'El Sol Nunca Se Pone Booster' : (isBooster3 ? 'Brave Horizons Booster' : (isBooster2 ? 'Snow on the Carpathians Booster' : 'Fates Entwined Booster'));
   stage.innerHTML = `
     <div class="pack-stage">
       <div class="pack-art-container">
@@ -3870,7 +3937,6 @@ function renderPackReveal(results) {
   stage.innerHTML = `
     <div class="pack-reveal-stage">
       <div style="font-family:'Cinzel',serif;color:#ffd700;font-size:1.3rem;letter-spacing:.12em;text-shadow:0 0 16px rgba(255,215,0,.6);margin-bottom:.5rem;">YOUR CARDS</div>
-      <div style="color:var(--dim);font-size:.82rem;font-style:italic;">Click each card to reveal</div>
       <div class="pack-cards-grid" id="pack-cards-grid"></div>
       <button class="btn pri pack-done-btn" id="pack-done-btn" style="display:none;" onclick="closePackOpening()">Done</button>
     </div>`;
@@ -3888,9 +3954,7 @@ function renderPackReveal(results) {
         <div class="pack-card-face pack-card-back"></div>
         <div class="pack-card-face pack-card-front ${rarityClass}">
           ${card.img?`<img src="${card.img}" alt="${escapeHtml(card.name)}" onerror="this.style.display='none'">`:''}
-          <div class="pack-card-rarity-badge ${badgeCls}">${rarityLabel}</div>
           ${r.isNew?'<div class="pack-card-new-badge">NEW</div>':''}
-          <div class="pack-card-name">${escapeHtml(card.name)}</div>
         </div>
       </div>`;
     // Stagger entrance

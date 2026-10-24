@@ -23,16 +23,22 @@ revealTime=2150;assert.equal(api.cardAlpha({iid:'new'}),1);revealTime=0;
 assert.deepEqual(Array.from(api.cloudRects(board,bounds),r=>r.y),[0,100,300],'viewer 0: enemy, contested, enemy extra row');
 viewer=1;assert.deepEqual(Array.from(api.cloudRects(board,bounds),r=>r.y),[100,200,400],'viewer 1 perspective');
 api.sync();assert(overlay);assert(overlay.style.cssText.includes('pointer-events:none'));
-callback(100);assert(draws>0);assert(clipped>0,'canvas-rendered squares produce visible clipped clouds without DOM rows');
+callback(100);assert(draws>0);assert.equal(clipped,0,'wisps must extend past row and zone bounds');
 const initialOverlay=overlay,initialOpacity=context.globalAlpha;
 sandbox.G=JSON.parse(JSON.stringify(sandbox.G));api.sync();callback(200);
 assert.equal(overlay,initialOverlay,'snapshot replacement must preserve the cloud canvas');
 assert(context.globalAlpha>initialOpacity,'fade continues across snapshots');
 assert(overlay.style.cssText.includes('z-index:405'),'mist stays above legacy board and below renderer UI');
 assert(api.veilKey(sandbox.G));sandbox.G.turn=7;assert.equal(api.veilKey(sandbox.G),'');
-assert(api.veilKey({turn:4,_phase7Statuses:[{type:'SABOTEUR_FIELD_VEIL',playerIndex:1,untilTurn:6}]}));
+assert(api.veilKey({turn:4,_phase7Statuses:[{type:'SABOTEUR_FIELD_VEIL',playerIndex:1,untilTurn:6}]},0));
 assert(api.veilKey({turn:4,_saboteurConcealment:{active:true,owner:0,untilTurn:6}}));
 assert.equal(api.veilKey({turn:7,_phase7Statuses:[{type:'SABOTEUR_FIELD_VEIL',playerIndex:1,untilTurn:6}]}),'');
+assert(api.veilKey({turn:7,_phase7Statuses:[{type:'SABOTEUR_FIELD_VEIL',playerIndex:1,untilTurn:6},{type:'SABOTEUR_FIELD_VEIL',playerIndex:1,untilTurn:8}]},0),'latest veil duration wins');
+sandbox.G={_phase7CurrentMultiplayer:true,_onlineRoomCode:'sync-test',turn:4,_phase7Statuses:[{type:'SABOTEUR_FIELD_VEIL',untilTurn:6}]};
+api.acceptAuthority({matchId:'sync-test',revision:20,turn:7,statuses:[]});
+const beforeFade=context.globalAlpha;callback(400);assert(context.globalAlpha<beforeFade,'authoritative expiry overrides delayed displayed turn');
 renderer.ownsBoard=()=>false;board.querySelectorAll=()=>[{getBoundingClientRect:()=>({left:110,top:250,width:200,height:90})}];
 assert.equal(api.cloudRects(board,bounds)[0].y,100,'legacy rows still supported');
 console.log('Saboteur mist: canvas draw path, both perspectives, extra rows, legacy geometry, local/projected status and expiry passed.');
+
+for(const owner of [0,1]){const state={turn:4,_phase7Statuses:[{type:'SABOTEUR_FIELD_VEIL',playerIndex:owner,untilTurn:6}]};assert.equal(api.veilKey(state,owner),'');assert(api.veilKey(state,1-owner));}

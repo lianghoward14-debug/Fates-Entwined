@@ -2943,7 +2943,7 @@
       '_serverPendingModalAction','_serverPendingZonePick','_serverPendingMove','_serverPendingCardPick','_westCaribNext',
       '_consolidating','_wolfCreekMoving','_expMoving','_berkeleyMoving','_bh01Moving',
       '_landscapeMoving','_busserMoving','_busserMovingCard','_markSelecting','_havanoDeploying','_boardTargeting',
-      '_phase7CoinFlip','_phase7PendingPrompt','_phase7PendingHandLimit','_phase7Outcome','_phase7Geometry','_phase7Statuses','_phase7Revision','_phase7ViewerIndex','_moralePressure','_saboteurConcealment'
+      '_phase7CoinFlip','_phase7PendingPrompt','_phase7PendingHandLimit','_phase7Outcome','_phase7Geometry','_phase7Statuses','_phase7Revision','_phase7ViewerIndex','_phase7ZoneScores','_moralePressure','_saboteurConcealment'
     ].forEach(function(k){
       if(Object.prototype.hasOwnProperty.call(state, k)) g[k] = cloneOnlinePlain(state[k]);
     });
@@ -8132,6 +8132,9 @@
   }
   function phase7ApplyCurrentView(view, reason){
     if(!view?.state || !Number.isInteger(Number(view.playerIndex))) return false;
+    // Public mist lifetime follows incoming authority, not each player's
+    // differently sized cinematic/picker presentation queue.
+    window.FateSaboteurClouds?.acceptAuthority(view.state);
     const batch = view.presentationBatch;
     const batchId = String(batch?.id || '');
     const events = Array.isArray(batch?.events) ? batch.events : [];

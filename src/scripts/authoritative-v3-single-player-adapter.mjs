@@ -11,7 +11,7 @@ import {chooseStrategicV3AiCommand} from './authoritative-v3-ai-policy.mjs';
 import {AiSearchWorker} from './new-ai-worker-client.mjs';
 import {filterAiTargets} from '../../shared/ai/targeting.mjs';
 import {createCommandOrderer} from '../../shared/ai/ordering.mjs';
-import {FateAuthoritativeV3SinglePlayerScreen} from './authoritative-v3-single-player-screen.mjs?v=20261024-merchant';
+import {FateAuthoritativeV3SinglePlayerScreen} from './authoritative-v3-single-player-screen.mjs?v=20261024-emerald-handoff';
 
 export const FATE_V3_SINGLE_PLAYER_QUERY_FLAG = 'fateV3SinglePlayer';
 const RECORDER_QUERY_FLAG = 'fateV3Recorder';

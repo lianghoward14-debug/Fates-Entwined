@@ -1,0 +1,13 @@
+const fs=require('fs');
+const p='C:/Users/user/.codex/visualizations/2026/10/14/01a13a30-afc7-76c1-8766-3c8e46d4f8bd/saboteur-broken-wisps.html';
+let s=fs.readFileSync(p,'utf8');
+const live=fs.readFileSync('src/scripts/51-saboteur-clouds.js','utf8');
+const cloud=live.slice(live.indexOf(' function cloud('),live.indexOf(' let canvas=null'));
+s=s.slice(0,s.indexOf('function cloud('))+cloud+s.slice(s.indexOf('const scenes='));
+s=s.replace(/<section data-variant="Split streamers"[^\n]+\r?\n/,'').replace(/<section data-variant="Low rolling banks"[^\n]+\r?\n/,'');
+s=s.replace('class="viz-carousel" aria-label="Three graphite cloud treatments"','aria-label="Broken graphite wisps preview"').replace('Swept billows','Broken wisps');
+s=s.replace('for(let j=0;j<4;j++)','for(let j=0;j<5;j++)');
+s=s.replace('90+j*265+(l%2)*78+(rand()-.5)*80,y=104+l*108+(rand()-.5)*42','100+j*202+(l%2)*58+(rand()-.5)*52,y=95+l*112+(rand()-.5)*70');
+s=s.replace('80+rand()*48,kind===1?37+rand()*16:29+rand()*18,kind','34+rand()*25,28+rand()*17,1');
+s=s.replace('c.save();c.beginPath();c.rect(16,52,868,344);c.clip();','c.save();');
+fs.writeFileSync(p,s);

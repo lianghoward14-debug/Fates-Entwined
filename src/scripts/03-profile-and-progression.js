@@ -34,6 +34,7 @@ let USER_PROFILE = {
   unopenedFavoredPacks: 0,
   unopenedBooster2Packs: 0,
   unopenedBooster3Packs: 0,
+  unopenedBooster4Packs: 0,
   challengerElo: 600,     // separate ELO for challenger ranked
   challengerWins: 0,
   challengerLosses: 0,
@@ -391,6 +392,7 @@ function applyGlobalChallengerCardReset(profile) {
   profile.unopenedFavoredPacks = 0;
   profile.unopenedBooster2Packs = 0;
   profile.unopenedBooster3Packs = 0;
+  profile.unopenedBooster4Packs = 0;
   profile.cardCollectionResetVersion = FATE_CHALLENGER_CARD_RESET_VERSION;
   profile.cardCollectionResetAt = Date.now();
   profile._clientUpdatedAt = Date.now();
@@ -402,6 +404,7 @@ const TITLE_BG_PATH = n => FATE_BACKGROUND_URL(`optimized/backgrounds/titlscreen
 const INGAME_BG_PATH = n => FATE_BACKGROUND_URL(Number(n) === 1 ? 'ingamebackgrouds/igb1.png?v=bg20260705' : ([15,18,21,22,23,24].includes(Number(n)) ? `ingamebackgrouds/igb${n}.png` : `optimized/backgrounds/ingamebackgrouds_igb${n}.jpg`));
 const PFP_PATH = (n, shape='circle') => {
   const id = Math.max(1, parseInt(n, 10) || 1);
+  if([126, 127, 133, 134, 135, 136, 137, 138, 139, 140, 143].includes(id)) return `pfp/pfp${id}.png?v=20261025-clean-crops`;
   if(id===128)return 'pfp/pfp128.png?v=20261023-tight-crop';
   if(id===141)return 'pfp/pfp141.png?v=b779d5cc4592';
   if(id===142)return 'pfp/pfp142.png?v=c69ad94a9997';
@@ -811,6 +814,7 @@ function loadPresetsFromStorage() {
     USER_PROFILE.unopenedFavoredPacks = 0;
     USER_PROFILE.unopenedBooster2Packs = 0;
     USER_PROFILE.unopenedBooster3Packs = 0;
+    USER_PROFILE.unopenedBooster4Packs = 0;
     USER_PROFILE.challengerElo = 600;
     USER_PROFILE.challengerWins = 0;
     USER_PROFILE.challengerLosses = 0;

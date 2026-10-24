@@ -1,0 +1,26 @@
+const fs=require('fs'),assert=require('assert/strict'),{chromium}=require('playwright');
+(async()=>{const browser=await chromium.launch({channel:'msedge',headless:true});try{
+const page=await browser.newPage({viewport:{width:1920,height:1080}});
+const css=[...fs.readFileSync('index.html','utf8').matchAll(/href="(src\/styles\/[^"?]+)(?:\?[^" ]*)?"/g)].map(m=>fs.readFileSync(m[1],'utf8')).join('\n');
+const image=id=>'data:image/png;base64,'+fs.readFileSync(id+'.png').toString('base64');
+await page.setContent('<style>'+css+'</style><div id="pack-opening-overlay" class="on"><div class="pack-reveal-stage"><h2>YOUR CARDS</h2><div>Click each card to reveal</div><div class="pack-cards-grid">'+[119,14,10,38,42,32,55,120].map(id=>'<div class="pack-card-wrap flipped" style="opacity:1"><div class="pack-card-inner"><div class="pack-card-face pack-card-front"><img style="width:100%;height:100%" src="'+image(id)+'"></div></div></div>').join('')+'</div><button>Done</button></div></div>');
+let cards=await page.locator('.pack-card-wrap').evaluateAll(es=>es.map(e=>{const r=e.getBoundingClientRect();return {w:r.width,h:r.height,x:r.x,y:r.y};}));
+assert(cards[0].w>280);assert(cards[4].y>cards[0].y);assert(cards[7].y+cards[7].h<1080);
+await page.screenshot({path:'outputs/larger-pack-reveal.png'});
+await page.locator('.pack-card-wrap').evaluateAll(es=>es.slice(3).forEach(e=>e.remove()));
+const trio=await page.locator('.pack-cards-grid').boundingBox();
+assert(Math.abs(trio.x+trio.width/2-960)<2,'three-card pack is centered');
+assert(trio.width<950,'three-card grid has no empty fourth column');
+await page.setViewportSize({width:390,height:844});
+assert(await page.locator('#pack-opening-overlay').evaluate(e=>e.scrollWidth<=e.clientWidth+1));
+await page.setViewportSize({width:1920,height:1080});
+await page.setContent('<style>'+css+'</style><div id="pack-opening-overlay" class="on"><div class="pack-stage"><div class="pack-art profile-pack-art"></div><div class="pack-prompt">CLICK TO OPEN</div></div></div>');
+let rect=await page.locator('.pack-art').boundingBox();assert(rect.width>500);assert(rect.height<900);
+await page.setContent('<style>'+css+'</style><div id="pack-opening-overlay" class="on"><div class="pack-reveal-stage"><div class="pack-cards-grid"><div class="profile-pack-card profile-pack-full-art"><div class="pack-card-face"></div></div><div class="profile-pack-card profile-pack-full-art"><div class="pack-card-face"></div></div></div></div></div>');
+rect=await page.locator('.profile-pack-full-art').first().boundingBox();assert(rect.width>=600);
+await page.setContent('<style>'+css+'</style><div id="modal" class="on"><div class="modal"><div id="modal-title">Sangre Por Victoria</div><div id="modal-body"><div class="sangre-morale-picker"><div class="payment-portrait"></div><div class="payment-controls">Payment</div></div></div><div id="modal-acts">Cancel</div></div></div>');
+const lines=await page.locator('.sangre-morale-picker').evaluate(e=>({left:getComputedStyle(e,'::before').left,right:getComputedStyle(e,'::after').right,color:getComputedStyle(e,'::before').backgroundColor,border:getComputedStyle(e).borderTopWidth}));
+assert.equal(lines.left,'2px');assert.equal(lines.right,'2px');assert.equal(lines.border,'0px');assert.equal(lines.color,'rgba(189, 160, 90, 0.42)');
+console.log('Pack opening and profile rewards enlarged; Santiago lines muted and inset at both ends.');
+console.log('Desktop cards exceed 280px, eight rewards fit in two rows; mobile has no horizontal overflow.');
+}finally{await browser.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

@@ -2019,7 +2019,6 @@ function renderPackReveal(results) {
   stage.innerHTML = `
     <div class="pack-reveal-stage">
       <div style="font-family:'Cinzel',serif;color:#ffd700;font-size:1.3rem;letter-spacing:.12em;text-shadow:0 0 16px rgba(255,215,0,.6);margin-bottom:.5rem;">YOUR CARDS</div>
-      <div style="color:var(--dim);font-size:.82rem;font-style:italic;">Click each card to reveal</div>
       <div class="pack-cards-grid" id="pack-cards-grid"></div>
       <button class="btn pri pack-done-btn" id="pack-done-btn" style="display:none;" onclick="closePackOpening()">Done</button>
     </div>`;
@@ -2037,9 +2036,7 @@ function renderPackReveal(results) {
         <div class="pack-card-face pack-card-back"></div>
         <div class="pack-card-face pack-card-front ${rarityClass}">
           ${card.img?`<img src="${card.img}" alt="${escapeHtml(card.name)}" onerror="this.style.display='none'">`:''}
-          <div class="pack-card-rarity-badge ${badgeCls}">${rarityLabel}</div>
           ${r.isNew?'<div class="pack-card-new-badge">NEW</div>':''}
-          <div class="pack-card-name">${escapeHtml(card.name)}</div>
         </div>
       </div>`;
     // Stagger entrance
@@ -2098,7 +2095,6 @@ function renderProfilePackReveal(pfpIds) {
     wrap.innerHTML = `
       <div class="pack-card-face pack-card-front rarity-circle" style="border-color:#7fb6ff;box-shadow:0 0 28px rgba(127,182,255,.55),0 0 60px rgba(127,182,255,.2);">
       <img src="${PFP_PATH(pfpId, 'square')}" alt="Profile picture ${pfpId}" style="object-fit:cover;object-position:center;">
-        <div class="pack-card-name">Profile Picture ${pfpId}</div>
       </div>`;
     setTimeout(()=>wrap.classList.add('show'), 180*idx);
     grid.appendChild(wrap);

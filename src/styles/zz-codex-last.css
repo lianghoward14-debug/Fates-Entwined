@@ -29706,7 +29706,7 @@ html body #s-game .effect-pill-icon svg.merchant-bargain-icon{
 
 /* Span the full payment column, through the +15 control's right edge. */
 html body #modal .modal:has(.sangre-morale-picker) #modal-body{
-  padding:0 12px!important;
+  padding:0 6px!important;
   box-sizing:border-box!important;
 }
 html body #modal .sangre-morale-picker{
@@ -29714,9 +29714,75 @@ html body #modal .sangre-morale-picker{
   min-width:0!important;
   box-sizing:border-box!important;
   overflow:hidden!important;
+  border-top:0!important;
+  border-bottom:0!important;
+  position:relative!important;
 }
+html body #modal .sangre-morale-picker::before,
+html body #modal .sangre-morale-picker::after{
+  content:''!important;display:block!important;position:absolute!important;
+  left:2px!important;right:2px!important;height:1px!important;
+  background:rgba(189,160,90,.42)!important;z-index:2;pointer-events:none;
+}
+html body #modal .sangre-morale-picker::before{top:0!important;}
+html body #modal .sangre-morale-picker::after{bottom:0!important;}
 html body #modal .sangre-morale-picker #sangre-pay-slider{
   display:block!important;box-sizing:border-box!important;
   width:100%!important;min-width:0!important;max-width:none!important;
   margin-left:0!important;margin-right:0!important;
+}
+
+/* Keep the payment panel's frame, without generic modal divider ornaments. */
+html body #modal .modal:has(.sangre-morale-picker) #modal-title::after,
+html body #modal .modal:has(.sangre-morale-picker) #modal-body::before,
+html body #modal .modal:has(.sangre-morale-picker) #modal-body::after,
+html body #modal .modal:has(.sangre-morale-picker) #modal-acts::before,
+html body #modal .modal:has(.sangre-morale-picker) #modal-acts::after{
+ content:none!important;display:none!important;
+}
+html body #modal .modal:has(.sangre-morale-picker) #modal-title,
+html body #modal .modal:has(.sangre-morale-picker) #modal-acts,
+html body #modal .modal:has(.sangre-morale-picker) #modal-body{
+ border-top:0!important;border-bottom:0!important;
+}
+
+/* Use the available screen for opening packs and inspecting their rewards. */
+html body #pack-opening-overlay{
+  padding:24px!important;box-sizing:border-box!important;overflow:auto!important;
+}
+html body #pack-opening-overlay .pack-art,
+html body #pack-opening-overlay .pack-art.profile-pack-art{
+  width:min(590px,54.9vh,80vw)!important;height:auto!important;
+  aspect-ratio:13/18!important;
+}
+html body #pack-opening-overlay .pack-reveal-stage{
+  width:100%!important;max-width:none!important;gap:16px!important;
+}
+html body #pack-opening-overlay .pack-cards-grid:not(:has(.profile-pack-card)){
+  --reward-width:min(290px,calc(32vh - 60px),calc((100vw - 96px)/4));
+  display:grid!important;grid-template-columns:repeat(4,var(--reward-width))!important;
+  gap:16px!important;max-width:none!important;
+}
+html body #pack-opening-overlay .pack-cards-grid:not(:has(.profile-pack-card)):has(> .pack-card-wrap:nth-child(3):last-child){
+  grid-template-columns:repeat(3,var(--reward-width))!important;
+}
+html body #pack-opening-overlay .pack-card-wrap:not(.profile-pack-card){
+  width:var(--reward-width)!important;height:auto!important;aspect-ratio:5/7!important;
+}
+html body #pack-opening-overlay .pack-cards-grid:has(.profile-pack-card){
+  max-width:94vw!important;gap:24px!important;
+}
+html body #pack-opening-overlay .profile-pack-card.profile-pack-full-art{
+  width:min(620px,43vw,calc(90vh - 170px))!important;
+}
+@media(max-width:700px){
+  html body #pack-opening-overlay{padding:18px 10px!important;}
+  html body #pack-opening-overlay:has(.pack-reveal-stage){justify-content:flex-start!important;}
+  html body #pack-opening-overlay .pack-cards-grid:not(:has(.profile-pack-card)){
+    --reward-width:calc((100vw - 42px)/2);grid-template-columns:repeat(2,var(--reward-width))!important;gap:12px!important;
+  }
+  html body #pack-opening-overlay .pack-cards-grid:not(:has(.profile-pack-card)):has(> .pack-card-wrap:nth-child(3):last-child){
+    display:flex!important;flex-wrap:wrap!important;justify-content:center!important;
+  }
+  html body #pack-opening-overlay .profile-pack-card.profile-pack-full-art{width:min(560px,88vw)!important;}
 }

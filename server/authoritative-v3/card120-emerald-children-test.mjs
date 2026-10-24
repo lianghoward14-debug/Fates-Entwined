@@ -17,10 +17,12 @@ for(const seat of [0,1])for(const hasStar of [false,true]){
  if(hasStar)s.supportersSetThisTurn[seat]=0;
  const before=s.supportersSetThisTurn[seat];let serial=0;
  function run(type,payload){const r=reduceCommand(s,{commandId:String(++serial),matchId:s.matchId,expectedRevision:s.revision,type,payload},{playerId:'p'+seat});assert(r.ok,JSON.stringify(r.rejection));s=r.state;return r;}
- run('SET_CARD',{cardIid:card.iid,destination:{z:0,r:seat?0:2,c:0}});
+ const setResult=run('SET_CARD',{cardIid:card.iid,destination:{z:0,r:seat?0:2,c:0}});
  assert.equal(s.supportersSetThisTurn[seat],before+(hasStar?1:0));
  assert.equal(s.pendingPrompt?.title==='Call to Arms',!hasStar);
  if(!hasStar){
+  assert(setResult.events.some(event=>event.type==='EFFECT_ACTIVATED'&&event.sourceIid===card.iid));
+  assert.equal(s.pendingPrompt.sourceIid,card.iid);
   run('ANSWER_PROMPT',{promptId:s.pendingPrompt.promptId,choice:s.pendingPrompt.options[0].value});
   const selected=s.pendingPrompt.eligibleIids[0];
   run('ANSWER_PROMPT',{promptId:s.pendingPrompt.promptId,selectedIids:[selected]});

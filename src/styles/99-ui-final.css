@@ -7643,7 +7643,7 @@ html body #modal .modal.card-detail-modal .modal-title{
 #s-challenger .store-grid{
   display:flex!important;
   gap:1rem!important;
-  align-items:stretch!important;
+  align-items:flex-start!important;
   overflow:visible!important;
   scrollbar-width:none!important;
   overscroll-behavior-x:contain!important;
@@ -7661,6 +7661,10 @@ html body #modal .modal.card-detail-modal .modal-title{
   --store-accent:#58c7df;
   border-color:rgba(88,199,223,.68)!important;
 }
+#s-challenger .ch-store-product-booster4{
+  --store-accent:#a6cb53;
+  border-color:rgba(166,203,83,.72)!important;
+}
 #s-challenger .ch-store-page-arrow{
   position:absolute!important;top:250px!important;z-index:8!important;width:42px!important;height:58px!important;
   border:1px solid rgba(255,225,120,.7)!important;border-radius:9px!important;background:rgba(8,10,18,.92)!important;
@@ -7675,9 +7679,12 @@ html body #modal .modal.card-detail-modal .modal-title{
 #s-challenger .ch-store-page-arrow-right{right:0!important;display:none!important;}
 #s-challenger .ch-store-page-arrow-right::before{clip-path:polygon(0 0,100% 50%,0 100%)!important;}
 #s-challenger .ch-store-carousel.showing-profile .ch-store-page-arrow-left{display:none!important;}
-#s-challenger .ch-store-carousel.showing-profile .ch-store-page-arrow-right{display:grid!important;}
+#s-challenger .ch-store-carousel:not(.showing-brave) .ch-store-page-arrow-right{display:grid!important;}
+#s-challenger .ch-store-carousel.showing-brave .ch-store-page-arrow-right{display:none!important;}
 #s-challenger .ch-store-carousel:not(.showing-profile) .ch-store-product-profile{display:none!important;}
-#s-challenger .ch-store-carousel.showing-profile .ch-store-product-booster3{display:none!important;}
+#s-challenger .ch-store-carousel.showing-profile :is(.ch-store-product-booster4,.ch-store-product-booster3){display:none!important;}
+#s-challenger .ch-store-carousel:not(.showing-profile):not(.showing-brave) .ch-store-product-booster3{display:none!important;}
+#s-challenger .ch-store-carousel.showing-brave :is(.ch-store-product-profile,.ch-store-product-standard){display:none!important;}
 @media(max-width:1050px){
   #s-challenger .ch-store-product{flex-basis:calc((100% - 1rem)/2)!important;}
   #s-challenger .ch-store-page-arrow-left{left:0!important;}

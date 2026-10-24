@@ -56,6 +56,14 @@
  const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
  const revealCards=new Map();
  let revealTimer=0;
+ let authority=null;
+ function acceptAuthority(state){
+  if(!state)return;
+  if(authority?.matchId===state.matchId && Number(state.revision)<Number(authority.revision))return;
+  authority={matchId:state.matchId,revision:state.revision,turn:state.turn,outcome:state.outcome,
+   saboteurConcealment:state.saboteurConcealment,statuses:state.statuses};
+  sync();
+ }
  function prepareReveal(previous,next){
   if(previous?.matchId!==next?.matchId){revealCards.clear();clearTimeout(revealTimer);revealTimer=0;return;}
   if(!previous?.saboteurConcealment?.active || next?.saboteurConcealment?.active)return;
@@ -82,13 +90,14 @@
   const progress=Math.max(0,Math.min(1,(performance.now()-start)/650));
   return progress*progress*(3-2*progress);
  }
- function veilKey(g){
+ function veilKey(g,viewer=typeof getPerspectivePlayerIndex==='function'?getPerspectivePlayerIndex():0){
   if(!g||g._phase7Outcome||g.outcome||g.winner!=null)return '';
+  if(g._isSpectator)return '';
   const projected=g._saboteurConcealment||g.saboteurConcealment;
-  if(projected?.active && (projected.untilTurn==null || g.turn<=projected.untilTurn))return 'projected:'+projected.owner;
-  const status=(g._phase7Statuses||g.statuses||[]).find(s=>String(s.type||s.statusType)==='SABOTEUR_FIELD_VEIL');
-  if(status && (status.untilTurn==null || g.turn<=status.untilTurn))return 'status:'+status.playerIndex;
-  if(g._saboteurCloudTurn<=g.turn && g.turn<=(g._saboteurCloudUntilTurn??g._saboteurCloudTurn))return String(g._saboteurCloudTurn)+':'+g._saboteurCloudOwner;
+  if(projected?.active && (projected.untilTurn==null || g.turn<=projected.untilTurn))return Number(projected.owner)===Number(viewer)?'':'projected:'+projected.owner;
+  const status=(g._phase7Statuses||g.statuses||[]).filter(s=>String(s.type||s.statusType)==='SABOTEUR_FIELD_VEIL').sort((a,b)=>(b.untilTurn??Infinity)-(a.untilTurn??Infinity))[0];
+  if(status && (status.untilTurn==null || g.turn<=status.untilTurn))return Number(status.playerIndex)===Number(viewer)?'':'status:'+status.playerIndex;
+  if(g._saboteurCloudTurn<=g.turn && g.turn<=(g._saboteurCloudUntilTurn??g._saboteurCloudTurn))return Number(g._saboteurCloudOwner)===Number(viewer)?'':String(g._saboteurCloudTurn)+':'+g._saboteurCloudOwner;
   return '';
  }
  function sound(enter){
@@ -111,9 +120,15 @@
   for(let l=0;l<3;l++){
    const layer=document.createElement('canvas');layer.width=1000;layer.height=430;
    const c=layer.getContext('2d');seed=118+l*11;
-   for(let j=0;j<5;j++){
-    const x=72+j*228+(l%2)*78+(rand()-.5)*66,y=104+l*108+(rand()-.5)*32;
-    cloud(c,x,y,85+rand()*48,39+rand()*17,1);
+   for(let j=0;j<(l<2?3:5);j++){
+    const x=l<2?65+j*410+(l%2)*60+(rand()-.5)*20:72+j*228+(rand()-.5)*66;
+    const y=104+l*108+(rand()-.5)*32+((l===1&&j===2)?9:0);
+    cloud(c,x,y,l<2?(77+rand()*12)*(l===0?1.07:1):85+rand()*48,(39+rand()*17)*(l===0?1.10:1),1);
+   }
+   // Natural tapered ends and two additional top wisps, baked once.
+   if(l===0){
+    cloud(c,285,70,62,29,1);
+    cloud(c,675,63,72,31,1);
    }
    layers.push(layer);
   }
@@ -139,7 +154,8 @@
  }
  function measure(){
   const board=boardSurface();if(!board||!canvas)return;
-  const b=board.getBoundingClientRect();
+  const original=board.getBoundingClientRect(),padding=48;
+  const b={left:original.left-padding,top:original.top-padding,width:original.width+padding*2,height:original.height+padding*2};
   canvas.style.left=b.left+'px';canvas.style.top=b.top+'px';canvas.style.width=b.width+'px';canvas.style.height=b.height+'px';
   surfaceWidth=b.width;surfaceHeight=b.height;
   // Mist is soft artwork: cap its backing resolution instead of repainting a
@@ -167,7 +183,8 @@
    ctx.clearRect(0,0,canvas.width,canvas.height);
    if(rects.length){
     const left=Math.min(...rects.map(r=>r.x)),top=Math.min(...rects.map(r=>r.y)),right=Math.max(...rects.map(r=>r.x+r.w)),bottom=Math.max(...rects.map(r=>r.y+r.h));
-    ctx.save();ctx.scale(canvas.width/surfaceWidth,canvas.height/surfaceHeight);ctx.beginPath();rects.forEach(r=>ctx.rect(r.x,r.y,r.w,r.h));ctx.clip();
+    // Row bounds position the artwork, but must not cut off its wispy edges.
+    ctx.save();ctx.scale(canvas.width/surfaceWidth,canvas.height/surfaceHeight);
     ctx.translate(left,top);ctx.scale((right-left)/868,(bottom-top)/344);ctx.translate(-16,-52);
     ctx.globalAlpha=opacity*.93;
     for(let i=0;i<3;i++){const t=reduced?0:now/1000;ctx.drawImage(layers[i],-48+Math.sin(t*(.14+i*.025)+i)*24,Math.sin(t*.21+i)*5);}
@@ -179,7 +196,10 @@
   timer=setTimeout(()=>{timer=0;frame=requestAnimationFrame(draw);},66);
  }
  function sync(){
-  const g=window.FateAuthorityV3SinglePlayer?.currentScreen?.()?.view?.state || (typeof G==='undefined'?null:G),board=boardSurface();
+  const current=typeof G==='undefined'?null:G;
+  const g=current?._phase7CurrentMultiplayer && authority?.matchId===current._onlineRoomCode
+   ? authority : window.FateAuthorityV3SinglePlayer?.currentScreen?.()?.view?.state || current;
+  const board=boardSurface();
   const visible=board&&board.getBoundingClientRect().width>0&&board.getBoundingClientRect().height>0;
   const next=visible?veilKey(g):'';
   if(next!==key){
@@ -193,7 +213,7 @@
   if(!visible){remove();return;}
   if(canvas){measure();if(!frame&&!timer&&!document.hidden){last=performance.now();frame=requestAnimationFrame(draw);}}
  }
- window.FateSaboteurClouds={sync,veilKey,cloudRects,cloudBands,prepareReveal,cardAlpha};
+ window.FateSaboteurClouds={sync,veilKey,cloudRects,cloudBands,prepareReveal,cardAlpha,acceptAuthority};
  setInterval(sync,250);
  document.addEventListener('visibilitychange',()=>{if(document.hidden){cancelAnimationFrame(frame);clearTimeout(timer);timer=0;frame=0;}else sync();});
 })();

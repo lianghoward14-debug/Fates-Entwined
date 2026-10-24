@@ -759,8 +759,12 @@ function showSangrePorVictoriaMoralePicker(player,onConfirm,onCancel,options={})
     if(panel && options.promptId)panel.dataset.phase7PromptId=String(options.promptId);
     const update=function(next){slider.value=String(Math.max(15,Math.min(maximum,Number(next)||15)));value.textContent=slider.value;count.textContent='Draw '+(Number(slider.value)/15)+' card'+(Number(slider.value)===15?'':'s');const remaining=document.getElementById('sangre-remaining');if(remaining)remaining.textContent=String(current-Number(slider.value));};
     slider.addEventListener('input',function(){update(slider.value);});
-    document.getElementById('sangre-pay-minus')?.addEventListener('click',function(){update(Number(slider.value)-15);});
-    document.getElementById('sangre-pay-plus')?.addEventListener('click',function(){update(Number(slider.value)+15);});update(15);
+    const step=function(amount){
+      if(typeof playSfx==='function')playSfx('uiClick');
+      update(Number(slider.value)+amount);
+    };
+    document.getElementById('sangre-pay-minus')?.addEventListener('click',function(){step(-15);});
+    document.getElementById('sangre-pay-plus')?.addEventListener('click',function(){step(15);});update(15);
   }});
   return true;
 }
