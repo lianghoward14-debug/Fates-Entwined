@@ -43,8 +43,10 @@ assert(!/updateGateMinimumMs\s*=/.test(renderer), 'Desktop updater must not forc
 assert(index.includes('src/scripts/26-desktop-updater.js'), 'Updater renderer is not loaded');
 assert(index.includes('src/styles/desktop-updater.css'), 'Updater styles are not loaded');
 assert(/branches:\s*[\s\S]*- main/.test(workflow), 'Pushes to main must trigger desktop workflow');
-assert(/--publish always/.test(workflow), 'Release build must publish updater metadata');
+assert(/verify-desktop-update\.cjs dist/.test(workflow), 'Release must verify incremental artifacts');
+assert(/gh release upload/.test(workflow) && /gh release edit.*--draft=false/.test(workflow), 'Verified update assets must be uploaded before publishing');
+assert.strictEqual(packageJson.build.nsis.differentialPackage, true, 'NSIS must generate differential update data');
 assert(/FATE_RELEASE_VERSION/.test(workflow) && /Fates-Entwined-Installer\.exe/.test(workflow), 'Release workflow must publish a stable installer alias for the website');
-assert(!/softprops\/action-gh-release/.test(workflow), 'Release assets must come from one electron-builder publish step');
+assert(!/--publish always/.test(workflow), 'Unverified assets must not be published during the build');
 
 console.log('Desktop updater smoke test passed');

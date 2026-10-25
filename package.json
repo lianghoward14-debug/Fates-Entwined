@@ -92,7 +92,7 @@
     "smoke:authority-v3-phase7-brave-horizons": "node server/authoritative-v3/phase7-brave-horizons-17-19-smoke-test.mjs",
     "smoke:authority-v3-local-self-play": "node server/authoritative-v3/phase7-local-self-play-soak.mjs --games 20 --workers 2",
     "replay:authority-v3": "node tools/authority-v3-differential-replay.mjs",
-    "smoke:desktop-updater": "node server/fate-desktop-updater-smoke-test.js && node server/fate-desktop-updater-install-test.js",
+    "smoke:desktop-updater": "node server/fate-desktop-updater-smoke-test.js && node server/fate-desktop-updater-install-test.js && node server/fate-desktop-incremental-test.cjs",
     "smoke:match-entry-crash-guard": "node server/fate-match-entry-crash-guard-smoke-test.js",
     "smoke:authority-v3": "node server/authoritative-v3/engine-smoke-test.mjs && node server/authoritative-v3/actor-recovery-smoke-test.mjs && node server/authoritative-v3/determinism-smoke-test.mjs && node server/authoritative-v3/architecture-smoke-test.mjs && node server/authoritative-v3/network-smoke-test.mjs && node server/authoritative-v3/phase5-local-session-smoke-test.mjs && node server/authoritative-v3/phase5-screen-routing-smoke-test.mjs && node server/authoritative-v3/phase5-screen-coverage-smoke-test.mjs && node server/authoritative-v3/phase5-browser-harness-smoke-test.mjs && node server/authoritative-v3/phase5-ai-calibration-smoke-test.mjs && node server/authoritative-v3/phase5-differential-corpus-smoke-test.mjs && node server/authoritative-v3/phase5-legacy-self-play-corpus-smoke-test.mjs && node server/authoritative-v3/phase5-real-corpus-baseline-smoke-test.mjs && node server/authoritative-v3/phase7-beta-smoke-test.mjs && node server/authoritative-v3/phase7-client-routing-smoke-test.mjs",
     "smoke:rtdb-appcheck-static": "node server/fate-rtdb-appcheck-static-smoke-test.js",
@@ -177,6 +177,7 @@
       "gatekeeperAssess": false
     },
     "nsis": {
+      "differentialPackage": true,
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "installerIcon": "build/icon.ico",

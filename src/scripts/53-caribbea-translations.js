@@ -103,9 +103,10 @@ const rows=[
  ['Original deck unavailable; start a new match to use Sofia','初期デッキを利用できません。ソフィアを使用するには新しい対戦を開始してください。','无法获取初始牌组；请开始新对局后再使用索菲娅。'],
  ['Rolled ZXQ0QXZ','出目：ZXQ0QXZ','掷出ZXQ0QXZ点'],
  ['Die showing ZXQ0QXZ on its large front face','大きな正面にZXQ0QXZの目が出たサイコロ','骰子较大的正面显示ZXQ0QXZ点'],
- ['Third Expansion','第3弾拡張セット','第三扩展包'],
+ ['Second Expansion','第2弾拡張セット','第二扩展包'],
+ ['First Character Pack','第1弾キャラクターパック','第一角色包'],
  ['El Sol Nunca Se Pone Booster','太陽は決して沈まない ブースター','永不落日补充包'],
- ['For too long, have the Old Elite has hoarded the wealth of Caribbea. For too long, have the farmers, peasants, and workers of caribbea suffered for their gain. For too long, have we been complicit with our lowly lives. It is time for a new beginning - one, where the sun never sets in Caribbea!','長い間、旧エリートはカリベアの富を独占してきた。長い間、カリベアの農民、貧民、労働者は彼らの利益のために苦しんできた。長い間、私たちは卑しい暮らしを甘受してきた。今こそ新たな始まりの時だ――カリベアに沈まぬ太陽が輝く時代へ！','太久以来，旧精英一直垄断着加勒比的财富。太久以来，加勒比的农民、贫民和工人一直为他们的利益而受苦。太久以来，我们一直安于卑微的生活。是时候迎来一个新的开始了——一个加勒比永不日落的时代！'],
+ ['For too long, have the Old Elite has hoarded the wealth of Caribbea. For too long, have the farmers, peasants, and workers of Caribbea suffered for their gain. For too long, have we been complicit with our lowly lives. It is time for a new beginning - one, where the sun never sets in Caribbea!','長い間、旧エリートはカリベアの富を独占してきた。長い間、カリベアの農民、貧民、労働者は彼らの利益のために苦しんできた。長い間、私たちは卑しい暮らしを甘受してきた。今こそ新たな始まりの時だ――カリベアに沈まぬ太陽が輝く時代へ！','太久以来，旧精英一直垄断着加勒比的财富。太久以来，加勒比的农民、贫民和工人一直为他们的利益而受苦。太久以来，我们一直安于卑微的生活。是时候迎来一个新的开始了——一个加勒比永不日落的时代！'],
  ['El Sol Nunca Se Pone Booster purchased!','「太陽は決して沈まない」ブースターを購入しました！','已购买“永不落日”补充包！'],
  ['No El Sol Nunca Se Pone Boosters to open','開封できる「太陽は決して沈まない」ブースターがありません','没有可开启的“永不落日”补充包'],
  ['El Sol Nunca Se Pone Booster is temporarily unavailable','「太陽は決して沈まない」ブースターは一時的に利用できません','“永不落日”补充包暂时不可用']

@@ -160,6 +160,9 @@ function createDesktopUpdater(runtime = {}) {
 
     try {
       autoUpdater = loadAutoUpdater();
+      // Reuse cached installer blocks; electron-updater verifies the rebuilt
+      // installer and falls back to a full download if the cache is unavailable.
+      autoUpdater.disableDifferentialDownload = false;
       autoUpdater.autoDownload = true;
       autoUpdater.autoInstallOnAppQuit = true;
       autoUpdater.autoRunAppAfterInstall = true;

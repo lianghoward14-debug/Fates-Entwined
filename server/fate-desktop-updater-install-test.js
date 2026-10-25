@@ -52,6 +52,7 @@ function createHarness(installImplementation) {
   });
 
   updater.start();
+  assert.strictEqual(fakeAutoUpdater.disableDifferentialDownload, false, 'Updater must reuse unchanged installer blocks');
   fakeAutoUpdater.emit('update-downloaded', { version: '1.39.94' });
 
   return {

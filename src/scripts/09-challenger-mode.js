@@ -3778,9 +3778,9 @@ function renderChStoreTab(content) {
                 <img src="booster4.png?v=20261024" alt="El Sol Nunca Se Pone Booster" loading="eager" decoding="async" draggable="false" onerror="this.style.display='none';this.parentElement.innerHTML='<div class=\'ch-store-pack-fallback\'>EL SOL NUNCA SE PONE</div>'">
               </div>
               <div class="booster-info ch-store-product-info">
-                <div class="ch-store-product-kicker">Third Expansion</div>
+                <div class="ch-store-product-kicker">Second Expansion</div>
                 <div class="booster-name">El Sol Nunca Se Pone Booster</div>
-                <div class="booster-desc">For too long, have the Old Elite has hoarded the wealth of Caribbea. For too long, have the farmers, peasants, and workers of caribbea suffered for their gain. For too long, have we been complicit with our lowly lives. It is time for a new beginning - one, where the sun never sets in Caribbea!</div>
+                <div class="booster-desc">For too long, have the Old Elite has hoarded the wealth of Caribbea. For too long, have the farmers, peasants, and workers of Caribbea suffered for their gain. For too long, have we been complicit with our lowly lives. It is time for a new beginning - one, where the sun never sets in Caribbea!</div>
                 <div class="booster-price-row">
                   <div class="booster-price">${STARLIGHT_ICON} ${BOOSTER4_COST_STARLIGHT}</div>
                   <button class="btn-buy" onclick="buyBooster4Pack()" ${canBuyBooster4?'':'disabled'}>${canBuyBooster4?'Buy Pack':'Need '+BOOSTER4_COST_STARLIGHT}</button>
@@ -3792,7 +3792,7 @@ function renderChStoreTab(content) {
                 <img src="booster3.png?v=2026090102" alt="Brave Horizons Booster" loading="eager" decoding="async" draggable="false" onerror="this.style.display='none';this.parentElement.innerHTML='<div class=\'ch-store-pack-fallback\'>BRAVE HORIZONS</div>'">
               </div>
               <div class="booster-info ch-store-product-info">
-                <div class="ch-store-product-kicker">Second Expansion</div>
+                <div class="ch-store-product-kicker">First Character Pack</div>
                 <div class="booster-name">Brave Horizons Booster</div>
                 <div class="booster-desc">Beyond familiar shores, characters with boundless ambition look towards a brighter tomorrow, shaped by their own will. Voyagers, Tacticians, Warriors, Artists, Dreamers, Scientists- who will conquer that pale blue horizon first?</div>
                 <div class="booster-price-row">
