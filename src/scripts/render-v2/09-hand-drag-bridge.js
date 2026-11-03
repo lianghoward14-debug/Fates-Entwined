@@ -361,6 +361,8 @@
   }
 
   function viewportHandHitFromPoint(clientX, clientY){
+    const point = window.FateMobileInput?.uiPoint(clientX, clientY);
+    if(point){ clientX = point.x; clientY = point.y; }
     const scene = adapter();
     const map = scene && typeof scene.getHitMap === 'function' ? scene.getHitMap() : null;
     const handCards = map && Array.isArray(map.handCards) ? map.handCards : [];
@@ -631,6 +633,7 @@
   }
 
   function viewportRectInBoardSpace(vr){
+    if(vr && window.FateMobileInput) vr = window.FateMobileInput.uiRectToClient(vr);
     const canvas = document.getElementById('fate-match-v2-canvas');
     if(!canvas || !vr || !canvas.getBoundingClientRect) return null;
     const cr = canvas.getBoundingClientRect();
@@ -1033,6 +1036,13 @@
   }
 
   function onPointerDown(ev){
+    if(ev.pointerType === 'touch' && ev.target?.closest?.('button, a, input, select, textarea, [role="button"], [data-scene-input="ignore"], .overlay.on, [aria-modal="true"]')) return;
+    // A second finger belongs to browser pinch zoom, never card placement.
+    if(ev.pointerType === 'touch' && ev.isPrimary === false){
+      if(state) cleanup({clearPlacement:true});
+      suppressHandClick(900);
+      return;
+    }
     if(document.body?.classList.contains('fate-authority-v3-single-player-active')){
       if(state) cleanup({clearPlacement:false});
       return;
@@ -1058,6 +1068,7 @@
       sourceViewportRect:handHit && handHit.rect ? Object.assign({}, handHit.rect) : null,
       sourceBoardRect:handHit && handHit.rect ? viewportRectInBoardSpace(handHit.rect) : null,
       pointerId:ev.pointerId,
+      pointerType:ev.pointerType,
       captureTarget:null,
       pointerCaptured:false,
       lastPrimaryButtonAt:nowMs(),
@@ -1077,9 +1088,10 @@
     const dx = ev.clientX - state.sx;
     const dy = ev.clientY - state.sy;
     const dist = Math.sqrt(dx * dx + dy * dy);
-    if(dist >= DRAG_CLICK_SUPPRESS_THRESHOLD) suppressHandClick(520);
+    const dragThreshold = state.pointerType === 'touch' ? (window.FateMobileInput?.touchSlop() || 12) : DRAG_THRESHOLD;
+    if(dist >= (state.pointerType === 'touch' ? dragThreshold : DRAG_CLICK_SUPPRESS_THRESHOLD)) suppressHandClick(520);
     if(!state.dragging){
-      if(dist < DRAG_THRESHOLD) return;
+      if(dist < dragThreshold) return;
       beginDrag(ev);
     }
     if(!state || !state.dragging) return;
@@ -1261,6 +1273,12 @@
       return;
     }
     if(!state || !isActiveDragPointer(ev)) return;
+    if(state.pointerType === 'touch') {
+      suppressHandClick(900);
+      blockClickUntil = Date.now() + 500;
+      cleanup({clearPlacement:true});
+      return;
+    }
     if(state.dragging) {
       state.pointerCancelIgnoredAt = Date.now();
       return;
@@ -1275,7 +1293,7 @@
   document.addEventListener('contextmenu', onContextMenu, true);
   document.addEventListener('click', blockGhostClick, true);
   window.addEventListener('blur', function(){
-    if(state && !state.dragging) cleanup({clearPlacement:true});
+    if(state && (state.pointerType === 'touch' || !state.dragging)) cleanup({clearPlacement:true});
     closeHandOrganizer('blur');
   });
   document.addEventListener('visibilitychange', function(){

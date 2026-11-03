@@ -20,6 +20,14 @@ const cards = [
 ];
 
 const context = {CARDS:cards, Math:Object.create(Math)};
+for (const file of ['09-challenger-mode.js', '09-challenger-v2.js']) {
+  const store = fs.readFileSync(path.join(root, 'src/scripts', file), 'utf8');
+  const base = store.match(/function getPackCardPool\(\)[\s\S]*?(?=\r?\n\/\/ Generate a booster pack)/);
+  const candidates = [{id:'79'}, ...Array.from({length:21}, (_, i)=>({id:String(100+i)}))];
+  const baseContext = vm.createContext({getChallengerCardPool:()=>candidates});
+  vm.runInContext(base[0], baseContext);
+  assert.deepEqual(Array.from(vm.runInContext('getPackCardPool().map(c=>c.id)', baseContext)), ['79'], `${file}: base booster must exclude every card from 100 through 120`);
+}
 context.getChallengerCardPool = ()=>context.CARDS;
 context.takeRandomBooster2Card = pool=>pool.splice(Math.floor(context.Math.random() * pool.length), 1)[0] || null;
 vm.createContext(context);

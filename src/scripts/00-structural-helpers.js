@@ -1497,6 +1497,12 @@ function resetMatchTransientState() {
   if (typeof G === 'undefined' || !G) return;
   cleanupTransientGameTimers();
   G.board = createEmptyBoard();
+  // Projections and per-player effect counters belong only to the old match.
+  G._phase7Statuses = [];
+  G._phase7Geometry = null;
+  G._saboteurConcealment = null;
+  G.players?.forEach(player=>{delete player._merchantDrawPhases;});
+  document.getElementById('merchant-draw-skipped-banner')?.remove();
   G.extraCells = createEmptyExtraCells();
   G.extraRows = [0, 0, 0];
   G.extraRowFullOwners = [null, null, null];

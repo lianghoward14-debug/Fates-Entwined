@@ -12,6 +12,12 @@ function resolveAIDeckRef(refId) {
 }
 
 let _aiDeckResolving = false;
+function randomizeAIOpponentDeck(ai) {
+  const pool = typeof getAIDeckPoolForOpponent === 'function' ? getAIDeckPoolForOpponent(ai) : [];
+  if(!pool.length) return ai;
+  const picked = pool[Math.floor(Math.random() * pool.length)];
+  return {...ai, deckRef:picked.id, deck:[...picked.ids], _deckStrategy:picked.baseStrategy || picked.id};
+}
 function getPlayableAIDeck(aiSource, difficultyOverride=null) {
   // Enforce the active pool even for persisted profiles with retired raw decks.
   if(typeof getAIDeckPoolForOpponent === 'function'){
@@ -224,6 +230,10 @@ function startGame(vsAI=false, options={}) {
       return false;
     }
     try{
+      if(vsAI && G._selectedAI){
+        G._selectedAI = randomizeAIOpponentDeck(resolveCurrentAIOpponentState(G._selectedAI));
+        G.p2Deck = [...G._selectedAI.deck];
+      }
       return authority.startFromLegacyUi({vsAI:vsAI === true});
     }catch(error){
       console.error('[Fate Phase 5 Single Player] start failed', error);
@@ -233,7 +243,7 @@ function startGame(vsAI=false, options={}) {
   }
   if(typeof window.invalidateFateRenderCaches === 'function') window.invalidateFateRenderCaches();
   if(typeof playSfx==='function') playSfx('startGame');
-  const tutorialRunning = typeof _tutorialActive !== 'undefined' && _tutorialActive && typeof CURRENT_MODE !== 'undefined' && CURRENT_MODE === 'tutorial';
+  const tutorialRunning = options.tutorialPractice === true || (typeof _tutorialActive !== 'undefined' && _tutorialActive && typeof CURRENT_MODE !== 'undefined' && CURRENT_MODE === 'tutorial');
   if(!tutorialRunning) {
     G._tutorialTurnLimit = null;
     G.maxTurns = window.FATE_ZONE_CONTROL_REWORK_ENABLED === false ? 20 : 24;
@@ -262,7 +272,7 @@ function startGame(vsAI=false, options={}) {
   delete G._supportCompanyPool;
   G.aiPlayer = 1; // AI is always player 2
   if(vsAI){
-    if(G._selectedAI) G._selectedAI = resolveCurrentAIOpponentState(G._selectedAI);
+    if(G._selectedAI) G._selectedAI = randomizeAIOpponentDeck(resolveCurrentAIOpponentState(G._selectedAI));
     if(!G.aiDifficulty) G.aiDifficulty = 'medium';
     const names = {easy:'AI - Rookie', medium:'AI - Apprentice', hard:'AI - Veteran', extreme:'AI - Master'};
     const selectedDeck = G._selectedAI ? getPlayableAIDeck(G._selectedAI, G.aiDifficulty) : [];
@@ -281,6 +291,7 @@ function startGame(vsAI=false, options={}) {
   }
   initGameState();
   G._aiFateMultiplier = vsAI ? getAIFateMultiplier(G._selectedAI) : 1;
+  if(options.tutorialPractice === true && typeof options.prepareOpening === 'function') options.prepareOpening();
   // The replacement authoritative screen is incomplete and remains an explicit
   // test route. Ordinary AI matches continue through the shipping renderer.
   G._rulesAiMatch = false;

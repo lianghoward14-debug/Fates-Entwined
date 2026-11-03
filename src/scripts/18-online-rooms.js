@@ -6447,7 +6447,8 @@
         await Promise.resolve(window.showEffectActivationCinematic(source, {
           remote:Number(event.playerIndex) !== Number(view.playerIndex),
           source:eventType === 'EFFECT_REACTED' ? 'improvisor-reaction' : 'phase7-authoritative-event',
-          sfx:eventType === 'EFFECT_REACTED' ? false : undefined,
+          // Havano has no bespoke signature sound; keep her activation cue audible.
+          sfx:eventType === 'EFFECT_REACTED' && String(source.id) !== '79' ? false : undefined,
           broadcast:false,
           _effectActivationDedupeKey:batchId + ':' + eventType.toLowerCase() + ':' + index
         }));
@@ -6952,6 +6953,14 @@
         // and is a safe presentation target; dropping it made the +2 commit
         // silently with neither its overlay nor its Fate motion.
         || (targetIid && targetIid === String(event?.sourceIid || '') ? source : null);
+      if(type === 'PIEROGI_EXPIRED' && event.previousZone === 'board'){
+        window.playSpecialPlacementSfx?.('pierogi');
+        return;
+      }
+      if(type === 'MORALE_RECOVERY_SQUARE' || (type === 'SQUARE_STATUS_CREATED' && event.statusType === 'MORALE_RECOVERY_SQUARE')){
+        window.playJaimeSafeSquareSfx?.();
+        return;
+      }
       if(type === 'HIDDEN_BOMB_EXPLODED'){
         const pos = event.destination;
         const bombedCard = phase7PresentationCard(phase7FindAnyCard(event.cardIid))
@@ -13651,6 +13660,11 @@
     await touchRoomUpdatedAt(code);
   }
   async function sendRoomChat(code, textOverride){
+    const commandInput = document.getElementById('igc-input') || document.getElementById('online-room-chat-input');
+    if(window.handleFateChatCommand?.(textOverride != null ? textOverride : commandInput?.value)){
+      if(commandInput) commandInput.value='';
+      return;
+    }
     const u = getUser(); if(!u) return;
     const roomCode = String(code || activeRoom || '').trim().toUpperCase();
     if(!roomCode) return;

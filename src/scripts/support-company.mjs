@@ -195,7 +195,7 @@ window.resolveHopliteCallToArms = async function(source,player){
   if(!categories.length)return false;
   const ai=game.aiEnabled && player===game.aiPlayer;
   const ranked=ai && typeof aiRankSupportCompanyOffers==='function' ? aiRankSupportCompanyOffers(categories.flatMap(category=>
-    supportCompanyOffers(CARDS,seed,player,category.id).map(id=>({category:category.id,card:CARDS.find(card=>String(card.id)===id)})))) : [];
+      supportCompanyOffers(CARDS,seed,player,category.id).map(id=>({category:category.id,card:CARDS.find(card=>String(card.id)===id)}))), 'triggered') : [];
   const category=ai ? (ranked[0]?.category || categories[0].id) : await new Promise(resolve=>{
     window.showSupportCompanyCategoryWindow({categories,cancellable:false,onSelect:category=>{closeModal();resolve(category);}});
   });

@@ -101,13 +101,12 @@ function syncStarterPresetMetadata() {
 const STARLIGHT_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" style="display:inline-block;vertical-align:-3px;filter:drop-shadow(0 0 4px rgba(255,215,0,.8));"><defs><linearGradient id="sl-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#fff8c4"/><stop offset="50%" stop-color="#ffd700"/><stop offset="100%" stop-color="#c9a84c"/></linearGradient></defs><path d="M12 2 L14 9 L21 10 L15.5 14.5 L17 21 L12 17.5 L7 21 L8.5 14.5 L3 10 L10 9 Z" fill="url(#sl-grad)" stroke="#fff8c4" stroke-width=".3"/></svg>';
 
 // ─── PACK GENERATION (pure, multiplayer-safe) ───
-// Pack uses card IDs 1-80. Not all IDs exist in the CARDS array (some are reserved for expansion).
-// We filter to existing cards only.
+// Base boosters exclude expansion cards 80-120 and Brave Horizons.
 function getPackCardPool() {
   return getChallengerCardPool().filter(card=>{
     if(String(card?.set || '').toLowerCase() === 'brave_horizons') return false;
     const numericId = Number(card && card.id);
-    return !Number.isInteger(numericId) || numericId < 80 || numericId > 100;
+    return !Number.isInteger(numericId) || numericId < 80 || numericId > 120;
   });
 }
 
@@ -573,6 +572,9 @@ const STARTER_DECKS = [
 ];
 
 const AI_ONLY_RANDOM_DECKS = [
+{"id":"ai_infantry_havano","baseStrategy":"ai_infantry_havano","name":"Infantry of Havano","description":"Custom deck","theme":"AI Only","faceCardId":"114","displayCardIds":["07","37","66","34"],"sourcePublicDeckId":"nNbfvYwsoDfnvTHQhK4lwN5a2B22_1793418513874","ids":["114","114","114","37","37","37","79","79","79","60","60","60","07","13","13","13","27","27","27","32","32","32","16","16","16","28","28","28","68","68","68","34","34","34","66","66","66","74","74","74"],"enabled":true},
+{"id":"ai_el_viaje","baseStrategy":"ai_el_viaje","name":"El Viaje Del Hombre Pina","description":"Caribbea must be saved, but only the Pineapple man can do it","theme":"AI Only","faceCardId":"101","displayCardIds":["bh22","33","119","120"],"sourcePublicDeckId":"nNbfvYwsoDfnvTHQhK4lwN5a2B22_1793371018171","ids":["101","101","bh22","bh22","84","84","84","33","33","33","60","60","60","12","12","58","58","58","bh20","bh20","bh20","28","28","28","98","98","120","120","120","119","119","119","79","79","79","72","72","72","118","118"],"enabled":true},
+
 {"id":"ai_revolutionary_oaf","baseStrategy":"ai_revolutionary_oaf","name":"The Revolutionary and the Oaf","description":"Custom deck","theme":"AI Only","faceCardId":"21","displayCardIds":["21","03","42","74"],"sourcePublicDeckId":"nNbfvYwsoDfnvTHQhK4lwN5a2B22_1791694365696","ids":["21","21","03","42","42","42","74","74","74","bh24","bh24","bh24","38","38","08","08","08","29","29","09","09","09","13","13","13","32","32","32","80","80","80","28","28","28","60","60","60","98","98","98"],"enabled":true},
 {"id":"ai_black_revolution","baseStrategy":"ai_black_revolution","name":"The Black Revolution","description":"Peace is complicity, change only comes with daring endeavors","theme":"AI Only","faceCardId":"102","displayCardIds":["16","30","102","104"],"sourcePublicDeckId":"nNbfvYwsoDfnvTHQhK4lwN5a2B22_1791693555279","ids":["28","28","28","16","16","16","30","30","30","102","102","102","60","60","60","104","104","104","105","105","105","27","27","27","58","58","58","98","98","98","97","97","97","bh05","50","50","50","76","76","76"],"enabled":true},
 {"id":"ai_sunset_great_lakes","name":"Sunset over the Great Lakes","faceCardId":"45","sourcePublicDeckId":"nNbfvYwsoDfnvTHQhK4lwN5a2B22_1789191956232","ids":["30","30","30","45","45","45","16","16","16","63","63","63","76","76","76","40","40","40","bh22","bh22","bh22","09","09","09","bh05","60","60","60","28","28","28","32","32","32","58","58","58","33","33","33"],"baseStrategy":"ai_sunset_great_lakes","enabled":true,"theme":"AI Only","displayCardIds":["45"]},
@@ -6600,6 +6602,9 @@ function getWorldChatMessagesHtml() {
 }
 
 function sendWorldChat() {
+  const commandInput = document.getElementById('sp-wc-input')?.value.trim()
+    ? document.getElementById('sp-wc-input') : document.getElementById('wc-input');
+  if(commandInput && window.handleFateChatCommand?.(commandInput.value)){commandInput.value='';return;}
   // Check side panel input first � copy its value to the main input
   const spInput = document.getElementById('sp-wc-input');
   const mainInput = document.getElementById('wc-input');
@@ -7026,6 +7031,7 @@ function sendInGameChat() {
   if(!inp) return;
   const text = inp.value.trim();
   if(!text) return;
+  if(window.handleFateChatCommand?.(text)){ inp.value=''; return; }
   if(G._onlineRoomCode && typeof window.fateSendRoomChat === 'function') {
     window.fateSendRoomChat(G._onlineRoomCode, text);
     inp.value = '';
@@ -7745,6 +7751,7 @@ function getDailyChallengeProgress(key) {
 }
 
 function updateDailyChallengeProgress(key, value, mode) {
+  if(typeof CURRENT_MODE !== 'undefined' && CURRENT_MODE === 'tutorial') return;
   if(typeof window.isFateDevRewardBlocked === 'function' && window.isFateDevRewardBlocked())return;
   // mode: 'add' | 'max' | 'set'
   var today = getDailyChallengeDate();

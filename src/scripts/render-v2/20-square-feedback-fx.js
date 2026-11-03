@@ -47,6 +47,7 @@
   }
   function wake(){ if(!frame) frame = requestAnimationFrame(tick); }
   function playSet(target, card, style){
+    if(target && card && style==='hammer-lock') window.playSpecialPlacementSfx?.('free-set');
     if(!target || !card || reduced()) return false;
     sets.get(key(target))?.canvas?.remove();
     sets.set(key(target), {start:performance.now(), iid:String(card.iid), target:{...target},style,duration:style==='hammer-lock'?hammerDuration:duration});

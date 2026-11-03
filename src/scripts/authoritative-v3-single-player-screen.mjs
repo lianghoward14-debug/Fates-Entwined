@@ -916,6 +916,60 @@ export class FateAuthoritativeV3SinglePlayerScreen {
       const element = this.cardElement(card, 'fate-v3-hand-card');
       element.dataset.fateV3HandIid = card.iid;
       element.draggable = true;
+      element.addEventListener('pointerdown', event=>{
+        if(event.pointerType !== 'touch' || event.isPrimary === false) return;
+        const pointerId = event.pointerId;
+        const startX = event.clientX, startY = event.clientY;
+        let moved = false, ghost = null;
+        const cleanup = ()=>{
+          this.document.removeEventListener('pointermove', move, true);
+          this.document.removeEventListener('pointerup', up, true);
+          this.document.removeEventListener('pointercancel', cancel, true);
+          this.document.removeEventListener('pointerdown', secondFinger, true);
+          this.document.removeEventListener('visibilitychange', cancel);
+          this.window.removeEventListener('blur', cancel);
+          ghost?.remove();
+        };
+        const cancel = ()=>{ cleanup(); this.touchDragClickUntil = Date.now() + 500; };
+        const secondFinger = e=>{ if(e.pointerType === 'touch' && e.pointerId !== pointerId) cancel(); };
+        const move = e=>{
+          if(e.pointerId !== pointerId) return;
+          if(!moved && Math.hypot(e.clientX-startX, e.clientY-startY) < (this.window.FateMobileInput?.touchSlop() || 12)) return;
+          moved = true;
+          e.preventDefault();
+          if(!ghost){
+            ghost = element.cloneNode(true);
+            ghost.removeAttribute('id');
+            ghost.setAttribute('aria-hidden','true');
+            const rect = element.getBoundingClientRect();
+            ghost.style.cssText = 'position:fixed;pointer-events:none;z-index:9999;opacity:.8;transform:none;margin:0;width:' + rect.width + 'px;height:' + rect.height + 'px;';
+            this.document.body.appendChild(ghost);
+          }
+          ghost.style.left = (e.clientX + 12) + 'px';
+          ghost.style.top = (e.clientY - 60) + 'px';
+        };
+        const up = e=>{
+          if(e.pointerId !== pointerId) return;
+          cleanup();
+          if(!moved) return;
+          this.touchDragClickUntil = Date.now() + 500;
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          const cell = this.document.elementFromPoint(e.clientX,e.clientY)?.closest('[data-fate-v3-cell]');
+          if(!cell || cell.disabled) return;
+          const key = coordinateKey({z:Number(cell.dataset.z),r:Number(cell.dataset.r),c:Number(cell.dataset.c)});
+          const matches = fateV3CommandsForCard(this.view?.legalCommands || [], card.iid).filter(command=>
+            DIRECT_DESTINATION_COMMANDS.has(command.type) && coordinateKey(command.payload?.destination) === key);
+          if(matches.length === 1) this.submit(matches[0]);
+          else if(matches.length > 1){ this.selectedCardIid = card.iid; this.selectedDestinationKey = key; this.render(this.view); }
+        };
+        this.document.addEventListener('pointermove', move, {capture:true,passive:false});
+        this.document.addEventListener('pointerup', up, true);
+        this.document.addEventListener('pointercancel', cancel, true);
+        this.document.addEventListener('pointerdown', secondFinger, true);
+        this.document.addEventListener('visibilitychange', cancel);
+        this.window.addEventListener('blur', cancel);
+      });
       element.addEventListener('dragstart', event=>{
         this.selectedCardIid = String(card.iid || '');
         event.dataTransfer?.setData('text/fate-card-iid', this.selectedCardIid);
@@ -924,6 +978,7 @@ export class FateAuthoritativeV3SinglePlayerScreen {
       element.addEventListener('click', event=>{
         event.preventDefault();
         event.stopImmediatePropagation();
+        if(Date.now() < (this.touchDragClickUntil || 0)) return;
         this.selectCard(card.iid);
       }, true);
       root.appendChild(element);
@@ -1050,6 +1105,7 @@ export class FateAuthoritativeV3SinglePlayerScreen {
           cell.addEventListener('click', event=>{
             event.preventDefault();
             event.stopImmediatePropagation();
+            if(Date.now() < (this.touchDragClickUntil || 0)) return;
             this.selectBoardCell({z, r, c}, card?.iid || '');
           }, true);
           cells.appendChild(cell);

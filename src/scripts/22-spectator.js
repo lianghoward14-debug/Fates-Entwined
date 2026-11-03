@@ -1046,6 +1046,7 @@
 
   // ─── Spectator chat: spectators can send messages but they appear anonymously ───
   function sendSpectatorChat(text){
+    if(window.handleFateChatCommand?.(text)) return;
     const u = getUser();
     const code = spectatingRoom || (typeof window.getFateGameState === 'function' && window.getFateGameState()?._onlineRoomCode);
     if(!u || !code) return;

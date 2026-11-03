@@ -1626,9 +1626,14 @@
   }
 
   async function sendWorldChatOnline(){
-    watchWorldChat();
     const sideInput = document.getElementById('sp-wc-input');
     const inp = document.getElementById('wc-input');
+    const commandInput = sideInput?.value.trim() ? sideInput : inp;
+    if(commandInput && window.handleFateChatCommand?.(commandInput.value)){
+      commandInput.value='';
+      return;
+    }
+    watchWorldChat();
     if(sideInput && sideInput.value.trim() && inp){
       inp.value = sideInput.value;
       sideInput.value = '';

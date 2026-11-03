@@ -541,6 +541,32 @@ function scheduleAuthorityTimers(actor){
   }
 }
 
+// Presentation-only selection, shared by both seats and excluded from game state.
+const chatterSessions = new WeakMap();
+const chatterCardIds = {
+  kvetka:['19','87'], henry:['21'], kazumi:['27'],
+  howard:['03'], maja:['07'], lina:['08'], anne:['11'], makenna:['12'],
+  johnathan:['13'], anicka:['02','bh01','bh04'], felicyta:['01','82','85','100','bh11'],
+  alondra:['14','bh09'], zsofia:['15'], carolyn:['17']
+};
+function relayChatter(session, message){
+  const actor = manager.actor(session.matchId), state = actor?.state;
+  if(!state || state.outcome || state.phase !== 'main'
+    || Number(state.activePlayer) !== Number(session.playerIndex)) return;
+  const ids = Object.hasOwn(chatterCardIds,message.characterKey) ? chatterCardIds[message.characterKey] : null;
+  if(!ids || !Number.isInteger(message.index) || message.index < 0 || message.index >= 5) return;
+  if(!state.board.flat(3).some(card => card && !card.faceDown && ids.includes(String(card.id)))) return;
+  let chatter = chatterSessions.get(actor);
+  if(!chatter){chatter={used:new Set(),nextAt:0};chatterSessions.set(actor,chatter);}
+  const key = message.characterKey + ':' + message.index, now = Date.now();
+  if(now < chatter.nextAt || chatter.used.has(key)) return;
+  chatter.used.add(key);chatter.nextAt=now+60000;
+  const event={kind:'idle-chatter',matchId:session.matchId,characterKey:message.characterKey,index:message.index};
+  for(const peers of matchSockets.get(session.matchId)?.values() || []){
+    for(const peer of peers) send(peer,event);
+  }
+}
+
 async function handleSocketMessage(ws, message){
   if(message.kind === 'hello'){
     if(Number(message.protocolVersion) !== 3) throw new Error('protocolVersion 3 is required');
@@ -573,6 +599,7 @@ async function handleSocketMessage(ws, message){
   }
   const session = ws.authorityV3Session;
   if(!session) throw new Error('hello is required before commands');
+  if(message.kind === 'idle-chatter'){relayChatter(session,message);return;}
   if(message.kind !== 'command') throw new Error('unknown v3 message kind');
   const actor = manager.actor(session.matchId);
   if(!actor) throw new Error('match not found');

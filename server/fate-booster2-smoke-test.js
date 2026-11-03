@@ -31,8 +31,8 @@ for(const [label, source] of [['primary store', challengerSource], ['alternate s
   assert(basePool.length > 0, `${label} base booster pool must not be empty`);
   assert(basePool.every(card => {
     const id = Number(card && card.id);
-    return (!Number.isInteger(id) || id < 80 || id > 100) && card.set !== 'brave_horizons';
-  }), `${label} Fates Entwined Booster must exclude cards 80-100 and Brave Horizons`);
+    return (!Number.isInteger(id) || id < 80 || id > 120) && card.set !== 'brave_horizons';
+  }), `${label} Fates Entwined Booster must exclude cards 80-120 and Brave Horizons`);
 }
 
 const boosterBlockMatch = challengerSource.match(/function getBooster2CardPool\(\)[\s\S]*?(?=\r?\n\/\/ Add owned cards)/);

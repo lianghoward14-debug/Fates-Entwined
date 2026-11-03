@@ -187,7 +187,39 @@ function scheduleDylanRadiance(ac,destination,volume){const now=ac.currentTime,t
 function noise(at,dur,hz,amp,attack=.06,type='bandpass'){let b=ac.createBuffer(1,Math.ceil(ac.sampleRate*dur*5/6),ac.sampleRate),d=b.getChannelData(0),low=0;for(let i=0;i<d.length;i++){let n=Math.random()*2-1;low=low*.96+n*.04;d[i]=n*.6+low*2}const s=ac.createBufferSource(),f=ac.createBiquadFilter(),g=ac.createGain();s.buffer=b;f.type=type;f.frequency.setValueAtTime(hz,now+at*5/6);f.frequency.exponentialRampToValueAtTime(hz*.5,now+at*5/6+dur*5/6);f.Q.value=.6;g.gain.setValueAtTime(.0001,now+at*5/6);g.gain.exponentialRampToValueAtTime(amp,now+at*5/6+attack*5/6);g.gain.exponentialRampToValueAtTime(.0001,now+at*5/6+dur*5/6);s.connect(f).connect(g).connect(out);s.start(now+at*5/6);torchNodes.push(s)}
 noise(.48,.14,2100,.18,.03);noise(.57,1.4,900,.25,.24,'lowpass');for(let j=0;j<5;j++){let f=[174.61,261.63,349.23,523.25,698.46][j];tone(.63+j*.055,f,1.5,.065/(1+j*.45));tone(.635+j*.055,f*1.003,1.4,.018)}for(let j=0;j<7;j++)tone(1.22+j*.055,1046.5*(1+j*.125),.42,.018/(1+j*.2));
 return {stop(){torchNodes.forEach(n=>{try{n.stop()}catch(e){}});out.disconnect();}};}
+  function scheduleGazeAndAtoms(ac,destination,id,volume){
+    const start=ac.currentTime+.015, nodes=[],sources=[];
+    const out=ac.createGain();out.gain.value=volume*.55;out.connect(destination);nodes.push(out);
+    function tone(at,duration,from,to,level,type='sine'){
+      const osc=ac.createOscillator(),gain=ac.createGain(),when=start+at;
+      osc.type=type;osc.frequency.setValueAtTime(from,when);
+      osc.frequency.exponentialRampToValueAtTime(to,when+duration);
+      gain.gain.setValueAtTime(.0001,when);
+      gain.gain.exponentialRampToValueAtTime(level,when+.025);
+      gain.gain.exponentialRampToValueAtTime(.0001,when+duration);
+      osc.connect(gain);gain.connect(out);osc.start(when);osc.stop(when+duration+.02);
+      sources.push(osc);nodes.push(osc,gain);
+    }
+    if(String(id)==='04'){
+      // Eye opens, gaze focuses, then the square and brackets lock in place.
+      tone(.10,.65,170,420,.20,'triangle');
+      tone(.48,.55,740,880,.12);
+      tone(.74,.25,260,105,.30,'triangle');
+      tone(1.18,.18,660,330,.22,'triangle');
+      tone(1.27,.72,880,870,.10);
+    }else{
+      // A solid square dissolves into orbiting particles, then seals shut.
+      tone(.08,.55,150,280,.18,'triangle');
+      for(let i=0;i<9;i++)tone(.36+i*.09,.24,440+i*85,700+i*100,.055);
+      tone(1.26,.40,860,90,.28,'triangle');
+      tone(1.55,.55,392,392,.13);
+      tone(1.58,.52,587,587,.08);
+    }
+    let stopped=false;
+    return {duration:2.14,stop(){if(stopped)return;stopped=true;for(const source of sources)try{source.stop();}catch(e){}for(const node of nodes)node.disconnect();}};
+  }
   function schedule(ac,destination,id,volume=1){
+if(['04','17'].includes(String(id)))return scheduleGazeAndAtoms(ac,destination,id,volume);
 if(String(id)==='29')return scheduleDylanRadiance(ac,destination,volume);
 if(String(id)==='bh17'){const gain=ac.createGain();gain.gain.value=Math.min(1,volume);gain.connect(destination);const sound=scheduleJakobShield(ac,gain);return {stop(){sound.stop();gain.disconnect();}};}
     const score=cues[String(id)];if(!score||volume<=0)return null;
@@ -195,8 +227,9 @@ if(String(id)==='bh17'){const gain=ac.createGain();gain.gain.value=Math.min(1,vo
     // Stronger attacks than the old quiet signature tones; the game's existing
     // SFX bus supplies compression and room ambience. User volume is applied once.
     out.gain.setValueAtTime(Math.min(1,volume)*.72,now);out.connect(destination);
-    let cueLevel=1;
+    let cueLevel=1, endTime=0;
     function voice(node,at,dur,level,attack=.008){
+      endTime=Math.max(endTime,at+dur+.01);
       const gain=ac.createGain();nodes.push(node,gain);sources.push(node);
       gain.gain.setValueAtTime(0,now+at);gain.gain.linearRampToValueAtTime(level*cueLevel,now+at+attack);gain.gain.exponentialRampToValueAtTime(.0001,now+at+dur);gain.gain.setValueAtTime(0,now+at+dur+.005);
       node.connect(gain);gain.connect(out);node.start(now+at);node.stop(now+at+dur+.01);return gain;
@@ -509,7 +542,7 @@ if(String(id)==='bh17'){const gain=ac.createGain();gain.gain.value=Math.min(1,vo
       else{tone('sine',f*2.02,f*2,at,.22,.46);noise(at,.055,2100,.3);}
     });
     let stopped=false;
-    return {stop(){if(stopped)return;stopped=true;for(const s of sources)try{s.stop();}catch(e){}for(const n of nodes)try{n.disconnect();}catch(e){}}};
+    return {duration:endTime,stop(){if(stopped)return;stopped=true;for(const s of sources)try{s.stop();}catch(e){}for(const n of nodes)try{n.disconnect();}catch(e){}}};
   }
   function play(id){
     try{
@@ -521,16 +554,24 @@ if(String(id)==='bh17'){const gain=ac.createGain();gain.gain.value=Math.min(1,vo
         audio.volume=Math.min(1,master*sfx*.92);
         audio.currentTime=0;
         let stopped=false;
-        const stop=()=>{if(stopped)return;stopped=true;audio.pause();audio.currentTime=0;document.removeEventListener('visibilitychange',hidden);};
+        let watchdog;
+        const stop=()=>{if(stopped)return;stopped=true;clearTimeout(watchdog);audio.pause();audio.currentTime=0;document.removeEventListener('visibilitychange',hidden);window.removeEventListener('pagehide',stop);};
         const hidden=()=>{if(document.hidden)stop();};
         document.addEventListener('visibilitychange',hidden);
+        window.addEventListener('pagehide',stop,{once:true});
         audio.addEventListener('ended',stop,{once:true});
+        audio.addEventListener('error',stop,{once:true});
+        watchdog=setTimeout(stop,Math.max(5000,(Number.isFinite(media.duration)?media.duration:10)*1000+2000));
         audio.play().catch(stop);
-        return {stop};
+        // Visual completion releases ownership; it must not truncate the WAV tail.
+        return {stop,finish(){}};
       }
       const ac=getAudioCtx(),sound=schedule(ac,getSfxBus(ac).input,id,master*sfx);if(!sound)return null;
-      let timer;const stop=()=>{clearTimeout(timer);document.removeEventListener('visibilitychange',hidden);sound.stop();};
-      const hidden=()=>{if(document.hidden)stop();};document.addEventListener('visibilitychange',hidden);timer=setTimeout(stop,2000);return {stop};
+      let timer;const stop=()=>{clearTimeout(timer);document.removeEventListener('visibilitychange',hidden);window.removeEventListener('pagehide',stop);sound.stop();};
+      const hidden=()=>{if(document.hidden)stop();};document.addEventListener('visibilitychange',hidden);window.addEventListener('pagehide',stop,{once:true});
+      // Oscillators stop on their authored envelopes; disconnect after the tail.
+      const end=Number.isFinite(sound.duration)?sound.duration:Math.max(2,...(cues[String(id)] || []).map(c=>Number(c[1])+Number(c[2])));
+      timer=setTimeout(stop,(end+1)*1000);return {stop,finish(){}};
     }catch(e){return null;}
   }
   window.FateApprovedActivationSfx={play,schedule,handles:id=>Object.hasOwn(cues,String(id)),ids:Object.keys(cues)};

@@ -293,6 +293,10 @@ function readTurnClock(matchId, turn, activePlayer){
 }
 
 function applyServerMessage(message){
+  if(message.kind === 'idle-chatter'){
+    if(String(message.matchId) === String(credential?.matchId)) emit(message);
+    return;
+  }
   if(message.kind === 'turn-clock'){
     if(String(message.matchId) !== String(credential?.matchId)
       || !Number.isFinite(message.remainingMs) || message.remainingMs < 0
@@ -816,6 +820,11 @@ globalThis.fateAuthorityV3Beta = Object.freeze({
   connect,
   disconnect,
   sendCommand,
+  sendChatter(characterKey, index){
+    if(!credential || socket?.readyState !== WebSocket.OPEN) return false;
+    socket.send(JSON.stringify({kind:'idle-chatter',characterKey,index}));
+    return true;
+  },
   startUnrankedMatchmaking,
   leaveMatchmaking,
   startSpectating,

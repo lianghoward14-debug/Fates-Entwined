@@ -1,0 +1,72 @@
+/* Keep mouse layout and controls unchanged. Reserve one-finger hand movement
+   for card dragging while allowing the browser to own two-finger zoom. */
+@media (pointer: coarse) {
+  html body #s-game #hand-cards,
+  html body #s-game .hand-strip,
+  html body #s-game #hand-cards *,
+  html body #s-game #board,
+  html body #s-game #fate-match-v2-canvas {
+    touch-action: pinch-zoom !important;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+  /* These hand surfaces were pointer-events:none on desktop, so the browser
+     never consulted their touch-action when deciding to cancel a swipe. */
+  html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 .hand-strip,
+  html.fate-match-renderer-v2-mode body #s-game.fate-renderer-v2 #hand-cards {
+    pointer-events: auto !important;
+    touch-action: pinch-zoom !important;
+  }
+  html body .btn, html body .db-filter,
+  html body .modal button, html body .overlay button {
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+  html body input, html body select, html body textarea {
+    font-size: max(16px, 1rem);
+  }
+  #fate-mobile-zoom {
+    position: fixed;
+    top: max(6px, env(safe-area-inset-top));
+    left: max(6px, env(safe-area-inset-left));
+    z-index: 10000;
+    display: flex;
+    gap: 3px;
+    padding: 3px;
+    border: 1px solid #b59b63;
+    border-radius: 10px;
+    background: #111725ee;
+    touch-action: manipulation;
+  }
+  #fate-mobile-zoom-panel:not([hidden]) {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    max-width: 220px;
+  }
+  #fate-mobile-zoom-panel[hidden] { display: none !important; }
+  #fate-mobile-zoom output { color: white; font: 14px system-ui; }
+  .mobile-zoom-hint { flex-basis:100%; color:#ddd; font:12px/1.4 system-ui; padding:4px; }
+  html.fate-mobile-fit body .screen {
+    height: var(--fate-mobile-game-height, 100dvh) !important;
+    max-height: var(--fate-mobile-game-height, 100dvh) !important;
+  }
+  html.fate-mobile-fit body #s-game .hand-strip {
+    bottom: calc(44px + var(--fate-mobile-bottom-gap, 0px)) !important;
+  }
+  #fate-mobile-zoom button {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 4px 8px;
+    border: 0;
+    border-radius: 6px;
+    background: #252e40;
+    color: #fff;
+    font: 600 16px system-ui, sans-serif;
+  }
+}
+@media (pointer: fine) {
+  #fate-mobile-zoom { display: none; }
+}

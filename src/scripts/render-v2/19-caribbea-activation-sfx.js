@@ -42,7 +42,7 @@ function schedule(ac,destination,key,volume=.5,stretch=1){
    const s=ac.createBufferSource(),filter=ac.createBiquadFilter();s.buffer=b;filter.type=kind==='water'?'lowpass':'bandpass';filter.frequency.setValueAtTime(f,when);filter.Q.value=.7;s.connect(filter);filter.connect(g);s.start(when);sources.push(s);nodes.push(filter);
   }
  }
- let timer;const stop=()=>{clearTimeout(timer);for(const s of sources)try{s.stop();}catch(e){}for(const n of nodes)try{n.disconnect();}catch(e){}};timer=setTimeout(stop,2200*stretch);return{stop};
+ let timer,stopped=false;const hidden=()=>{if(document.hidden)stop();};const stop=()=>{if(stopped)return;stopped=true;clearTimeout(timer);document.removeEventListener('visibilitychange',hidden);window.removeEventListener('pagehide',stop);for(const s of sources)try{s.stop();}catch(e){}for(const n of nodes)try{n.disconnect();}catch(e){}};document.addEventListener('visibilitychange',hidden);window.addEventListener('pagehide',stop,{once:true});const end=Math.max(...rows.map(row=>(row[1]+row[2])*stretch));timer=setTimeout(stop,(end+.15)*1000);return{stop,finish(){}};
 }
 function play(id){try{const master=typeof _masterVol==='number'?_masterVol:1,sfx=typeof _sfxVol==='number'?_sfxVol:.8;if(master<=0||sfx<=0||document.hidden||typeof getAudioCtx!=='function'||typeof getSfxBus!=='function')return null;const ac=getAudioCtx();return schedule(ac,getSfxBus(ac).input,id,master*sfx);}catch(e){return null;}}
 window.FateCaribbeaActivationSfx={schedule,play,cues,handles:id=>!!cues[String(id)]};

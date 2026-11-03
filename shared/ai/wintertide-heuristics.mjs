@@ -48,7 +48,7 @@ export function createWintertidePrior(state,player,entries,cards){
     }
     const tributes=new Set(p.tributeIids || []);
     for(const e of own.filter(e=>tributes.has(e.card.iid))){
-      if(e.card.id==='100')score-=15;
+      if(e.card.id==='100')score-=30+Math.max(0,effectiveFate(state,e)-12);
       if(card?.id==='100')score-=Math.min(10,effectiveFate(state,e)*.4);
       if(['82','84'].includes(e.card.id) && (winter.length || card?.id==='100')
         && !own.some(other=>other.card.iid!==e.card.iid && !tributes.has(other.card.iid) && ['82','84'].includes(other.card.id)))score-=8;

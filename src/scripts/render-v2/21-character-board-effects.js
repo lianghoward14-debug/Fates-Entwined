@@ -16,8 +16,8 @@
     const initial=rect(target);if(!initial)return false;
     const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d');if(!ctx)return false;
     const bannerCard = typeof CARDS !== 'undefined' ? CARDS.find(card=>String(card.id)===(kind==='scope'?'61':kind==='possibility'?'17':'04')) : null;
-    window.FateActivationBanner?.play(bannerCard, {sfx:false});
-    const sound=window.FateApprovedActivationSfx?.play(kind==='scope'?'61':kind==='possibility'?'17':'04');
+    if(kind==='scope')window.FateActivationBanner?.play(bannerCard, {sfx:false});
+    const sound=kind==='scope'?window.FateApprovedActivationSfx?.play('61'):null;
     const dpr=Math.min(2,window.devicePixelRatio||1);
     canvas.style.cssText='position:fixed;pointer-events:none;z-index:12990';canvas.setAttribute('aria-hidden','true');canvas.dataset.characterBoardEffect=kind;document.body.appendChild(canvas);
     let bounds=null;
@@ -39,7 +39,7 @@
     const duration=2000;
     const start=performance.now(),color=kind==='scope'?'#ff6b70':kind==='possibility'?'#68ef9a':'#bc9bff';let frame=0,dead=false;
     const cl=x=>Math.max(0,Math.min(1,x));
-    function finish(){if(dead)return;dead=true;sound?.stop();cancelAnimationFrame(frame);canvas.remove();}
+    function finish(completed=false){if(dead)return;dead=true;if(completed && !document.hidden)sound?.finish();else sound?.stop();cancelAnimationFrame(frame);canvas.remove();}
     function draw(now){
       if(dead)return;if(disabled()){finish();return;}
       const t=cl((now-start)/duration),r=rect(target)||initial,cx=r.x+r.w/2,cy=r.y+r.h/2,scale=Math.max(r.w,r.h)/67;
@@ -68,9 +68,9 @@
       }
       const p=cl((t-(kind==='scope'?.59:kind==='possibility'?.55:.48))/(kind==='scope'?.41:kind==='possibility'?.45:.52));
       if(p>0&&p<1){ring((8+(1-Math.pow(1-p,3))*45)*scale,1-p);for(let k=0;k<26;k++){const a=k*2.4,d=(10+k%7*6)*(1-Math.pow(1-p,3))*scale;line([[cx+Math.cos(a)*d,cy+Math.sin(a)*d],[cx+Math.cos(a)*(d+6*scale),cy+Math.sin(a)*(d+6*scale)]],(1-p)**2);}}
-      if(t<1)frame=requestAnimationFrame(draw);else finish();
+      if(t<1)frame=requestAnimationFrame(draw);else finish(true);
     }
-    frame=requestAnimationFrame(draw);setTimeout(finish,duration+500);return true;
+    frame=requestAnimationFrame(draw);setTimeout(()=>finish(!disabled() && canvas.isConnected),duration+500);return true;
   }
   window.FateCharacterBoardEffects={play,handles:card=>['04','17','61'].includes(String(card&&card.id||''))};
 })();

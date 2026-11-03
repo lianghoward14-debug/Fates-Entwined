@@ -153,9 +153,10 @@ function initCtrlWheelZoom(){
   if(window.__FATES_CTRL_WHEEL_ZOOM_INSTALLED) return;
   window.__FATES_CTRL_WHEEL_ZOOM_INSTALLED = true;
 
-  var minZoom = 0.75;
+  var touchZoom = !!window.matchMedia?.('(pointer: coarse)').matches && !window.FateElectronZoom;
+  var minZoom = touchZoom ? 0.35 : 0.75;
   var maxZoom = 3;
-  var zoomStorageKey = 'fate_game_zoom';
+  var zoomStorageKey = touchZoom ? 'fate_mobile_game_zoom' : 'fate_game_zoom';
   var zoom = readStoredZoom();
   var zoomIndicatorTimer = 0;
 
@@ -181,6 +182,7 @@ function initCtrlWheelZoom(){
 
   function applyCssFallbackZoom(next){
     if(!document.body) return next;
+    if(touchZoom && window.FateMobileInput){ window.FateMobileInput.setZoom(next); return next; }
     document.body.style.zoom = Math.abs(next - 1) < 0.001 ? '' : String(next);
     document.documentElement.classList.toggle('fate-user-zoom-active', Math.abs(next - 1) >= 0.001);
     return next;
@@ -275,6 +277,9 @@ function initCtrlWheelZoom(){
   window.fateSetGameZoom = setGameZoom;
   window.fateResetGameZoom = resetGameZoom;
   window.fateGetGameZoom = function(){ return zoom; };
+
+  if(window.FateMobileInput) window.FateMobileInput.installZoomControls();
+
 }
 
 function ensureTitleMissionControlButton(){

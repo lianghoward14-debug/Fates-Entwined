@@ -10,6 +10,48 @@ function getAudioCtx(){
   return _audioCtx;
 }
 
+// A short, airy healing chord for the moment Jaime's square is placed.
+function playJaimeSafeSquareSfx(){
+  if(document.hidden || _masterVol <= 0 || _sfxVol <= 0) return;
+  try{
+    const ctx = getAudioCtx(), bus = getSfxBus(ctx).input, now = ctx.currentTime;
+    [523.25, 659.25, 783.99].forEach((frequency, index)=>{
+      const oscillator = ctx.createOscillator(), gain = ctx.createGain();
+      const at = now + index * .065, end = at + .62;
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(frequency * .985, at);
+      oscillator.frequency.exponentialRampToValueAtTime(frequency, at + .1);
+      gain.gain.setValueAtTime(0, at);
+      gain.gain.linearRampToValueAtTime(.14 * _masterVol * _sfxVol, at + .025);
+      gain.gain.exponentialRampToValueAtTime(.0001, end);
+      oscillator.connect(gain); gain.connect(bus);
+      oscillator.onended = ()=>{oscillator.disconnect();gain.disconnect();};
+      oscillator.start(at); oscillator.stop(end + .02);
+    });
+  }catch(e){}
+}
+window.playJaimeSafeSquareSfx = playJaimeSafeSquareSfx;
+
+function playSpecialPlacementSfx(kind){
+  if(document.hidden || _masterVol <= 0 || _sfxVol <= 0) return;
+  try {
+    const ctx=getAudioCtx(), now=ctx.currentTime, bus=getSfxBus(ctx).input;
+    const leaving=kind==='pierogi';
+    (leaving ? [660,490,330] : [180,540,810]).forEach((frequency,index)=>{
+      const osc=ctx.createOscillator(), gain=ctx.createGain(), at=now+index*.065;
+      osc.type=leaving?'sine':'triangle';
+      osc.frequency.setValueAtTime(frequency,at);
+      osc.frequency.exponentialRampToValueAtTime(frequency*(leaving?.55:1.2),at+.22);
+      gain.gain.setValueAtTime(0,at);
+      gain.gain.linearRampToValueAtTime(.13*_sfxVol*_masterVol,at+.012);
+      gain.gain.exponentialRampToValueAtTime(.0001,at+.35);
+      osc.connect(gain);gain.connect(bus);osc.onended=()=>{osc.disconnect();gain.disconnect();};
+      osc.start(at);osc.stop(at+.38);
+    });
+  }catch(e){}
+}
+window.playSpecialPlacementSfx=playSpecialPlacementSfx;
+
 function getSfxBus(ctx){
   let bus = _sfxBusByContext.get(ctx);
   if(bus) return bus;
@@ -2244,11 +2286,11 @@ const CARD_SOUNDS = {
   '101': '101', '103': '103',
   '102': '102',
   '01': '1set', '02': '2set', '03': '3set', '04': '4set',
-  '05': '5set', '06': '6set', '07': '7set', '08': '8set',
+  '05': '5set', '06': '6set', '07': 'maja-consolidation-20261030', '08': '8set',
   '09': '9set', '10': '10set', '11': '11set', '12': '12set',
-  '13': '13set', '14': '14set', '15': '15set',
-  '16': '16set', '17': '17set', '18': '18set', '19': '19set',
-  '20': '20set', '21': '21set', '22': '22set', '23': '23set',
+  '13': 'johnathan-consolidation-20261030', '14': '14set', '15': '15set',
+  '16': '16set', '17': 'carolyn-consolidation-20261102', '18': '18set', '19': 'kvetka-consolidation-20261103',
+  '20': '20set', '21': 'henry-consolidation-20261103', '22': '22set', '23': '23set',
   '24': '24set', '25': '25set', '26': '26set', '27': '27set',
   '28': '28set', '29': '29set', '30': '30set', '31': '31set',
   '32': '32set', '33': '33set', '34': '34set', '35': '35set',
@@ -2289,8 +2331,8 @@ const AVAILABLE_CARD_SOUND_FILES = new Set([
   '104',
   '101', '103',
   '102',
-  '1set','2set','3set','4set','6set','7set','8set','10set','11set','12set','13set','14set','15set',
-  '17set','19set','21set','22set','23set','27set','29set','30set','34set','35set','36set','38set',
+  '1set','2set','3set','4set','6set','maja-consolidation-20261030','8set','10set','11set','12set','johnathan-consolidation-20261030','14set','15set',
+  'carolyn-consolidation-20261102','kvetka-consolidation-20261103','henry-consolidation-20261103','22set','23set','27set','29set','30set','34set','35set','36set','38set',
   '39set','40set','41set','43set','45set','46set','48set','51set','55set','56set','57set','61set',
   '66set','67set','77set','bh1','bh2','bh3','bh4','bh5','bh6','bh7','bh8','bh9','bh10','bh11','bh12','bh13','bh14','bh15','bh16','bh17','bh18','bh19','bh20','horizons24set','../new voices/81set','../new voices/82set','../new voices/83set',
   '../new voices/84set','../new voices/85set','../new voices/86set','../new voices/87set','../new voices/88set',
@@ -2591,6 +2633,31 @@ function transitionGameLandscape(song, opts = {}) {
 }
 window.transitionGameLandscape = transitionGameLandscape;
 
+// Carolyn's new recordings need extra gain before playback. Keep voice/master
+// volume on the audio element and limit peaks without using the SFX/reverb bus.
+function applyCardVoiceGain(audio, cardId) {
+  if(String(cardId) !== '17') return;
+  try {
+    const ctx = getAudioCtx();
+    const gain = ctx.createGain(), limiter = ctx.createDynamicsCompressor();
+    gain.gain.value = 2.5;
+    limiter.threshold.value = -3;
+    limiter.knee.value = 3;
+    limiter.ratio.value = 20;
+    limiter.attack.value = 0.002;
+    limiter.release.value = 0.12;
+    gain.connect(limiter); limiter.connect(ctx.destination);
+    const source = ctx.createMediaElementSource(audio);
+    source.connect(gain);
+    const cleanup = () => {
+      source.disconnect(); gain.disconnect(); limiter.disconnect();
+      for(const event of ['ended','error','pause']) audio.removeEventListener(event, cleanup);
+    };
+    for(const event of ['ended','error','pause']) audio.addEventListener(event, cleanup, {once:true});
+  } catch(e) {}
+}
+window.applyCardVoiceGain = applyCardVoiceGain;
+
 function playCardSound(cardId) {
   if(String(cardId || '') === 'whisper17') {
     if(typeof playSfx === 'function') playSfx('whisperConsolidation');
@@ -2604,12 +2671,49 @@ function playCardSound(cardId) {
     const updatedSetVoices = new Set(['2set','11set','14set','15set','17set','35set','40set','61set','bh8']);
     if(updatedSetVoices.has(soundFile)) src += (src.indexOf('?') >= 0 ? '&' : '?') + (soundFile === '2set' ? 'v=20261008-anicka-replacement' : soundFile === 'bh8' ? 'v=20260723a' : 'v=20260615a');
     const audio = new Audio(src);
+    applyCardVoiceGain(audio, cardId);
     // Normalize voiceline volume - cap at 0.7 to prevent loud clips
     audio.volume = Math.min(0.7, _voiceVol * _masterVol);
     const finishChatterVoiceHold = window.FateIdleChatter?.trackVoice(audio);
     audio.play().catch(()=>{ finishChatterVoiceHold?.(); });
+    return audio;
   } catch(e){}
 }
+
+// Each newly opened information panel starts with the consolidation line.
+// Automatic match voices do not advance this preview sequence.
+const cardInformationVoicePositions = new WeakMap();
+let cardInformationVoiceAudio = null;
+function playCardInformationAudio(cardId, button) {
+  if(!button) return playCardSound(cardId);
+  const clips = window.FateIdleChatter?.clipsForCard(cardId) || [];
+  const previous = cardInformationVoicePositions.get(button);
+  const index = previous?.cardId === String(cardId) ? previous.next % (clips.length + 1) : 0;
+  if(cardInformationVoiceAudio){
+    cardInformationVoiceAudio.pause();
+    cardInformationVoiceAudio = null;
+  }
+  const position = {cardId:String(cardId), next:(index + 1) % (clips.length + 1)};
+  cardInformationVoicePositions.set(button, position);
+  const failed = () => {
+    if(cardInformationVoicePositions.get(button) === position) position.next = index;
+  };
+  if(index === 0){
+    cardInformationVoiceAudio = playCardSound(cardId) || null;
+    cardInformationVoiceAudio?.addEventListener('error', failed, {once:true});
+    return;
+  }
+  try {
+    const audio = new Audio(clips[index - 1]);
+    applyCardVoiceGain(audio, cardId);
+    cardInformationVoiceAudio = audio;
+    audio.volume = Math.min(0.7, _voiceVol * _masterVol);
+    const finish = window.FateIdleChatter?.trackVoice(audio);
+    audio.addEventListener('error', failed, {once:true});
+    audio.play().catch(()=>{ finish?.(); failed(); });
+  } catch(error) { failed(); }
+}
+window.playCardInformationAudio = playCardInformationAudio;
 
 function deferMatchAudio(fn, delayMs) {
   const run = function(){

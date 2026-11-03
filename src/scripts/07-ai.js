@@ -423,10 +423,11 @@ function aiSleep(ms){
     return Promise.resolve();
   }
   return new Promise((resolve, reject) => {
-    setTimeout(() => {
+    const finish = () => {
       if(G._aiAbort) reject(new Error('AI aborted'));
       else resolve();
-    }, ms);
+    };
+    setTimeout(finish, ms);
   });
 }
 
@@ -1284,6 +1285,25 @@ function aiRankSupportCompanyOffers(offers, ability='call', cost=0){
       && typeof canShowBoardActivateEffect==='function' && canShowBoardActivateEffect(card,z,r,c,cp)))),
     turn:G.turn,maxTurns:G.maxTurns,style:G._selectedAI?.style || 'balanced'};
   const reserve=timing?.callToArmsReserveValue(recruitment) || 0;
+  const viaje=G._selectedAI?._deckStrategy==='ai_el_viaje';
+  const viajeRecruitBonus=card=>{
+    if(!viaje)return 0;
+    const has=id=>ownBoard.some(c=>c.id===id && !c.faceDown), held=id=>original.some(c=>c.id===id);
+    let value=0;
+    if(card.id==='101')value+=has('101')?40:320;
+    if(card.id==='bh22')value+=(G.blockedCells || []).some(s=>s.type==='jaime' && s.owner===cp)?20:has('101')?350:200;
+    if(card.id==='12')value+=has('101')?220:0;
+    if(['79','56'].includes(card.id))value+=held(card.id)?-100:has('101')?180:60;
+    if(card.id==='33')value+=Math.min(250,Math.max(0,200-morale)*5);
+    if(card.id==='16')value+=enemyBoard.some(c=>c.type==='Supporter')?220:-100;
+    if(['30','61','bh16','10','36'].includes(card.id))value+=recruitment.margins.some(m=>m<0)?160:0;
+    if(['60','84','72','118'].includes(card.id))value+=original.length<4?160:20;
+    if(card.id==='58')value+=G.players[cp].discard.some(c=>['33','120','60'].includes(c.id)) && morale>35?140:-100;
+    if(card.id==='119')value-=140;
+    if(held(card.id))value-=60;
+    if(original.length>=recruitment.handLimit)value-=160;
+    return value;
+  };
   const ranked=[];
   const values=new Map();
   try{
@@ -1295,6 +1315,7 @@ function aiRankSupportCompanyOffers(offers, ability='call', cost=0){
         let value=-Infinity;
         for(const move of moves){
           let score=aiEvaluateMove(move);
+          score+=viajeRecruitBonus(card);
           if(ability==='call'){
             score+=timing?.assessRecruitment ? timing.assessRecruitment(card,{...recruitment,playable:true}).score
               : timing?.recruitmentDeckFit(card,[...original,...(G.players[cp].deck || [])]) || 0;
@@ -1318,6 +1339,12 @@ function aiRankSupportCompanyOffers(offers, ability='call', cost=0){
             score-=cost*1.5+baseline;
           }
           value=Math.max(value,score);
+        }
+        // A triggered call must choose a card even if this turn's placements
+        // are exhausted. Plan next-turn development and keep reaction answers.
+        if(viaje && ability==='triggered' && !Number.isFinite(value)){
+          value=viajeRecruitBonus(card)*.4+Number(card.fate || 0)-Number(card.cost || 0)*10;
+          if(G.maxTurns-G.turn<=1 && !['79','56'].includes(card.id))value-=300;
         }
         values.set(offer.card.id,value);
       }
@@ -1398,6 +1425,16 @@ function aiEvaluateMove(move) {
 
 function aiDeckSearchPriority(deckId, kind) {
   const priorities = {
+    ai_infantry_havano: {
+      supporter:['114','37','74','60','68','16','32','79','28'],
+      character:['07','34','66','13','27'], coordinator:['34','66'],
+      jorge:['07','114','34','66','37','74'], dylan:['07','13','34','66'], lina:[]
+    },
+    ai_el_viaje: {
+      supporter:['120','33','60','58','119','79','118','72','28','98'],
+      character:['101','bh22','84','12','bh20'], coordinator:['101','12'],
+      jorge:['101','bh22','84','120','33','12'], dylan:[], lina:[]
+    },
     ai_revolutionary_oaf: {
       supporter:['74','09','60','42','32','bh24','80','98'],
       character:['08','38','21','13','29','03'],
@@ -1804,10 +1841,52 @@ function aiBestRozsiZone() {
 
 // Deck-specific strategy bonuses — teaches the AI HOW to pilot each deck
 function aiDeckStrategyBonus(move, deckId) {
+  // Keep Wintertide's accumulated growth rather than paying to rebuild itself.
+  if(move.type === 'consolidate' && move.card?.id === '100'
+    && (move.tributes || []).some(t=>t.card?.id === '100' && !t.card.faceDown)) return -100000;
   let bonus = 0;
   const cp = G.aiPlayer;
 
-  if(deckId === 'ai_revolutionary_oaf' || deckId === 'ai_black_revolution') {
+  if(deckId === 'ai_infantry_havano' || deckId === 'ai_el_viaje') {
+    const id=String(move.card?.id || ''), hand=G.players[cp].hand, grave=G.players[cp].discard;
+    const havano=deckId==='ai_infantry_havano', future=G.turn<G.maxTurns;
+    const safe=move.r===(typeof getSafeRowForPlayer==='function'?getSafeRowForPlayer(cp):cp===0?2:0);
+    if(move.type==='place' || move.type==='consolidate'){
+      if(id==='28' && move.fromDeck)bonus+=800;
+      if(id==='79' && hand.filter(c=>c.id==='79').length===1)bonus-=400;
+      if(id==='60')bonus+=hand.length<6?250:80;
+      if(havano){
+        if(id==='114')bonus+=future?450+(safe?80:0):20;
+        if(id==='37')bonus+=aiOwnBoardCardsById('114').length?400:0;
+        if(['34','66'].includes(id))bonus+=aiCountOwnCardsInZone(move.z,c=>true)*65+aiCountOwnCardsInZone(move.z,c=>['34','66'].includes(c.id))*200;
+        if(id==='07')bonus+=500;
+        if(id==='74')bonus+=hand.filter(c=>c.type==='Supporter').length>1?250:40;
+        if(id==='68')bonus+=G.players[cp].deck.some(c=>['34','66'].includes(c.id))?260:0;
+        if(['13','27','32'].includes(id))bonus+=hand.length<5?250:50;
+        if(id==='16')bonus+=aiCountOpponentCardsInZone(move.z,c=>c.type==='Supporter')?250:-200;
+      }else{
+        const jorgeHere=aiCountOwnCardsInZone(move.z,c=>c.id==='101');
+        if(id==='101')bonus+=450+(safe?120:-150);
+        if(id==='bh22')bonus+=aiOwnBoardCardsById('101').length?420:180;
+        if(id==='33')bonus+=150+jorgeHere*230;
+        if(id==='12')bonus+=jorgeHere?350:-120;
+        if(id==='120'||id==='84')bonus+=350;
+        if(id==='119'){
+          const lost=Math.min(3,Math.max(0,Math.ceil((G.maxTurns-G.turn)/2)-Number(G.players[cp]._merchantDrawPhases || 0)));
+          const threatened=[0,1,2].some(z=>getZoneScore(z,cp)<getZoneScore(z,1-cp));
+          bonus+=180+(threatened?160:0)+(hand.length<4?80:0)-lost*(hand.length<4?55:25);
+        }
+        if(id==='58')bonus+=grave.some(c=>['33','120','60'].includes(c.id))?230:-220;
+        if(id==='bh20')bonus+=aiOwnBoardCardsById('101').length && (G.blockedCells || []).some(s=>s.type==='jaime' && s.owner===cp)?160:-220;
+        if(id==='72'||id==='118')bonus+=hand.length<6?160:30;
+      }
+      for(const tribute of move.tributes || []){
+        const c=tribute.card;if(!c)continue;
+        if((havano && ['114','37','34','66'].includes(c.id)) || (!havano && c.id==='101'))bonus-=1600;
+      }
+    }
+  }
+  else if(deckId === 'ai_revolutionary_oaf' || deckId === 'ai_black_revolution') {
     const id=String(move.card?.id || ''), hand=G.players[cp].hand, grave=G.players[cp].discard;
     const black=deckId === 'ai_black_revolution', future=G.turn<G.maxTurns;
     if(move.type==='place' || move.type==='consolidate') {
@@ -3496,32 +3575,8 @@ function selectAIOpponent(opp, options={}) {
     : (Number(currentOpp.elo || opp.elo || 600) || 600);
   G.aiDifficulty = difficultyElo>=1400?'extreme':difficultyElo>=1200?'hard':difficultyElo>=800?'medium':'easy';
 
-  // Explicit named decks take precedence and are resolved fresh each match, so
-  // opponent profiles immediately pick up edits to their current built-in deck.
-  let resolvedOpp = currentOpp;
-  const namedDeck = currentOpp.deckRef && typeof resolveAIDeckRef === 'function'
-    ? resolveAIDeckRef(currentOpp.deckRef)
-    : null;
-  if(Array.isArray(namedDeck) && namedDeck.length >= 40) {
-    const knownDecks = [
-      ...(typeof STARTER_DECKS !== 'undefined' && Array.isArray(STARTER_DECKS) ? STARTER_DECKS : []),
-      ...(typeof AI_ONLY_RANDOM_DECKS !== 'undefined' && Array.isArray(AI_ONLY_RANDOM_DECKS) ? AI_ONLY_RANDOM_DECKS.filter(deck => typeof isAIDeckEnabled !== 'function' || isAIDeckEnabled(deck)) : [])
-    ];
-    const namedDefinition = knownDecks.find(deck => deck && String(deck.id || '') === String(currentOpp.deckRef));
-    resolvedOpp = {
-      ...currentOpp,
-      deck:[...namedDeck],
-      _deckStrategy:namedDefinition?.baseStrategy || namedDefinition?.id || currentOpp.deckRef
-    };
-  } else if(currentOpp.deckPool === 'starter') {
-    const pool = typeof getAIDeckPoolForOpponent === 'function'
-      ? getAIDeckPoolForOpponent(currentOpp)
-      : (typeof STARTER_DECKS !== 'undefined' ? STARTER_DECKS : []);
-    if(pool.length > 0){
-      const picked = pool[Math.floor(Math.random() * pool.length)];
-      resolvedOpp = {...currentOpp, deck: [...picked.ids], _deckStrategy: picked.baseStrategy || picked.id};
-    }
-  }
+  // Every opponent draws from the same enabled archive for a new match.
+  let resolvedOpp = randomizeAIOpponentDeck(currentOpp);
   if(!resolvedOpp._deckStrategy && Array.isArray(resolvedOpp.deck) && resolvedOpp.deck.length >= 40) {
     const signature = ids => ids.slice(0, 40).map(String).sort().join('|');
     const targetSignature = signature(resolvedOpp.deck);
@@ -4370,7 +4425,9 @@ async function aiTriggerWhenSet(inst, z, r, c) {
         if((G.blockedCells||[]).some(b=>b.z===zz&&b.r===safeRow&&b.c===cc))continue;
         const occupant=G.board?.[zz]?.[safeRow]?.[cc]||null;
         const fate=occupant?(typeof getEffectiveFate==='function'?getEffectiveFate(occupant,zz):Number(occupant.currentFate??occupant.fate??0)):0;
-        choices.push({z:zz,r:safeRow,c:cc,score:Number(fate)||0});
+        const viaje=G._selectedAI?._deckStrategy==='ai_el_viaje';
+        const synergy=viaje ? aiCountOwnCardsInZone(zz,c=>c.id==='101')*15+(occupant?.id==='101'?20:0) : 0;
+        choices.push({z:zz,r:safeRow,c:cc,score:(Number(fate)||0)+synergy});
       }
       if(choices.length){
         choices.sort((a,b)=>b.score-a.score);
@@ -4764,7 +4821,16 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       G.board[z].forEach(row=>row.forEach(cell=>{
         if(cell && cell.owner===cp && !cell.immuneFlag) own.push(cell);
       }));
-      own.sort((a,b)=>(b.currentFate||b.fate||0)-(a.currentFate||a.fate||0));
+      const protectionValue=card=>{
+        let value=Number(card.currentFate ?? card.fate ?? 0);
+        if(G._selectedAI?._deckStrategy==='ai_el_viaje'){
+          if(card.id==='101')value+=40;
+          const pos=typeof getBoardCardPosition==='function'?getBoardCardPosition(card):null;
+          if(pos && (G.blockedCells || []).some(s=>s.type==='jaime' && s.z===pos.z && s.r===pos.r && s.c===pos.c))value+=25;
+        }
+        return value;
+      };
+      own.sort((a,b)=>protectionValue(b)-protectionValue(a));
       own.slice(0,2).forEach(card=>{ card.immuneFlag = true; card._immuneByMakenna = true; });
       if(own.length) log('p2','AI: Makenna made '+Math.min(2, own.length)+' card(s) immune');
       break;
@@ -5161,7 +5227,9 @@ async function aiTriggerWhenSet(inst, z, r, c) {
         if(cell && cell.owner===cp && cell.iid!==inst.iid) affCounts[cell.aff] = (affCounts[cell.aff]||0)+1;
       }));
       const strat = G._selectedAI?._deckStrategy || '';
-      const bestAff = strat === 'ai_hungarian_war_dance'
+      const rozsiAff=strat==='ai_infantry_havano' ? G.board[z].flat().find(c=>c && c.owner===cp && c.id==='34' && (c._moraleAffiliation || c.counters?.moraleAffiliation)) : null;
+      const declared=rozsiAff?._moraleAffiliation || rozsiAff?.counters?.moraleAffiliation;
+      const bestAff = declared ? [declared,Number(affCounts[declared] || 0)] : strat === 'ai_hungarian_war_dance'
         ? ['third_great_war', Number(affCounts.third_great_war || 0)]
         : Object.entries(affCounts).sort((a,b)=>b[1]-a[1])[0];
       if(bestAff){
@@ -5246,7 +5314,11 @@ async function aiTriggerWhenSet(inst, z, r, c) {
     case '84': {
       if(!isFlowerPickingEligible(cp)) break;
       const matches = G.players[cp].deck;
-      const picked = matches.slice().sort((a,b)=>(Number(b.fate)||0)-(Number(a.fate)||0))[0];
+      const viaje=G._selectedAI?._deckStrategy==='ai_el_viaje';
+      const needed=viaje?['101','bh22','120','12','33','60'].filter(id=>
+        !G.players[cp].hand.some(c=>c.id===id) && !aiOwnBoardCardsById(id).length):[];
+      const picked = (needed.length?aiPickByPriority(matches,needed):null)
+        || matches.slice().sort((a,b)=>(Number(b.fate)||0)-(Number(a.fate)||0))[0];
       if(!picked) break;
       G.players[cp].deck = matches.filter(card=>card.iid!==picked.iid);
       addCardToHand(cp,picked,{announce:false,arrivalKind:'search'});

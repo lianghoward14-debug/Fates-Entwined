@@ -45,6 +45,7 @@ export function filterAiTargets(commands,state,player){
   commands=filterEndlessSeaTiming(commands,state,player);
   commands=filterArchiveExpansionTargets(commands,state,player);
   commands=chooseWintertideSearch(commands,state,player);
+  commands=preserveEstablishedWintertide(commands,state,player);
   commands=keepPatienceBurstTogether(commands,state,player);
   commands=keepIndieBurstTogether(commands,state,player);
   commands=keepAssaultHoplitesTogether(commands,state,player);
@@ -80,6 +81,22 @@ export function filterAiTargets(commands,state,player){
   // Mandatory effects must still resolve if the engine offers no preferred
   // target (for example the last enemy disappeared during a reaction).
   return filtered.length || ruleId==='31'?filtered:commands;
+}
+
+export function preserveEstablishedWintertide(commands,state,player){
+  if(state.pendingPrompt || state.pendingHandLimit)return commands;
+  const own=boardEntries(state).filter(e=>controllerOf(e.card)===player);
+  const hand=state.players[player].hand || [];
+  return commands.filter(command=>{
+    const p=command.payload || {};
+    const incoming=hand.find(c=>c.iid===p.cardIid);
+    if(command.type!=='CONSOLIDATE_CARD' || incoming?.id!=='100')return true;
+    // Wintertide grows by staying on the field. Rebuilding the same healthy
+    // character consumes another character and resets its accumulated Fate.
+    // Disabled copies remain available as emergency reinforcement.
+    return !own.some(e=>e.card.id==='100' && !e.card.faceDown
+      && !isEffectSourceSuppressed(state,e) && (p.tributeIids || []).includes(e.card.iid));
+  });
 }
 
 function chooseWintertideSearch(commands,state,player){

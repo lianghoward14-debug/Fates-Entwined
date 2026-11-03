@@ -98,7 +98,7 @@
     // At the reference 1920px viewport this resolves to ~146x204px, only yielding
     // when the actual board viewport cannot physically contain twelve columns.
     const widescreen = refinedV20 && document.documentElement.classList.contains('fate-widescreen')
-      && windowW / (vp.windowH || window.innerHeight) > 16 / 9;
+      && windowW / (vp.windowH || (window.FateMobileInput?.gameHeight() || window.innerHeight)) > 16 / 9;
     // Enlarge cards only when both dimensions allow it. Reserve the two header
     // tracks, bottom padding and row gutters before fitting three card rows.
     const wideCardLimit = widescreen
@@ -153,7 +153,7 @@
 
   function getBoardViewport(){
     const dpr = Math.max(1, Number(window.devicePixelRatio || 1));
-    const fallback = {x:0, y:0, w:window.innerWidth || 1280, h:window.innerHeight || 720, dpr, renderScale:1};
+    const fallback = {x:0, y:0, w:window.innerWidth || 1280, h:(window.FateMobileInput?.gameHeight() || window.innerHeight) || 720, dpr, renderScale:1};
     const board = document.getElementById('codex-board-v19') || document.getElementById('citadel-board-v18') || document.getElementById('folio-board-v17') || document.getElementById('illuminated-board-v16') || document.getElementById('engraved-board-v15') || document.getElementById('cinematic-board-v14') || document.getElementById('observatory-board-v13') || document.getElementById('rose-board-v12') || document.getElementById('aureate-board-v11') || document.getElementById('loom-board-v10') || document.getElementById('atlas-board-v9') || document.getElementById('fresh-board-v8') || document.getElementById('board');
     if(!board || !board.getBoundingClientRect) return fallback;
     const r = board.getBoundingClientRect();
@@ -165,7 +165,7 @@
       dpr,
       renderScale:1,
       windowW:window.innerWidth || fallback.w,
-      windowH:window.innerHeight || fallback.h,
+      windowH:(window.FateMobileInput?.gameHeight() || window.innerHeight) || fallback.h,
       rem:getRemPx()
     };
   }
@@ -185,7 +185,7 @@
 
   function buildPeripheralLayout(snap, vp, metrics){
     const winW = Math.max(1, Number(vp.windowW) || window.innerWidth || vp.w || 1280);
-    const winH = Math.max(1, Number(vp.windowH) || window.innerHeight || vp.h || 720);
+    const winH = Math.max(1, Number(vp.windowH) || (window.FateMobileInput?.gameHeight() || window.innerHeight) || vp.h || 720);
     const viewer = Number(snap.viewer) || 0;
     const opponent = viewer === 0 ? 1 : 0;
     const players = Array.isArray(snap.players) ? snap.players : [];
@@ -429,6 +429,17 @@
     const innerY = vp.y + (cssMetrics ? cssMetrics.boardPadTop : pad);
     const innerW = Math.max(1, vp.w - pad * 2);
     const innerH = Math.max(1, vp.h - (cssMetrics ? cssMetrics.boardPadTop + cssMetrics.boardPadBottom : pad * 2));
+    // Mobile must fit every standard zone row inside the actual board height.
+    // Desktop card sizing intentionally remains unchanged.
+    if(cssMetrics && window.FateMobileInput?.isTouchLayout()){
+      const count = expandedContestedRow && !zoneLayout444 ? 4 : 3;
+      const available = Math.max(1, innerH - cssMetrics.zonePadTop - headerH - cssMetrics.zonePadBottom - rowGap*(count-1));
+      const scale = Math.min(1, available/(cssMetrics.rowH*count));
+      cssMetrics.rowH *= scale;
+      cssMetrics.cardH *= scale;
+      cssMetrics.cardW *= scale;
+      cssMetrics.cardOffsetY *= scale;
+    }
     const fluidZoneW = Math.max(1, (innerW - zoneGap * (zoneCount - 1)) / zoneCount);
     const zoneW = cssMetrics ? Math.min(cssMetrics.zoneFitW, fluidZoneW) : fluidZoneW;
     const cardRects = [];

@@ -28,14 +28,14 @@ for(const file of fs.readdirSync(dir).filter(f=>/\.(log|ldb)$/.test(f))){
  const read=async()=>{const r=await fetch(url,{headers});if(!r.ok)throw Error('Account read failed: '+r.status);return (await r.json()).data;};
  const data=await read(),profile=data?.profile;
  if(!profile||!Object.values(profile).includes("Netanyahu's 1st Guard"))throw Error('Profile identity mismatch. No data changed.');
- const packKeys=['unopenedPacks','unopenedProfilePacks','unopenedFavoredPacks','unopenedBooster2Packs','unopenedBooster3Packs'];
+ const packKeys=['unopenedPacks','unopenedProfilePacks','unopenedFavoredPacks','unopenedBooster2Packs','unopenedBooster3Packs','unopenedBooster4Packs'];
  const before=Object.fromEntries(['starlight',...packKeys].map(k=>[k,profile[k]||0]));
- const updated={...profile,starlight:1500,_clientUpdatedAt:Date.now()};
+ const updated={...profile,starlight:0,_clientUpdatedAt:Date.now()};
  for(const key of packKeys)updated[key]=0;
  const response=await fetch(url,{method:'POST',headers,body:JSON.stringify({uid,data:{profile:updated}})});
  if(!response.ok)throw Error('Account update failed: '+response.status);
  const result=(await read()).profile;
- if(result.starlight!==1500||packKeys.some(k=>result[k]!==0))throw Error('Account verification failed.');
+ if(result.starlight!==0||packKeys.some(k=>result[k]!==0))throw Error('Account verification failed.');
  for(const key of Object.keys(profile))if(!['starlight','_clientUpdatedAt',...packKeys].includes(key)&&JSON.stringify(result[key])!==JSON.stringify(profile[key]))throw Error('Unexpected profile change: '+key);
  console.log(JSON.stringify({player:"Netanyahu's 1st Guard",before,after:Object.fromEntries(['starlight',...packKeys].map(k=>[k,result[k]])),verified:true}));
 })().catch(error=>{console.error(error.message);process.exitCode=1;});

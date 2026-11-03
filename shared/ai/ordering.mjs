@@ -1,4 +1,5 @@
 import {createRevolutionPrior} from './revolution-heuristics.mjs';
+import {createHavanoViajePrior} from './havano-viaje-heuristics.mjs';
 import {createLakesMomentumPrior} from './lakes-momentum-heuristics.mjs';
 import {boardEntries,controllerOf} from '../engine/selectors.mjs';
 import {zoneScore} from '../engine/scoring.mjs';
@@ -41,6 +42,7 @@ export function createCommandOrderer(state,player,personality='balanced'){
   const deckPreservationPrior=createDeckPreservationPrior(state,player,entries,cards);
   const archiveExpansionPrior=createArchiveExpansionPrior(state,player,entries,cards);
   const revolutionPrior=createRevolutionPrior(state,player);
+  const havanoViajePrior=createHavanoViajePrior(state,player);
   const lakesMomentumPrior=createLakesMomentumPrior(state,player);
   let supportCompanyPrior;
   const values=new Map();
@@ -72,7 +74,7 @@ export function createCommandOrderer(state,player,personality='balanced'){
   }
   return command=>{
     const p=command.payload || {};
-    if(command.type==='SUPPORT_COMPANY' || (command.type==='ANSWER_PROMPT' && state.pendingPrompt?.title==='Call to Arms'))return (supportCompanyPrior ||= createSupportCompanyPrior(state,player,personality))(command);
+    if(command.type==='SUPPORT_COMPANY' || (command.type==='ANSWER_PROMPT' && state.pendingPrompt?.title==='Call to Arms'))return (supportCompanyPrior ||= createSupportCompanyPrior(state,player,personality))(command)+havanoViajePrior(command);
     const card=cards.get(p.cardIid || p.sourceIid || p.reactionIid || p.selectedIid || p.targetIid);
     if(command.type==='END_TURN')return -5;
     if(command.type==='ANSWER_PROMPT' && p.choice==='DECLINE')return -2;
@@ -83,7 +85,7 @@ export function createCommandOrderer(state,player,personality='balanced'){
       // merely because the discarded card has powerful operation tags.
       return -8-departureValue([p.targetIid || p.sourceIid])+deckPreservationPrior(command)+contestedCommandDelta(state,player,command,cards);
     }
-    let score=revolutionPrior(command)+lakesMomentumPrior(command)+value(card)+incelPrior(command)+assaultPrior(command)+freeWorldPrior(command)+majaPrior(command)+timePrior(command)+patiencePrior(command)+wintertidePrior(command)+endlessSeaPrior(command)+publicComboPrior(command)+archiveExpansionPrior(command)+comboPlanPrior(command)+deckPreservationPrior(command);
+    let score=havanoViajePrior(command)+revolutionPrior(command)+lakesMomentumPrior(command)+value(card)+incelPrior(command)+assaultPrior(command)+freeWorldPrior(command)+majaPrior(command)+timePrior(command)+patiencePrior(command)+wintertidePrior(command)+endlessSeaPrior(command)+publicComboPrior(command)+archiveExpansionPrior(command)+comboPlanPrior(command)+deckPreservationPrior(command);
     if(command.type==='ACTIVATE_EFFECT' && card){
       // Explore live draw/search actions before dismissing the source as a
       // low-Fate body. Copied effects inherit the runtime rule's operations.

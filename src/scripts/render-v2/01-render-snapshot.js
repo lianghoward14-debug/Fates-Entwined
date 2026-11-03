@@ -198,6 +198,7 @@
       && window.canShowBoardActivateEffect(card, boardPos.z, boardPos.r, boardPos.c, viewer));
     base.flags = {
       militaryBlockade:!!(boardPos && window.getMilitaryBlockadeTurns?.(card,boardPos.z)>0),
+      militaryBlockadeTurns:boardPos ? (window.getMilitaryBlockadeTurns?.(card,boardPos.z) || 0) : 0,
       faceDown:!!card.faceDown,
       immune:!!showProtectionIcon,
       markedForDeath:!!(onBoard && card._markedForDeath),

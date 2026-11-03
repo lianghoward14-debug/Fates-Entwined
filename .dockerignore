@@ -55,3 +55,5 @@ fates-entwined-website/installer/Fates-Entwined-Installer.exe
 **/tutorialvideos/**
 **/*.mp4
 **/*.webm
+!tutorialvideos/
+!tutorialvideos/**

@@ -23,6 +23,8 @@ const mime = {
   '.webp': 'image/webp',
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
   '.mp3': 'audio/mpeg',
   '.m4a': 'audio/mp4',
   '.wav': 'audio/wav',
@@ -38,6 +40,8 @@ const server = http.createServer((req, res) => {
   try {
     const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
     let pathname = decodeURIComponent(url.pathname);
+    if(pathname === '/tutorial/') { send(res, 302, {location:'/tutorial'}, ''); return; }
+    if(pathname === '/tutorial') pathname = '/index.html';
     if(pathname === '/') pathname = '/index.html';
     const filePath = path.resolve(root, pathname.replace(/^\/+/, ''));
     if(!filePath.startsWith(root + path.sep) && filePath !== root) {

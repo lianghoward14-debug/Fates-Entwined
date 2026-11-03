@@ -1,0 +1,4 @@
+app = 'fates-entwined-main'
+primary_region = 'lax'
+[build]
+  dockerfile = 'Dockerfile'

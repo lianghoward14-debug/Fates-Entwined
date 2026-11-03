@@ -234,7 +234,7 @@
     const maxDpr = getMaxDpr();
     const baseDpr = clamp(rawDpr, 1, maxDpr);
     const requestedDpr = Math.max(.7, baseDpr * renderScale);
-    const viewportPixels = Math.max(1, (Number(cssW) || window.innerWidth || 1280) * (Number(cssH) || window.innerHeight || 720));
+    const viewportPixels = Math.max(1, (Number(cssW) || window.innerWidth || 1280) * (Number(cssH) || (window.FateMobileInput?.gameHeight() || window.innerHeight) || 720));
     const memorySafeDpr = isElectronShell()
       ? Math.max(MIN_MEMORY_SAFE_DPR, Math.sqrt(ELECTRON_LAYER_PIXEL_BUDGET / Math.max(1, viewportPixels * layerIds.length)))
       : requestedDpr;
@@ -838,7 +838,7 @@
     const hoverCanvas = makeLayerCanvas(hoverCanvasId);
     const fateNumberLayer = ensureFateNumberLayer(board);
     const viewportW = Math.max(1, window.innerWidth || 1280);
-    const viewportH = Math.max(1, window.innerHeight || 720);
+    const viewportH = Math.max(1, (window.FateMobileInput?.gameHeight() || window.innerHeight) || 720);
     const boardLayers = [backgroundCanvas, canvas, effectCanvas, particleCanvas];
     Array.from(board.children).forEach(function(child){
       if(boardLayers.indexOf(child) < 0 && child !== fateNumberLayer) child.remove();
@@ -938,9 +938,9 @@
   }
 
   function getStableBoardViewport(board, measuredRect){
-    const fallback = measuredRect || {left:0, top:0, width:window.innerWidth || 1280, height:window.innerHeight || 720};
+    const fallback = measuredRect || {left:0, top:0, width:window.innerWidth || 1280, height:(window.FateMobileInput?.gameHeight() || window.innerHeight) || 720};
     const winW = Math.max(1, Math.round(window.innerWidth || fallback.width || 1280));
-    const winH = Math.max(1, Math.round(window.innerHeight || fallback.height || 720));
+    const winH = Math.max(1, Math.round((window.FateMobileInput?.gameHeight() || window.innerHeight) || fallback.height || 720));
     const key = winW + 'x' + winH;
     const measured = {
       key,
@@ -3096,7 +3096,7 @@
     const anchor = hit && (hit.iconRect || hit.rect);
     if(!rows.length || !anchor) return;
     const cssW = Math.max(1, Number(window.innerWidth) || 1280);
-    const cssH = Math.max(1, Number(window.innerHeight) || 720);
+    const cssH = Math.max(1, Number((window.FateMobileInput?.gameHeight() || window.innerHeight)) || 720);
     const panelW = Math.min(320, Math.max(260, cssW - 24));
     const pad = 10;
     const textW = panelW - pad * 2;
@@ -4958,7 +4958,7 @@
       h:base.h * scale
     };
     const cssW = Math.max(1, Number(window.innerWidth) || 1280);
-    const cssH = Math.max(1, Number(window.innerHeight) || 720);
+    const cssH = Math.max(1, Number((window.FateMobileInput?.gameHeight() || window.innerHeight)) || 720);
     r.x = Math.max(8, Math.min(r.x, cssW - r.w - 8));
     r.y = Math.max(8, Math.min(r.y, cssH - r.h - 8));
     return r;
@@ -5758,7 +5758,7 @@
     });
     [layers.ui, layers.topEffects].filter(Boolean).forEach(function(uiLayer){
       const uiW = Math.max(1, window.innerWidth || cssW);
-      const uiH = Math.max(1, window.innerHeight || cssH);
+      const uiH = Math.max(1, (window.FateMobileInput?.gameHeight() || window.innerHeight) || cssH);
       const uiPxW = Math.max(1, Math.round(uiW * dpr));
       const uiPxH = Math.max(1, Math.round(uiH * dpr));
       if(uiLayer.width !== uiPxW) uiLayer.width = uiPxW;
@@ -5777,7 +5777,7 @@
     if(!hoverCanvas || !canvas) return null;
     const boardRect = canvas.getBoundingClientRect ? canvas.getBoundingClientRect() : {left:0, top:0};
     const hoverW = Math.max(1, window.innerWidth || cssW);
-    const hoverH = Math.max(1, window.innerHeight || cssH);
+    const hoverH = Math.max(1, (window.FateMobileInput?.gameHeight() || window.innerHeight) || cssH);
     const hoverPxW = Math.max(1, Math.round(hoverW * dpr));
     const hoverPxH = Math.max(1, Math.round(hoverH * dpr));
     if(hoverCanvas.width !== hoverPxW) hoverCanvas.width = hoverPxW;
@@ -6314,7 +6314,7 @@
           renderScale:scaleMetrics.renderScale,
           effectiveDpr,
           windowW:window.innerWidth || cssW,
-          windowH:window.innerHeight || viewportH
+          windowH:(window.FateMobileInput?.gameHeight() || window.innerHeight) || viewportH
         }
       })
       : null;
@@ -6844,7 +6844,7 @@
     const board = activeBoardSurface();
     if(!board) return {ok:false, reason:'missing-board'};
     const cssW = Math.max(960, Math.round(Number(opts.width) || window.innerWidth || 1280));
-    const cssH = Math.max(540, Math.round(Number(opts.height) || window.innerHeight || 720));
+    const cssH = Math.max(540, Math.round(Number(opts.height) || (window.FateMobileInput?.gameHeight() || window.innerHeight) || 720));
     const scaleMetrics = getRenderScaleMetrics(cssW, cssH);
     const dpr = scaleMetrics.effectiveDpr;
     const pxW = Math.max(1, Math.round(cssW * dpr));
@@ -6940,7 +6940,7 @@
 
   window.addEventListener('resize', function(){
     if(!ownsBoard()) return;
-    const key = Math.round(window.innerWidth || 0) + 'x' + Math.round(window.innerHeight || 0) + '@' + Math.round((window.devicePixelRatio || 1) * 100);
+    const key = Math.round(window.innerWidth || 0) + 'x' + Math.round((window.FateMobileInput?.gameHeight() || window.innerHeight) || 0) + '@' + Math.round((window.devicePixelRatio || 1) * 100);
     if(key === lastResizeKey) return;
     lastResizeKey = key;
     scheduleRender('resize');

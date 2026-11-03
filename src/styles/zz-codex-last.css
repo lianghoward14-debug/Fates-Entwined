@@ -29786,3 +29786,9 @@ html body #pack-opening-overlay .profile-pack-card.profile-pack-full-art{
   }
   html body #pack-opening-overlay .profile-pack-card.profile-pack-full-art{width:min(560px,88vw)!important;}
 }
+/* Consolidation wait shares the information panel's horizontal status row. */
+.cd-consolidation-chain{position:relative;display:inline-grid;place-items:center;flex:0 0 auto;width:28px;height:28px;border:2px solid #d6c2ed;border-radius:50%;color:#e7d6fa;background:#21162f;box-shadow:0 0 7px #b69ad955;cursor:help}
+.cd-consolidation-chain svg{width:24px;height:24px}
+.cd-consolidation-chain>b{position:absolute;right:-5px;bottom:-5px;min-width:14px;height:14px;display:grid;place-items:center;border:1px solid #d6c2ed;border-radius:8px;color:#f5e9ff;background:#21162f;font:900 9px/1 Georgia,serif}
+.cd-consolidation-chain:hover .cd-moscow-tooltip,.cd-consolidation-chain:focus .cd-moscow-tooltip{opacity:1;visibility:visible;transform:translateY(0)}
+.cd-consolidation-chain>b{box-sizing:border-box;width:16px;min-width:16px;height:16px;padding:0;margin:0;display:flex;align-items:center;justify-content:center;border-radius:50%;font:700 10px/1 Arial,sans-serif;text-indent:0;letter-spacing:0;text-align:center}

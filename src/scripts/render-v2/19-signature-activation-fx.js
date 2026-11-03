@@ -1,5 +1,7 @@
 (function(){'use strict';if(window.FateSignatureActivationFx)return;
 const studies={
+'04':['04','Zoe','INTJ Stare','The Unblinking Gaze','approved','#c4a5f0',2000],
+'17':['17','Carolyn','Entropic Chaos','Atomic Uncertainty','approved','#bdd886',2000],
 '108':['108','Sofia','Childlike Whimsy','A World in Bloom','approved','#c7a8ed',2000],
 '109':['109','Don Julio','An Oligarch’s Gamble','Three from the Cup','approved','#8dbbdf',2000],
 '110':['110','Sebastian','Fishmonger','The Big Catch','approved','#8bd2cf',2000],
@@ -203,7 +205,7 @@ function playSignatureSound(cardId){if(window.FateCaribbeaActivationSfx?.handles
  else if(cardId==='109'){tone('triangle',110,73,.03,.42,.5);chime(440,.5);chime(660,.82);chime(880,1.12)}
  else if(cardId==='110'){tone('sine',190,330,.04,.6,.28);chime(587,.38);chime(740,.71);tone('sine',390,210,1.05,.6,.22)}
  setTimeout(()=>{try{out.disconnect()}catch(e){}},2200)}catch(e){}}
-function dispose(){if(disposed)return;disposed=true;signatureSound?.stop();cancelAnimationFrame(raf);removeEventListener('resize',resize)}
+function dispose(options={}){if(disposed)return;disposed=true;if(options.allowAudioTail && signatureSound?.finish)signatureSound.finish();else signatureSound?.stop();cancelAnimationFrame(raf);removeEventListener('resize',resize)}
  function tick(now){if(disposed)return;if(!overlay.isConnected){dispose();return}try{t=clamp((now-start)/Math.max(1,Number(options?.duration)||study[6]));draw();if(t<1)raf=requestAnimationFrame(tick)}catch(e){dispose();overlay.replaceChildren(...previous)}}
 resize();addEventListener('resize',resize);return{start(){if(started||disposed)return;started=true;start=performance.now();if(options?.sfx!==false)playSignatureSound(id);raf=requestAnimationFrame(tick)},dispose}}
 function playPlacement(card,options={}){
@@ -214,7 +216,7 @@ function playPlacement(card,options={}){
  return playCoordinator(card,{...options,placement:true});
 }
 function playCoordinator(card,options={}){
- if(!(options.placement===true && studies[String(card?.id||'')] && ['Dauntless','Improvisor'].includes(card?.type)) && !['106','01','bh07','bh11','10','19','bh12','11','bh02','bh08','57','12','23','15','34','77'].includes(String(card?.id||'')))return false;
+ if(!(options.placement===true && studies[String(card?.id||'')] && ['Dauntless','Improvisor'].includes(card?.type)) && !['04','17','106','01','bh07','bh11','10','19','bh12','11','bh02','bh08','57','12','23','15','34','77'].includes(String(card?.id||'')))return false;
  if(typeof window.isHiddenEffectForViewer==='function' ? window.isHiddenEffectForViewer(card) : card.faceDown)return false;
  if(document.documentElement.classList.contains('fate-animations-off') || document.documentElement.classList.contains('fate-super-performance-mode') || document.hidden)return false;
  const overlay=document.createElement('div');overlay.style.cssText='position:fixed;inset:0;pointer-events:none;z-index:999998;opacity:1;visibility:visible';overlay.setAttribute('aria-hidden','true');
@@ -222,8 +224,9 @@ function playCoordinator(card,options={}){
  document.body.appendChild(overlay);
  const state=typeof G!=='undefined'?G:null,until=Date.now()+2000;
  if(state){state._coordinatorSignatureUntil=Math.max(Number(state._coordinatorSignatureUntil)||0,until);state._postConsolidationFateFeedbackUntil=Math.max(Number(state._postConsolidationFateFeedbackUntil)||0,until);}
+ if(state && ['04','17'].includes(String(card.id)))state._cinematicUiLockUntil=Math.max(Number(state._cinematicUiLockUntil)||0,until);
  window.FateActivationBanner?.play(card,{sfx:false,hasCenterAnimation:true});fx.start();
- let ended=false;function finish(){if(ended)return;ended=true;fx.dispose();overlay.remove();document.removeEventListener('visibilitychange',hidden);if(state && state._coordinatorSignatureUntil===until)state._coordinatorSignatureUntil=0;}
+ let ended=false;function finish(){if(ended)return;ended=true;fx.dispose({allowAudioTail:!document.hidden});overlay.remove();document.removeEventListener('visibilitychange',hidden);if(state && state._coordinatorSignatureUntil===until)state._coordinatorSignatureUntil=0;}
  function hidden(){if(document.hidden)finish();}document.addEventListener('visibilitychange',hidden);setTimeout(finish,2000);return true;
 }
 window.FateSignatureActivationFx={mount,playCoordinator,playPlacement,approved:Object.keys(studies),durationFor:card=>studies[String(card?.id||'')]?.[6]||0};})();

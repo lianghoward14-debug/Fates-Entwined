@@ -1362,6 +1362,11 @@ function createMatchStatus(ctx, operation){
   }
   ctx.state.statuses.push(status);
   ctx.state.statuses.sort((a, b)=>String(a.statusId).localeCompare(String(b.statusId)));
+  if(status.reason === 'MARIE_DETERRANCE' && sourceEntry?.card){
+    sourceEntry.card.counters ||= {};
+    sourceEntry.card.counters.marieFateReduced = Math.max(0, Number(sourceEntry.card.counters.marieFateReduced) || 0)
+      + Math.max(0, -Number(status.value || 0));
+  }
   ctx.events.push({type:'STATUS_CREATED', status:JSON.parse(JSON.stringify(status))});
   return {statusId};
 }

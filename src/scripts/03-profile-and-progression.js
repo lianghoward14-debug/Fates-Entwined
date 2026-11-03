@@ -1178,6 +1178,11 @@ function refreshDailyLoginPanelIfOpen() {
 
 function handleFateChatCommand(text) {
   const cmd = String(text || '').trim().toLowerCase();
+  if(cmd === '/tutorial'){
+    if(typeof window.openTutorialCourse === 'function') window.openTutorialCourse();
+    else if(typeof toast === 'function') toast('The tutorial is still loading. Please try again in a moment.');
+    return true;
+  }
   const fateIconMatch = cmd.match(/^\/fateicon\s*(20|1[0-9]|[1-9])$/);
   if(fateIconMatch){
     const variant = Number(fateIconMatch[1]);

@@ -1239,15 +1239,27 @@ function getMoscowSupporterTenureState(card) {
   return {active:true, turnsOnField, turnsRequired:10};
 }
 
+function buildConsolidationChainBadgeHTML(card) {
+  if(!card || card.hidden || !card.iid || typeof G === 'undefined') return '';
+  const zone = (G.board || []).findIndex(rows=>rows.some(row=>row.some(entry=>entry && entry.iid === card.iid)));
+  if(zone < 0) return '';
+  const turns = window.getMilitaryBlockadeTurns?.(card, zone) || 0;
+  if(turns <= 0) return '';
+  const text = 'Cannot be used for consolidation for ' + turns + ' more owner turn' + (turns === 1 ? '' : 's') + '.';
+  return '<span class="cd-consolidation-chain" role="status" tabindex="0" aria-label="'+text+'">' +
+    '<svg viewBox="0 0 32 32" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" transform="rotate(-40 16 16)"><rect x="3" y="11" width="16" height="10" rx="5"/><rect x="13" y="11" width="16" height="10" rx="5"/></g></svg><b>'+turns+'</b><span class="cd-moscow-tooltip">'+text+'</span></span>';
+}
+
 function buildLowMoraleSupporterWarningHTML(card) {
   const expiry = getLowMoraleSupporterExpiryState(card);
-  if(!expiry.active) return '';
+  const chain = buildConsolidationChainBadgeHTML(card);
+  if(!expiry.active) return chain;
   const turns = expiry.turnsLeft;
   const warning = 'This Supporter will discard itself in ' + turns + ' turn' + (turns === 1 ? '' : 's') + '.';
   return '<span class="cd-low-morale-expiry" role="status" tabindex="0" aria-label="' + warning + '">' +
     '<span class="cd-low-morale-heart" aria-hidden="true">♥</span>' +
     '<span class="cd-low-morale-tooltip">' + warning + '</span>' +
-  '</span>';
+  '</span>' + chain;
 }
 
 function buildMoscowSupporterTenureHTML(card) {
@@ -7220,7 +7232,13 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
   let sub = '';
 
   const declaredAffiliation = card.counters?.lastDeclaredAffiliation || card.counters?.declaredAffiliation || card.counters?.moraleAffiliation || card._declaredAff || card._moraleAffiliation || card._riveraDeclaredAff;
-  if(['34','51','66','77','90'].includes(trackerId) || declaredAffiliation){
+  if(trackerId === '34'){
+    label = 'Morale Damage Inflicted';
+    value = String(Math.max(0, Math.floor(Number(card.counters?.moraleDamageInflicted ?? card._moraleDamageInflicted) || 0)));
+    const affiliation = card.counters?.moraleAffiliation || card._moraleAffiliation || declaredAffiliation;
+    const names = {reality:'Reality',third_great_war:'Third Great War',expanded_worlds:'Expanded Worlds',eventide:'Eventide'};
+    sub = 'Total This Match · Declared: ' + (names[affiliation] || 'Not declared');
+  } else if(['51','66','77','90'].includes(trackerId) || declaredAffiliation){
     label='Declared Affiliation';
     const affiliationNames={reality:'Reality',third_great_war:'Third Great War',expanded_worlds:'Expanded Worlds',eventide:'Eventide'};
     value=affiliationNames[declaredAffiliation] || 'Not declared yet';
@@ -7286,11 +7304,12 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
       value=typeof isFlowerPickingEligible==='function' && isFlowerPickingEligible(owner)?'Deck eligible':'Deck not eligible';
       sub='Original deck must contain no Draw effects';
     }
-  } else if(['34','35','65'].includes(trackerId)) {
+  } else if(['35','65'].includes(trackerId)) {
     const inflicted = Math.max(0, Math.floor(Number(card._moraleDamageInflicted ?? card.counters?.moraleDamageInflicted) || 0));
     label = 'Morale Damage Inflicted';
     value = String(inflicted);
     sub = 'Total This Match';
+
   } else if(trackerId === '88') {
     let charCount = 0;
     if(typeof forEachBoardCard === 'function') {
@@ -7327,13 +7346,11 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
     value=String(count);
     sub='+'+(count*2)+' Fate';
   } else if(trackerId === '36') {
-    const pos = typeof getBoardCardPosition === 'function' ? getBoardCardPosition(card) : null;
-    if(pos) {
-      const reductions = Math.max(0, Math.floor(Math.abs(Number(G.fateModifiers?.['deterrance_z' + pos.z] || 0)) / 4));
-      label = 'Deterrance Reductions:';
-      value = String(reductions);
-      sub = 'Zone ' + (pos.z + 1) + ', -' + (reductions * 4) + ' total Fate';
-    }
+    const recorded = (G._phase7Statuses || []).filter(status=>status.reason === 'MARIE_DETERRANCE'
+      && String(status.sourceIid) === String(card.iid)).reduce((sum,status)=>sum+Math.max(0,-Number(status.value || 0)),0);
+    label = 'Fate Reduced';
+    value = String(Math.max(0, Number(card.counters?.marieFateReduced ?? recorded) || 0));
+    sub = 'By Deterrance This Match';
   } else if(trackerId === '40') {
     const uses = Math.max(0, Number(card.usesLeft == null ? 2 : card.usesLeft) || 0);
     label = 'Hard Times Uses';
@@ -7632,7 +7649,7 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
     : `<span class="cd-fallback">${getAffIcon(visual.aff)}</span>`;
   const isAdaptiveTacticsToken = typeof isAchillesAdaptiveToken === 'function' && isAchillesAdaptiveToken(card);
   const voiceButton = (!hideCard && visual.type !== 'Supporter' && !isAdaptiveTacticsToken)
-    ? `<button type="button" class="card-voice-btn" title="Play voiceline" onclick="event.stopPropagation(); if(typeof playCardSound==='function') playCardSound('${escapeHtml(card.id)}');">♪</button>`
+    ? `<button type="button" class="card-voice-btn" aria-label="Play next card voice" onclick="event.stopPropagation(); if(typeof playCardInformationAudio==='function') playCardInformationAudio('${escapeHtml(card.id)}',this);">♪</button>`
     : '';
   const trackerHtml = buildCardDetailTrackerHTML(card, viewerP, hideCard);
   const lowMoraleExpiryBanner = !hideCard ? buildLowMoraleSupporterWarningHTML(card) : '';
@@ -10403,7 +10420,7 @@ function showCardInfoOverlay(card) {
     ? (useCanvasArt ? '<canvas class="cd-img-canvas" aria-hidden="true"></canvas>' : '<img src="'+visual.img+'" alt="'+escapeHtml(visual.name)+'" decoding="async" loading="eager" fetchpriority="high">')
     : '<span class="cd-fallback">'+getAffIcon(visual.aff)+'</span>';
   var voiceButton = (visual.type !== 'Supporter')
-    ? '<button type="button" class="card-voice-btn" title="Play voiceline" onclick="event.stopPropagation(); if(typeof playCardSound===\'function\') playCardSound(\''+escapeHtml(card.id)+'\');">&#9835;</button>'
+    ? '<button type="button" class="card-voice-btn" aria-label="Play next card voice" onclick="event.stopPropagation(); if(typeof playCardInformationAudio===\'function\') playCardInformationAudio(\''+escapeHtml(card.id)+'\',this);">&#9835;</button>'
     : '';
   var loreButton = (typeof window.hasCardLorePage === 'function' && window.hasCardLorePage(card))
     ? '<button type="button" class="btn sm cio-lore">Lore</button>'
@@ -10663,7 +10680,7 @@ const CINEMATIC_VOICELINES = Object.freeze({
   "13": "The commonwealth will unite against this threat",
   "14": "you look exactly like the last 97 men I decapitated!",
   "15": "The sword of King Stephen I will fall upon you!",
-  "17": "Ummmm....Lydia...I may have accidentally gave sentience to this chocolate chip cookie from croads.",
+  "17": "I may have accidentally given sentience to this chocolate chip cookie from Croads…",
   "19": "Czechoslovakia, a lovers quarrel in a nation",
   "21": "All that is solid melts into air, all that is holy is profaned",
   "22": "Yeah, science is pretty dang cool",
@@ -11128,7 +11145,9 @@ function showConsolidationCinematic(card, opts) {
     _lastConsolidationCinematicEndedAt = Date.now();
     // Coordinators never enter the generic activation cinematic, including
     // those with WHEN_SET rules (Rozsi, Makenna, Duncan and Louis).
-    if(String(card.id)!=='105' && (card.type === 'Improvisor' || card.type === 'Coordinator' || (card.type === 'Dauntless' && typeof hasAuthoritativeWhenSetEffect === 'function' && !hasAuthoritativeWhenSetEffect(card)))) {
+    if(['04','17'].includes(String(card.id))){
+      window.FateSignatureActivationFx?.playCoordinator(card,{sfx:opts.playSfx !== false});
+    } else if(String(card.id)!=='105' && (card.type === 'Improvisor' || card.type === 'Coordinator' || (card.type === 'Dauntless' && typeof hasAuthoritativeWhenSetEffect === 'function' && !hasAuthoritativeWhenSetEffect(card)))) {
       const signaturePlayed = card.type === 'Coordinator'
         ? window.FateSignatureActivationFx?.playCoordinator(card,{sfx:opts.playSfx !== false})
         : window.FateSignatureActivationFx?.playPlacement(card,{sfx:opts.playSfx !== false});
@@ -11376,6 +11395,8 @@ function showEffectActivationCinematic(card, opts) {
   if(visibilitySource?.faceDown && typeof window.isHiddenEffectForViewer === 'function') {
     card = Object.assign({}, card, {faceDown:false, _suppressCinematicSubtitle:false, _hiddenActivationSource:visibilitySource});
   }
+  // These signatures belong to the end of consolidation, before the picker.
+  if(['04','17'].includes(String(card?.id))) return Promise.resolve(false);
   // Juan's presentation needs a confirmed opponent target and destination.
   if(String(card?.id||'')==='61' && window.FateMariaCenterFx)return Promise.resolve(false);
   if(String(card?.id||'')==='39' && window.FateJuanCarlosTargetFx)return Promise.resolve(false);
@@ -11549,7 +11570,7 @@ function showEffectActivationCinematic(card, opts) {
     function finish(result) {
       if(done) return;
       done = true;
-      if(signatureActivation) signatureActivation.dispose();
+      if(signatureActivation) signatureActivation.dispose({allowAudioTail:result===true && !document.hidden});
       overlay.style.opacity = '0';
       setTimeout(function(){
         if(overlay.parentNode) overlay.remove();
@@ -11608,6 +11629,15 @@ function playEffectActivationCinematic(card, z, r, c, opts) {
   const options = opts || {};
   if(card?.type === 'Coordinator') return Promise.resolve(false);
   if(effectActivationCinematicDisabled()) return Promise.resolve(false);
+  if(['04','17'].includes(String(card?.id))){
+    return new Promise(resolve=>{
+      const deadline=Date.now()+12000;
+      const wait=()=>{
+        if(Date.now()<deadline && (_consolidationCinematicShowing || Number(G._coordinatorSignatureUntil)>Date.now())){setTimeout(wait,40);return;}
+        resolve(false);
+      };wait();
+    });
+  }
   // These target-specific presentations run after the player confirms a target.
   if(!G._onlineRoomCode && window.FateCharacterBoardEffects?.handles(card)) return Promise.resolve(false);
   // These target-specific presentations run after the player confirms a target.

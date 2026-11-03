@@ -544,7 +544,7 @@ function openDeckBuilderCardDetail(card) {
     ? `<img src="${card.img}" alt="${escapeHtml(card.name)}">`
     : `<span class="cd-fallback">${getAffIcon(card.aff)}</span>`;
   const voiceButton = card.type !== 'Supporter'
-    ? `<button type="button" class="card-voice-btn" title="Play voiceline" onclick="event.stopPropagation(); if(typeof playCardSound==='function') playCardSound('${escapeHtml(card.id)}');">♪</button>`
+    ? `<button type="button" class="card-voice-btn" aria-label="Play next card voice" onclick="event.stopPropagation(); if(typeof playCardInformationAudio==='function') playCardInformationAudio('${escapeHtml(card.id)}',this);">♪</button>`
     : '';
   body.innerHTML = `
     <div class="cd-wrap">

@@ -37,4 +37,5 @@ COPY rankicons /app/public/rankicons
 COPY pfp /app/public/pfp
 COPY UIpictures /app/public/UIpictures
 COPY assets /app/public/assets
+COPY tutorialvideos /app/public/tutorialvideos
 COPY *.mp3 /app/public/

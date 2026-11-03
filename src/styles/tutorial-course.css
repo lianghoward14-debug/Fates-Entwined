@@ -1,0 +1,286 @@
+/* Training grounds: uses existing card artwork and the normal battle scene. */
+#tutorial-course{position:fixed;inset:0;z-index:1000000;overflow:auto;background:linear-gradient(125deg,#07151cf5,#142933ef),url('../../ingamebackgrouds/igb1.png') center/cover;color:#e9ece5;font:15px/1.6 system-ui,sans-serif;text-align:left;color-scheme:dark}
+#tutorial-course[hidden],#tutorial-coach[hidden]{display:none!important}
+#tutorial-course *,#tutorial-coach *{box-sizing:border-box}
+#tutorial-course .academy-shell{max-width:1240px;margin:auto;padding:28px 42px 36px}
+#tutorial-course header{display:flex;justify-content:space-between;align-items:center;padding-bottom:20px;border-bottom:1px solid #d1bb7933;gap:20px}
+#tutorial-course .academy-brand{font:700 15px Georgia,serif;letter-spacing:.14em;color:#f0dfb4}
+#tutorial-course .academy-brand small{display:block;font:10px system-ui;letter-spacing:.25em;color:#9faeaf;margin-top:5px}
+#tutorial-course button{cursor:pointer;font:600 14px system-ui;border:1px solid #cbb57755;border-radius:6px;padding:12px 18px;color:#e8e9dd;background:#172e36}
+#tutorial-course .academy-quiet{border:0;background:transparent;color:#b4c4c3;font-weight:400}
+#tutorial-course button:hover{filter:brightness(1.15)}
+#tutorial-course button:focus-visible,#tutorial-course select:focus-visible,#tutorial-coach button:focus-visible{outline:2px solid #ffe5a3;outline-offset:4px}
+#tutorial-course .academy-hero{display:grid;grid-template-columns:1.2fr 1fr;align-items:center;gap:32px;padding:36px 0 30px}
+#tutorial-course .academy-eyebrow,#tutorial-course .academy-number{font:600 10px system-ui;letter-spacing:.18em;color:#d8bd81}
+#tutorial-course h1{font:clamp(36px,4.5vw,60px)/1.08 Georgia,serif;letter-spacing:-.025em;color:#fff0ce;margin:14px 0 18px}
+#tutorial-course .academy-intro{max-width:470px;font-size:16px;color:#bdcdcb}
+#tutorial-course .academy-tags{display:flex;gap:14px;flex-wrap:wrap;font-size:10px;color:#9db6b5;margin-top:22px}
+#tutorial-course .academy-tags span:before{content:'◆';font-size:7px;color:#bba16c;margin-right:6px}
+#tutorial-course .academy-art{position:relative;height:280px;display:flex;align-items:center;justify-content:center;isolation:isolate}
+#tutorial-course .academy-art:before{content:'';position:absolute;width:270px;height:270px;border:1px solid #d4bb7550;border-radius:50%;background:radial-gradient(#69878c44,transparent 70%);z-index:-1}
+#tutorial-course .academy-art img{position:absolute;width:132px;height:188px;object-fit:cover;border-radius:7px;box-shadow:0 16px 32px #0008;border:1px solid #e8c98c88}
+#tutorial-course .academy-art img:first-child{transform:translate(-96px,10px) rotate(-15deg)}
+#tutorial-course .academy-art img:nth-child(2){z-index:2;transform:translateY(-10px);width:146px;height:208px}
+#tutorial-course .academy-art img:nth-child(3){transform:translate(96px,10px) rotate(15deg)}
+#tutorial-course .academy-art>span{position:absolute;bottom:0;font:9px system-ui;letter-spacing:.24em;color:#b9bca5}
+#tutorial-course .academy-overview{display:grid;grid-template-columns:1fr 1fr 1fr;border:1px solid #d5bd793b;border-radius:12px;overflow:hidden;background:#081820ad}
+#tutorial-course article{padding:24px;border-right:1px solid #d5bd7926}
+#tutorial-course article:last-child{border-right:0}
+#tutorial-course h2{font:24px/1.2 Georgia,serif;color:#ecdfc0;margin:12px 0 18px}
+#tutorial-course article p{font-size:12px;color:#abbfbd;margin:14px 0 0;line-height:1.75}
+#tutorial-course .academy-zones{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+#tutorial-course .academy-zones>span{padding:10px 3px;text-align:center;border-top:2px solid #73b5b0;background:#21434170;border-radius:3px;font:8px system-ui;color:#b2d2cf}
+#tutorial-course .academy-zones b{display:block;font:24px Georgia,serif;color:#e7f4e7;margin:8px 0}
+#tutorial-course .academy-zones small{font-size:8px}
+#tutorial-course .academy-zones .enemy{border-color:#b9868d;background:#472c3d55;color:#c7a7b4}
+#tutorial-course ol{list-style:none;counter-reset:turn;padding:0;margin:0}
+#tutorial-course li{position:relative;counter-increment:turn;padding:0 0 15px 30px}
+#tutorial-course li:before{content:counter(turn);position:absolute;left:0;top:0;color:#cbb77d;font:italic 18px Georgia,serif}
+#tutorial-course li b{display:block;font-size:12px;font-weight:600;color:#dee6dc}
+#tutorial-course li span{font-size:11px;color:#9db3b2}
+#tutorial-course dl{margin:0;display:grid;gap:12px}
+#tutorial-course dl div{display:grid;grid-template-columns:54px 1fr;gap:10px;font-size:12px}
+#tutorial-course dt{color:#ddc58d}#tutorial-course dd{margin:0;color:#afc3c0}
+#tutorial-course footer{display:flex;align-items:center;justify-content:space-between;gap:30px;padding:26px 0 0}
+#tutorial-course .academy-deck{max-width:500px}#tutorial-course label{display:block;font:9px system-ui;letter-spacing:.18em;color:#b9a474;margin-bottom:8px}
+#tutorial-course select{font:19px Georgia,serif;color:#f4e5bd;background:#112933;border:1px solid #586965;border-radius:5px;padding:10px 40px 10px 12px;max-width:100%}
+#tutorial-course .academy-deck p,#tutorial-course #training-status{font-size:11px;color:#9fb5b3;margin:9px 0 0}
+#tutorial-course .academy-launch{text-align:right;max-width:330px}
+#tutorial-course #training-start{background:linear-gradient(120deg,#ecd6a0,#c5a563);color:#10232b;padding:16px 26px;min-width:220px;border:1px solid #f1dca3;font-size:15px;box-shadow:0 8px 28px #0005}
+#tutorial-course #training-start span{margin-left:30px}
+#tutorial-coach{position:fixed;left:18px;top:130px;width:282px;max-height:calc(100vh - 310px);overflow:auto;z-index:45000;background:#0c1d25f5;border:1px solid #b59b6366;border-radius:10px;box-shadow:0 12px 36px #0007;color:#cedbd5;font:12px/1.65 system-ui,sans-serif;text-align:left;backdrop-filter:blur(14px);color-scheme:dark}
+#tutorial-coach .coach-heading{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #b59b6329;padding:8px 12px;font-size:9px;letter-spacing:.12em;color:#d6bc83;cursor:move;touch-action:none}
+#tutorial-coach .coach-heading small{letter-spacing:0;color:#9ab3ad;margin-left:8px}
+#tutorial-coach .coach-heading i{display:inline-block;width:5px;height:5px;background:#86c7b5;border-radius:50%;margin-right:6px}
+#tutorial-coach button{cursor:pointer;background:transparent;border:0;color:#b9ccc5;font:inherit;border-radius:4px}
+#tutorial-coach #coach-fold{font-size:20px;min-width:30px;min-height:28px}
+#tutorial-coach .coach-body{padding:14px}
+#tutorial-coach .coach-eyebrow{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#bba573;margin:0}
+#tutorial-coach h2{font:21px/1.25 Georgia,serif;color:#f1e3bf;margin:6px 0 10px}
+#tutorial-coach p{margin:8px 0}
+#tutorial-coach .coach-topics{display:flex;flex-wrap:wrap;gap:5px;padding-top:12px;margin-top:12px;border-top:1px solid #d2b97822}
+#tutorial-coach .coach-topics button{font-size:10px;padding:5px 7px;border:1px solid #50656366}
+#tutorial-coach .coach-topics [aria-pressed=true]{color:#ebd49d;background:#a58b4929;border-color:#c0a46777}
+#tutorial-coach .coach-auto{font-size:10px;color:#ddc58e;padding:8px 0}
+#tutorial-coach .coach-note{font-size:9px;color:#8fa7a1;margin:0}
+@media(max-width:850px){#tutorial-course .academy-shell{padding:20px}#tutorial-course .academy-hero{gap:10px}#tutorial-course .academy-art{height:240px}#tutorial-course .academy-art img{width:100px;height:143px}#tutorial-course .academy-art img:nth-child(2){width:116px;height:166px}#tutorial-course .academy-art img:first-child{transform:translate(-65px,10px) rotate(-15deg)}#tutorial-course .academy-art img:nth-child(3){transform:translate(65px,10px) rotate(15deg)}#tutorial-course article{padding:18px}#tutorial-course .academy-overview{grid-template-columns:1fr}#tutorial-course article{border-right:0;border-bottom:1px solid #d5bd7926}#tutorial-course .academy-zones{max-width:320px}#tutorial-course footer{align-items:stretch}#tutorial-coach{width:250px;left:10px;top:125px}}
+@media(max-width:520px){#tutorial-course .academy-hero{grid-template-columns:1fr;padding-top:24px}#tutorial-course .academy-art{height:220px}#tutorial-course footer{flex-direction:column;gap:18px}#tutorial-course .academy-launch{text-align:left;max-width:none}#tutorial-course #training-start{width:100%}#tutorial-course .academy-brand{font-size:12px}#tutorial-coach{max-height:35vh}}
+@media(prefers-reduced-motion:reduce){#tutorial-course *,#tutorial-coach *{scroll-behavior:auto}}
+/* Guided curriculum: task first, explanation on demand, context kept compact. */
+#tutorial-coach.mentor-panel{width:312px;max-height:calc(100dvh - 150px);z-index:45000;scrollbar-width:thin;scrollbar-color:#8f825b #10242b;overscroll-behavior:contain}
+#tutorial-coach.mentor-panel .coach-heading{position:sticky;top:0;background:#10232bf5;z-index:2}
+#tutorial-coach .mentor-progress{display:flex;gap:4px;padding:10px 14px 0}
+#tutorial-coach .mentor-progress span{height:3px;border-radius:2px;flex:1;background:#354444}
+#tutorial-coach .mentor-progress .done{background:#7aafa1}
+#tutorial-coach .mentor-progress .current{background:#e0c180}
+#tutorial-coach.mentor-panel .coach-body{padding:12px 15px 15px}
+#tutorial-coach.mentor-panel h2{font-size:22px;line-height:1.2;margin:8px 0 12px}
+#tutorial-coach .mentor-task{font-size:12px;line-height:1.7;color:#e0e9df}
+#tutorial-coach .mentor-card{display:flex;gap:12px;align-items:center;padding:10px;margin:14px 0;background:#1b343a;border:1px solid #68807166;border-radius:7px}
+#tutorial-coach .mentor-card img{width:50px;height:71px;object-fit:cover;border-radius:3px;box-shadow:0 4px 10px #0005}
+#tutorial-coach .mentor-card b{display:block;font-size:12px;line-height:1.4;color:#f0e4bd}
+#tutorial-coach .mentor-card small{display:block;color:#a7bdb5;font-size:10px;margin:4px 0}
+#tutorial-coach #mentor-card{color:#f1d492;padding:3px 0;font-size:11px;text-decoration:underline;text-underline-offset:3px}
+#tutorial-coach details{border-top:1px solid #a68b5233;padding:9px 0;color:#b5c9c0;font-size:11px}
+#tutorial-coach summary{cursor:pointer;color:#d9c38e;min-height:24px}
+#tutorial-coach .mentor-scores{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:10px 0 0}
+#tutorial-coach .mentor-scores>div{background:#1e3035;border-top:2px solid #59676b;text-align:center;padding:7px 2px;border-radius:4px}
+#tutorial-coach .mentor-scores .leading{background:#1a3a34;border-color:#82bca9}
+#tutorial-coach .mentor-scores .trailing{background:#392932;border-color:#b78696}
+#tutorial-coach .mentor-scores small{display:block;font-size:8px;letter-spacing:.12em;color:#b6c5bc}
+#tutorial-coach .mentor-scores b{display:block;font:22px Georgia,serif;color:#f0e9cf;margin:5px 0}
+#tutorial-coach .mentor-scores em{font:12px system-ui;color:#93aaa2}
+#tutorial-coach .mentor-scores span{display:block;font-size:8px;color:#a5beb3}
+#tutorial-coach .mentor-score-key{font-size:9px;color:#8fa99d;margin:5px 0 10px}
+#tutorial-coach .mentor-feedback{font-size:10px;color:#a8d0bb;border-left:2px solid #80b399;padding-left:9px;margin:12px 0}
+#tutorial-coach .mentor-actions{display:grid;gap:8px;margin:12px 0}
+#tutorial-coach #mentor-next,#tutorial-coach #mentor-live{background:#d8bd80;color:#152b2c;padding:11px;border:1px solid #ecd294;font-weight:600;text-align:left}
+#tutorial-coach .mentor-secondary{font-size:10px;color:#9db6aa;padding:5px 0;text-align:left}
+#tutorial-coach .mentor-resume{display:block;width:100%;text-align:left;padding:10px 14px;color:#f0dfb6;font:17px/1.4 Georgia,serif}
+#tutorial-coach .mentor-resume span{display:block;color:#9fb5a8;font:10px system-ui;margin-top:4px}
+#tutorial-coach.mentor-modal .mentor-scores,#tutorial-coach.mentor-modal .mentor-score-key,#tutorial-coach.mentor-modal .mentor-reference,#tutorial-coach.mentor-modal .mentor-feedback{display:none}
+#tutorial-coach.mentor-modal{max-height:235px;top:12px!important;left:12px!important;width:min(312px,calc(100vw - 24px));z-index:90000}
+[data-mentor-highlight=true]{outline:2px solid #e7cc87!important;outline-offset:4px;box-shadow:0 0 18px #e7cc8733!important}
+#tutorial-course .academy-roadmap{display:flex;gap:8px;flex-wrap:wrap;margin-top:20px}
+#tutorial-course .academy-roadmap span{flex:1;min-width:100px;font-size:10px;letter-spacing:.07em;color:#c6c7ae;border-top:2px solid #a5925e66;padding-top:9px}
+#tutorial-course .mentor-report{margin-top:24px;padding:22px;border:1px solid #bfa36b55;border-radius:10px;background:#10272d}
+#tutorial-course .mentor-report>div{display:grid;grid-template-columns:1fr 1fr;gap:0 24px}
+#tutorial-course .mentor-report p{font-size:12px;color:#b5c6bc}
+#tutorial-course .mentor-report>div p{display:flex;flex-direction:column;border-top:1px solid #63806a44;padding-top:9px;color:#e7e6c9}
+#tutorial-course .mentor-report span{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#c1a971}
+@media(max-width:750px){#tutorial-coach.mentor-panel{width:270px;left:8px;max-height:calc(100dvh - 155px)}#tutorial-coach.mentor-panel h2{font-size:19px}#tutorial-coach.mentor-panel .coach-body{padding:10px 12px}#tutorial-course .mentor-report>div{grid-template-columns:1fr}}
+/* Basics are revealed one concept at a time, rather than one large overview. */
+#tutorial-course .primer-shell{width:min(840px,100%);margin:0 auto;padding:24px 32px;min-height:100dvh;display:flex;flex-direction:column}
+#tutorial-course .primer-shell main{flex:1;padding:28px 0 20px}
+#tutorial-course .primer-shell h1{font-size:clamp(34px,5vw,50px);margin:12px 0}
+#tutorial-course .primer-lead{font-size:17px;line-height:1.6;color:#cad7cf;max-width:640px;margin:0 0 26px}
+#tutorial-course .primer-shell footer{padding:18px 0 0;border-top:1px solid #c7ae6a33;align-items:center;flex-direction:row;gap:12px}
+#tutorial-course .primer-shell #training-status{text-align:center;font-size:10px;margin:16px 0 0}
+#tutorial-course .primer-dots{display:flex;gap:6px}
+#tutorial-course .primer-dots span{width:6px;height:6px;border-radius:50%;background:#52615b}
+#tutorial-course .primer-dots .current{background:#e4c98e}
+#tutorial-course #primer-back:disabled{opacity:.3;cursor:default}
+#tutorial-course .primer-zones{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:36px 0 18px}
+#tutorial-course .primer-zones>div{border-top:3px solid #91cdb0;border-radius:7px;background:#204038;text-align:center;padding:30px 10px}
+#tutorial-course .primer-zones .enemy{border-color:#b77d91;background:#392833}
+#tutorial-course .primer-zones small{font-size:11px;letter-spacing:.15em;color:#b5cec0}
+#tutorial-course .primer-zones b{display:block;font:38px Georgia,serif;margin:22px 0;color:#f2eacb}
+#tutorial-course .primer-zones span{font-size:12px;color:#c1d7ca}
+#tutorial-course .primer-caption{text-align:center;color:#91aca0;font-size:11px}
+#tutorial-course .primer-extra{margin-top:26px;font-size:12px;color:#adc4b7}
+#tutorial-course .primer-extra summary{cursor:pointer;color:#d2bb86}
+#tutorial-course .primer-board{border:1px solid #607563;border-radius:9px;overflow:hidden}
+#tutorial-course .primer-row{display:grid;grid-template-columns:1.8fr repeat(3,1fr);gap:8px;padding:14px;align-items:center}
+#tutorial-course .primer-row span{font-size:13px;padding-left:10px}
+#tutorial-course .primer-row i{height:48px;border:1px solid #b7d2bf44;border-radius:5px;background:#ffffff08}
+#tutorial-course .primer-row.enemy{background:#392a35}
+#tutorial-course .primer-row.contested{background:#423c2c;color:#e3cf9b}
+#tutorial-course .primer-row.yours{background:#203d36;color:#c5e7cf}
+#tutorial-course .primer-piles{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:20px;text-align:center}
+#tutorial-course .primer-piles span{font-size:10px;color:#c6b17e;letter-spacing:.12em;padding:12px;border:1px solid #506b5d55;border-radius:6px}
+#tutorial-course .primer-piles b{display:block;font-size:11px;color:#adc6b5;font-weight:400;letter-spacing:0;margin-top:6px}
+#tutorial-course .primer-anatomy{display:grid;grid-template-columns:260px 1fr;gap:28px;max-width:650px;margin:auto;align-items:center}
+#tutorial-course .primer-card{border:1px solid #c8ad6e;border-radius:12px;background:#172d31;padding:10px;box-shadow:0 12px 30px #0005}
+#tutorial-course .primer-card button{display:block;width:100%;padding:7px 9px;text-align:left;font-size:13px;border:1px solid #bfa36744;background:#0f2429;margin:3px 0}
+#tutorial-course .primer-card small{display:block;font-size:8px;font-weight:400;letter-spacing:.12em;color:#acb9a0;margin-top:2px}
+#tutorial-course .primer-card-art{height:92px;overflow:hidden;border-radius:4px;margin:6px 0}
+#tutorial-course .primer-card-art img{width:100%;height:250px;object-fit:cover;object-position:top;transform:translateY(-28px)}
+#tutorial-course .primer-stats{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+#tutorial-course .primer-stats b{font:25px Georgia,serif;color:#edcf89;margin-right:10px}
+#tutorial-course .primer-labels{display:grid;gap:6px}
+#tutorial-course .primer-labels button{text-align:left;background:transparent;font-weight:400;padding:8px 12px;font-size:13px}
+#tutorial-course .primer-labels [aria-pressed=true]{background:#d9bd7d;color:#172b29;border-color:#d9bd7d}
+#tutorial-course .primer-definition{min-height:65px;font-size:13px;color:#afcbb9;margin:10px 0 0}
+#tutorial-course .primer-definition b{color:#e9d69f}
+#tutorial-course .primer-roles{display:grid;grid-template-columns:1fr 30px 1fr;align-items:center;gap:20px;text-align:center;padding:12px 0}
+#tutorial-course .primer-roles img{width:130px;height:186px;object-fit:cover;box-shadow:0 10px 24px #0007;border-radius:6px;border:1px solid #bd9e63}
+#tutorial-course .primer-roles p{font-size:14px;color:#b9cebd}
+#tutorial-course .primer-roles h2{margin:18px 0 10px}
+#tutorial-course .primer-roles>span{font-size:28px;color:#c9af73}
+#tutorial-course .primer-turn{display:grid;gap:12px;padding:0;counter-reset:turn}
+#tutorial-course .primer-turn li{padding:18px 20px 18px 56px;background:#173031;border:1px solid #57705a55;border-radius:8px}
+#tutorial-course .primer-turn li:before{left:20px;top:17px;font-size:25px}
+#tutorial-course .primer-turn b{font-size:17px;margin-bottom:4px}
+#tutorial-course .primer-turn span{font-size:13px}
+#tutorial-coach .mentor-live-scores{margin-top:8px}
+#tutorial-coach.mentor-modal .mentor-live-scores{display:none}
+#tutorial-coach .mentor-feedback{font-size:10px;margin:8px 0}
+#tutorial-coach.mentor-panel .mentor-task{font-size:13px;line-height:1.55}
+@media(max-width:550px){#tutorial-course .primer-shell{padding:18px}#tutorial-course .primer-anatomy{grid-template-columns:1fr 1fr;gap:12px}#tutorial-course .primer-card{padding:6px}#tutorial-course .primer-card button{font-size:11px}#tutorial-course .primer-labels button{font-size:11px;padding:8px}#tutorial-course .primer-zones b{font-size:28px}#tutorial-course .primer-zones>div{padding:20px 5px}#tutorial-course .primer-roles{gap:8px}#tutorial-course .primer-roles img{width:100px;height:143px}#tutorial-course .primer-row{grid-template-columns:1.8fr repeat(3,1fr);gap:5px;padding:10px}#tutorial-course .primer-row span{font-size:11px;padding:0}#tutorial-course .primer-shell #training-start{min-width:0;width:auto;padding:12px 16px}}
+/* Three-page field manual: warm paper, dark ink, illustrated rules. */
+#tutorial-course .rulebook-shell{max-width:1100px;margin:auto;padding:24px 30px 20px;min-height:100dvh}
+#tutorial-course .rb-coverbar{border:0;padding:0 4px 20px}
+#tutorial-course .rb-book{background:#eee7d5;color:#283a39;border-radius:5px 15px 15px 5px;border:1px solid #bca975;box-shadow:inset 9px 0 15px #534c3020,0 24px 70px #0008;overflow:hidden;position:relative}
+#tutorial-course .rb-book:before{content:'';position:absolute;left:9px;top:0;bottom:0;width:1px;background:#8e805b33;pointer-events:none}
+#tutorial-course .rb-tabs{display:flex;background:#183039;padding:0 24px;border-bottom:3px solid #b89b61;gap:6px}
+#tutorial-course .rb-tabs button{flex:1;border:0;border-radius:0;background:transparent;color:#b8c7be;font:12px system-ui;padding:16px 10px;text-align:left}
+#tutorial-course .rb-tabs button span{font:italic 17px Georgia,serif;color:#bba776;margin-right:12px}
+#tutorial-course .rb-tabs [aria-current=page]{background:#eee7d5;color:#253c3d;box-shadow:inset 0 3px #d7b771}
+#tutorial-course .rb-tabs [aria-current=page] span{color:#8b6e34}
+#tutorial-course .rb-book main{padding:30px 40px 26px;min-height:560px;background:radial-gradient(ellipse at top right,#fff9e370,transparent 65%)}
+#tutorial-course .rb-title{padding-bottom:22px;margin-bottom:24px;border-bottom:1px solid #9a8b653d;position:relative}
+#tutorial-course .rb-title:after{content:'◆';position:absolute;bottom:-9px;right:0;background:#eee7d5;padding-left:12px;color:#9b8249;font-size:11px}
+#tutorial-course .rb-eyebrow{font:600 9px system-ui;letter-spacing:.2em;color:#8a713d;margin:0}
+#tutorial-course .rb-title h1{font:clamp(30px,3.6vw,43px)/1.15 Georgia,serif;letter-spacing:-.025em;color:#223c3c;margin:10px 0}
+#tutorial-course .rb-title>p:last-child{font-size:13px;color:#6b7165;margin:0}
+#tutorial-course .rb-columns{display:grid;grid-template-columns:1fr 1fr;gap:40px}
+#tutorial-course .rb-columns>section+section{border-left:1px solid #9a8b6538;padding-left:32px}
+#tutorial-course .rb-book h2{font:23px/1.25 Georgia,serif;color:#284241;margin:0 0 14px}
+#tutorial-course .rb-book h3{font:18px Georgia,serif;color:#284241;margin:0 0 8px}
+#tutorial-course .rb-book p{font-size:13px;line-height:1.75;margin:10px 0 16px;color:#4e5c53}
+#tutorial-course .rb-book b{color:#29423c}
+#tutorial-course .rb-scoreboard{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:22px 0 8px}
+#tutorial-course .rb-scoreboard>div{padding:15px 5px;background:#d4e0cf;border-top:3px solid #598a6e;border-radius:4px;text-align:center}
+#tutorial-course .rb-scoreboard .enemy{background:#e3d5d4;border-color:#a77880}
+#tutorial-course .rb-scoreboard small{font:8px system-ui;letter-spacing:.1em;color:#667966}
+#tutorial-course .rb-scoreboard b{display:block;font:30px Georgia,serif;margin:9px 0}
+#tutorial-course .rb-scoreboard i{font:17px Georgia,serif;color:#899182;margin:0 2px}
+#tutorial-course .rb-scoreboard span{font:9px system-ui;color:#576b58}
+#tutorial-course .rb-book .rb-caption{font-size:10px;text-align:center;color:#7a7e6d;margin:5px 0 17px}
+#tutorial-course .rb-callout{padding:15px 17px;background:#e2d8bb;border-left:3px solid #a78948;border-radius:0 5px 5px 0;margin:20px 0 12px}
+#tutorial-course .rb-callout>b{display:block;font:18px/1.35 Georgia,serif;color:#3b4d3e}
+#tutorial-course .rb-callout span{display:block;font-size:12px;line-height:1.65;margin-top:7px;color:#626852}
+#tutorial-course .rb-book .rb-fine{font-size:11px;line-height:1.7;color:#6e7564}
+#tutorial-course .rb-field{border:1px solid #9a9a7b;border-radius:6px;overflow:hidden;margin:18px 0 7px}
+#tutorial-course .rb-field>div{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;font-size:11px;border-bottom:1px solid #9a9a7b33}
+#tutorial-course .rb-field span{font:22px/1 Georgia,serif;letter-spacing:5px;white-space:nowrap}
+#tutorial-course .rb-field .opponent{background:#ded1d3;color:#80636b}
+#tutorial-course .rb-field .contested{background:#e2d5b3;color:#8a7748}
+#tutorial-course .rb-field .friendly{background:#d4dfcf;color:#55735a}
+#tutorial-course .rb-glossary{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin:20px 0}
+#tutorial-course .rb-glossary>div{border-top:1px solid #a18b5455;padding-top:8px}
+#tutorial-course .rb-glossary b{font:15px Georgia,serif;display:block}
+#tutorial-course .rb-glossary span{font-size:10px;line-height:1.5;color:#727967;display:block;margin-top:5px}
+#tutorial-course .rb-note{padding:13px 15px;border:1px solid #b5aa8055;border-radius:5px;background:#f8f1df66}
+#tutorial-course .rb-note>b{font-size:11px;color:#7e6a3b}
+#tutorial-course .rb-note p{font-size:11px;margin:5px 0 0;line-height:1.65}
+#tutorial-course .rb-card-layout{display:grid;grid-template-columns:300px minmax(0,1fr);gap:46px;align-items:start}
+#tutorial-course .rb-card-figure{margin:0;padding:18px;background:radial-gradient(#b7bfaa55,transparent 70%);text-align:center}
+#tutorial-course .rb-card-figure>img{width:218px;max-width:100%;height:auto;border-radius:8px;box-shadow:0 14px 26px #302d3338;transform:rotate(-2deg);border:1px solid #998354}
+#tutorial-course .rb-card-figure figcaption{font:8px system-ui;letter-spacing:.13em;color:#84774f;margin-top:18px}
+#tutorial-course .rb-stat-pair{display:flex;justify-content:center;gap:25px;margin-top:18px}
+#tutorial-course .rb-stat-pair>div{display:flex;gap:9px;align-items:center;text-align:left}
+#tutorial-course .rb-stat-pair b{font:37px Georgia,serif;color:#34594c}
+#tutorial-course .rb-stat-pair span{font:9px system-ui;color:#8b7744;letter-spacing:.1em}
+#tutorial-course .rb-stat-pair small{display:block;font:9px system-ui;color:#7d8272;letter-spacing:0;margin-top:3px}
+#tutorial-course .rb-card-labels{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+#tutorial-course .rb-card-labels button{padding:10px 9px;background:#e4ddc7;border:1px solid #b3a57566;color:#506150;text-align:left;font:11px/1.4 system-ui;min-height:45px}
+#tutorial-course .rb-card-labels button>span{color:#9d844c;margin-right:8px;font:italic 14px Georgia,serif}
+#tutorial-course .rb-card-labels [aria-pressed=true]{background:#284942;color:#f2e7c9;border-color:#284942}
+#tutorial-course .rb-card-labels [aria-pressed=true]>span{color:#d1bc7b}
+#tutorial-course .rb-definition{border-left:2px solid #ac9053;margin:15px 0 21px;padding:3px 0 3px 13px;min-height:72px}
+#tutorial-course .rb-definition>b{font:17px Georgia,serif}
+#tutorial-course .rb-definition p{font-size:12px;margin:5px 0 0}
+#tutorial-course .rb-two-roles{display:grid;grid-template-columns:1fr 1fr;gap:20px;border-top:1px solid #a3915e44;padding-top:18px}
+#tutorial-course .rb-two-roles p{font-size:11px;margin:0}
+#tutorial-course .rb-turns{padding:0;margin:0;list-style:none;counter-reset:turn}
+#tutorial-course .rb-turns li{padding:0 0 22px 40px;position:relative}
+#tutorial-course .rb-turns li:before{left:0;top:0;width:27px;height:27px;border:1px solid #a7915a77;border-radius:50%;text-align:center;font:italic 18px/25px Georgia,serif;color:#8a7648;background:#e6ddc3}
+#tutorial-course .rb-turns li b{font:18px Georgia,serif;display:block;margin:2px 0 7px}
+#tutorial-course .rb-turns li span{font-size:12px;color:#65715f;line-height:1.65}
+#tutorial-course .rb-consolidation{display:flex;align-items:center;gap:16px;justify-content:center;padding:16px;border:1px solid #b6a66f66;border-radius:6px;background:#e4ddc6;margin:16px 0}
+#tutorial-course .rb-consolidation span{text-align:center;font-size:10px;color:#7c806b}
+#tutorial-course .rb-consolidation b{display:block;font:23px Georgia,serif;margin-bottom:6px}
+#tutorial-course .rb-consolidation i{font:22px Georgia,serif;color:#a08649}
+#tutorial-course .rb-book .rb-subheading{font-size:20px;margin-top:23px}
+#tutorial-course .rb-effects{padding-left:18px;color:#62705d;font-size:12px}
+#tutorial-course .rb-effects li{padding:0 0 7px;line-height:1.6}
+#tutorial-course .rb-effects li:before{display:none}
+#tutorial-course .rb-book footer{padding:16px 35px;background:#e5dcc4;border-top:1px solid #ab996444;gap:16px}
+#tutorial-course .rb-book footer button{background:transparent;border:1px solid #a18b5455;color:#4c604b;padding:11px 17px;font-size:12px;min-width:0}
+#tutorial-course .rb-book footer #training-start{background:#24473f;color:#f4e8c8;border-color:#24473f;box-shadow:none}
+#tutorial-course .rb-folio{font:11px Georgia,serif;letter-spacing:.2em;color:#9a8550;white-space:nowrap}
+#tutorial-course .rulebook-shell>#training-status{text-align:center;font-size:10px;margin-top:16px;color:#a6b8aa}
+#tutorial-course .rb-book button:focus-visible{outline:3px solid #956e23;outline-offset:3px}
+#tutorial-course .rb-book .mentor-report{background:#e4ddc7;border-color:#ac996655}
+#tutorial-course .rb-book .mentor-report>div p{color:#3e5648}
+@media(max-width:800px){#tutorial-course .rulebook-shell{padding:16px}#tutorial-course .rb-book main{padding:24px}#tutorial-course .rb-columns{gap:24px}#tutorial-course .rb-columns>section+section{padding-left:22px}#tutorial-course .rb-card-layout{grid-template-columns:230px minmax(0,1fr);gap:22px}#tutorial-course .rb-card-figure{padding:8px}#tutorial-course .rb-card-labels{grid-template-columns:1fr}#tutorial-course .rb-card-labels button{min-height:34px;padding:7px 9px}}
+@media(max-width:600px){#tutorial-course .rb-columns{grid-template-columns:1fr;gap:28px}#tutorial-course .rb-columns>section+section{padding:24px 0 0;border-left:0;border-top:1px solid #9a8b6538}#tutorial-course .rb-tabs{padding:0 12px}#tutorial-course .rb-tabs button{padding:13px 6px;font-size:10px}#tutorial-course .rb-tabs button span{margin-right:6px;font-size:13px}#tutorial-course .rb-card-layout{grid-template-columns:1fr;gap:25px}#tutorial-course .rb-card-figure>img{width:190px}#tutorial-course .rb-card-labels{grid-template-columns:1fr 1fr}#tutorial-course .rb-book footer{padding:14px 18px;flex-direction:row}#tutorial-course .rb-book footer button{padding:11px 10px;font-size:11px}#tutorial-course .rb-book main{min-height:0}#tutorial-course .rb-book footer #training-start{width:auto}#tutorial-course .rb-coverbar .academy-brand{font-size:12px}}
+/* Action-first tutorial: one prompt, one suggested action, reference kept separate. */
+#tutorial-catalog-button{position:fixed;right:18px;top:118px;z-index:95000;border:1px solid #c6ac70;border-radius:7px;background:#10292ef5;color:#eddbad;font:600 12px system-ui;padding:11px 17px;box-shadow:0 5px 18px #0005;cursor:pointer}
+#tutorial-catalog-button[hidden]{display:none!important}
+#tutorial-coach.mentor-panel{width:290px;max-height:230px;left:16px;top:130px;border-radius:9px}
+#tutorial-coach.mentor-panel .coach-heading{font-size:8px;padding:6px 12px}
+#tutorial-coach.mentor-panel .coach-body{padding:12px}
+#tutorial-coach.mentor-panel .mentor-task{font:500 14px/1.5 system-ui;color:#f0ead6;margin:0 0 12px}
+#tutorial-coach .mentor-pick{width:100%;display:flex;align-items:center;gap:12px;padding:8px;background:#25433e;border:1px solid #6f96736b;text-align:left;margin:0 0 10px}
+#tutorial-coach .mentor-pick img{width:34px;height:48px;object-fit:cover;border-radius:3px}
+#tutorial-coach .mentor-pick b{font-size:11px;color:#eee1b7;line-height:1.3;display:block}
+#tutorial-coach .mentor-pick small{display:block;margin-top:5px;font-size:10px;color:#a6cbb8}
+#tutorial-coach .mentor-bottom{display:flex;justify-content:space-between;gap:10px;margin-top:10px;border-top:1px solid #c4ad7130;padding-top:8px}
+#tutorial-coach .mentor-bottom button{font-size:9px;color:#afc0ac;padding:3px 0}
+#tutorial-coach #mentor-book{color:#e1c98d}
+#tutorial-coach #mentor-next{width:100%;font-size:12px;padding:10px}
+#tutorial-coach.mentor-modal{max-height:165px;width:270px}
+#tutorial-course .tutorial-welcome{width:min(540px,calc(100% - 32px));margin:10vh auto;padding:40px;background:#11272ef5;border:1px solid #bda56a66;border-radius:14px;box-shadow:0 20px 70px #0008}
+#tutorial-course .welcome-label{font:10px system-ui;letter-spacing:.15em;color:#cab17b}
+#tutorial-course .tutorial-welcome h1{font:44px/1.1 Georgia,serif;color:#f4e4bd;margin:22px 0 16px}
+#tutorial-course .tutorial-welcome>p{color:#bdcec0;font-size:15px;line-height:1.6}
+#tutorial-course .welcome-preview{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:28px 0;font-size:11px;color:#c8d8bd}
+#tutorial-course .welcome-preview b{color:#b39b66}
+#tutorial-course .tutorial-welcome button{display:block;width:100%;margin-top:10px}
+#tutorial-course .tutorial-welcome #training-start{background:#d7bd80;color:#152a2a}
+#tutorial-course .tutorial-welcome #training-close{border:0;background:transparent;color:#9eb2a4;font-size:12px}
+#tutorial-course .tutorial-welcome #training-status{font-size:11px;margin:20px 0 0;color:#9bb5a4}
+#tutorial-catalog-button:focus-visible{outline:3px solid #ffe4a1;outline-offset:3px}
+@media(max-width:600px){#tutorial-coach.mentor-panel{width:250px;left:8px;top:125px}#tutorial-catalog-button{right:8px;top:82px;padding:8px 12px}#tutorial-course .tutorial-welcome{padding:26px;margin:6vh auto}#tutorial-course .tutorial-welcome h1{font-size:36px}}

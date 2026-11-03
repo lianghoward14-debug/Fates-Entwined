@@ -25,6 +25,8 @@ COPY aiicons ./aiicons
 COPY rankicons ./rankicons
 COPY pfp ./pfp
 COPY UIpictures ./UIpictures
+COPY assets ./assets
+COPY tutorialvideos ./tutorialvideos
 COPY fates-entwined-website ./fates-entwined-website
 
 EXPOSE 8787

@@ -93,13 +93,12 @@ function syncStarterPresetMetadata() {
 const STARLIGHT_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" style="display:inline-block;vertical-align:-3px;filter:drop-shadow(0 0 4px rgba(255,215,0,.8));"><defs><linearGradient id="sl-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#fff8c4"/><stop offset="50%" stop-color="#ffd700"/><stop offset="100%" stop-color="#c9a84c"/></linearGradient></defs><path d="M12 2 L14 9 L21 10 L15.5 14.5 L17 21 L12 17.5 L7 21 L8.5 14.5 L3 10 L10 9 Z" fill="url(#sl-grad)" stroke="#fff8c4" stroke-width=".3"/></svg>';
 
 // ─── PACK GENERATION (pure, multiplayer-safe) ───
-// Pack uses card IDs 1-80. Not all IDs exist in the CARDS array (some are reserved for expansion).
-// We filter to existing cards only.
+// Base boosters exclude expansion cards 80-120 and Brave Horizons.
 function getPackCardPool() {
   return getChallengerCardPool().filter(card=>{
     if(String(card?.set || '').toLowerCase() === 'brave_horizons') return false;
     const numericId = Number(card && card.id);
-    return !Number.isInteger(numericId) || numericId < 80 || numericId > 100;
+    return !Number.isInteger(numericId) || numericId < 80 || numericId > 120;
   });
 }
 
@@ -4249,6 +4248,8 @@ function renderWorldChatMessages(options = {}) {
 }
 
 function sendWorldChat() {
+  const commandInput = document.getElementById('wc-input');
+  if(commandInput && window.handleFateChatCommand?.(commandInput.value)) { commandInput.value=''; return; }
   if(window.FATE_ONLINE_SEND_WORLD_CHAT){
     return window.FATE_ONLINE_SEND_WORLD_CHAT();
   }
@@ -4571,6 +4572,7 @@ function sendInGameChat() {
   if(!inp) return;
   const text = inp.value.trim();
   if(!text) return;
+  if(window.handleFateChatCommand?.(text)){ inp.value=''; return; }
   if(G._onlineRoomCode && typeof window.fateSendRoomChat === 'function') {
     window.fateSendRoomChat(G._onlineRoomCode, text);
     inp.value = '';
@@ -5090,6 +5092,7 @@ function getDailyChallengeProgress(key) {
 }
 
 function updateDailyChallengeProgress(key, value, mode) {
+  if(typeof CURRENT_MODE !== 'undefined' && CURRENT_MODE === 'tutorial') return;
   if(typeof window.isFateDevRewardBlocked === 'function' && window.isFateDevRewardBlocked())return;
   // mode: 'add' | 'max' | 'set'
   var today = getDailyChallengeDate();

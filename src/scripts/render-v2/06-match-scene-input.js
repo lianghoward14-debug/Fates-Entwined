@@ -17,6 +17,7 @@
       this.lastHoverSfxKey = '';
       this.moveRaf = 0;
       this.pendingMove = null;
+      this.handleTouchCancel = this.handleTouchCancel.bind(this);
       this.handlePointerDown = this.handlePointerDown.bind(this);
       this.handlePointerUp = this.handlePointerUp.bind(this);
       this.handlePointerMove = this.handlePointerMove.bind(this);
@@ -36,6 +37,7 @@
       this.container.addEventListener('pointerup', this.handlePointerUp, {passive:false});
       this.container.addEventListener('pointermove', this.handlePointerMove, {passive:true});
       this.container.addEventListener('wheel', this.handleWheel, {passive:false});
+      document.addEventListener('pointercancel', this.handleTouchCancel, true);
       document.addEventListener('pointerdown', this.handleViewportPointerDown, {capture:true, passive:false});
       document.addEventListener('pointerup', this.handleViewportPointerUp, {capture:true, passive:false});
       document.addEventListener('pointermove', this.handleViewportPointerMove, {capture:true, passive:true});
@@ -48,6 +50,7 @@
       this.container.removeEventListener('pointerup', this.handlePointerUp);
       this.container.removeEventListener('pointermove', this.handlePointerMove);
       this.container.removeEventListener('wheel', this.handleWheel);
+      document.removeEventListener('pointercancel', this.handleTouchCancel, true);
       document.removeEventListener('pointerdown', this.handleViewportPointerDown, true);
       document.removeEventListener('pointerup', this.handleViewportPointerUp, true);
       document.removeEventListener('pointermove', this.handleViewportPointerMove, true);
@@ -200,6 +203,8 @@
     }
 
     viewportHitTest(clientX, clientY){
+      const point = window.FateMobileInput?.uiPoint(clientX, clientY);
+      if(point){ clientX = point.x; clientY = point.y; }
       const scene = this.scene || window.FateMatchRendererAdapter;
       const hitMap = scene && typeof scene.getHitMap === 'function' ? scene.getHitMap() : null;
       if(!hitMap) return null;
@@ -237,7 +242,19 @@
       else if(typeof window.playFateSfxOnce === 'function') window.playFateSfxOnce('cardHover', 'v2:' + key, 95);
     }
 
+    handleTouchCancel(ev){
+      if(ev.pointerType !== 'touch') return;
+      this.pointerDownHit = this.pointerDownPoint = null;
+      this.viewportPointerDownHit = this.viewportPointerDownPoint = null;
+      this.touchGestureUntil = Date.now() + 500;
+    }
+
     handleViewportPointerDown(ev){
+      if(ev.pointerType === 'touch' && ev.isPrimary === false){
+        this.handleTouchCancel(ev);
+        return;
+      }
+      if(ev.pointerType === 'touch' && Date.now() < (this.touchGestureUntil || 0)) return;
       if(this.isModalBlockingSceneInput()) {
         this.viewportPointerDownHit = null;
         this.viewportPointerDownPoint = null;
@@ -308,7 +325,7 @@
         this.recordInputDebug('viewport-up-hand-drag-intent', {target:this.targetSummary(ev.target), clientX:ev.clientX, clientY:ev.clientY});
         return;
       }
-      const moveLimit = started.kind === 'hand-card' ? 4 : 10;
+      const moveLimit = ev.pointerType === 'touch' ? (window.FateMobileInput?.touchSlop() || 12) : (started.kind === 'hand-card' ? 4 : 10);
       if(Math.abs(ev.clientX - startedPoint.clientX) > moveLimit || Math.abs(ev.clientY - startedPoint.clientY) > moveLimit) {
         this.recordInputDebug('viewport-up-moved', {target:this.targetSummary(ev.target), clientX:ev.clientX, clientY:ev.clientY});
         return;
@@ -330,10 +347,17 @@
       this.recordInputDebug('viewport-dispatch', {target:this.targetSummary(ev.target), kind:ended.kind, command:ended.command || '', index:ended.index, hitSpace:ended.hitSpace || ''});
       ev.preventDefault();
       ev.stopPropagation();
+      if(ev.pointerType === 'touch') this.touchClickUntil = Date.now() + 650;
       this.dispatchViewportHit(ended);
     }
 
     handleViewportClick(ev){
+      if(Date.now() < (this.touchClickUntil || 0) && !this.isDomControlTarget(ev.target)){
+        ev.preventDefault();
+        ev.stopImmediatePropagation();
+        return;
+      }
+      if(Date.now() < (this.touchGestureUntil || 0)) return;
       // During an authoritative board selector (including consolidation), the
       // canvas pointer sequence has already been handled by dispatchHit. Do not
       // let the synthesized click continue into the legacy card-detail route;
@@ -374,6 +398,7 @@
     }
 
     handleViewportPointerMove(ev){
+      if(ev.pointerType === 'touch') return;
       const scene = this.scene || window.FateMatchRendererAdapter;
       if(!scene || !scene.ownsBoard || !scene.ownsBoard() || typeof scene.setViewportHoverHit !== 'function') return;
       const modal = document.getElementById('modal');
@@ -391,6 +416,7 @@
     }
 
     handlePointerMove(ev){
+      if(ev.pointerType === 'touch') return;
       if(this.isModalBlockingSceneInput()) {
         this.pendingMove = null;
         const scene = this.scene || window.FateMatchRendererAdapter;
@@ -427,6 +453,7 @@
     }
 
     handlePointerDown(ev){
+      if(ev.pointerType === 'touch' && (ev.isPrimary === false || Date.now() < (this.touchGestureUntil || 0))) return;
       if(this.isModalBlockingSceneInput()) {
         this.pointerDownHit = null;
         this.pointerDownPoint = null;
@@ -485,7 +512,7 @@
       this.pointerDownHit = null;
       this.pointerDownPoint = null;
       if(!startedPoint) { this.recordInputDebug('board-up-no-start'); return; }
-      if(Math.abs(ev.clientX - startedPoint.clientX) > 10 || Math.abs(ev.clientY - startedPoint.clientY) > 10) { this.recordInputDebug('board-up-moved'); return; }
+      if(Math.abs(ev.clientX - startedPoint.clientX) > (ev.pointerType === 'touch' ? (window.FateMobileInput?.touchSlop() || 12) : 10) || Math.abs(ev.clientY - startedPoint.clientY) > (ev.pointerType === 'touch' ? (window.FateMobileInput?.touchSlop() || 12) : 10)) { this.recordInputDebug('board-up-moved'); return; }
       const p = this.eventPoint(ev);
       const ended = this.hitTest(p.x, p.y);
       if(!ended) { this.recordInputDebug('board-up-miss', {x:p.x, y:p.y}); return; }

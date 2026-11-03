@@ -133,7 +133,7 @@
     document.body.appendChild(banner);
     // Banner-only presentations never dim the board. The animation owner must
     // opt in after it has successfully created the companion animation.
-    const vignette = options.hasCenterAnimation === true && !['04','17'].includes(id) ? document.createElement('div') : null;
+    const vignette = options.hasCenterAnimation === true ? document.createElement('div') : null;
     if(vignette){
       vignette.className = 'fate-activation-center-vignette';
       vignette.setAttribute('aria-hidden','true');

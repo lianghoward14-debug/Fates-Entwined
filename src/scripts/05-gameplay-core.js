@@ -158,7 +158,9 @@ function chooseFrenchFusiliersPassive(inst, z, options) {
   };
   const cards = candidates.map(function(entry) { return entry.card; });
   if(opts.autoPick) {
-    const priority = ['20','92','93','65','64','59','53','49','24'];
+    const priority = G._selectedAI?._deckStrategy==='ai_infantry_havano' && G.turn<G.maxTurns
+      ? ['114','20','92','93','65','64','59','53','49','24']
+      : ['20','92','93','65','64','59','53','49','24'];
     candidates.sort(function(a, b){
       const ai = priority.indexOf(String(a.card.id));
       const bi = priority.indexOf(String(b.card.id));
@@ -1174,6 +1176,7 @@ function finishWojciechTurnState(endingPlayer) {
     if(Number(card._pierogiHost) !== endingPlayer) return;
     card._pierogiTurnsRemaining = Math.max(0, (Number(card._pierogiTurnsRemaining) || 0) - 1);
     if(card._pierogiTurnsRemaining <= 0) {
+      window.playSpecialPlacementSfx?.('pierogi');
       G.board[z][r][c] = null;
       expiredFromBoard++;
       return;
@@ -4131,6 +4134,7 @@ async function clickCell(z,r,c) {
       else playSfx('carolynBlock');
       toast('Cell permanently locked by Carolyn!');
     } else if(blockType === 'jaime') {
+      window.playJaimeSafeSquareSfx?.();
       toast('Jaime marked a safe-row square for Morale recovery.');
     } else {
       playSfx('zoeBlock');
@@ -5695,6 +5699,8 @@ function applyMarieDeterranceForConsolidation(consolidatingPlayer, zoneIndex, co
       if(!cell || !cardActsAsPassive(cell, '36') || cell.owner === consolidatingPlayer || isCardEffectSuppressed(cell)) return;
       activations++;
       G.fateModifiers['deterrance_z' + z] = (G.fateModifiers['deterrance_z' + z] || 0) - 4;
+      cell.counters ||= {};
+      cell.counters.marieFateReduced = Math.max(0, Number(cell.counters.marieFateReduced) || 0) + 4;
       log('sys', 'Deterrance activated! Zone ' + (z + 1) + ' Fate reduced by 4.');
       flashCardEffect(cell, 'marie_deterrence', {
         label:'Deterrance',
@@ -11651,7 +11657,7 @@ function checkWin() {
   let result = null;
   let starlightGained = 0;
   let freePackGained = false;
-  if(typeof window.isFateDevRewardBlocked === 'function' && window.isFateDevRewardBlocked()){
+  if(CURRENT_MODE === 'tutorial' || (typeof window.isFateDevRewardBlocked === 'function' && window.isFateDevRewardBlocked())){
     result={eloChange:0,xpGained:0,levelsGained:0,newLevel:USER_PROFILE.level};
   } else if(G.aiEnabled && winner >= 0){
     const humanP = 1 - G.aiPlayer;
@@ -12408,7 +12414,7 @@ function checkReactions(actionType, actionData) {
       closeModal();
       const hasBoardSource = typeof candidate.z === 'number' && typeof candidate.r === 'number' && typeof candidate.c === 'number';
       const cinematic = hasBoardSource && typeof playEffectActivationCinematic === 'function'
-        ? playEffectActivationCinematic(candidate.card, candidate.z, candidate.r, candidate.c, {source:'improvisor-reaction', sfx:!!window.FateApprovedActivationSfx?.handles(candidate.card.id), broadcast:false})
+        ? playEffectActivationCinematic(candidate.card, candidate.z, candidate.r, candidate.c, {source:'improvisor-reaction', sfx:String(candidate.card.id)==='79' || !!window.FateApprovedActivationSfx?.handles(candidate.card.id), broadcast:false})
         : Promise.resolve(false);
       Promise.resolve(cinematic)
         .then(function(){ return executeReaction(candidate, actionData); })
@@ -12497,7 +12503,7 @@ function checkReactions(actionType, actionData) {
           G._reactionPending = false;
           closeModal();
           const cinematic = typeof playEffectActivationCinematic === 'function'
-            ? playEffectActivationCinematic(reaction.card, reaction.z, reaction.r, reaction.c, {source:'improvisor-reaction', sfx:!!window.FateApprovedActivationSfx?.handles(reaction.card.id), broadcast:false})
+            ? playEffectActivationCinematic(reaction.card, reaction.z, reaction.r, reaction.c, {source:'improvisor-reaction', sfx:String(reaction.card.id)==='79' || !!window.FateApprovedActivationSfx?.handles(reaction.card.id), broadcast:false})
             : Promise.resolve(false);
           Promise.resolve(cinematic)
             .then(function(){ return executeReaction(reaction, actionData); })

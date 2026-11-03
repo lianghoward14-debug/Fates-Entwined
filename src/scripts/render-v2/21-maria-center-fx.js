@@ -23,10 +23,10 @@
       const start=performance.now(),game=typeof G!=='undefined'?G:null,lockUntil=Date.now()+duration+250;
       let raf=0,timer=0,dead=false;
       if(game)game._cinematicUiLockUntil=Math.max(Number(game._cinematicUiLockUntil)||0,lockUntil);
-      function finish(){if(dead)return;dead=true;activationSound?.stop();cancelAnimationFrame(raf);clearTimeout(timer);document.removeEventListener('visibilitychange',visibility);canvas.remove();if(game&&game._cinematicUiLockUntil===lockUntil)game._cinematicUiLockUntil=0;active=null;resolve(true);}
+      function finish(completed=false){if(dead)return;dead=true;if(completed && !document.hidden)activationSound?.finish();else activationSound?.stop();cancelAnimationFrame(raf);clearTimeout(timer);document.removeEventListener('visibilitychange',visibility);canvas.remove();if(game&&game._cinematicUiLockUntil===lockUntil)game._cinematicUiLockUntil=0;active=null;resolve(true);}
       function visibility(){if(document.hidden)finish();}
-      function tick(now){if(dead)return;if(disabled()||!canvas.isConnected){finish();return;}try{const t=Math.min(1,Math.max(0,(now-start)/duration));ctx.setTransform(dpr,0,0,dpr,0,0);window.FateApprovedActivationArt.draw(ctx,'61',t,w,h);if(t<1)raf=requestAnimationFrame(tick);else finish();}catch(e){finish();}}
-      document.addEventListener('visibilitychange',visibility);raf=requestAnimationFrame(tick);timer=setTimeout(finish,duration+250);
+      function tick(now){if(dead)return;if(disabled()||!canvas.isConnected){finish();return;}try{const t=Math.min(1,Math.max(0,(now-start)/duration));ctx.setTransform(dpr,0,0,dpr,0,0);window.FateApprovedActivationArt.draw(ctx,'61',t,w,h);if(t<1)raf=requestAnimationFrame(tick);else finish(true);}catch(e){finish();}}
+      document.addEventListener('visibilitychange',visibility);raf=requestAnimationFrame(tick);timer=setTimeout(()=>finish(!disabled() && canvas.isConnected),duration+250);
     });
     return active;
   }

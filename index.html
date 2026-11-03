@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Fates Entwined</title>
 <link rel="manifest" href="manifest.json">
 <meta name="mobile-web-app-capable" content="yes">
@@ -12,7 +12,7 @@
 <link rel="icon" href="blank.png">
   <link rel="stylesheet" href="src/styles/game.css?v=2026083002">
 <link rel="stylesheet" href="src/styles/99-ui-final.css?v=20261024-booster4b">
-<link rel="stylesheet" href="src/styles/zz-codex-last.css?v=20261025-pack-cleanup">
+<link rel="stylesheet" href="src/styles/zz-codex-last.css?v=20261031-match-feedback">
 <link rel="stylesheet" href="src/styles/profile-view-v2.css?v=2026092901">
 <link rel="stylesheet" href="src/styles/ledger-archive.css?v=20261014-oligarch-opening">
 <link rel="stylesheet" href="src/styles/profile-picker-performance.css?v=1788280003">
@@ -47,6 +47,7 @@
 <link rel="stylesheet" href="src/styles/approved-berkeley-selva.css?v=20261017-final">
 <link rel="stylesheet" href="src/styles/affiliation-banner-match.css?v=20261017-sample-match">
 <link rel="stylesheet" href="src/styles/santiago-payment.css?v=20261023">
+<link rel="stylesheet" href="src/styles/mobile-controls.css?v=20261031-mobile4">
 </head>
 <body>
 <div id="fate-loading-screen" class="fate-loading-screen fate-startup-loading-screen">
@@ -640,34 +641,34 @@
 <!-- TOAST -->
 <div id="toast"></div>
 
-  <script src="src/scripts/00-structural-helpers.js?v=20261014-julio-after-resolution"></script>
-<script src="src/scripts/01-data-and-state.js?v=20261025-store-portraits"></script>
+  <script src="src/scripts/00-structural-helpers.js?v=20261031-match-feedback"></script>
+<script src="src/scripts/01-data-and-state.js?v=20261028-tutorial"></script>
   <script src="src/scripts/01a-pressure-card-reworks.js?v=2026083002"></script>
-<script src="src/scripts/02-screen-and-deckbuilder.js?v=20261011-affiliation-pill-only"></script>
+<script src="src/scripts/02-screen-and-deckbuilder.js?v=20261029-video-restore"></script>
 <script src="src/scripts/02-effect-rule-metadata.js?v=2026083102"></script>
 <script src="src/scripts/13-svg-ui-enhancements.js?v=1780269000"></script>
   <script src="shared/starter-choice.js?v=20261004-starter-save"></script>
   <script src="shared/preset-sync.js?v=20260920-durable-presets"></script>
-  <script src="src/scripts/03-profile-and-progression.js?v=20261025-store-portraits"></script>
-<script src="src/scripts/04-game-setup.js?v=20261024-dev-rewards"></script>
+  <script src="src/scripts/03-profile-and-progression.js?v=20261027-tutorial-chat"></script>
+<script src="src/scripts/04-game-setup.js?v=20261031-match-feedback"></script>
 <script src="src/scripts/declaration-picker-designs.js?v=20261017-banner-match"></script>
-<script src="src/scripts/05-gameplay-core.js?v=20261024-santiago-clicks"></script>
+<script src="src/scripts/05-gameplay-core.js?v=20261103-marie-tracker"></script>
 <script src="src/scripts/render-v2/19-caribbea-selected-art.js?v=20261014"></script>
 <script src="src/scripts/render-v2/19-julio-dice-art.js?v=20261014-cup"></script>
-<script src="src/scripts/render-v2/19-caribbea-activation-sfx.js?v=20261015-julio-landing-sync"></script>
+<script src="src/scripts/render-v2/19-caribbea-activation-sfx.js?v=20261102-all-cinematic-audio-tails"></script>
 <script src="src/scripts/render-v2/19-caribbea-activation-art.js?v=20261014-cup"></script>
-<script src="src/scripts/render-v2/19-approved-activation-art.js?v=20261021-printed-cards"></script>
-<script src="src/scripts/render-v2/19-approved-activation-sfx.js?v=20261022-dylan-volume"></script>
-<script src="src/scripts/render-v2/19-signature-activation-fx.js?v=20261021-printed-cards"></script>
+<script src="src/scripts/render-v2/19-approved-activation-art.js?v=20261103-selected-cinematics"></script>
+<script src="src/scripts/render-v2/19-approved-activation-sfx.js?v=20261103-gaze-atoms-sequence"></script>
+<script src="src/scripts/render-v2/19-signature-activation-fx.js?v=20261103-zoe-carolyn-registry-fix"></script>
   <script src="src/scripts/render-v2/23-consolidation-sfx.js?v=20260917-strong-fracture"></script>
   <script src="src/scripts/render-v2/23-rarity-consolidation-fx.js?v=20260917-fixed-star-triangle-count"></script>
-<script src="src/scripts/06-rendering-and-helpers.js?v=20261025-store-portraits"></script>
+<script src="src/scripts/06-rendering-and-helpers.js?v=20261103-marie-tracker"></script>
 <link rel="stylesheet" href="src/styles/support-company.css?v=20261008-selected-title">
-<script type="module" src="src/scripts/support-company.mjs?v=20261024-no-category-arrows"></script>
+<script type="module" src="src/scripts/support-company.mjs?v=20261031-adaptive-recruitment"></script>
   <script src="src/scripts/51-ledger-archive.js?v=20261014-oligarch-opening"></script>
 <script src="src/scripts/render-v2/00-render-v2-flags.js?v=1780590901"></script>
-  <script src="src/scripts/render-v2/01-render-snapshot.js?v=20261014-c13-chains"></script>
-<script src="src/scripts/render-v2/02-match-layout-engine.js?v=2026091301"></script>
+  <script src="src/scripts/render-v2/01-render-snapshot.js?v=20261030-chain-countdown"></script>
+<script src="src/scripts/render-v2/02-match-layout-engine.js?v=20261031-mobile4"></script>
 <script src="src/scripts/render-v2/03-card-texture-cache.js?v=20260927-performance2"></script>
 <script src="src/scripts/render-v2/07-animation-timeline.js?v=1784846401"></script>
 <script src="src/scripts/render-v2/14-vfx-particle-pool.js?v=1780609701"></script>
@@ -676,25 +677,26 @@
 <script src="src/scripts/render-v2/13-vfx-recipes.js?v=20260921-search-fixed-size-low20"></script>
 <script src="src/scripts/render-v2/24-approved-card-motion.js?v=20260917-impact-range-80"></script>
 <script src="src/scripts/render-v2/11-vfx-director.js?v=20260920-search-flip-catch"></script>
-<script src="src/scripts/render-v2/20-square-feedback-fx.js?v=20260917-set-handoff"></script>
-<script src="src/scripts/render-v2/04-match-renderer-adapter.js?v=20261024-cloud-reveal"></script>
-<script src="src/scripts/render-v2/06-match-scene-input.js?v=20260916-seal-corners1"></script>
-<script src="src/scripts/render-v2/09-hand-drag-bridge.js?v=20261014-fish-sofia-resolution"></script>
+<script src="src/scripts/render-v2/20-square-feedback-fx.js?v=20261031-match-feedback"></script>
+<script src="src/scripts/render-v2/04-match-renderer-adapter.js?v=20261031-mobile4"></script>
+<script src="src/scripts/mobile-input.js?v=20261031-mobile4"></script>
+<script src="src/scripts/render-v2/06-match-scene-input.js?v=20261031-mobile4"></script>
+<script src="src/scripts/render-v2/09-hand-drag-bridge.js?v=20261031-mobile4"></script>
 <script src="src/scripts/render-v2/10-card-motion-fx.js?v=20260915-orbit-reveal"></script>
-<script src="src/scripts/render-v2/21-character-board-effects.js?v=20260927-performance2"></script>
-<script src="src/scripts/render-v2/21-juan-carlos-target-fx.js?v=20260916-feedback-isolated-vignette-opt-in"></script>
-<script src="src/scripts/render-v2/21-maria-center-fx.js?v=20260916-feedback-isolated-vignette-opt-in"></script>
+<script src="src/scripts/render-v2/21-character-board-effects.js?v=20261103-gaze-atoms-sequence"></script>
+<script src="src/scripts/render-v2/21-juan-carlos-target-fx.js?v=20261102-all-cinematic-audio-tails"></script>
+<script src="src/scripts/render-v2/21-maria-center-fx.js?v=20261102-all-cinematic-audio-tails"></script>
 <link rel="stylesheet" href="src/styles/activation-relay.css?v=20261007-staggered-banner-text">
 <link rel="stylesheet" href="src/styles/deck-discard-dialogs.css?v=20261008-polish">
-<script src="src/scripts/render-v2/22-activation-banner.js?v=20261025-store-portraits"></script>
+<script src="src/scripts/render-v2/22-activation-banner.js?v=20261103-selected-cinematics"></script>
 <script src="src/scripts/render-v2/17-action-presentation.js?v=20260920-search-large-slow"></script>
   <script src="src/scripts/23-board-canvas-renderer.js?v=1788290501"></script>
   <script src="src/scripts/24-card-grid-canvas-renderer.js?v=20260927-performance"></script>
   <!-- Deck grid canvas disabled for now: the DOM deck builder path matches the faster Copy (2) baseline. -->
   <script src="src/scripts/07-ai-intelligence.js?v=2026083002"></script>
   <script src="src/scripts/07-ai-learning.js?v=1784382001"></script>
-<script src="src/scripts/07-ai.js?v=20261022-card120"></script>
-  <script src="src/scripts/08-audio-and-meta-ui.js?v=20261023-merchant"></script>
+<script src="src/scripts/07-ai.js?v=20261103-wintertide-preservation"></script>
+  <script src="src/scripts/08-audio-and-meta-ui.js?v=20261103-kvetka-henry-kazumi"></script>
   <script src="src/scripts/48-zone-click-voices.js?v=2026090303"></script>
   <script src="src/scripts/50-free-world-zone-voices.js?v=2026090401"></script>
   <script src="src/scripts/08a-profile-performance.js?v=20260912-profile-save-fix"></script>
@@ -707,16 +709,17 @@
   <script src="shared/warfront-medals.js?v=2026092901"></script>
   <script src="src/scripts/25-profile-view-v2.js?v=2026092901"></script>
 <script src="src/scripts/54-challenger-free-access.js?v=20261024-challengerfree"></script>
-<script src="src/scripts/09-challenger-mode.js?v=20261025-pack-cleanup"></script>
+<script src="src/scripts/09-challenger-mode.js?v=20261031-adaptive-recruitment"></script>
 <script src="shared/warfront-maps.js?v=20260918-diverse-zones"></script>
 <script src="src/scripts/47-challenger-war-event.js?v=20261024-challengerfree"></script>
 <script src="src/scripts/49-warfront-zone-voice-hook.js?v=2026090304"></script>
 <script src="src/scripts/09a-card-information-5-lore.js?v=1784293501"></script>
 <script src="src/scripts/09-challenger-lore.js?v=20261006-ja-lore-preview"></script>
 <script src="src/scripts/campaign/01-campaign-intro.js?v=1785023024"></script>
-<script src="src/scripts/11-tutorial.js?v=1784663001"></script>
+<script src="src/scripts/11-tutorial.js?v=20261029-video-restore"></script>
+<script defer src="src/scripts/11-tutorial-course.js?v=20261029-video-restore"></script>
 <script src="src/scripts/12-ai-dialogue.js?v=20260912-expanded-ai-roster"></script>
-  <script src="src/scripts/10-init.js?v=20260912-all-missions-seal-fix"></script>
+  <script src="src/scripts/10-init.js?v=20261031-mobile4"></script>
 <script src="src/scripts/26-desktop-updater.js?v=1784365201"></script>
 
 <!-- Online play uses the Fate authoritative service and a local installation identity. -->
@@ -731,8 +734,8 @@
   var modules = [
     './src/scripts/15-online-auth.js?v=20260912-profile-save-fix',
     './src/scripts/16-online-core.js?v=2026090501',
-    './src/scripts/17-online-social.js?v=1788000401',
-    './src/scripts/18-online-rooms.js?v=20261024-mist-sync',
+    './src/scripts/17-online-social.js?v=20261027-tutorial-chat',
+    './src/scripts/18-online-rooms.js?v=20261031-match-feedback',
     './src/scripts/19-online-elo.js?v=2026090501',
     './src/scripts/20-online-economy.js?v=20261006-public-deck-name-language'
   ];
@@ -826,7 +829,7 @@
   var params = new URLSearchParams(location.search || '');
   if(window.FATE_PHASE7_UNRANKED_BETA !== true) return;
   if(window.FATE_PHASE7_UNRANKED_BETA_BLOCKED === true) return;
-  import('./src/scripts/authoritative-v3-phase7-beta-client.mjs?v=20260912-war-ai-matchup')
+  import('./src/scripts/authoritative-v3-phase7-beta-client.mjs?v=20261102-shared-chatter')
     .then(function(){
       if(params.get('fateV3FullUiE2E') === '1' || params.get('fateV3PresentationE2E') === '1'){
         return import('./src/scripts/authoritative-v3-phase7-full-ui-e2e.mjs?v=2026083102');
@@ -863,7 +866,7 @@
 })();
 </script>
  <script src="src/scripts/21-smoothness-core.js?v=1788289101"></script>
-<script src="src/scripts/22-spectator.js?v=1788000201"></script>
+<script src="src/scripts/22-spectator.js?v=20261027-tutorial-chat"></script>
 <script>
   (function(){
     const params = new URLSearchParams(location.search);
@@ -914,8 +917,8 @@
     };
   })();
 </script>
-<link rel="stylesheet" href="src/styles/idle-chatter.css?v=20261008">
-<script src="src/scripts/47-idle-chatter.js?v=20261009-felicyta"></script>
+<link rel="stylesheet" href="src/styles/idle-chatter.css?v=20261030-chatter-captions">
+<script src="src/scripts/47-idle-chatter.js?v=20261103-kvetka-henry-kazumi"></script>
 <script src="src/scripts/50-anne-planning.js?v=20261011-jorge-after-placement-resolution"></script>
 <script src="src/scripts/49-jose-long-game.js?v=jose-trigger-clock-3"></script>
 <script src="src/scripts/51-saboteur-clouds.js?v=20261024-natural-top-wisps"></script>
