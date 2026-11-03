@@ -48,12 +48,14 @@
 <link rel="stylesheet" href="src/styles/affiliation-banner-match.css?v=20261017-sample-match">
 <link rel="stylesheet" href="src/styles/santiago-payment.css?v=20261023">
 <link rel="stylesheet" href="src/styles/mobile-controls.css?v=20261031-mobile4">
+<link rel="stylesheet" href="src/styles/loading-fate-dial.css?v=20261103">
 </head>
 <body>
 <div id="fate-loading-screen" class="fate-loading-screen fate-startup-loading-screen">
   <div class="fate-loading-panel">
     <div class="fate-loading-kicker">Fates Entwined</div>
-    <div class="fate-loading-title">Loading Menus</div>
+    <div class="fate-loading-title">Preparing menu screens</div>
+    <div class="fate-loading-percent">0%</div>
     <div class="fate-loading-copy">Preparing first launch menu screens.</div>
     <div class="fate-loading-bar"><div id="fate-loading-fill"></div></div>
     <div class="fate-loading-count" id="fate-loading-count">Starting</div>
@@ -683,7 +685,7 @@
 <script src="src/scripts/render-v2/06-match-scene-input.js?v=20261031-mobile4"></script>
 <script src="src/scripts/render-v2/09-hand-drag-bridge.js?v=20261031-mobile4"></script>
 <script src="src/scripts/render-v2/10-card-motion-fx.js?v=20260915-orbit-reveal"></script>
-<script src="src/scripts/render-v2/21-character-board-effects.js?v=20261103-gaze-atoms-sequence"></script>
+<script src="src/scripts/render-v2/21-character-board-effects.js?v=20261103-square-lock-effects"></script>
 <script src="src/scripts/render-v2/21-juan-carlos-target-fx.js?v=20261102-all-cinematic-audio-tails"></script>
 <script src="src/scripts/render-v2/21-maria-center-fx.js?v=20261102-all-cinematic-audio-tails"></script>
 <link rel="stylesheet" href="src/styles/activation-relay.css?v=20261007-staggered-banner-text">
@@ -844,7 +846,7 @@
   // Default local matches must keep the shipping renderer.
   var params = new URLSearchParams(location.search || '');
   if(params.get('fateV3SinglePlayer') !== '1') return;
-  import('./src/scripts/authoritative-v3-single-player-adapter.mjs?v=20261024-emerald-handoff')
+  import('./src/scripts/authoritative-v3-single-player-adapter.mjs?v=20261103-square-lock-effects')
     .catch(function(error){ console.warn('[Fate Phase 5 Single Player] failed to load', error); });
 })();
 </script>

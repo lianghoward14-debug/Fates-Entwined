@@ -692,6 +692,22 @@ export class FateAuthoritativeV3SinglePlayerScreen {
     }
     for(const event of batch){
       const type = String(event?.type || '').toUpperCase();
+      const squareType = type === 'SQUARE_STATUS_CREATED' ? event.statusType : type;
+      if(['FIELD_LEAVE_LOCKED','CONSOLIDATION_BLOCKED','PERMANENTLY_BLOCKED'].includes(squareType)){
+        const source = this.findCard(event.sourceIid);
+        const id = String(source?.id || '');
+        if((id === '04' && squareType !== 'PERMANENTLY_BLOCKED') || (id === '17' && squareType === 'PERMANENTLY_BLOCKED')){
+          const key = `${this.view?.state?.matchId}:${metadata.revision}:${event.sourceIid}:${event.z}:${event.r}:${event.c}`;
+          this.squareLockPresentationKeys ||= new Set();
+          if(!this.squareLockPresentationKeys.has(key)){
+            this.squareLockPresentationKeys.add(key);
+            if(this.squareLockPresentationKeys.size > 200)this.squareLockPresentationKeys.delete(this.squareLockPresentationKeys.values().next().value);
+            this.window.requestAnimationFrame(()=>this.window.FateCharacterBoardEffects?.play(
+              id === '04' ? 'cage' : 'possibility', {iid:event.sourceIid},
+              {z:Number(event.z),r:Number(event.r),c:Number(event.c)}));
+          }
+        }
+      }
       if(type === 'DRAW_PHASE_SKIPPED' && event.reason === 'MERCHANT_DRAW_DENIAL'){
         this.window.showMerchantDrawSkippedBanner?.(event.playerIndex);
       }

@@ -1119,7 +1119,7 @@
       existing.classList.remove('is-hiding','fate-loading-assets-done');
       const title = existing.querySelector('.fate-loading-title');
       const copy = existing.querySelector('.fate-loading-copy');
-      if(title && opts.title) title.textContent = opts.title;
+      if(title) title.textContent = 'Preparing menu screens';
       if(copy && opts.copy) copy.textContent = opts.copy;
       updateInitialLoadingScreen(0, total || 0);
       return;
@@ -1136,7 +1136,8 @@
     overlay.innerHTML = `
       <div class="fate-loading-panel">
         <div class="fate-loading-kicker">Fates Entwined</div>
-        <div class="fate-loading-title">${opts.title || 'Loading Assets'}</div>
+        <div class="fate-loading-title">Preparing menu screens</div>
+        <div class="fate-loading-percent">0%</div>
         <div class="fate-loading-copy">${opts.copy || 'Preparing cards, portraits, backgrounds, and match UI.'}</div>
         <div class="fate-loading-bar"><div id="fate-loading-fill"></div></div>
         <div class="fate-loading-count" id="fate-loading-count">0 / ${total}</div>
@@ -1149,6 +1150,12 @@
     const count = document.getElementById('fate-loading-count');
     const pct = total ? Math.min(100, Math.round((done / total) * 100)) : 100;
     if(fill) fill.style.width = pct + '%';
+    const panel = fill && fill.closest('.fate-loading-panel');
+    if(panel){
+      panel.style.setProperty('--fate-dial-progress', pct + '%');
+      const percent = panel.querySelector('.fate-loading-percent');
+      if(percent) percent.textContent = pct + '%';
+    }
     if(count) count.textContent = label || `${done} / ${total}`;
   }
 
@@ -1157,7 +1164,7 @@
     if(!overlay) return;
     const titleEl = overlay.querySelector('.fate-loading-title');
     const copyEl = overlay.querySelector('.fate-loading-copy');
-    if(titleEl && title) titleEl.textContent = title;
+    if(titleEl) titleEl.textContent = 'Preparing menu screens';
     if(copyEl && copy) copyEl.textContent = copy;
   }
 

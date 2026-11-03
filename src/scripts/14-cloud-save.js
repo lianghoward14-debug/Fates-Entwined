@@ -668,6 +668,7 @@
       '<div class="fate-loading-panel">'
       + '<div class="fate-loading-kicker">Fates Entwined</div>'
       + '<div class="fate-loading-title">Loading Your Data</div>'
+      + '<div class="fate-loading-percent">…</div>'
       + '<div class="fate-loading-copy">Syncing your profile, presets, collection, and online state.</div>'
       + '<div class="fate-loading-bar fate-loading-bar-indeterminate"><div id="fate-loading-fill"></div></div>'
       + '<div class="fate-loading-count" id="fate-loading-count">Cloud save</div>'
@@ -683,7 +684,7 @@
       const title = _loadingOverlay.querySelector('.fate-loading-title');
       const copy = _loadingOverlay.querySelector('.fate-loading-copy');
       const count = _loadingOverlay.querySelector('.fate-loading-count');
-      if(title) title.textContent = 'Loading Assets';
+      if(title) title.textContent = 'Preparing menu screens';
       if(copy) copy.textContent = 'Preparing cards, portraits, backgrounds, and match UI.';
       if(count) count.textContent = 'Finishing assets';
       _loadingOverlay = null;

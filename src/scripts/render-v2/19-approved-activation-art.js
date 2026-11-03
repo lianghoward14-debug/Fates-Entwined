@@ -274,7 +274,9 @@ c.clearRect(0,0,w,h);c.save();c.translate(w/2,h/2+12);const scale=Math.min(w/460
 function drawZoeCarolynConcept(c,id,t,w,h){
  const k=String(id)==='04'?0:3, main=k===0?'#c4a5f0':'#bdd886',gold='#efd29a';
  const fade=ease(seg(t,0,.13))*(1-ease(seg(t,.83,1)));
- c.clearRect(0,0,w,h);c.save();c.translate(w/2,h/2);const scale=Math.min(w/700,h/400);c.scale(scale,scale);
+ // Carolyn fills the cinematic; Zoe gets a more moderate enlargement.
+ const cinematicScale=k===0?1.4:1.6;
+ c.clearRect(0,0,w,h);c.save();c.translate(w/2,h/2);const scale=Math.min(w/700,h/400)*cinematicScale;c.scale(scale,scale);
   function line(points,color=main,a=1,width=2,close=false){c.save();c.globalAlpha=fade*a;c.strokeStyle=color;c.shadowColor=color;c.shadowBlur=8;c.lineWidth=width;c.lineCap='round';c.lineJoin='round';c.beginPath();points.forEach((p,i)=>i?c.lineTo(...p):c.moveTo(...p));if(close)c.closePath();c.stroke();c.restore();}
  function curve(fn,color=main,a=1,width=2){line(Array.from({length:81},(_,i)=>fn(i/80)),color,a,width);}
  function ring(x,y,rx,ry=rx,color=gold,a=1,rot=0){curve(v=>{const z=v*Math.PI*2,u=Math.cos(z)*rx,w=Math.sin(z)*ry;return[x+u*Math.cos(rot)-w*Math.sin(rot),y+u*Math.sin(rot)+w*Math.cos(rot)];},color,a);}

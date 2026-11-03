@@ -2,6 +2,13 @@
   'use strict';
   function disabled(){return document.documentElement.classList.contains('fate-animations-off') || document.documentElement.classList.contains('fate-super-performance-mode') || document.documentElement.classList.contains('fate-reduced-motion') || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);}
   function rect(target){
+    if(!target)return null;
+    // Single-player uses DOM cells rather than the multiplayer canvas hit map.
+    if(Number.isInteger(target.z) && Number.isInteger(target.r) && Number.isInteger(target.c)){
+      const cell=document.querySelector('.fate-v3-cell[data-z="'+target.z+'"][data-r="'+target.r+'"][data-c="'+target.c+'"]');
+      const bounds=cell?.getBoundingClientRect();
+      if(bounds?.width && bounds?.height)return {x:bounds.left,y:bounds.top,w:bounds.width,h:bounds.height};
+    }
     const adapter=window.FateMatchRendererAdapter,board=document.getElementById('fate-match-v2-canvas');
     if(!adapter || !board || !target)return null;
     const map=adapter.getHitMap();if(!map)return null;
