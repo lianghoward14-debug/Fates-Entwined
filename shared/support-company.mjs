@@ -51,12 +51,10 @@ export function supportCompanyOffers(cards, seed, player, category, callIndex=0)
  const group=SUPPORT_COMPANY_CATEGORIES.find(c=>c.id===category);
  if(!group)return [];
  const choices=[...new Set(cards.filter(supportCompanyCardEligible).filter(c=>group.cardIds.includes(String(c.id))).map(c=>String(c.id)))].sort();
- // Stable per match and seat. Each completed call advances through the category.
+ // Each call gets a fresh deterministic shuffle. The same set may recur by chance.
  let value=2166136261;
- for(const ch of `${seed}:${player}:${category}`)value=Math.imul(value^ch.charCodeAt(0),16777619)>>>0;
+ for(const ch of `${seed}:${player}:${category}:${callIndex}`)value=Math.imul(value^ch.charCodeAt(0),16777619)>>>0;
  const random=()=>{value=(value+0x6D2B79F5)|0;let t=Math.imul(value^(value>>>15),1|value);t^=t+Math.imul(t^(t>>>7),61|t);return ((t^(t>>>14))>>>0)/4294967296;};
  for(let i=choices.length-1;i>0;i--){const j=Math.floor(random()*(i+1));[choices[i],choices[j]]=[choices[j],choices[i]];}
- if(choices.length<=3)return choices;
- const offset=(Math.max(0,Number(callIndex)||0)*3)%choices.length;
- return Array.from({length:3},(_,index)=>choices[(offset+index)%choices.length]);
+ return choices.slice(0,3);
 }
