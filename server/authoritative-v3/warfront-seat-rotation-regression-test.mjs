@@ -42,7 +42,7 @@ try{
   }
   // A poll can release the post before the game-over callback awards XP/drops.
   const callback=source.slice(source.indexOf('window.fateCompleteWarfrontMatch='),source.indexOf('window.enterWarEventQueue='));
-  const c={window:{FATE_PENDING_WAR_MATCH:{mapCode:'WF',zoneId:'z',team:'b',participants:{a:{uid:'ai'},b:{uid:'human'}}},fateClanEventReportMatch:p=>{assert.equal(p.winnerTeam,'b');return true;}},state:{mapCode:'WF',zones:[{id:'z',a:null,b:null,matches:[]}]},seat:()=>null,me:()=>({uid:'human'}),opposite:t=>t==='a'?'b':'a',warMatchReward:()=>({xpGained:99}),pullRemoteState:()=>{},save:()=>{},rerender:()=>{},clone:structuredClone,Date};
+  const c={LIMIT:3,window:{FATE_PENDING_WAR_MATCH:{mapCode:'WF',zoneId:'z',team:'b',participants:{a:{uid:'ai'},b:{uid:'human'}}},fateClanEventReportMatch:p=>{assert.equal(p.winnerTeam,'b');return true;}},state:{mapCode:'WF',zones:[{id:'z',a:null,b:null,matches:[]}]},seat:()=>null,me:()=>({uid:'human'}),opposite:t=>t==='a'?'b':'a',warMatchReward:()=>({xpGained:99}),pullRemoteState:()=>{},save:()=>{},rerender:()=>{},clone:structuredClone,Date};
   vm.createContext(c);vm.runInContext(callback,c);
   assert.equal(c.window.fateCompleteWarfrontMatch({playerIndex:1,state:{matchId:'late'}},{winner:1,totalFate:[1,2]}).reward.xpGained,99);
   c.window.FATE_PENDING_WAR_MATCH={mapCode:'WF',zoneId:'z',team:'b'};c.state.zones[0].b={uid:'human',name:'Human'};
@@ -60,7 +60,7 @@ try{
   assert.equal((await read()).zones[1].a.uid,'alpha','idle commander can replace an allied AI');
   await deploy('alpha',zoneId,'a');
   state=await read();
-  const ui={state,me:()=>({uid:'new-player'}),score:()=>({played:0}),deploymentPending:null,selectedTeam:null,seat:()=>null,avatar:()=>'',esc:String,stars:()=>''};
+  const ui={LIMIT:3,state,me:()=>({uid:'new-player'}),score:()=>({played:0}),deploymentPending:null,selectedTeam:null,seat:()=>null,avatar:()=>'',esc:String,stars:()=>''};
   vm.createContext(ui);vm.runInContext(source.slice(source.indexOf('function warCanDeploy('),source.indexOf('function zonePanel(')),ui);
   assert.match(ui.miniSeat(state.zones[1],'a',null),/onclick=/,'unassigned player can click AI without visiting Briefing');
   ui.seat=()=>({zone:state.zones[0],team:'a'});
@@ -84,19 +84,19 @@ try{
   assert.equal(state.service.alpha.matchIds.length,1);assert.equal(state.service.bravo.matchIds.length,0);
   assert(api.settleWarfrontForfeit(first));assert.equal((await read()).service.alpha.matchIds.length,1);
   await assert.rejects(deploy('alpha',state.zones[1].id,'b'),/alliance/);
-  for(let i=1;i<5;i++){
+  for(let i=1;i<3;i++){
     state=await read();const z=state.zones[i];const displaced=z.a.uid;
     await deploy('alpha',z.id,'a');state=await read();
     assert(state.zones.some(row=>row.a?.uid===displaced),'displaced AI finds a free allied post');
-    const match=await start('alpha',z.id,'match-'+i);match.outcome={winner:i===4?null:1,totalFate:[10,20]};
+    const match=await start('alpha',z.id,'match-'+i);match.outcome={winner:i===2?null:1,totalFate:[10,20]};
     assert(api.settleWarfrontForfeit(match));
     state=await read();assert(!state.zones.some(z=>z.a?.uid==='alpha'||z.b?.uid==='alpha'));
   }
-  assert.equal(state.service.alpha.matchIds.length,5,'draw also consumes one of five matches');
-  await assert.rejects(deploy('alpha',zoneId,'a'),/five matches/);
-  api.close();api=makeApi();assert.equal((await read()).service.alpha.matchIds.length,5,'allowance survives restart');
-  await assert.rejects(deploy('alpha',zoneId,'a'),/five matches/);
-  await command('end');state=await read();assert(state.lastResult.players.some(p=>p.uid==='alpha'&&p.matches===5));
+  assert.equal(state.service.alpha.matchIds.length,3,'draw also consumes one of three matches');
+  await assert.rejects(deploy('alpha',zoneId,'a'),/three matches/);
+  api.close();api=makeApi();assert.equal((await read()).service.alpha.matchIds.length,3,'allowance survives restart');
+  await assert.rejects(deploy('alpha',zoneId,'a'),/three matches/);
+  await command('end');state=await read();assert(state.lastResult.players.some(p=>p.uid==='alpha'&&p.matches===3));
   assert.equal(state.lastResult.achievements.find(a=>a.id==='fate').leader.uid,'alpha');
   const recent={state:{status:'active',mapCode:'new',zones:[{id:'z',matches:[{id:'new-match'}]}],archives:[{mapCode:'old',zones:[{id:'z',matches:[{id:'old-match'}]}]}]},meta:()=>({name:'Zone'})};vm.createContext(recent);vm.runInContext(source.slice(source.indexOf('function allMatches('),source.indexOf('function matchCard(')),recent);assert.equal(recent.allMatches().length,1);recent.state.status='results';assert.equal(recent.allMatches().length,0,'Recent Matches clears at war end');
   api.close();
@@ -105,5 +105,5 @@ try{
   disk.warfrontEvent.zones[0].activeMatch={matchId:'missing-actor',startedAt:Date.now()-60000};
   fs.writeFileSync(path.join(dir,'rooms.json'),JSON.stringify(disk));api=makeApi();await api.tickWarfront();
   assert.equal((await read()).zones[0].activeMatch,null,'orphaned spectate marker is released on the next lifecycle tick');
-  console.log('Warfront live AI replacement, relocation, human protection, release, attribution, five-match cap, draws and restart passed');
+  console.log('Warfront live AI replacement, relocation, human protection, release, attribution, three-match cap, draws and restart passed');
 }finally{if(server)await new Promise(resolve=>server.close(resolve));api?.close();globalThis.fetch=originalFetch;fs.rmSync(dir,{recursive:true,force:true});}

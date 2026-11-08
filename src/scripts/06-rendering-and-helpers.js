@@ -3273,6 +3273,22 @@ function showCanvasCardGalleryModal(title, cards, opts) {
       ctx.strokeStyle = 'rgba(238,205,105,.35)';
       roundPath(x+1,y+1,cardW-2,cardH-2,8);
       ctx.stroke();
+      if(opts.showHandInfo){
+        const fate=getLiveCardFate(card);
+        const printed=Number(card.fate);
+        if(Number.isFinite(fate) && fate!==printed){
+          ctx.fillStyle='rgba(12,18,27,.94)';
+          roundPath(x+7,y+7,50,25,6);ctx.fill();
+          ctx.fillStyle='#f4db91';ctx.font='bold 15px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+          ctx.fillText(String(fate),x+32,y+20);
+        }
+        const modifiers=typeof getHandCardEffectModifiers==='function'?getHandCardEffectModifiers(card):[];
+        if(modifiers.length){
+          ctx.fillStyle='#d6b459';ctx.beginPath();ctx.arc(x+cardW-18,y+18,12,0,Math.PI*2);ctx.fill();
+          ctx.fillStyle='#111827';ctx.font='bold 16px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+          ctx.fillText('i',x+cardW-18,y+18);
+        }
+      }
     }
     footer.innerHTML = '';
     if(totalPages > 1) {
@@ -3298,8 +3314,12 @@ function showCanvasCardGalleryModal(title, cards, opts) {
   canvas.onmousemove = function(ev) {
     const h = hit(ev);
     canvas.style.cursor = h ? 'pointer' : 'default';
-    if(h) { showHoverPreview(h.visual, ev); positionHoverPreview(ev); }
-    else removeHoverPreview();
+    if(h) {
+      showHoverPreview(h.visual, ev); positionHoverPreview(ev);
+      const rows=opts.showHandInfo && typeof getHandCardEffectModifiers==='function'?getHandCardEffectModifiers(h.card):[];
+      canvas.title=rows.map(row=>row.name+': '+row.text).join('\n');
+    }
+    else {removeHoverPreview();canvas.removeAttribute('title');}
   };
   canvas.onmouseleave = function(){ removeHoverPreview(); canvas.style.cursor = 'default'; };
   canvas.oncontextmenu = function(ev) {
@@ -3412,7 +3432,7 @@ function showRemainingDeckCards(player) {
   if(!Array.isArray(cards)){ toast('Deck contents are not available yet.'); return; }
   const sorted=sortHowardDevDeckCards(cards.slice());
   showCanvasCardGalleryModal('Remaining Cards · '+sorted.length, sorted, {
-    immediate:true, viewerPlayerIndex:player, fixedPageSize:true, hideCountText:true,
+    immediate:true, viewerPlayerIndex:player, fixedPageSize:true, hideCountText:true, showHandInfo:true,
     onInspect:card=>openCardDetailFromDeckPreview(card,()=>showRemainingDeckCards(player))
   });
   document.querySelector('#modal .modal')?.classList.add('remaining-deck-modal');

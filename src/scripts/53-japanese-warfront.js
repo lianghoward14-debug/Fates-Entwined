@@ -2,6 +2,14 @@
 (function(){
   'use strict';
   const pairs = [
+    ['BEST OF THREE','3戦勝負'],
+    ['THREE DISTINCTIONS · THREE DECISIVE STARS','3つの殊勲 · 3つの決定的な星'],
+    ['+1 WAR STAR','+1 ウォースター'],
+    ['Two alliances. Five fronts. Fifteen battles decide the campaign.','二つの同盟、五つの戦線、十五の戦いで戦役が決まります。'],
+    ['Simulated 15 matches.','15試合をシミュレーションしました。'],
+    ['of 3 victories recorded','3勝を記録'],
+    ['Victory Standard','勝利の軍旗'],
+    ['The Honored Offensive','殊勲の攻勢章'],
     ['WAR ENDS IN','終戦まで'],
     ['DEPLOYMENT ENDS IN','配置終了まで'],
     ['Displayed Medals','展示中のメダル'],
@@ -48,7 +56,7 @@
     ['Veteran of the War Table','作戦卓の古参兵'],["The Mapmaker's Honor",'地図製作者の栄誉'],['Champion of the Five Zones','五ゾーンの覇者'],['The Lasting Peace','永続する平和章'],['Legend of the Warfront','ウォーフロントの伝説'],
     ['The Tenth Muster','第十召集章'],["Campaigner’s Seal",'遠征兵の印章'],['The Half-Century Watch','半世紀の守望'],['Centurion of the Front','戦線の百人隊長'],['The Endless Vigil','果てなき警戒'],
     ['First Alliance Triumph','同盟初勝利章'],['The Triple Accord','三重盟約章'],['Order of Twenty Victories','二十勝騎士団章'],['The Seventy-Fifth Laurel','七十五勝月桂章'],['The Century Crown','百勝の冠'],
-    ['The Opening Advance','初陣の進撃章'],['Twin Spear Citation','双槍殊勲章'],['The Threefold Assault','三重強襲章'],['The Fourth Standard','第四軍旗'],['The Fivefold Offensive','五重攻勢章'],
+    ['The Opening Advance','初陣の進撃章'],['Twin Spear Citation','双槍殊勲章'],['The Threefold Assault','三重強襲章'],['Victory Standard','勝利の軍旗'],['The Honored Offensive','殊勲の攻勢章'],
     ['Fatekindled Star','運命に灯る星'],['The Hundredfold Flame','百重の炎'],['The Rising Constellation','昇る星座'],['Order of the Fatewell','運命の泉騎士団章'],['The Boundless Sun','果てなき太陽'],
     ['The Keen Edge','鋭刃章'],['The Sundering Spear','断裂の槍章'],['The Broken Gate','破砕門章'],['The Crushing Advance','圧倒進撃章'],['Order of Overwhelming Force','圧倒戦力騎士団章'],
     ['The First Formation','第一陣形章'],['The Anchored Line','錨の戦線章'],['The Interlocking Front','連環戦線章'],['The Iron Formation','鉄の陣形章'],['Architect of Victory','勝利の設計者'],
@@ -62,7 +70,8 @@
   const addSeries = (values, makeEnglish, makeJapanese) => values.forEach(value => pairs.push([makeEnglish(value), makeJapanese(value)]));
   addSeries([10,25,50,100,250], n=>`Complete ${n} Warfront campaigns.`, n=>`ウォーフロントの戦役を${n}回完遂する。`);
   addSeries([1,3,20,75,100], n=>`Win ${n} Warfront campaign${n===1?'':'s'}.`, n=>`ウォーフロントの戦役で${n}回勝利する。`);
-  addSeries([1,2,3,4,5], n=>`Personally win ${n} completed, non-forfeit match${n===1?'':'es'} in one Warfront campaign.`, n=>`1回のウォーフロント戦役で、投了ではない完了済みの試合に自ら${n}回勝利する。`);
+  addSeries([1,2,3], n=>`Personally win ${n} completed, non-forfeit match${n===1?'':'es'} in one Warfront campaign.`, n=>`1回のウォーフロント戦役で、投了ではない完了済みの試合に自ら${n}回勝利する。`);
+  pairs.push(['Personally win three completed, non-forfeit matches in one winning Warfront campaign.','勝利したウォーフロント戦役で、投了ではない試合に自ら3回勝利する。'],['Personally win three completed, non-forfeit matches and lead a commendation in one Warfront campaign.','1回のウォーフロント戦役で投了ではない試合に自ら3回勝利し、殊勲の首位に立つ。']);
   addSeries([50,100,150,200,300], n=>`Win a non-forfeit Warfront match with at least ${n} total Fate.`, n=>`投了ではないウォーフロントの試合で、合計${n}以上の運命値を獲得して勝利する。`);
   addSeries([10,25,50,75,100], n=>`Win a non-forfeit Warfront match by at least ${n} Fate.`, n=>`投了ではないウォーフロントの試合で、運命値差${n}以上をつけて勝利する。`);
   addSeries([3,5,10,15,20], n=>`Win a non-forfeit Warfront match with at least ${n} consolidations.`, n=>`投了ではないウォーフロントの試合で、統合を${n}回以上行って勝利する。`);
@@ -79,11 +88,11 @@
     ['Finish a Warfront campaign as the sole Master of Position commendation leader.','ウォーフロント戦役を「陣地の達人」殊勲の単独首位で終える。'],
     ['Finish one Warfront campaign as the sole leader of all three commendations.','1回のウォーフロント戦役で、3部門すべての殊勲を単独首位で終える。'],
     ['Finish one Warfront campaign as the sole leader of at least two commendations.','1回のウォーフロント戦役で、2部門以上の殊勲を単独首位で終える。'],
-    ['Finish one Warfront campaign with exactly five recorded personal matches, all non-forfeit victories.','1回のウォーフロント戦役で自分の試合をちょうど5回記録し、すべて投了ではない勝利で終える。'],
+    ['Finish one Warfront campaign with exactly three recorded personal matches, all non-forfeit victories.','1回のウォーフロント戦役で自分の試合をちょうど3回記録し、すべて投了ではない勝利で終える。'],
     ['Win a Warfront campaign and personally win at least three non-forfeit matches in it.','ウォーフロント戦役で勝利し、その中で投了ではない試合に自ら3回以上勝利する。'],
     ['Win a Warfront campaign in which your alliance controls all five fronts; personally win at least one non-forfeit match.','同盟が5戦線すべてを支配したウォーフロント戦役で勝利し、自らも投了ではない試合に1回以上勝利する。'],
     ['Win a Warfront campaign by exactly one final score point; personally win at least one non-forfeit match.','最終得点差がちょうど1点のウォーフロント戦役で勝利し、自らも投了ではない試合に1回以上勝利する。'],
-    ['Win a Warfront campaign, personally win five non-forfeit matches, and finish as sole leader of at least one commendation.','ウォーフロント戦役で勝利し、投了ではない試合に自ら5回勝利し、さらに1部門以上の殊勲を単独首位で終える。']
+    ['Win a Warfront campaign, personally win three non-forfeit matches, and finish as sole leader of at least one commendation.','ウォーフロント戦役で勝利し、投了ではない試合に自ら3回勝利し、さらに1部門以上の殊勲を単独首位で終える。']
   );
   window.FateJapaneseContent = window.FateJapaneseContent || [];
   window.FateJapaneseContent.push(...pairs);

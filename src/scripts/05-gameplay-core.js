@@ -7826,7 +7826,7 @@ async function resolveSmartInvestments(card, cp) {
         recordHandCardEffectModifier(live, {
           key:'hugh-roberts-smart-investments',
           name:'Smart Investments',
-          text:'Smart Investments: this card permanently gained 7 Fate.',
+          text:'Smart Investments: this card permanently gained ' + (after - before) + ' Fate.',
           fateDelta:after - before
         });
       }
@@ -7837,7 +7837,7 @@ async function resolveSmartInvestments(card, cp) {
     if(invested.length && typeof shuffle === 'function') shuffle(G.players[cp].deck);
     if(invested.length && typeof playSfx === 'function') playSfx('deckAdd');
     toast(invested.length
-      ? 'Smart Investments returned ' + invested.length + ' card' + (invested.length === 1 ? '' : 's') + ' to the deck with +7 Fate.'
+      ? 'Smart Investments returned ' + invested.length + ' card' + (invested.length === 1 ? '' : 's') + ' to the deck with increased Fate.'
       : 'Smart Investments declined.');
     renderEffectResolutionForPlayer(cp, {hand:true, piles:true});
     return invested.length;

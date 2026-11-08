@@ -82,11 +82,11 @@ try{
   [...b.timers.values()].find(t=>t.ms===12000).fn();await stalled;
   assert.equal(b.war.busy(),false);assert.equal(b.war.notice(),'','background connection errors stay quiet');
   b.c.FateOnline.flyApiRequest=normal;await b.war.pull();same('reconnect after stalled request');assert.equal(b.war.notice(),'');
-  for(let i=0;i<5;i++){
+  for(let i=0;i<3;i++){
     assert(a.c.fateClanEventReportMatch({zoneId:'heartland',matchId:'played-'+i,winnerTeam:i%2?'b':'a',stats:{fateDifferential:10,durationMs:40000,consolidations:2},replay:{version:1,hands:{a:[],b:[]},actions:[{team:'a',cardId:'1'}]}}));
     await a.war.push();await Promise.all([a.war.pull(),b.war.pull()]);same('shared result '+i);
   }
-  assert.equal(b.state().zones[2].matches.length,5);
+  assert.equal(b.state().zones[2].matches.length,3);
   const replayKey=b.state().zones[2].matches[0].replay.storageKey;
   assert(replayKey,'shared state references the durable replay');
   assert.equal((await request('bravo','/api/warfront/replays/'+encodeURIComponent(replayKey))).replay.actions.length,1);
@@ -105,14 +105,14 @@ try{
     return normalized;
   };
   assert.deepEqual(b.state().lastResult.players.map(normalizePlayer),liveReport.players.map(normalizePlayer),'final player statistics match the live map');
-  assert.equal(b.state().lastResult.matches,5);assert(b.state().lastResult.achievements.length>0,'commendations are archived');
+  assert.equal(b.state().lastResult.matches,3);assert(b.state().lastResult.achievements.length>0,'commendations are archived');
   const old=enrollment;old.zones[2].matches=[{id:'old-match',winnerTeam:'a',starValue:5}];
   await request('alpha','/api/warfront/state',{method:'POST',body:{uid:'alpha',state:old}});
-  await Promise.all([a.war.pull(),b.war.pull()]);same('late previous-campaign upload');assert.equal(a.state().zones[2].matches.length,5);assert.equal(a.state().zones[2].matches.some(match=>match.id==='old-match'),false);
+  await Promise.all([a.war.pull(),b.war.pull()]);same('late previous-campaign upload');assert.equal(a.state().zones[2].matches.length,3);assert.equal(a.state().zones[2].matches.some(match=>match.id==='old-match'),false);
   assert.equal(a.war.adopt(enrollment),false,'old campaign response cannot replace new campaign');
   await a.war.command('deployment');await b.war.pull();same('fresh deployment');assert.equal(a.state().lastResult,null);
   api.flush();api=makeApi();await Promise.all([a.war.pull(),b.war.pull()]);same('server restart preserves shared campaign');
-  // Complete all 25 battles across every front and compare the final report
+  // Complete all 15 battles across every front and compare the final report
   // against the live client score, including commendation stars.
   for(const [i,zone] of a.state().zones.entries())for(const team of ['a','b']){
     const uid=i===0?(team==='a'?'alpha':'bravo'):team+i;
@@ -120,24 +120,27 @@ try{
   }
   await a.war.command('start');await b.war.pull();same('ten commanders enrolled');
   let finished;
-  for(let zoneIndex=0;zoneIndex<5;zoneIndex++)for(let battle=0;battle<5;battle++){
+  for(let zoneIndex=0;zoneIndex<5;zoneIndex++)for(let battle=0;battle<3;battle++){
     const next=a.state(),zone=next.zones[zoneIndex];
     zone.matches.push({id:`full-${zoneIndex}-${battle}`,winnerTeam:battle%2?'b':'a',completedAt:Date.now(),playerStats:{a:{fateDifferential:zoneIndex+1,consolidations:2,durationMs:40000},b:{fateDifferential:0,consolidations:1,durationMs:50000}}});
     finished=await request('alpha','/api/warfront/state',{method:'POST',body:{uid:'alpha',state:next}});
     await Promise.all([a.war.pull(),b.war.pull()]);same(`full campaign ${zoneIndex}/${battle}`);
   }
   assert.equal(a.state().status,'active','completing all battles cannot shorten the battle phase');
+  const overLimit=a.state();overLimit.zones[0].matches.push({id:'extra-fourth',winnerTeam:'b',completedAt:Date.now()+1});
+  await request('alpha','/api/warfront/state',{method:'POST',body:{uid:'alpha',state:overLimit}});
+  await a.war.pull();assert.equal(a.state().zones[0].matches.length,3,'a client cannot upload a fourth battle to a new front');
   await a.war.command('end');await b.war.pull();finished={state:a.state()};
-  assert.equal(finished.state.lastResult.matches,25);assert.equal(a.state().status,'results');
-  assert.equal(a.state().lastResult.score.match.a,20);assert.equal(a.state().lastResult.score.match.b,10);
-  assert.equal(a.state().lastResult.score.award.a,2);assert.equal(a.state().lastResult.winner,'a');
-  assert.match(a.pane.innerHTML,/22/);assert.match(b.pane.innerHTML,/22/);
+  assert.equal(finished.state.lastResult.matches,15);assert.equal(a.state().status,'results');
+  assert.equal(a.state().lastResult.score.match.a,10);assert.equal(a.state().lastResult.score.match.b,5);
+  assert.equal(a.state().lastResult.score.award.a,1);assert.equal(a.state().lastResult.winner,'a');
+  assert.match(a.pane.innerHTML,/11/);assert.match(b.pane.innerHTML,/11/);
   const rewardCounts=[a.c.USER_PROFILE.warfrontParticipations,b.c.USER_PROFILE.warfrontParticipations];
   await Promise.all([a.war.pull(),b.war.pull()]);assert.deepEqual([a.c.USER_PROFILE.warfrontParticipations,b.c.USER_PROFILE.warfrontParticipations],rewardCounts,'repeated archive refresh cannot grant rewards twice');
   await a.war.command('deployment');
   await request('alpha','/api/warfront/deploy',{method:'POST',body:{uid:'alpha',zoneId:'heartland',team:'a'}});
   await a.war.command('start');
-  const settled=a.state();for(const zone of settled.zones)zone.matches=Array.from({length:5},(_,i)=>({id:zone.id+'-clock-'+i,winnerTeam:'a',completedAt:Date.now()}));
+  const settled=a.state();for(const zone of settled.zones)zone.matches=Array.from({length:3},(_,i)=>({id:zone.id+'-clock-'+i,winnerTeam:'a',completedAt:Date.now()}));
   await request('alpha','/api/warfront/state',{method:'POST',body:{uid:'alpha',state:settled}});
   const now=Date.now;try{
     const expiry=a.state().endsAt;Date.now=()=>expiry+1;await api.tickWarfront();

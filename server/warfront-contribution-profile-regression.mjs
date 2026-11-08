@@ -9,7 +9,7 @@ const {getDeckCatalog,extractArrayLiteral}=require('./fate-deck-catalog.js');
 const source=fs.readFileSync('src/scripts/47-challenger-war-event.js','utf8');
 const match=(id,uid,starValue=1)=>({id,winnerTeam:'a',starValue,participants:{a:{uid}}});
 const state={zones:[{matches:[match('one','foot')]},{matches:[match('two','foot'),match('other','other',5),{...match('void','foot',5),voidedByForfeit:true}]}]};
-const ctx={state};vm.createContext(ctx);vm.runInContext(source.slice(source.indexOf('function commanderContribution('),source.indexOf('function miniSeat(')),ctx);
+const ctx={state,LIMIT:3};vm.createContext(ctx);vm.runInContext(source.slice(source.indexOf('function commanderContribution('),source.indexOf('function miniSeat(')),ctx);
 assert.equal(ctx.commanderContribution(state.zones[1],'a','foot').stars,2);
 assert.equal(ctx.commanderContribution(state.zones[1],'a','foot').victories,2);
 state.zones=[{matches:[]}];assert.equal(ctx.commanderContribution(state.zones[0],'a','foot').stars,0);
@@ -26,9 +26,9 @@ console.log('Campaign contributions and all shared AI decks/profile parity passe
 
 import {warfrontDueMatch} from './authoritative-v3/warfront-lifecycle.mjs';
 const now=10000;
-const event={status:'active',aiScheduleVersion:2,endsAt:now+86400000,zones:[{a:{isAI:true},b:{isAI:true},matches:[],aiRetryAt:now+60000},{a:{isAI:true},b:{isAI:true},matches:[]}]};
+const event={status:'active',aiScheduleVersion:3,endsAt:now+86400000,zones:[{a:{isAI:true},b:{isAI:true},matches:[],aiRetryAt:now+60000},{a:{isAI:true},b:{isAI:true},matches:[]}]};
 assert.equal(warfrontDueMatch(event,now).zone,event.zones[1]);
-assert.equal(event.zones[1].aiSchedule.length,5);
+assert.equal(event.zones[1].aiSchedule.length,3);
 console.log('Missing AI schedules recover and retrying zones do not block other fronts');
 
 const {warfrontAiCommand}=await import('./authoritative-v3/warfront-ai-profile.mjs');

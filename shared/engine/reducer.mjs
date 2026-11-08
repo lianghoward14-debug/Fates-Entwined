@@ -813,7 +813,11 @@ function openInstructionPrompt(state, frame, instruction, ctx){
         cancellable:false,defaultChoice:categories[0].id,timeoutPolicy:'DEFAULT',title:'Call to Arms',prompt:'Choose a category, then take one of three cards.'};
       return true;
     }
-    const offerIds=supportCompanyOffers(state.cardCatalog,state.matchId,frame.controller,frame.locals.callCategory);
+    if(frame.locals.callOfferIndex===undefined){
+      state.callToArmsOfferCounts ||= [0,0];
+      frame.locals.callOfferIndex=state.callToArmsOfferCounts[frame.controller]++;
+    }
+    const offerIds=supportCompanyOffers(state.cardCatalog,state.matchId,frame.controller,frame.locals.callCategory,frame.locals.callOfferIndex);
     const cards=offerIds.map(id=>state.cardCatalog.find(card=>String(card.id)===id));
     frame.waitingFor='CARD_SELECTION';
     state.pendingPrompt={promptId:nextId(state,'prompt'),type:PROMPT_TYPES.CARD_SELECTION,

@@ -5009,6 +5009,7 @@
     const drawOptions = {pulse:false, tilt:0, lift:hovered ? .06 : 0, hideFateBadge:true, noShadow:true, showStatus:false};
     if(!angle) {
       drawCardVisual(ctx, entry, visual, r, onChange, drawOptions);
+      if(Number.isFinite(Number(item.card?.currentFate)) && Number(item.card.currentFate) !== Number(item.card.fate)) drawFateBadge(ctx, visual, r, item.card);
       const plainIconRect = drawHandEffectIcon(ctx, item.card, r);
       if(disabled) drawDisabledCardOverlay(ctx, r);
       return plainIconRect ? {iconRect:plainIconRect, iconHitRect:plainIconRect, cardRect:r} : null;
@@ -5020,6 +5021,7 @@
     ctx.rotate(angle);
     ctx.translate(-pivot.x, -pivot.y);
     drawCardVisual(ctx, entry, visual, r, onChange, drawOptions);
+    if(Number.isFinite(Number(item.card?.currentFate)) && Number(item.card.currentFate) !== Number(item.card.fate)) drawFateBadge(ctx, visual, r, item.card);
     iconRect = drawHandEffectIcon(ctx, item.card, r);
     if(disabled) drawDisabledCardOverlay(ctx, r);
     ctx.restore();

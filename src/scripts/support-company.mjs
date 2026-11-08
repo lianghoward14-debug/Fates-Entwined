@@ -1,7 +1,7 @@
 import {pickRoyalSeal} from './support-company-royal-seal.mjs?v=20261011-presentation-order';
 import {callToArmsReserveValue,recruitmentDeckFit,assessRecruitment} from '../../shared/ai/recruitment-timing.mjs';
 window.FateAIRecruitmentTiming={callToArmsReserveValue,recruitmentDeckFit,assessRecruitment};
-import {SUPPORT_COMPANY_NAMES, supportCompanyCardEligible, supportCompanyAvailability, createSupportCompanyPool, SUPPORT_COMPANY_CATEGORIES, supportCompanyOffers} from '../../shared/support-company.mjs?v=20261023-merchant';
+import {SUPPORT_COMPANY_NAMES, supportCompanyCardEligible, supportCompanyAvailability, createSupportCompanyPool, SUPPORT_COMPANY_CATEGORIES, supportCompanyOffers} from '../../shared/support-company.mjs?v=20261108-rotating-offers';
 import {playSupportCompanyAnimation} from './support-company-animation.mjs?v=20261008-selected-title';
 
 const escape = value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -321,16 +321,19 @@ window.resolveHopliteCallToArms = async function(source,player){
   if(window.waitForSupportCompanyPresentation && !await window.waitForSupportCompanyPresentation(()=>G===game))return false;
   game._supportCompanyOfferSeed ||= `${Date.now()}:${Math.random()}`;
   const seed=context(player)?.state?.matchId || game._supportCompanyOfferSeed;
-  const categories=SUPPORT_COMPANY_CATEGORIES.filter(category=>supportCompanyOffers(CARDS,seed,player,category.id).length);
+  game._callToArmsOfferCounts ||= [0,0];
+  const callIndex=game._callToArmsOfferCounts[player];
+  const categories=SUPPORT_COMPANY_CATEGORIES.filter(category=>supportCompanyOffers(CARDS,seed,player,category.id,callIndex).length);
   if(!categories.length)return false;
   const ai=game.aiEnabled && player===game.aiPlayer;
   const ranked=ai && typeof aiRankSupportCompanyOffers==='function' ? aiRankSupportCompanyOffers(categories.flatMap(category=>
-      supportCompanyOffers(CARDS,seed,player,category.id).map(id=>({category:category.id,card:CARDS.find(card=>String(card.id)===id)}))), 'triggered') : [];
+      supportCompanyOffers(CARDS,seed,player,category.id,callIndex).map(id=>({category:category.id,card:CARDS.find(card=>String(card.id)===id)}))), 'triggered') : [];
   const category=ai ? (ranked[0]?.category || categories[0].id) : await new Promise(resolve=>{
     window.showSupportCompanyCategoryWindow({categories,cancellable:false,onSelect:category=>{closeModal();resolve(category);}});
   });
   if(G!==game)return false;
-  const offerIds=supportCompanyOffers(CARDS,seed,player,category);
+  const offerIds=supportCompanyOffers(CARDS,seed,player,category,callIndex);
+  game._callToArmsOfferCounts[player]++;
   const cards=offerIds.map(id=>CARDS.find(card=>String(card.id)===id));
   if(!cards.length)return false;
   const add=async card=>{

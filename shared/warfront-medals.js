@@ -9,7 +9,7 @@
   }
   [10,25,50,100,250].forEach((n,i)=>add(['The Tenth Muster','Campaigner’s Seal','The Half-Century Watch','Centurion of the Front','The Endless Vigil'][i],`Complete ${n} Warfront campaigns.`,'participations',n,['standard','compass','tower','laurel','hourglass'][i],i%2?'silver':'gold',['charcoal','ivory','navy','crimson','charcoal'][i],i%2?'shield':'round'));
   [1,3,20,75,100].forEach((n,i)=>add(['First Alliance Triumph','The Triple Accord','Order of Twenty Victories','The Seventy-Fifth Laurel','The Century Crown'][i],`Win ${n} Warfront campaign${n===1?'':'s'}.`,'campaignWins',n,['sword','knots','crown','laurel','crownstar'][i],i===1?'silver':'gold',['crimson','navy','ivory','crimson','navy'][i],i===4?'shield':'round'));
-  [1,2,3,4,5].forEach((n,i)=>add(['The Opening Advance','Twin Spear Citation','The Threefold Assault','The Fourth Standard','The Fivefold Offensive'][i],`Personally win ${n} completed, non-forfeit match${n===1?'':'es'} in one Warfront campaign.`,'campaignMatchWins',n,['spear','crossedspears','tridents','standard','fivestars'][i],i%2?'silver':'gold',['navy','crimson','charcoal','ivory','navy'][i]));
+  [1,2,3,3,3].forEach((n,i)=>add(['The Opening Advance','Twin Spear Citation','The Threefold Assault','Victory Standard','The Honored Offensive'][i],i===3?'Personally win three completed, non-forfeit matches in one winning Warfront campaign.':i===4?'Personally win three completed, non-forfeit matches and lead a commendation in one Warfront campaign.':`Personally win ${n} completed, non-forfeit match${n===1?'':'es'} in one Warfront campaign.`,i===3?'campaignMatchWinsAndCampaign':i===4?'campaignMatchWinsAndCommendation':'campaignMatchWins',n,['spear','crossedspears','tridents','standard','fivestars'][i],i%2?'silver':'gold',['navy','crimson','charcoal','ivory','navy'][i]));
   [50,100,150,200,300].forEach((n,i)=>add(['Fatekindled Star','The Hundredfold Flame','The Rising Constellation','Order of the Fatewell','The Boundless Sun'][i],`Win a non-forfeit Warfront match with at least ${n} total Fate.`,'fate',n,['star','flame','constellation','chalice','sun'][i],i%2?'silver':'gold',['crimson','navy','ivory','charcoal','crimson'][i]));
   [10,25,50,75,100].forEach((n,i)=>add(['The Keen Edge','The Sundering Spear','The Broken Gate','The Crushing Advance','Order of Overwhelming Force'][i],`Win a non-forfeit Warfront match by at least ${n} Fate.`,'differential',n,['sword','spear','gate','fist','lightning'][i],i%2?'silver':'gold',['charcoal','crimson','navy','ivory','crimson'][i],i===2?'square':'round'));
   [3,5,10,15,20].forEach((n,i)=>add(['The First Formation','The Anchored Line','The Interlocking Front','The Iron Formation','Architect of Victory'][i],`Win a non-forfeit Warfront match with at least ${n} consolidations.`,'consolidations',n,['diamonds','anchor','knots','shield','castle'][i],i%2?'gold':'silver',['ivory','navy','charcoal','crimson','navy'][i],i===4?'shield':'round'));
@@ -20,11 +20,11 @@
   ['fate','speed','consolidation'].forEach((award,i)=>add(['The Unrivaled Edge','The Unrivaled Hour','The Unrivaled Position'][i],`Finish a Warfront campaign as the sole ${['Decisive Force','Lightning Victory','Master of Position'][i]} commendation leader.`,'commendation',award,['swordstar','wingstar','diamondstar'][i],i===1?'silver':'gold',['crimson','navy','charcoal'][i]));
   add('The Supreme Triad','Finish one Warfront campaign as the sole leader of all three commendations.','commendationCount',3,'triad','gold','ivory','shield');
   add('The Twin Distinction','Finish one Warfront campaign as the sole leader of at least two commendations.','commendationCount',2,'twinstars','silver','navy');
-  add('The Stainless Campaign','Finish one Warfront campaign with exactly five recorded personal matches, all non-forfeit victories.','perfect',5,'laurelstar','gold','ivory');
+  add('The Stainless Campaign','Finish one Warfront campaign with exactly three recorded personal matches, all non-forfeit victories.','perfect',3,'laurelstar','gold','ivory');
   add('Pillar of the Alliance','Win a Warfront campaign and personally win at least three non-forfeit matches in it.','pillar',3,'pillar','silver','crimson','square');
   add('The Five-Front Dominion','Win a Warfront campaign in which your alliance controls all five fronts; personally win at least one non-forfeit match.','dominion',5,'fiveflags','gold','navy','shield');
   add('The Narrow Triumph','Win a Warfront campaign by exactly one final score point; personally win at least one non-forfeit match.','narrow',1,'scales','silver','charcoal');
-  add('The Sovereign Campaign','Win a Warfront campaign, personally win five non-forfeit matches, and finish as sole leader of at least one commendation.','sovereign',5,'sovereign','gold','crimson','shield');
+  add('The Sovereign Campaign','Win a Warfront campaign, personally win three non-forfeit matches, and finish as sole leader of at least one commendation.','sovereign',3,'sovereign','gold','crimson','shield');
   const num=value=>Number.isFinite(Number(value))?Math.max(0,Number(value)):0;
   function matchValues(match,team,zoneId){
     if(!match||match.winnerTeam!==team||match.voidedByForfeit||match.forfeitSweep||match.commendationExcluded||match.forfeit||match.simulationKind||match.statsSource==='simulated')return null;
@@ -47,19 +47,21 @@
     for(const z of zones)for(const match of z.matches||[])if(match.participants?.[team]?.uid===uid)own.push({match,zone:z.id,value:matchValues(match,team,z.id)});
     const victories=own.filter(x=>x.value),wins=victories.length;
     const honors=(result.achievements||[]).filter(a=>!a.tied&&a.leader?.uid===uid).map(a=>a.id);
-    const controls=zones.length===5&&zones.every(z=>{const scores={a:0,b:0};for(const m of z.matches||[])if(!m.voidedByForfeit&&['a','b'].includes(m.winnerTeam))scores[m.winnerTeam]+=Math.max(1,Math.min(5,num(m.starValue)||1));return scores[team]>=3&&scores[team]>scores[team==='a'?'b':'a'];});
+    const controls=zones.length===5&&zones.every(z=>{const scores={a:0,b:0};for(const m of z.matches||[])if(!m.voidedByForfeit&&['a','b'].includes(m.winnerTeam))scores[m.winnerTeam]+=Math.max(1,Math.min(5,num(m.starValue)||1));return scores[team]>=2&&scores[team]>scores[team==='a'?'b':'a'];});
     return catalog.filter(m=>{
       switch(m.rule){
         case 'participations':return num(profile.warfrontParticipations)>=m.threshold;
         case 'campaignWins':return num(profile.warfrontWins)>=m.threshold;
         case 'campaignMatchWins':return wins>=m.threshold;
+        case 'campaignMatchWinsAndCampaign':return won&&wins>=m.threshold;
+        case 'campaignMatchWinsAndCommendation':return wins>=m.threshold&&honors.length>0;
         case 'commendation':return honors.includes(m.threshold);
         case 'commendationCount':return new Set(honors).size>=m.threshold;
-        case 'perfect':return own.length===5&&wins===5;
+        case 'perfect':return own.length===3&&wins===3;
         case 'pillar':return won&&wins>=3;
         case 'dominion':return won&&wins>0&&controls;
         case 'narrow':return won&&wins>0&&Math.abs(num(result.score?.a)-num(result.score?.b))===1;
-        case 'sovereign':return won&&wins>=5&&honors.length>0;
+        case 'sovereign':return won&&wins>=3&&honors.length>0;
         default:return victories.some(x=>matchEligible(m,x.value));
       }
     }).map(m=>m.id);

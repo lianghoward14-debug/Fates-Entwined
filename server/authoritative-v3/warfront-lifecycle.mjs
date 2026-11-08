@@ -1,16 +1,18 @@
 import {assignWarfrontCommanderProfiles} from './warfront-commanders.mjs';
 export const WARFRONT_PHASE_MS = 24 * 60 * 60 * 1000;
-const AI_SCHEDULE_VERSION = 2;
+const AI_SCHEDULE_VERSION = 3;
+export const WARFRONT_MATCH_LIMIT = 3;
+export const WARFRONT_TOTAL_MATCHES = 5 * WARFRONT_MATCH_LIMIT;
 
 export function scheduleWarfrontAI(event, now){
   const zones=(event.zones || []).filter(z=>z.a?.isAI && z.b?.isAI);
   const slots=[];
   // Interleave fronts, rather than giving each front independent random times.
-  for(let index=0;index<5;index++)for(const zone of zones){
+  for(let index=0;index<WARFRONT_MATCH_LIMIT;index++)for(const zone of zones){
     if(index>=warfrontPlayed(zone))slots.push({zone,index});
   }
   const remaining=Math.max(0,Number(event.endsAt)-now);
-  const interval=Math.min(WARFRONT_PHASE_MS/25,remaining/Math.max(1,slots.length));
+  const interval=Math.min(WARFRONT_PHASE_MS/WARFRONT_TOTAL_MATCHES,remaining/Math.max(1,slots.length));
   for(const zone of zones)zone.aiSchedule=[];
   slots.forEach(({zone,index},i)=>{zone.aiSchedule[index]=now+Math.floor((i+1)*interval);});
   event.aiScheduleVersion=AI_SCHEDULE_VERSION;
@@ -48,18 +50,18 @@ export function warfrontDueMatch(event, now){
   let earliest=null;
   for(const zone of event.zones){
     const index=warfrontPlayed(zone);
-    if(index<5 && zone.a?.isAI && zone.b?.isAI && !Number.isFinite(Number(zone.aiSchedule?.[index]))){
+    if(index<WARFRONT_MATCH_LIMIT && zone.a?.isAI && zone.b?.isAI && !Number.isFinite(Number(zone.aiSchedule?.[index]))){
       zone.aiSchedule ||= [];
-      for(let slot=index;slot<5;slot++)zone.aiSchedule[slot]=now+(slot-index)*WARFRONT_PHASE_MS/25;
+      for(let slot=index;slot<WARFRONT_MATCH_LIMIT;slot++)zone.aiSchedule[slot]=now+(slot-index)*WARFRONT_PHASE_MS/WARFRONT_TOTAL_MATCHES;
     }
     if(Number(zone.aiRetryAt||0)>now)continue;
     const at=Number(zone.aiSchedule?.[index]);
-    if(index<5 && !zone.activeMatch && zone.a?.isAI && zone.b?.isAI && at<=now && (!earliest || at<earliest.at))earliest={zone,index,deadline:false,at};
+    if(index<WARFRONT_MATCH_LIMIT && !zone.activeMatch && zone.a?.isAI && zone.b?.isAI && at<=now && (!earliest || at<earliest.at))earliest={zone,index,deadline:false,at};
   }
   if(earliest){const {at,...due}=earliest;return due;}
   for(const zone of event.zones){
     const index = warfrontPlayed(zone);
-    if(index >= 5 || zone.activeMatch) continue;
+    if(index >= WARFRONT_MATCH_LIMIT || zone.activeMatch) continue;
     // Human fronts are untouched until the battle deadline. Only unplayed
     // slots receive an administrative random result; real results survive.
     if(now >= event.endsAt && (zone.a?.isAI || zone.b?.isAI)){
@@ -87,9 +89,9 @@ export function relocateWarfrontAI(event){
     // Prefer an unfinished front, but an empty settled front is still an
     // available post. Occupying it never reopens its completed matches.
     const available=z=>!z[team]&&!z.activeMatch;
-    const completedHuman=z=>!z.activeMatch&&warfrontPlayed(z)<5&&z[team]&&!z[team].isAI
-      &&(event.service?.[z[team].uid]?.matchIds?.length||0)>=5;
-    const zone=event.zones.find(z=>available(z)&&warfrontPlayed(z)<5)
+    const completedHuman=z=>!z.activeMatch&&warfrontPlayed(z)<WARFRONT_MATCH_LIMIT&&z[team]&&!z[team].isAI
+      &&(event.service?.[z[team].uid]?.matchIds?.length||0)>=WARFRONT_MATCH_LIMIT;
+    const zone=event.zones.find(z=>available(z)&&warfrontPlayed(z)<WARFRONT_MATCH_LIMIT)
       ||event.zones.find(completedHuman)||event.zones.find(available);
     if(!zone){i++;continue;}
     zone[team]=player;event.waitingAI.splice(i,1);

@@ -25,7 +25,7 @@ assert.equal(render('alpha',12),render('bravo',999),'local player overrides cann
 assert.match(render('alpha',12),/0 ELO/);assert.match(render('alpha',12),/RATING UNAVAILABLE/);
 const retained={state:{zones:[{id:'front',a:null,b:null}],service:{alpha:{uid:'alpha',name:'Alice',team:'a',zoneId:'front',matchIds:['one']}}},meta:z=>({name:z.id}),avatar:()=>'',esc:String};
 vm.createContext(retained);vm.runInContext(roster,retained);
-assert.match(retained.briefingRoster('a'),/Alice/);assert.match(retained.briefingRoster('a'),/Unassigned/);assert.match(retained.briefingRoster('a'),/1\/5 MATCHES PLAYED/);assert.equal(retained.state.zones[0].a,null);
+assert.match(retained.briefingRoster('a'),/Alice/);assert.match(retained.briefingRoster('a'),/Unassigned/);assert.match(retained.briefingRoster('a'),/1\/3 MATCHES PLAYED/);assert.equal(retained.state.zones[0].a,null);
 retained.state.zones[0].a={uid:'replacement',name:'Replacement'};assert.equal(retained.briefingRosterRows('a').length,2);
 retained.state.zones.push({id:'next',a:{uid:'alpha',name:'Alice'},b:null});assert.equal(retained.briefingRosterRows('a').filter(r=>r.player?.uid==='alpha').length,1);
 retained.state.service={};retained.state.zones=[{id:'fresh',a:null,b:null}];assert(!retained.briefingRoster('a').includes('Alice'));

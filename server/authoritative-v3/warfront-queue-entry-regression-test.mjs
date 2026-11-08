@@ -45,7 +45,7 @@ try{
   const warSource=fs.readFileSync('src/scripts/47-challenger-war-event.js','utf8');
   const prepareCode=warSource.slice(warSource.indexOf('async function prepareWarfrontQueue('),warSource.indexOf('const warQueueWithoutWaitingScreen='));
   for(const [client,uid] of [[a,'alpha'],[b,'bravo']]){
-    Object.assign(client.c,{clone:structuredClone,me:()=>({uid}),warfrontRequest:(route,options)=>client.c.FateOnline.flyApiRequest(route,options),adoptRemoteState:()=>{},score:()=>({played:0}),opposite:t=>t==='a'?'b':'a'});
+    Object.assign(client.c,{LIMIT:3,clone:structuredClone,me:()=>({uid}),warfrontRequest:(route,options)=>client.c.FateOnline.flyApiRequest(route,options),adoptRemoteState:()=>{},score:()=>({played:0}),opposite:t=>t==='a'?'b':'a'});
     vm.runInContext(prepareCode,client.c);
     const prepared=await client.c.prepareWarfrontQueue({mapCode:'STALE',zoneId:'heartland',opponentUid:'old-account'});
     assert.equal(prepared.mapCode,'WF-QUEUE');assert.equal(prepared.opponentUid,uid==='alpha'?'bravo':'alpha');
