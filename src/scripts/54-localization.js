@@ -144,8 +144,13 @@
   // Translated headings can wrap differently. Fit the shared store column
   // from its physical viewport position rather than a fixed header allowance.
   let layoutFrame = 0;
+  function storeIsVisible() {
+    return document.getElementById('s-challenger')?.classList.contains('active')
+      && document.getElementById('ch-content')?.dataset.activeTab === 'store';
+  }
   function fitStoreViewport() {
     layoutFrame = 0;
+    if (!storeIsVisible()) return;
     const column = document.querySelector('#s-challenger .ch-store-market-column');
     if (!column || !column.getClientRects().length) return;
     if (!window.matchMedia('(min-width:1181px) and (min-height:720px)').matches) {
@@ -166,10 +171,18 @@
     }
   }
   function scheduleLayout() {
-    if (!layoutFrame) layoutFrame = requestAnimationFrame(fitStoreViewport);
+    if (storeIsVisible() && !layoutFrame) layoutFrame = requestAnimationFrame(fitStoreViewport);
   }
   window.addEventListener('resize', scheduleLayout);
-  new MutationObserver(scheduleLayout).observe(document.body, {
+  window.addEventListener('fate-challenger-tab-changed', scheduleLayout);
+  window.addEventListener('fate-screen-changed', scheduleLayout);
+  new MutationObserver(records => {
+    if (!storeIsVisible()) return;
+    if (records.some(record => {
+      const node = record.target.nodeType === 1 ? record.target : record.target.parentElement;
+      return node?.closest('#s-challenger');
+    })) scheduleLayout();
+  }).observe(document.body, {
     subtree:true, childList:true, characterData:true
   });
   document.fonts?.ready.then(scheduleLayout);

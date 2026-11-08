@@ -1,99 +1,65 @@
-/* Selected Fate Dial. The existing loading-screen background stays in place. */
+/* Selected Twelve-Point Fate Seal. Loading lifecycle and background stay unchanged. */
 html body .fate-loading-screen .fate-loading-panel.fate-loading-panel.fate-loading-panel{
-  --fate-dial-progress:0%;
-  position:relative!important;
-  box-sizing:border-box!important;
-  width:min(483px,calc(100vw - 72px),calc(100dvh - 72px))!important;
-  height:auto!important;
-  aspect-ratio:1!important;
-  padding:38px 34px!important;
-  display:flex!important;
-  flex-direction:column!important;
-  align-items:center!important;
-  justify-content:center!important;
-  gap:0!important;
-  border:1px solid #b89959!important;
-  border-radius:50%!important;
-  background:radial-gradient(circle,#222831,#0b1018 72%)!important;
-  box-shadow:0 24px 65px #000a,0 0 0 11px #10151de0,0 0 0 12px #c4a36566!important;
-  overflow:visible!important;
-  text-align:center!important;
+  --fate-dial-progress:0%;position:relative!important;box-sizing:border-box!important;
+  width:min(483px,calc(100vw - 72px),calc(100dvh - 72px))!important;height:auto!important;aspect-ratio:1!important;
+  padding:38px 46px!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:0!important;
+  border:0!important;border-radius:0!important;
+  clip-path:polygon(50% 0,75% 6.7%,93.3% 25%,100% 50%,93.3% 75%,75% 93.3%,50% 100%,25% 93.3%,6.7% 75%,0 50%,6.7% 25%,25% 6.7%)!important;
+  background:radial-gradient(circle at 50% 45%,#242b34 0,#111720 58%,#070b12 76%)!important;
+  box-shadow:0 24px 65px #000a,inset 0 0 0 1px #c4a36588,inset 0 0 55px #0008!important;overflow:hidden!important;text-align:center!important;
 }
 html body .fate-loading-screen .fate-loading-panel::before,
 html body .fate-loading-screen .fate-loading-panel::after{
-  all:unset!important;
-  content:''!important;
-  display:block!important;
-  position:absolute!important;
-  border-radius:50%!important;
-  pointer-events:none!important;
+  content:''!important;display:block!important;position:absolute!important;pointer-events:none!important;
+  clip-path:polygon(50% 0,75% 6.7%,93.3% 25%,100% 50%,93.3% 75%,75% 93.3%,50% 100%,25% 93.3%,6.7% 75%,0 50%,6.7% 25%,25% 6.7%)!important;
 }
 html body .fate-loading-screen .fate-loading-panel::before{
-  inset:11px!important;
-  background:conic-gradient(#e3bd76 var(--fate-dial-progress),#ffffff0c 0)!important;
-  mask:radial-gradient(circle,transparent 67%,#000 68%)!important;
-  -webkit-mask:radial-gradient(circle,transparent 67%,#000 68%)!important;
+  inset:1px!important;border:1px solid #c4a36599!important;background:linear-gradient(110deg,#35aeb40c,transparent 45%,#8f294510)!important;
+  box-shadow:inset 3px 0 #28969d77,inset -3px 0 #8f294577!important;
 }
-html body .fate-loading-screen .fate-loading-panel::after{
-  inset:-23px!important;
-  background:repeating-conic-gradient(#e5c48699 0deg 1deg,transparent 1deg 10deg)!important;
-  mask:radial-gradient(circle,transparent 69%,#000 70%)!important;
-  -webkit-mask:radial-gradient(circle,transparent 69%,#000 70%)!important;
+html body .fate-loading-screen .fate-loading-panel::after{inset:28px!important;border:1px solid #b8995938!important;background:transparent!important}
+html body .fate-loading-screen .fate-loading-seal{
+  position:absolute;z-index:1;inset:12px;pointer-events:none;transform-origin:50% 50%;animation:fateSealTurn 12s steps(12,end) infinite;
 }
-html body .fate-loading-screen .fate-loading-kicker{
-  font:10px/1.5 Georgia,serif!important;
-  letter-spacing:3px!important;
-  color:#bca780!important;
-  margin:0!important;
-  text-transform:uppercase!important;
+html body .fate-loading-screen .fate-loading-seal::before{
+  content:'';position:absolute;inset:18px;border-radius:50%;background:conic-gradient(from -90deg,#e3bd76 var(--fate-dial-progress),#ffffff0b 0);
+  -webkit-mask:radial-gradient(circle,transparent 71%,#000 72% 74%,transparent 75%);mask:radial-gradient(circle,transparent 71%,#000 72% 74%,transparent 75%);
+  filter:drop-shadow(0 0 5px #d9b66b33);
 }
-html body .fate-loading-screen .fate-loading-kicker::before{
-  content:'';
-  position:absolute;
-  width:13px;height:13px;
-  left:calc(50% - 6px);top:-30px;
-  transform:rotate(45deg);
-  background:#e2c58b;
-  box-shadow:0 0 22px #f7cc76;
+html body .fate-loading-screen .fate-loading-seal::after{
+  content:'';position:absolute;width:12px;height:12px;left:calc(50% - 6px);top:27px;transform:rotate(45deg);
+  background:#d8b86d;box-shadow:0 0 0 1px #20180a,0 0 13px #f1ca70;animation:fateSealDiamond 2.4s ease-in-out infinite;
 }
-html body .fate-loading-screen .fate-loading-title{
-  font:400 34px/1.12 Georgia,serif!important;
-  color:#f6e9ca!important;
-  letter-spacing:0!important;
-  text-transform:none!important;
-  margin:11px 0 16px!important;
-  max-width:280px!important;
-  order:0!important;
+html body .fate-loading-screen .fate-loading-seal>span{
+  --delay:calc(var(--i) * .2s);position:absolute;width:5px;height:27px;left:calc(50% - 2.5px);top:8px;
+  transform-origin:2.5px 209px;transform:rotate(calc(var(--i) * 30deg));background:linear-gradient(#f2d58f,#9b783b);
+  box-shadow:0 0 8px #d9b66b55;opacity:.2;animation:fateSealMark 2.4s ease-in-out var(--delay) infinite;
 }
-html body .fate-loading-screen .fate-loading-percent{
-  font:italic 52px/1 Georgia,serif;
-  color:#e3bd76;
-  order:1;
+html body .fate-loading-screen .fate-loading-kicker,
+html body .fate-loading-screen .fate-loading-title,
+html body .fate-loading-screen .fate-loading-percent,
+html body .fate-loading-screen .fate-loading-copy{position:relative;z-index:2}
+html body .fate-loading-screen .fate-loading-kicker{font:10px/1.5 Georgia,serif!important;letter-spacing:3px!important;color:#bca780!important;margin:0!important;text-transform:uppercase!important}
+html body .fate-loading-screen .fate-loading-kicker::before{content:'';display:block;width:94px;height:1px;margin:0 auto 15px;background:linear-gradient(90deg,transparent,#b89959,transparent)}
+html body .fate-loading-screen .fate-loading-title{font:400 31px/1.12 Georgia,serif!important;color:#f6e9ca!important;letter-spacing:0!important;text-transform:none!important;margin:11px 0 16px!important;max-width:290px!important;order:0!important}
+html body .fate-loading-screen .fate-loading-percent{font:italic 50px/1 Georgia,serif!important;color:#e3bd76!important;order:1!important}
+html body .fate-loading-screen .fate-loading-copy{font:italic 12px/1.4 Georgia,serif!important;color:#baafa0!important;margin:16px 0 0!important;max-width:220px!important;order:2!important}
+html body .fate-loading-screen .fate-loading-bar,html body .fate-loading-screen .fate-loading-count{display:none!important}
+html body .fate-loading-screen.fate-loading-cloud .fate-loading-seal::before{background:conic-gradient(from -90deg,#e3bd76 24%,#ffffff0b 0)}
+html body .fate-loading-screen.fate-loading-cloud .fate-loading-seal{animation-duration:3.6s}
+@keyframes fateSealTurn{to{transform:rotate(30deg)}}
+@keyframes fateSealMark{0%,35%,100%{opacity:.18}12%{opacity:1}}
+@keyframes fateSealDiamond{50%{opacity:.52;filter:brightness(.75)}}
+@media(max-width:380px),(max-height:540px){
+  html body .fate-loading-screen .fate-loading-panel.fate-loading-panel.fate-loading-panel{padding:25px 34px!important}
+  html body .fate-loading-screen .fate-loading-title{font-size:23px!important;margin:8px 0 12px!important}
+  html body .fate-loading-screen .fate-loading-percent{font-size:34px!important}
+  html body .fate-loading-screen .fate-loading-copy{font-size:11px!important;margin-top:12px!important}
 }
-html body .fate-loading-screen .fate-loading-copy{
-  font:italic 12px/1.4 Georgia,serif!important;
-  color:#baafa0!important;
-  margin:16px 0 0!important;
-  max-width:220px!important;
-  order:2!important;
-}
-/* Keep legacy fill/count nodes for the existing progress and lifecycle code. */
-html body .fate-loading-screen .fate-loading-bar,
-html body .fate-loading-screen .fate-loading-count{display:none!important;}
-html body .fate-loading-screen.fate-loading-cloud .fate-loading-panel::before{
-  background:conic-gradient(#e3bd76 24%,#ffffff0c 0)!important;
-  animation:fateDialCloudSpin 2s linear infinite!important;
-}
-@keyframes fateDialCloudSpin{to{transform:rotate(360deg);}}
-@media(max-width:380px),(max-height:420px){
-  html body .fate-loading-screen .fate-loading-panel.fate-loading-panel.fate-loading-panel{padding:25px!important;}
-  html body .fate-loading-screen .fate-loading-title{font-size:23px!important;margin:8px 0 12px!important;}
-  html body .fate-loading-screen .fate-loading-percent{font-size:34px;}
-  html body .fate-loading-screen .fate-loading-copy{font-size:11px!important;margin-top:12px!important;}
-}
-@media(prefers-reduced-motion:reduce){
-  html body .fate-loading-screen.fate-loading-cloud .fate-loading-panel::before{animation:none!important;}
-}
-html.fate-animations-off body .fate-loading-screen .fate-loading-panel::before,
-html.fate-reduced-motion body .fate-loading-screen .fate-loading-panel::before,
-html.fate-super-performance-mode body .fate-loading-screen .fate-loading-panel::before{animation:none!important;}
+@media(prefers-reduced-motion:reduce){html body .fate-loading-screen .fate-loading-seal,html body .fate-loading-screen .fate-loading-seal>span,html body .fate-loading-screen .fate-loading-seal::after{animation:none!important}}
+html.fate-animations-off body .fate-loading-screen .fate-loading-seal,
+html.fate-animations-off body .fate-loading-screen .fate-loading-seal>span,
+html.fate-reduced-motion body .fate-loading-screen .fate-loading-seal,
+html.fate-reduced-motion body .fate-loading-screen .fate-loading-seal>span,
+html.fate-super-performance-mode body .fate-loading-screen .fate-loading-seal,
+html.fate-super-performance-mode body .fate-loading-screen .fate-loading-seal>span{animation:none!important}

@@ -15,7 +15,12 @@ assert.equal(runtime.turnClockMessage(actor).remainingMs,168000);
 now+=15000;runtime.scheduleTurnTimer(actor);
 assert.equal(runtime.turnClockMessage(actor).remainingMs,168000);
 assert.equal(runtime.turnClockMessage(actor).paused,true);
-actor.state.pendingPrompt={type:'MODAL_CHOICE'};runtime.scheduleTurnTimer(actor);now+=2000;
+for(const type of ['CARD_SELECTION','BOARD_TARGET','BOARD_DESTINATION','MODAL_CHOICE']){
+ actor.state.pendingPrompt={type,playerIndex:1};runtime.scheduleTurnTimer(actor);now+=15000;
+ assert.equal(runtime.turnClockMessage(actor).remainingMs,168000,type+' opponent choice preserves time');
+ assert.equal(runtime.turnClockMessage(actor).paused,true);
+}
+actor.state.pendingPrompt={type:'MODAL_CHOICE',playerIndex:0};runtime.scheduleTurnTimer(actor);now+=2000;
 assert.equal(runtime.turnClockMessage(actor).remainingMs,166000);
 assert.equal(runtime.turnClockMessage(actor).paused,false);
 for(const count of [29,30]){
@@ -50,3 +55,19 @@ assert(shown.body.includes('data-landscape-id="igb5"'));
 shown.actions.find(a=>a.label==='Choose Landscape 5').action();
 assert.equal(selected,5);
 console.log('PASS: landscape pictures, legal-option filtering and selection after pagination');
+
+// The local Electron single-player clock follows the same ownership rule.
+const localSource=read('../../src/scripts/authoritative-v3-single-player-screen.mjs');
+const localClock={Date:{now:()=>now}};vm.createContext(localClock);
+vm.runInContext('function '+extract(localSource,'  syncTurnTimer(view){','  installStyle(){').trim(),localClock);
+const screen={window:{setInterval:()=>1,clearInterval(){}},turnTimeLimit:180,turnTimerKey:'',
+ setTurnTimerText(value){this.remaining=value;},autoEndTimedOutTurn(){throw Error('must not expire during opponent choice');}};
+const view={playerIndex:0,state:{turn:1,activePlayer:0}};
+localClock.syncTurnTimer.call(screen,view);now+=10000;
+view.state.pendingPrompt={type:'CARD_SELECTION',playerIndex:1};localClock.syncTurnTimer.call(screen,view);
+assert.equal(screen.remaining,170);now+=25000;
+view.state.pendingPrompt={type:'BOARD_DESTINATION',playerIndex:1};localClock.syncTurnTimer.call(screen,view);
+assert.equal(screen.remaining,170);
+view.state.pendingPrompt=null;localClock.syncTurnTimer.call(screen,view);now+=2000;
+localClock.syncTurnTimer.call(screen,view);assert.equal(screen.remaining,168);
+console.log('PASS: local opponent response pauses and resumes the remaining turn time.');

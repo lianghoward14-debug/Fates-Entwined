@@ -1,3 +1,4 @@
+import {recordDylanReductionUses} from './modifiers.mjs';
 import {emeraldChildrenEligible,emeraldChildrenFreeSet} from './emerald-children.mjs';
 import {havanoDestinations} from './havano-destinations.mjs';
 import {projectStateForPlayer,projectStateForSpectator} from './projections.mjs';
@@ -1128,6 +1129,10 @@ function runEffectStack(state, ctx){
     const frame = state.effectStack[state.effectStack.length - 1];
     if(frame.waitingFor) return;
     const instruction = frame.program[frame.instructionIndex];
+    if(instruction?.kind === 'REQUIRE_MAX_TURN'){
+      frame.instructionIndex=state.turn<=instruction.turn?frame.instructionIndex+1:frame.program.length;
+      continue;
+    }
     if(instruction?.kind === 'REQUIRE_NO_ORIGINAL_STARS'){
       frame.instructionIndex=emeraldChildrenEligible(state,frame.controller)?frame.instructionIndex+1:frame.program.length;
       continue;
@@ -3093,6 +3098,7 @@ export function reduceCommand(currentState, rawCommand, options = {}){
     performCommand(state, ctx, command, actorIndex, options);
     if((state.effectStack.length || state.villagerArrivals?.length) && !state.pendingPrompt) runEffectStack(state, ctx);
     reconcileSovietGrenadierTargets(state, ctx);
+    recordDylanReductionUses(state);
     refreshMoralePressure(ctx);
     refreshHandLimitRequirement(state);
     ctx.drainVillagerArrivals = true;
@@ -3113,19 +3119,23 @@ export function reduceCommand(currentState, rawCommand, options = {}){
         commendationsEligible:state.outcome.commendationsEligible !== false};
     }
     resolveAnneActionEvents(ctx);
+    recordDylanReductionUses(state);
     const newVeil=state.statuses.find(status=>status.type==='SABOTEUR_FIELD_VEIL' && !status.started);
     if(newVeil){
       newVeil.started=true;
-      newVeil.untilTurn=state.turn+2;
+      newVeil.untilTurn=state.turn+1;
       if(!state.saboteurVeil || state.turn>state.saboteurVeil.untilTurn){
         const owner=Number(newVeil.playerIndex);
-        state.saboteurVeil={owner,turn:state.turn,untilTurn:state.turn+2,opponent:projectStateForPlayer(state,1-owner),spectator:projectStateForSpectator(state)};
+        state.saboteurVeil={owner,turn:state.turn,untilTurn:state.turn+1,opponent:projectStateForPlayer(state,1-owner),spectator:projectStateForSpectator(state)};
       }else{
-        state.saboteurVeil.untilTurn=Math.max(state.saboteurVeil.untilTurn,state.turn+2);
+        state.saboteurVeil.untilTurn=Math.max(state.saboteurVeil.untilTurn,state.turn+1);
       }
     }
     const activeVeil=currentState.saboteurVeil && currentState.turn<=currentState.saboteurVeil.untilTurn ? currentState.saboteurVeil : state.saboteurVeil;
     if(activeVeil && currentState.saboteurVeil && actorIndex===activeVeil.owner)for(const event of ctx.events){
+      // The veil hides card actions, not public Morale and status feedback.
+      // Independently private and face-down effects retain their own visibility.
+      if(/^(MORALE_|PRESSURE_|SEAL_|SEALS_|STATUS_)/.test(String(event.type || ''))) continue;
       event.privateTo=Array.isArray(event.privateTo)?event.privateTo.filter(p=>Number(p)===activeVeil.owner):[activeVeil.owner];
     }
     if(state.saboteurVeil && (state.turn>state.saboteurVeil.untilTurn || state.outcome)){

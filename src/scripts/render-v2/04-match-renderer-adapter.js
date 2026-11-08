@@ -666,6 +666,8 @@
 
   function deferFateNumberUntilPresentationEnds(payload, blockedUntil){
     const p = Object.assign({}, payload || {});
+    if(p.fromValue == null && p.before != null) p.fromValue = p.before;
+    if(p.toValue == null && p.after != null) p.toValue = p.after;
     const key = fateNumberPresentationKey(p);
     const previous = deferredFateNumbersByKey.get(key);
     if(previous && previous.timer) clearTimeout(previous.timer);
@@ -685,6 +687,10 @@
     const flush = function(){
       const current = deferredFateNumbersByKey.get(key);
       if(!current || current !== record) return;
+      if(record.payload.card && record.payload.card._flipResolutionPromise){
+        record.timer = setTimeout(flush, 80);
+        return;
+      }
       const dynamicUntil = typeof window.getFateFeedbackPresentationBlockUntil === 'function'
         ? Number(window.getFateFeedbackPresentationBlockUntil()) || 0
         : 0;
@@ -694,7 +700,7 @@
         return;
       }
       deferredFateNumbersByKey.delete(key);
-      presentFateDelta(Object.assign({}, record.payload, {_fatePresentationReady:true}));
+      presentFateDelta(Object.assign({}, record.payload, {_fatePresentationReady:true, _fateNumberSettled:true}));
     };
     record.timer = setTimeout(flush, Math.max(24, record.until - Date.now() + 24));
     deferredFateNumbersByKey.set(key, record);
@@ -740,7 +746,13 @@
     if(animationsOff()) return false;
     const p = payload || {};
     const delta = Number(p.delta != null ? p.delta : p.fateDelta != null ? p.fateDelta : p.amount);
-    if(!Number.isFinite(delta) || delta === 0) return false;
+    if(!Number.isFinite(delta)) return false;
+    // Coalesce recalculations before painting, retaining the first displayed value
+    // and the latest result. A zero-net update must also cancel a pending number.
+    if(!p._fateNumberSettled && (delta !== 0 || deferredFateNumbersByKey.has(fateNumberPresentationKey(p)))) {
+      return deferFateNumberUntilPresentationEnds(p, Date.now() + 80);
+    }
+    if(delta === 0) return false;
     if(!p._fatePresentationReady || postConsolidationAnimationUntil() > Date.now()) {
       const blockedUntil = typeof window.getFateFeedbackPresentationBlockUntil === 'function'
         ? Number(window.getFateFeedbackPresentationBlockUntil()) || 0

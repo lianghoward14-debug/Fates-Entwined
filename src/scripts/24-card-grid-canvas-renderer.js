@@ -258,6 +258,7 @@
     let scrollRaf = 0;
     let disposed = false;
     let lastVirtualKey = '';
+    let deferredPaint = false;
     // Collection/deck-builder callers opt in explicitly. Keep the rarity treatment
     // independent from the global enhanced-FX and scrolling-performance switches.
     const useStarSheen = opts.starSheen === true && entries.some(function(entry){
@@ -410,6 +411,13 @@
 
     function draw(syncHits, scrollOnly) {
       if(!ctx || disposed) return;
+      // Cached menus remain mounted. Image completions and resize callbacks must
+      // not paint a hidden grid or rebuild all of its hit targets.
+      if(!wrap.isConnected || container.closest('[hidden], .screen:not(.active), .ch-tab-pane:not(.active)')) {
+        deferredPaint = true;
+        return;
+      }
+      deferredPaint = false;
       if(syncHits === undefined) syncHits = true;
       state.time = (window.performance && performance.now) ? performance.now() : Date.now();
       const layout = computeLayout();
@@ -484,14 +492,29 @@
     if(virtualize) container.addEventListener('scroll', onScroll, { passive:true });
 
     if(typeof ResizeObserver !== 'undefined') {
-      const ro = new ResizeObserver(function(){
+      let observedWidth = -1, observedHeight = -1;
+      const ro = new ResizeObserver(function(records){
+        const size = records[0] && records[0].contentRect;
+        if(!size || (size.width === observedWidth && size.height === observedHeight)) return;
+        observedWidth = size.width;
+        observedHeight = size.height;
         clearTimeout(resizeTimer);
+        // A hidden tab reports zero size. Wait for its visible size before
+        // painting; this also picks up images that loaded while it was hidden.
+        if(size.width <= 0 || size.height <= 0) return;
         resizeTimer = setTimeout(draw, 40);
       });
       ro.observe(container);
       container.__fateCanvasGridResizeObserver = ro;
     }
+    function resumeVisibleGrid(){
+      if(deferredPaint) draw(true);
+    }
+    window.addEventListener('fate-challenger-tab-changed', resumeVisibleGrid);
+    window.addEventListener('fate-screen-changed', resumeVisibleGrid);
     container.__fateCanvasGridCleanup = function(){
+      window.removeEventListener('fate-challenger-tab-changed', resumeVisibleGrid);
+      window.removeEventListener('fate-screen-changed', resumeVisibleGrid);
       disposed = true;
       clearTimeout(resizeTimer);
       pendingImageRedraws.delete(state.redraw);

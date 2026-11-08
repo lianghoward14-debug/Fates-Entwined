@@ -2364,6 +2364,31 @@ async function pickStarterDeck(starterId) {
 // ─── CHALLENGER HUB UI ───
 let _currentChTab = 'play';
 const _chTabDomState = {};
+let _chBackgroundRequest = 0;
+const _chDecodedBackgrounds = new Set();
+
+function setChTabBackground(tab) {
+  const bgEl = document.querySelector('#s-challenger .screen-bg img');
+  if(!bgEl) return;
+  const tabBg = {play:TITLE_BG_PATH(2), war:TITLE_BG_PATH(4), campaign:TITLE_BG_PATH(4), lore:INGAME_BG_PATH(15), store:TITLE_BG_PATH(3), collection:TITLE_BG_PATH(4), deckbuilder:TITLE_BG_PATH(5)};
+  const nextBackground = tabBg[tab] || TITLE_BG_PATH(2);
+  if(bgEl.getAttribute('src') === nextBackground) return;
+  const request = ++_chBackgroundRequest;
+  if(_chDecodedBackgrounds.has(nextBackground)) {
+    bgEl.src = nextBackground;
+    return;
+  }
+  // Decode large menu art away from the click frame. Keep the current art in
+  // place until the replacement is ready so tab input never waits on decode.
+  const preload = new Image();
+  preload.src = nextBackground;
+  const ready = typeof preload.decode === 'function' ? preload.decode().catch(()=>{})
+    : new Promise(resolve=>{preload.onload=resolve;preload.onerror=resolve;});
+  ready.then(()=>{
+    _chDecodedBackgrounds.add(nextBackground);
+    if(request === _chBackgroundRequest && _currentChTab === tab && bgEl.isConnected) bgEl.src = nextBackground;
+  });
+}
 
 function cleanupChTabPaneBeforeDetach(pane) {
   if(!pane) return;
@@ -2469,15 +2494,18 @@ function setChTabPaneVisibility(content, activePane) {
   if(!content || !activePane) return;
   Array.from(content.querySelectorAll(':scope > .ch-tab-pane')).forEach(node=>{
     const active = node === activePane;
-    node.hidden = false;
-    node.removeAttribute('hidden');
-    node.style.display = '';
-    node.classList.toggle('active', active);
-    node.setAttribute('aria-hidden', active ? 'false' : 'true');
+    // Cached panes must leave layout completely, including the deck builder
+    // whose later display:flex rule otherwise overrides the hidden-pane CSS.
+    if(node.hidden !== !active) node.hidden = !active;
+    if(node.classList.contains('active') !== active) node.classList.toggle('active', active);
+    const ariaHidden = active ? 'false' : 'true';
+    if(node.getAttribute('aria-hidden') !== ariaHidden) node.setAttribute('aria-hidden', ariaHidden);
     if(active) {
-      node.removeAttribute('inert');
+      if(node.style.getPropertyValue('display')) node.style.removeProperty('display');
+      if(node.hasAttribute('inert')) node.removeAttribute('inert');
     } else {
-      node.setAttribute('inert', '');
+      if(node.style.getPropertyValue('display') !== 'none' || node.style.getPropertyPriority('display') !== 'important') node.style.setProperty('display', 'none', 'important');
+      if(!node.hasAttribute('inert')) node.setAttribute('inert', '');
     }
   });
 }
@@ -2515,19 +2543,7 @@ function switchChTab(tab, opts) {
   _currentChTab = tab;
   document.querySelectorAll('.ch-tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===tab));
   updateChTopbar();
-  const lightweightTabs = !!(
-    window.__fateStartupWarmupActive ||
-    window.__fateMenusWarmed ||
-    document.documentElement.classList.contains('fate-low-effects') ||
-    document.documentElement.classList.contains('fate-performance-mode') ||
-    document.documentElement.classList.contains('fate-performance-plus-mode')
-  );
-  // Set tab-specific background
-  const bgEl = document.querySelector('#s-challenger .screen-bg img');
-  if(bgEl){
-  const tabBg = {play:TITLE_BG_PATH(2), war:TITLE_BG_PATH(4), campaign:TITLE_BG_PATH(4), lore:INGAME_BG_PATH(15), store:TITLE_BG_PATH(3), collection:TITLE_BG_PATH(4), deckbuilder:TITLE_BG_PATH(5)};
-  bgEl.src = tabBg[tab] || TITLE_BG_PATH(2);
-  }
+  setChTabBackground(tab);
   const content = document.getElementById('ch-content');
   if(!content) return;
   content.classList.toggle('ch-cdb-content', tab === 'deckbuilder');
@@ -2539,6 +2555,8 @@ function switchChTab(tab, opts) {
     setChTabPaneVisibility(content, pane);
     const render = getChRendererForTab(tab);
     const shouldRender = options.force === true || forceLoreArchive || sameTab || pane.dataset.mounted !== '1' || pane.childElementCount === 0;
+    // A mounted, unchanged tab already owns live DOM. Avoid rebuilding its
+    // potentially large state signature and walking the pane a second time.
     if(window.FateMenuViews) {
       window.FateMenuViews.render('challenger:' + tab, {force:shouldRender});
       pane.dataset.mounted = '1';
@@ -2546,22 +2564,16 @@ function switchChTab(tab, opts) {
       render(pane);
       pane.dataset.mounted = '1';
     }
-    setChTabPaneVisibility(content, pane);
     content.dataset.renderedTab = tab;
     content.dataset.activeTab = tab;
     content.style.opacity='1';
     restoreChTabScroll(tab, pane);
   };
-  if(lightweightTabs) {
-    content.style.transition='none';
-    content.style.opacity='1';
-    renderTab();
-    return;
-  }
-  // Quick fade transition
-  content.style.opacity='0';
-  content.style.transition='opacity .2s ease';
-  setTimeout(renderTab, 200);
+  // Immediate navigation also prevents stale delayed renders after rapid clicks.
+  content.style.transition='none';
+  content.style.opacity='1';
+  renderTab();
+  window.dispatchEvent(new CustomEvent('fate-challenger-tab-changed', {detail:{tab}}));
 }
 
 function updateChTopbar() {
@@ -2569,15 +2581,15 @@ function updateChTopbar() {
   const pkVal = document.getElementById('ch-packs-val');
   const eloVal = document.getElementById('ch-elo-val');
   const slIcon = document.getElementById('ch-starlight-icon');
-  if(slVal) slVal.textContent = USER_PROFILE.starlight || 0;
-  if(pkVal) pkVal.textContent = USER_PROFILE.unopenedPacks || 0;
+  if(slVal && slVal.textContent !== String(USER_PROFILE.starlight || 0)) slVal.textContent = USER_PROFILE.starlight || 0;
+  if(pkVal && pkVal.textContent !== String(USER_PROFILE.unopenedPacks || 0)) pkVal.textContent = USER_PROFILE.unopenedPacks || 0;
   if(eloVal) {
     const eloText = String(USER_PROFILE.challengerElo || 600);
-    eloVal.textContent = eloText;
+    if(eloVal.textContent !== eloText) eloVal.textContent = eloText;
     eloVal.classList.toggle('four-digit-elo', eloText.length >= 4);
     eloVal.classList.toggle('three-digit-elo', eloText.length === 3);
   }
-  if(slIcon) slIcon.innerHTML = STARLIGHT_ICON;
+  if(slIcon && slIcon.__fateStarlightIcon !== STARLIGHT_ICON) { slIcon.innerHTML = STARLIGHT_ICON; slIcon.__fateStarlightIcon = STARLIGHT_ICON; }
 }
 
 // ─── CHALLENGER PLAY TAB ───

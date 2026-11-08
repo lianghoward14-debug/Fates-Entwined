@@ -5,6 +5,7 @@ import {
   canConsolidateWithoutTribute,
   consolidationPlacementCheck,
   effectiveFate,
+  recordDylanReductionUses,
   effectiveCardType,
   effectiveConsolidationCost,
   inspectOperation,
@@ -902,22 +903,20 @@ function changeFate(ctx, operation, absolute){
     });
     changes.push({cardIid:entry.card.iid, before, after, highTBonus, bh15Bonus:chineseMacArthurBonus});
   }
-  if(!absolute && amount < 0 && Number.isInteger(Number(operation.sourceController))){
+  if(operation.sourceController != null && Number.isInteger(Number(operation.sourceController))){
     const sourceController = Number(operation.sourceController);
     const reducedOpponent = changes.some(change=>{
       const target = findCard(ctx.state, change.cardIid)?.card;
       return target && controllerOf(target) !== sourceController && change.after < change.before;
     });
     const source = findCard(ctx.state, operation.sourceIid)?.card;
-    const snowball = source && runtimeRuleId(source) === '93';
-    if(reducedOpponent && !(snowball && source.counters?.jimmyReductionEffectCounted)){
+    if(reducedOpponent && source && !source.counters?.jimmyReductionEffectCounted){
       ctx.state.fateReductionEffectUses[sourceController] += 1;
-      if(snowball){
-        source.counters ||= {};
-        source.counters.jimmyReductionEffectCounted = true;
-      }
+      source.counters ||= {};
+      source.counters.jimmyReductionEffectCounted = true;
     }
   }
+
   return changes.length === 1
     ? changes[0]
     : {cardIids:changes.map(change=>change.cardIid), changes};
@@ -1025,6 +1024,10 @@ function transferCards(ctx, operation){
       ctx.state.board[entry.z][entry.r][entry.c] = null;
     }else{
       card = ctx.state.players[entry.playerIndex][entry.zone].splice(entry.index, 1)[0];
+    }
+    // Only recycling out of discard renews a card's Jimmy contribution.
+    if(entry.zone === 'discard' && destinationPile !== 'discard' && card.counters){
+      delete card.counters.jimmyReductionEffectCounted;
     }
     const destination = ctx.state.players[playerIndex];
     if(destinationPile === 'deckTop') destination.deck.unshift(card);
@@ -2033,6 +2036,7 @@ function randomTransferCards(ctx, operation){
       const sourceIndex = player[sourcePile].findIndex(item=>String(item.iid) === String(card.iid));
       if(sourceIndex < 0) throw operationError('CARD_NOT_FOUND', 'random-transfer card no longer exists');
       player[sourcePile].splice(sourceIndex, 1);
+      if(sourcePile === 'discard' && card.counters) delete card.counters.jimmyReductionEffectCounted;
       if(fateBonus && !isEffectImmutable(card)){
         commitPermanentFate(card, (Number(card.currentFate) || 0) + fateBonus);
       }
@@ -2381,6 +2385,7 @@ export function applyOperation(ctx, operation){
   }finally{
     ctx._operationDepth = depth;
   }
+  if(depth === 0) recordDylanReductionUses(ctx.state);
   if(depth === 0 && beforeSnapshot) applyChineseMacArthurToDerivedAuraGains(ctx, beforeSnapshot);
   if(depth===0 && beforeSnapshot){
     const gains=boardEntries(ctx.state).map(entry=>{

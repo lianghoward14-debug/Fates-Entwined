@@ -219,8 +219,9 @@ function applySaboteurView(state,projection,viewer){
   const livePlayer=viewer==null ? null : cloneSerializable(projection.players[viewer]);
   const liveBoard=viewer==null ? null : cloneSerializable(projection.board);
   // Conceal individual board changes and action metadata, while keeping the
-  // aggregate zone Fate totals public and current throughout the veil.
-  for(const key of Object.keys(frozen))if(!['revision','phase','turn','activePlayer','pendingPrompt','pendingHandLimit','outcome','completedHands','zoneScores'].includes(key))projection[key]=cloneSerializable(frozen[key]);
+  // aggregate scores, Morale, statuses and public field rules current.
+  // The veil conceals card actions, not the public consequences of those actions.
+  for(const key of Object.keys(frozen))if(!['revision','phase','turn','activePlayer','pendingPrompt','pendingHandLimit','outcome','completedHands','zoneScores','moralePressure','statuses','geometry','landscapeId','landscapeState','aiTakeoverSeats','warfrontForfeit'].includes(key))projection[key]=cloneSerializable(frozen[key]);
   // The opponent must still see their own draws and placements during the
   // intervening turn of this three-turn effect.
   if(livePlayer){

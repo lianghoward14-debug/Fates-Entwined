@@ -88,13 +88,6 @@ function showScreen(id) {
   if(id !== 's-game' && id !== 's-coin' && typeof clearHowardDevMode === 'function') clearHowardDevMode();
   const prev = document.querySelector('.screen.active');
   const prevId = prev ? prev.id : null;
-  const lightMenuChange = !!(
-    window.__fateStartupWarmupActive ||
-    window.__fateMenusWarmed ||
-    document.documentElement.classList.contains('fate-low-effects') ||
-    document.documentElement.classList.contains('fate-performance-mode') ||
-    document.documentElement.classList.contains('fate-performance-plus-mode')
-  );
   document.querySelectorAll('.screen').forEach(s=>{s.classList.remove('active');s.classList.remove('screen-fade-in');});
   const el = document.getElementById(id);
   el.classList.add('active');
@@ -107,11 +100,7 @@ function showScreen(id) {
     else cleanupTutorialAndDialogueArtifacts({dismissTutorial:true});
   }
   window.dispatchEvent(new CustomEvent('fate-screen-changed', { detail:{from:prevId, to:id} }));
-  // Cold menu warmup should make later screen changes direct and cheap.
-  if(!lightMenuChange) {
-    el.classList.add('screen-fade-in');
-    setTimeout(()=>el.classList.remove('screen-fade-in'),500);
-  }
+  // Switch directly to avoid compositing every menu layer during a fade.
   // Initial title-screen activation is application setup, not a user-driven
   // screen transition. Keep launch silent while preserving later navigation.
   if(prevId && prevId !== id && typeof playSfx==='function') playSfx('screenTransition');

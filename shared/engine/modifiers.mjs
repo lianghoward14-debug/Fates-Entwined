@@ -167,7 +167,7 @@ export function adjacencyBonusMultiplier(state, zone, playerIndex){
   return 1 + superiorMarksSources;
 }
 
-export function effectiveFate(state, entryOrCard){
+export function effectiveFate(state, entryOrCard, ignoredDylanIid = null){
   const entry = entryOrCard?.card
     ? entryOrCard
     : findCard(state, entryOrCard?.iid);
@@ -199,6 +199,7 @@ export function effectiveFate(state, entryOrCard){
     if((source.z !== entry.z && !fieldWide) || !activeAuraSource(state, source)) continue;
     const sourceController = controllerOf(source.card);
     const sourceId = runtimeRuleId(source.card);
+    if(sourceId === '10' && String(source.card.iid) === ignoredDylanIid) continue;
     if(sourceId === '10' && sourceController !== targetController && !isImmuneToOpponentEffects(card, state)){
       modifier -= 3 + coordinatorAuraPotencyBoost(state, source);
       continue;
@@ -527,4 +528,20 @@ export function inspectOperation(state, operation){
     return canMove(state, sourceEntry?.card, operation.destination, operation);
   }
   return {ok:true, operation};
+}
+
+// Count the first real reduction by each Dylan instance; reading Fate stays pure.
+export function recordDylanReductionUses(state){
+  const entries = boardEntries(state);
+  for(const source of entries){
+    if(runtimeRuleId(source.card) !== '10' || !activeAuraSource(state, source)
+      || source.card.counters?.jimmyReductionEffectCounted) continue;
+    const owner = controllerOf(source.card);
+    const reduced = entries.some(target=>controllerOf(target.card) !== owner
+      && effectiveFate(state,target,String(source.card.iid)) > effectiveFate(state,target));
+    if(!reduced) continue;
+    source.card.counters ||= {};
+    source.card.counters.jimmyReductionEffectCounted = true;
+    state.fateReductionEffectUses[owner] += 1;
+  }
 }

@@ -505,7 +505,7 @@ function isElectronCardImageRuntime() {
   }
 }
 function getRuntimeCardImageSrc(src, role) {
-  const refreshedArtVersions={"103": "81d808eb3faf", "bh21": "eafe10d4d5b1", "108": "3a31783c0a90", "109": "c05844967b27", "110": "9a612fa44a10", "111": "74d40b6aa868", "112": "e4f6f817509c", "113": "6f1a7a14be76", "114": "311af41dcce1", "115": "b85cd436dea2", "116": "b779d5cc4592", "117": "c69ad94a9997", "118": "3c4bd09948da", "120": "b549245e0626"};
+  const refreshedArtVersions={"103": "81d808eb3faf", "bh21": "eafe10d4d5b1", "108": "3a31783c0a90", "109": "c05844967b27", "110": "9a612fa44a10", "111": "74d40b6aa868", "112": "e4f6f817509c", "113": "6f1a7a14be76", "114": "311af41dcce1", "115": "b85cd436dea2", "116": "b779d5cc4592", "117": "4b8a523f8e83", "118": "3c4bd09948da", "120": "b549245e0626"};
   const refreshedArtId=String(src||'').split(/[.?]/)[0];
   if(refreshedArtVersions[refreshedArtId]) src=refreshedArtId+'.png?v='+refreshedArtVersions[refreshedArtId];
   if(/^107\.png(?:[?#]|$)/.test(String(src||''))) return '107.png?v=20261011';
@@ -8707,6 +8707,18 @@ function showBoardTargetPicker(opts, onConfirm) {
             updateSelection(body);
           };
         }
+        if(cell && !entry){
+          cellEl.setAttribute('role', 'button');
+          cellEl.tabIndex = 0;
+          cellEl.onclick = function(ev){
+            ev.preventDefault();
+            ev.stopPropagation();
+            toast('That move is not eligible. Choose another target.');
+          };
+          cellEl.onkeydown = function(ev){
+            if(ev.key === 'Enter' || ev.key === ' ') cellEl.onclick(ev);
+          };
+        }
         cells.appendChild(cellEl);
       }
       rowEl.appendChild(cells);
@@ -9948,6 +9960,9 @@ window.doMove=async function(i){
 };
 
 function highlightForBlock(z, sourceCard) {
+  // AI resolution owns its square choice; never enter the human input mode.
+  const controller = sourceCard && typeof sourceCard.owner === 'number' ? sourceCard.owner : G.currentPlayer;
+  if(G.aiEnabled && controller === G.aiPlayer) return;
   const anyZone = Number(z) === -1;
   toast(anyZone ? 'Click any valid empty square to lock it permanently' : 'Click any square in this zone to stop your opponent consolidating on or from it');
   G.placing=true;

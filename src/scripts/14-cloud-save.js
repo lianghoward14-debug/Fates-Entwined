@@ -666,6 +666,7 @@
     _loadingOverlay.className = 'fate-loading-screen fate-loading-cloud';
     _loadingOverlay.innerHTML =
       '<div class="fate-loading-panel">'
+      + '<div class="fate-loading-seal" aria-hidden="true"><span style="--i:0"></span><span style="--i:1"></span><span style="--i:2"></span><span style="--i:3"></span><span style="--i:4"></span><span style="--i:5"></span><span style="--i:6"></span><span style="--i:7"></span><span style="--i:8"></span><span style="--i:9"></span><span style="--i:10"></span><span style="--i:11"></span></div>'
       + '<div class="fate-loading-kicker">Fates Entwined</div>'
       + '<div class="fate-loading-title">Loading Your Data</div>'
       + '<div class="fate-loading-percent">…</div>'

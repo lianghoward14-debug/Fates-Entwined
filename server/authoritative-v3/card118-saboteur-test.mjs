@@ -18,7 +18,7 @@ assert(!JSON.stringify(projectStateForPlayer(s,0)).includes('"opponent":'));asse
 command('END_TURN');assert(s.saboteurVeil);
 const own=s.players[1].hand.find(c=>c.id==='32');r=command('SET_CARD',{cardIid:own.iid,destination:{z:1,r:0,c:0}});
 assert.equal(projectStateForPlayer(s,1).board[1][0][0].iid,own.iid);assert.equal(projectStateForPlayer(s,1).players[1].hand.length,s.players[1].hand.length);assert(projectEvents(r.events,1).length>0);assert.equal(projectStateForPlayer(s,1).board[0][2][0].id,'117');
-command('END_TURN');assert(s.saboteurVeil);command('END_TURN');assert.equal(projectStateForPlayer(s,1).board[0][2][0].id,'117');assert(!s.saboteurVeil);assert(!s.statuses.some(x=>x.type==='SABOTEUR_FIELD_VEIL'));
+command('END_TURN');assert.equal(projectStateForPlayer(s,1).board[0][2][0].id,'117');assert(!s.saboteurVeil);assert(!s.statuses.some(x=>x.type==='SABOTEUR_FIELD_VEIL'));
 console.log('117: owner visibility, frozen opponent/spectator views, concealed events and turn-end reveal passed.');
 for(const seat of [0,1]){
  let state=createInitialState({matchId:'visible117-'+seat,seed:'both',handSize:99,activePlayer:seat,cardDefinitions:cards,players:[0,1].map(p=>({id:'p'+p,deckIds:['117','32']}))});
@@ -40,3 +40,14 @@ for(const seat of [0,1]){
  assert.deepEqual(projectEvents(hidden.events,1-seat),[],'action events remain concealed');
 }
 console.log('117: initial placement visible from either seat; subsequent placements remain concealed.');
+
+for(const seat of [0,1])for(const turn of [20,21,22]){
+ const state=createInitialState({matchId:'cutoff-'+seat+'-'+turn,seed:'cutoff',handSize:99,activePlayer:seat,cardDefinitions:cards,players:[0,1].map(p=>({id:'p'+p,deckIds:['117','32']}))});
+ state.turn=turn;state.maxTurns=30;
+ const card=state.players[seat].hand.find(c=>c.id==='117');
+ const result=reduceCommand(state,{commandId:'cutoff',matchId:state.matchId,expectedRevision:state.revision,type:'SET_CARD',payload:{cardIid:card.iid,destination:{z:0,r:seat?0:2,c:0}}},{playerId:'p'+seat});
+ assert(result.ok,JSON.stringify(result.rejection));
+ if(turn===20){assert.equal(result.state.saboteurVeil.untilTurn,21);}
+ else {assert(!result.state.saboteurVeil);assert(!result.state.statuses.some(s=>s.type==='SABOTEUR_FIELD_VEIL'));}
+}
+console.log('117: turn 20 activates through turn 21; turns 21+ cannot activate, both seats.');

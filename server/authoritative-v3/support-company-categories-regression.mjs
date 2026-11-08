@@ -13,5 +13,5 @@ for(const ability of ['call','desperate'])for(const player of [0,1])for(const ca
  assert(!submit({...command.payload,cardId:'invalid'}).ok);const result=submit(command.payload);assert(result.ok,JSON.stringify(result.rejection));if(ability==='desperate')assert.equal(result.state.moralePressure.morale[player],68);assert.equal(result.state.players[player].hand.at(-1).id,command.payload.cardId);
  for(const viewer of [0,1]){const event=projectEvents(result.events,viewer).find(e=>e.type==='SUPPORT_COMPANY_USED');assert.equal(event.category,category.id);assert(!event.cardId);}
 }
-assert(SUPPORT_COMPANY_CATEGORIES.find(c=>c.id==='deploy').cardIds.includes('98'));assert(SUPPORT_COMPANY_CATEGORIES.find(c=>c.id==='disrupt').cardIds.includes('bh21'));
-console.log('Royal Seal: 11 categories, both seats, three non-Star offers, server validation, private card and public category passed.');
+assert(SUPPORT_COMPANY_CATEGORIES.find(c=>c.id==='deploy').cardIds.includes('98'));assert(SUPPORT_COMPANY_CATEGORIES.find(c=>c.id==='subterfuge').cardIds.includes('bh21'));
+console.log('Royal Seal: 14 categories, both seats, three non-Star offers, server validation, private card and public category passed.');

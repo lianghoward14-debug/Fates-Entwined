@@ -75,9 +75,9 @@ export function assessRecruitment(card,context={}){
     add('deck exhausted',!deck.length?-14:0);
   }
   if(roles.has('recycle'))add(discard.length?'recover spent resources':'no discard targets',discard.length?Math.min(10,discard.length*2)*p.resources:-12);
-  if(roles.has('remove') || roles.has('weaken') || roles.has('disrupt')){
+  if(roles.has('lockdown') || roles.has('weaken') || roles.has('sabotage')){
     add(enemyBoard.length?'answer visible enemy pressure':'no visible enemy target',enemyBoard.length?(losing?12:5)*p.disruption:-9);
-    if(enemyBoard.length && !hasRole('remove') && !hasRole('disrupt'))add('missing interaction',5*p.disruption);
+    if(enemyBoard.length && !hasRole('lockdown') && !hasRole('sabotage'))add('missing interaction',5*p.disruption);
   }
   if(roles.has('protect')){
     add('protect developed board',ownBoard.length && enemyBoard.length?Math.min(9,ownBoard.length*2)*p.preservation:0);
@@ -85,7 +85,7 @@ export function assessRecruitment(card,context={}){
     add('no developed board or Morale need',!ownBoard.length && morale>=maxMorale? -7:0);
   }
   if(roles.has('morale'))add('pressure-oriented personality',8*(p.pressure-1));
-  if(roles.has('power') || roles.has('deploy'))add('development-oriented personality',8*(p.development-1));
+  if(roles.has('power') || roles.has('empower') || roles.has('deploy'))add('development-oriented personality',8*(p.development-1));
   const swing=margins.some(m=>m<0 && m+fate>0);
   if(swing)add('can contest a losing zone',(late?12:7)*p.zones);
   if(margins.length && margins.every(m=>m>=0) && margins.filter(m=>m>0).length>=2)

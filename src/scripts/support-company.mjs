@@ -6,9 +6,111 @@ import {playSupportCompanyAnimation} from './support-company-animation.mjs?v=202
 
 const escape = value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const categoryPaths={"power": "M12 3v18M3 12h18M6 6l12 12M6 18L18 6", "weaken": "M4 5l8 14 8-14M6 5h12M8 12h8", "remove": "M5 5l14 14M19 5L5 19M4 9V4h5M15 20h5v-5", "disrupt": "M14 2L5 14h7l-2 8 9-13h-7z", "protect": "M12 3l8 3v6c0 5-8 9-8 9s-8-4-8-9V6zM8 12h8M12 8v8", "draw": "M4 5h11v15H4zM9 2h11v15M7 10h5M7 14h5", "recycle": "M4 10a8 8 0 0114-4l2 3M20 3v6h-6M20 14a8 8 0 01-14 4l-2-3M4 21v-6h6", "deploy": "M12 20V4M6 10l6-6 6 6M3 17v4h18v-4", "position": "M12 2v20M2 12h20M8 6l4-4 4 4M8 18l4 4 4-4M6 8l-4 4 4 4M18 8l4 4-4 4", "morale": "M12 21S2 15 2 8a5 5 0 0110-2A5 5 0 0122 8c0 7-10 13-10 13M5 12h4l2-4 3 8 2-4h3", "tactics": "M12 2l3 7 7 3-7 3-3 7-3-7-7-3 7-3z"};
+Object.assign(categoryPaths, {
+ power: 'M12 2l4 7-2 5h4l-6 8-6-8h4L8 9z',
+ empower: 'M12 3v12M8 7l4-4 4 4M3 17h6v4H3zM15 17h6v4h-6zM12 12l-6 5M12 12l6 5',
+ lockdown: 'M5 10h14v11H5zM8 10V7a4 4 0 018 0v3M12 14v3',
+ sabotage: 'M14 2L5 14h7l-2 8 9-13h-7z',
+ intelligence: 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12M15 12a3 3 0 11-6 0 3 3 0 016 0',
+ subterfuge: 'M3 5l9 3 9-3v8c0 5-9 8-9 8s-9-3-9-8zM6 11l4 2M18 11l-4 2M9 17h6',
+ adaptation: 'M4 8h15l-4-4M20 16H5l4 4M4 8v5M20 16v-5'
+});
 const categoryIcon=id=>`<span class="sc-category-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="${categoryPaths[id]||categoryPaths.tactics}"/></svg></span>`;
 let busy = false;
 const seenEvents = new Set();
+let dismissCategoryRoster = null;
+
+function categoryRosterCards(category){
+  const catalog=typeof CARDS!=='undefined'?CARDS:[];
+  const ids=new Set((category?.cardIds||[]).map(String));
+  return catalog.filter(card=>ids.has(String(card.id))&&supportCompanyCardEligible(card));
+}
+
+function showSupportCompanyCategoryRoster(category){
+  if(!category)return;
+  dismissCategoryRoster?.();
+  const cards=categoryRosterCards(category);
+  const previous=document.activeElement;
+  const sourceModal=document.getElementById('modal');
+  const sourceModalAriaHidden=sourceModal?.getAttribute('aria-hidden');
+  const sourceModalWasInert=sourceModal?.inert === true;
+  if(sourceModal){
+    sourceModal.classList.add('sc-roster-source-hidden');
+    sourceModal.setAttribute('aria-hidden','true');
+    sourceModal.inert=true;
+  }
+  const root=document.createElement('div');
+  root.className='sc-roster-overlay';
+  root.setAttribute('role','dialog');
+  root.setAttribute('aria-modal','true');
+  root.setAttribute('aria-label',`${category.name} category cards`);
+  root.innerHTML=`<button type="button" class="sc-roster-backdrop" aria-label="Close category roster"></button>
+    <section class="sc-roster-dossier">
+      <header class="sc-roster-heading">
+        <div class="sc-roster-sigil">${categoryIcon(category.id)}</div>
+        <div><span>CALL TO ARMS · FIELD DOSSIER</span><h2>${escape(category.name)}</h2><p>${escape(category.description)}</p></div>
+        <button type="button" class="sc-roster-close" aria-label="Close category roster"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6L18 18M18 6L6 18"/></svg></button>
+      </header>
+      <div class="sc-roster-rule"><span>${cards.length} eligible reinforcement${cards.length===1?'':'s'}</span><span>Right-click a card for full information</span></div>
+      <div class="sc-roster-cards">${cards.map((card,index)=>`<button type="button" class="sc-roster-card" data-roster-index="${index}" aria-label="Inspect ${escape(card.name)}">
+        <img src="${escape(card.img||`${card.id}.png`)}" alt="${escape(card.name)}">
+        <span><strong>${escape(card.name)}</strong><small>${escape(card.type)} · Fate ${escape(card.fate??0)}</small></span>
+      </button>`).join('')||'<p class="sc-roster-empty">No eligible cards are currently assigned to this category.</p>'}</div>
+      <div class="sc-roster-bottom-gutter" aria-hidden="true"></div>
+    </section>`;
+  document.body.append(root);
+  let disposed=false;
+  const cleanup=()=>{
+    if(disposed)return;
+    if(typeof playSfx==='function')playSfx('menuClose');
+    disposed=true;
+    document.removeEventListener('keydown',onKey,true);
+    root.remove();
+    if(sourceModal){
+      if(sourceModal.querySelector('.sc-category-window'))sourceModal.classList.add('on');
+      sourceModal.classList.remove('sc-roster-source-hidden');
+      if(sourceModalAriaHidden===null)sourceModal.removeAttribute('aria-hidden');
+      else sourceModal.setAttribute('aria-hidden',sourceModalAriaHidden);
+      sourceModal.inert=sourceModalWasInert;
+    }
+    if(dismissCategoryRoster===cleanup)dismissCategoryRoster=null;
+    if(previous?.isConnected)previous.focus();
+  };
+  const onKey=event=>{
+    if(document.querySelector('.card-info-overlay.on'))return;
+    if(event.key==='Escape'){
+      event.preventDefault();event.stopPropagation();cleanup();return;
+    }
+    if(event.key==='Tab'){
+      const focusable=[...root.querySelectorAll('button:not(:disabled)')];
+      if(!focusable.length)return;
+      event.preventDefault();
+      const current=focusable.indexOf(document.activeElement);
+      focusable[(current+(event.shiftKey?-1:1)+focusable.length)%focusable.length].focus();
+    }
+  };
+  dismissCategoryRoster=cleanup;
+  document.addEventListener('keydown',onKey,true);
+  root.querySelector('.sc-roster-backdrop')?.addEventListener('click',cleanup);
+  root.querySelector('.sc-roster-close')?.addEventListener('click',cleanup);
+  root.querySelectorAll('.sc-roster-card').forEach(button=>{
+    const card=cards[Number(button.dataset.rosterIndex)];
+    const inspect=event=>{
+      event.preventDefault();event.stopPropagation();
+      if(card&&typeof showCardInfoOverlay==='function'){
+        if(typeof playSfx==='function')playSfx('cardInfoOpen');
+        showCardInfoOverlay({...card});
+        document.querySelector('.card-info-overlay')?.querySelectorAll('.cio-close,.card-info-overlay-backdrop').forEach(control=>control.addEventListener('click',()=>{
+          if(typeof playSfx==='function')playSfx('menuClose');
+        },{once:true}));
+      }
+      else if(card&&typeof openCardDetail==='function')openCardDetail(card);
+    };
+    button.addEventListener('contextmenu',inspect);
+    button.addEventListener('dblclick',inspect);
+  });
+  root.querySelector('.sc-roster-close')?.focus();
+}
 
 function context(player){
   const game = typeof G !== 'undefined' ? G : null;
@@ -70,12 +172,40 @@ window.showSupportCompanyCategoryWindow = function(options){
   const {ability='call',categories:offeredCategories=SUPPORT_COMPANY_CATEGORIES,cost=0,cancellable=true,onSelect,promptId}=options;
   let categories=offeredCategories;
   categories=categories.map(category=>({...SUPPORT_COMPANY_CATEGORIES.find(item=>item.id===category.id),...category,description:category.description || SUPPORT_COMPANY_CATEGORIES.find(item=>item.id===category.id)?.description || ''}));
-  showModal(SUPPORT_COMPANY_NAMES[ability],`<section class="sc-category-window"><div class="sc-category-intro"><span>SUPPORT COMPANY · 01 / 02</span><h3>What does your battle need?</h3><p>Non-Star cards only · Your card stays private; your category is announced.</p>${ability==='desperate'?`<p class="sc-category-cost">${cost} Morale · Paid only when you choose a card</p>`:''}</div><div class="sc-category-grid">${categories.map((c,i)=>`<button type="button" class="sc-category" data-category="${c.id}">${categoryIcon(c.id)}<strong>${escape(c.name)}</strong><span>${escape(c.description)}</span></button>`).join('')}</div></section>`,cancellable ? [{label:'Cancel',action:()=>closeModal()}] : [],{immediate:true});
+  showModal(SUPPORT_COMPANY_NAMES[ability],`<section class="sc-category-window"><div class="sc-category-intro"><span>SUPPORT COMPANY · 01 / 02</span><h3>What does your battle need?</h3><p>Right-click an order to inspect its full reinforcement roster.</p>${ability==='desperate'?`<p class="sc-category-cost">${cost} Morale · Paid only when you choose a card</p>`:''}</div><div class="sc-category-grid">${categories.map((c,i)=>`<button type="button" class="sc-category" data-category="${c.id}" title="Right-click to inspect ${escape(c.name)} cards">${categoryIcon(c.id)}<strong>${escape(c.name)}</strong><span>${escape(c.description)}</span></button>`).join('')}</div></section>`,cancellable ? [{label:'Cancel',action:()=>closeModal()}] : [],{immediate:true});
   if(promptId){
     const picker=document.querySelector('.sc-category-window');
     if(picker)picker.dataset.phase7PromptId=String(promptId);
   }
-  document.querySelectorAll('.sc-category').forEach(button=>button.addEventListener('click',()=>onSelect(button.dataset.category)));
+  document.querySelectorAll('.sc-category').forEach(button=>{
+    button.addEventListener('click',()=>{
+      const category=categories.find(item=>item.id===button.dataset.category);
+      if(!category || (options.isCurrent && !options.isCurrent()))return;
+      let settled=false;
+      showModal('Choose this category?', '<div class="card-discard-confirm-copy"><span class="card-discard-confirm-kicker">Confirm Call to Arms</span><h3>'
+        +escape(category.name)+'</h3><p>Proceed to choose one of three cards from this category?</p></div>',[
+        {label:'Back to Categories',action:()=>{
+          if(settled)return;settled=true;closeModal();
+          if(!options.isCurrent || options.isCurrent())window.showSupportCompanyCategoryWindow(options);
+        }},
+        {label:'Confirm',pri:true,action:()=>{
+          if(settled)return;settled=true;closeModal();
+          if(!options.isCurrent || options.isCurrent())onSelect(category.id);
+        }}
+      ],{immediate:true});
+      document.querySelector('#modal .modal')?.classList.add('card-discard-confirm-modal');
+      if(promptId){
+        const copy=document.querySelector('.card-discard-confirm-copy');
+        if(copy)copy.dataset.phase7PromptId=String(promptId);
+      }
+      document.querySelector('#modal-acts button')?.focus();
+    });
+    button.addEventListener('contextmenu',event=>{
+      event.preventDefault();event.stopPropagation();
+      if(typeof playSfx==='function')playSfx('dossierOpen');
+      showSupportCompanyCategoryRoster(categories.find(category=>category.id===button.dataset.category));
+    });
+  });
   document.querySelector('.sc-category')?.focus();
 };
 

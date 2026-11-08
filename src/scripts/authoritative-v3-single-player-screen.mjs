@@ -223,7 +223,9 @@ export class FateAuthoritativeV3SinglePlayerScreen {
   syncTurnTimer(view){
     const state = view?.state;
     const humanTurn = state && !state.outcome && state.activePlayer === view.playerIndex;
-    const paused = false;
+    const prompt = state?.pendingPrompt;
+    const paused = prompt?.type === 'REACTION'
+      || (Number.isInteger(prompt?.playerIndex) && prompt.playerIndex !== state.activePlayer);
     if(!humanTurn){
       this.stopTurnTimer();
       return;

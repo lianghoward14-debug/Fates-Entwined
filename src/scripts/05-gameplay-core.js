@@ -8119,8 +8119,9 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
     return;
   }
   if(id === '117'){
+    if(G.turn>20)return;
     G._saboteurCloudTurn=G.turn;
-    G._saboteurCloudUntilTurn=G.turn+2;
+    G._saboteurCloudUntilTurn=G.turn+1;
     G._saboteurCloudOwner=cp;
     if(window.FateSaboteurClouds) window.FateSaboteurClouds.sync();
     return;
@@ -10294,6 +10295,18 @@ function queuePairedOverlayFateGain(target, options) {
     // before polling the live animation gates; a single fixed delay is insufficient.
     readyAt:Date.now() + Math.max(opts.kind === 'revolutionary_spirit' ? 1200 : 0, Number(opts.delayMs) || 0)
   });
+  // Multiple Revolutionary copies resolve together on a flip. Keep one visual
+  // transition from the original value to the final stacked result.
+  if(opts.kind === 'revolutionary_spirit' && state.queue.length > 1){
+    const latest = state.queue[state.queue.length - 1];
+    const previous = state.queue[state.queue.length - 2];
+    if(previous.kind === latest.kind && previous.after === latest.before){
+      previous.after = latest.after;
+      previous.readyAt = Math.max(previous.readyAt, latest.readyAt);
+      previous.hideSourceOverlay = previous.hideSourceOverlay && latest.hideSourceOverlay;
+      state.queue.pop();
+    }
+  }
   if(state.running) return true;
   state.running = true;
   const presentNext = function(){

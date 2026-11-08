@@ -11,6 +11,7 @@ const REGISTRY = Object.freeze({
     {kind:'RESOLVE_HOPLITE_CALL',cardId:'$callCardId'}
   ]},
   '117':{timings:['WHEN_SET'],operations:['CREATE_MATCH_STATUS'],prompts:[],program:[
+    {kind:'REQUIRE_MAX_TURN',turn:20},
     {kind:'OPERATION',operation:{type:'CREATE_MATCH_STATUS',status:{type:'SABOTEUR_FIELD_VEIL',playerIndex:'$controller',sourceIid:'$sourceIid'}}}
   ]},
   '118':{timings:['WHEN_SET'],havanoTargeting:'OPPONENT',operations:['TRANSFER_CARDS'],prompts:[],program:[{kind:'CARIBBEA_FISHERMAN'}]},

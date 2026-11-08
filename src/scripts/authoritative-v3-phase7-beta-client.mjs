@@ -228,6 +228,8 @@ function resetForNextMatch(nextCredential){
   const nextMatchId = String(nextCredential?.matchId || '');
   const currentMatchId = String(credential?.matchId || state?.matchId || '');
   if(!currentMatchId || currentMatchId === nextMatchId) return false;
+  // Detach the previous board before the new socket can deliver its first view.
+  unmountGameScreen();
   intentionallyClosed = true;
   clearTimeout(reconnectTimer);
   reconnectTimer = null;
@@ -353,8 +355,43 @@ function applyServerMessage(message){
   }
   emit(message);
   if(activeScreen && state && Number.isInteger(playerIndex)){
-    activeScreen.render(networkAdapter.view());
+    // A UI failure must not close a healthy socket and repeatedly download the
+    // full snapshot. Network decoding and board rendering have separate recovery.
+    try{ activeScreen.render(networkAdapter.view()); }
+    catch(error){ console.error('[Fate Phase 7 Beta] board render failed; connection preserved', error); }
   }
+}
+
+function waitForBetaSocketOpen(connectedSocket, onOpen){
+  return new Promise((resolve, reject)=>{
+    const cleanup = ()=>{
+      clearTimeout(timer);
+      connectedSocket.removeEventListener('open', opened);
+      connectedSocket.removeEventListener('error', failed);
+      connectedSocket.removeEventListener('close', closed);
+    };
+    const fail = message=>{
+      cleanup();
+      // Release a stalled CONNECTING socket so the next attempt creates a new one.
+      if(socket === connectedSocket){
+        socket = null;
+        try{ connectedSocket.close(); }catch(_){}
+        scheduleReconnect();
+      }
+      reject(new Error(message));
+    };
+    const opened = ()=>{
+      cleanup();
+      if(socket !== connectedSocket){ reject(new Error('Phase 7 beta connection superseded')); return; }
+      try{ onOpen?.(); resolve(); }catch(error){ fail(String(error?.message || error)); }
+    };
+    const failed = ()=>fail('Phase 7 beta socket failed to open');
+    const closed = ()=>fail('Phase 7 beta socket closed before opening');
+    const timer = setTimeout(()=>fail('Phase 7 beta socket open timed out'), 20_000);
+    connectedSocket.addEventListener('open', opened, {once:true});
+    connectedSocket.addEventListener('error', failed, {once:true});
+    connectedSocket.addEventListener('close', closed, {once:true});
+  });
 }
 
 async function connect(nextCredential = credential || loadCredential()){
@@ -370,10 +407,7 @@ async function connect(nextCredential = credential || loadCredential()){
   intentionallyClosed = false;
   if(socket && socket.readyState === WebSocket.OPEN) return report();
   if(socket && socket.readyState === WebSocket.CONNECTING){
-    await new Promise((resolve, reject)=>{
-      socket.addEventListener('open', resolve, {once:true});
-      socket.addEventListener('error', reject, {once:true});
-    });
+    await waitForBetaSocketOpen(socket);
     return report();
   }
   const connectedSocket = new WebSocket(WS_URL);
@@ -392,26 +426,17 @@ async function connect(nextCredential = credential || loadCredential()){
     rejectInflight(new Error('Phase 7 beta socket closed before acknowledgement'));
     scheduleReconnect();
   });
-  await new Promise((resolve, reject)=>{
-    const timer = setTimeout(()=>reject(new Error('Phase 7 beta socket open timed out')), 20_000);
-    connectedSocket.addEventListener('open', ()=>{
-      clearTimeout(timer);
-      reconnectAttempts = 0;
-      connectedSocket.send(JSON.stringify({
-        kind:'hello',
-        capabilities:['view-delta-v1'],
-        protocolVersion:3,
-        clientVersion:CLIENT_VERSION,
-        matchId:credential.matchId,
-        playerId:credential.playerId,
-        token:credential.token
-      }));
-      resolve();
-    }, {once:true});
-    connectedSocket.addEventListener('error', ()=>{
-      clearTimeout(timer);
-      reject(new Error('Phase 7 beta socket failed to open'));
-    }, {once:true});
+  await waitForBetaSocketOpen(connectedSocket, ()=>{
+    reconnectAttempts = 0;
+    connectedSocket.send(JSON.stringify({
+      kind:'hello',
+      capabilities:['view-delta-v1'],
+      protocolVersion:3,
+      clientVersion:CLIENT_VERSION,
+      matchId:validatedCredential.matchId,
+      playerId:validatedCredential.playerId,
+      token:validatedCredential.token
+    }));
   });
   return report();
 }
@@ -424,6 +449,7 @@ function disconnect({forget = false} = {}){
   try{ socket?.close(); }catch(_){}
   socket = null;
   if(forget){
+    unmountGameScreen();
     turnClock = null;
     credential = null;
     state = null;
@@ -482,6 +508,12 @@ async function waitForInitialView(timeoutMs = 20_000){
       reject(new Error('Phase 7 initial server snapshot timed out'));
     }, timeoutMs);
     const unsubscribe = subscribe(message=>{
+      if(message?.kind === 'error'){
+        clearTimeout(timer);
+        unsubscribe();
+        reject(new Error(String(message.reason || 'Server could not open this match')));
+        return;
+      }
       if(!['snapshot','accepted'].includes(String(message?.kind || ''))) return;
       const view = networkAdapter.view();
       if(!view) return;
@@ -606,18 +638,38 @@ async function startUnrankedMatchmaking({deckIds, name = '', photoURL = '', rank
   }
   if(cancelled()) return {ok:false, status:'cancelled'};
   if(typeof onStatus === 'function') onStatus({status:'matched', matchId:matchedCredential.matchId});
-  await connect(matchedCredential);
-  if(cancelled()){
-    disconnect({forget:true});
-    return {ok:false, status:'cancelled'};
-  }
-  await waitForInitialView();
-  if(cancelled()){
-    disconnect({forget:true});
-    return {ok:false, status:'cancelled'};
-  }
+  const joined = await connectMatchedCredential(matchedCredential, cancelled, onStatus);
+  if(!joined) return {ok:false, status:'cancelled'};
   await mountGameScreen();
   return {ok:true, status:'matched', credential:clone(credential), connection:report()};
+}
+
+async function connectMatchedCredential(matchedCredential, cancelled, onStatus){
+  // Retry the delivered match, never re-enter matchmaking and create another room.
+  for(let attempt = 0; attempt < 3; attempt++){
+    if(cancelled()) return false;
+    try{
+      await connect(matchedCredential);
+      if(cancelled()){
+        if(credential?.matchId === matchedCredential.matchId) disconnect({forget:false});
+        return false;
+      }
+      await waitForInitialView();
+      if(cancelled()){
+        if(credential?.matchId === matchedCredential.matchId) disconnect({forget:false});
+        return false;
+      }
+      return true;
+    }catch(error){
+      if(cancelled()) return false;
+      if(fatalError || attempt === 2) throw error;
+      disconnect({forget:false});
+      if(typeof onStatus === 'function') onStatus({status:'matched', matchId:matchedCredential.matchId,
+        reconnecting:true, message:'Reconnecting to your match…'});
+      await new Promise(resolve=>setTimeout(resolve, 500 * (attempt + 1)));
+    }
+  }
+  return false;
 }
 
 async function leaveMatchmaking(){

@@ -1,0 +1,36 @@
+import fs from 'node:fs';
+import vm from 'node:vm';
+import assert from 'node:assert/strict';
+const source=fs.readFileSync('src/scripts/authoritative-v3-phase7-beta-client.mjs','utf8');
+const start=source.indexOf('function waitForBetaSocketOpen(');
+const code=source.slice(start,source.indexOf('\nasync function connect(',start));
+class Socket extends EventTarget { closed=false; close(){this.closed=true;this.dispatchEvent(new Event('close'));} }
+let id=0,retries=0;const timers=new Map();
+const ctx={socket:null,Error,setTimeout(fn){timers.set(++id,fn);return id;},clearTimeout(id){timers.delete(id);},scheduleReconnect(){retries++;}};
+vm.createContext(ctx);vm.runInContext(code,ctx);
+let socket=ctx.socket=new Socket();
+let promise=ctx.waitForBetaSocketOpen(socket);let rejected=assert.rejects(promise,/timed out/);
+[...timers.values()][0]();await rejected;
+assert.equal(ctx.socket,null);assert.equal(socket.closed,true);assert.equal(retries,1);assert.equal(timers.size,0);
+socket=ctx.socket=new Socket();let hellos=0;
+promise=ctx.waitForBetaSocketOpen(socket,()=>hellos++);socket.dispatchEvent(new Event('open'));await promise;
+assert.equal(hellos,1);assert.equal(ctx.socket,socket);assert.equal(timers.size,0);
+// An established connection closing is handled by the regular reconnect listener.
+socket.close();assert.equal(retries,1);
+socket=ctx.socket=new Socket();promise=ctx.waitForBetaSocketOpen(socket);rejected=assert.rejects(promise,/closed before opening/);socket.close();await rejected;assert.equal(ctx.socket,null);
+socket=ctx.socket=new Socket();
+const first=assert.rejects(ctx.waitForBetaSocketOpen(socket),/failed to open/);
+const second=assert.rejects(ctx.waitForBetaSocketOpen(socket),/closed before opening/);
+socket.dispatchEvent(new Event('error'));await Promise.all([first,second]);assert.equal(timers.size,0);
+console.log('PASS: stalled sockets release, retries open fresh connections, early close and concurrent waiters settle, listeners/timers clean up.');
+const retryCode=source.slice(source.indexOf('async function connectMatchedCredential('),source.indexOf('\nasync function leaveMatchmaking('));
+let connects=0,snapshots=0,disconnects=0,cancelled=false;
+const delivered={matchId:'same-room'},statuses=[];
+const recovery={credential:delivered,fatalError:'',connect:async c=>{assert.equal(c,delivered);connects++;},waitForInitialView:async()=>{if(++snapshots===1)throw Error('snapshot timed out');},disconnect:()=>disconnects++,setTimeout:fn=>{fn();}};
+vm.createContext(recovery);vm.runInContext(retryCode,recovery);
+assert.equal(await recovery.connectMatchedCredential(delivered,()=>cancelled,s=>statuses.push(s)),true);
+assert.equal(connects,2);assert.equal(disconnects,1);assert.equal(statuses[0].matchId,'same-room');
+cancelled=true;assert.equal(await recovery.connectMatchedCredential(delivered,()=>cancelled),false);assert.equal(connects,2);
+cancelled=false;recovery.waitForInitialView=async()=>{throw Error('offline');};
+await assert.rejects(recovery.connectMatchedCredential(delivered,()=>cancelled),/offline/);assert.equal(connects,5,'three attempts, never unbounded');
+console.log('PASS: missing snapshot retries same match, cancellation stops recovery, persistent outage is bounded.');

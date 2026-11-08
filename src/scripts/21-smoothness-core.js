@@ -632,7 +632,7 @@
 
   function scheduleOptimizeImages(root){
     if(root){
-      const coarseRoot = getRelevantImageRoot(root);
+      const coarseRoot = root;
       if(coarseRoot) pendingImageRoots.add(coarseRoot);
     }
     if(imageFlushScheduled) return;
@@ -1135,6 +1135,7 @@
     overlay.className = 'fate-loading-screen';
     overlay.innerHTML = `
       <div class="fate-loading-panel">
+        <div class="fate-loading-seal" aria-hidden="true"><span style="--i:0"></span><span style="--i:1"></span><span style="--i:2"></span><span style="--i:3"></span><span style="--i:4"></span><span style="--i:5"></span><span style="--i:6"></span><span style="--i:7"></span><span style="--i:8"></span><span style="--i:9"></span><span style="--i:10"></span><span style="--i:11"></span></div>
         <div class="fate-loading-kicker">Fates Entwined</div>
         <div class="fate-loading-title">Preparing menu screens</div>
         <div class="fate-loading-percent">0%</div>
@@ -1916,42 +1917,19 @@
 
   function installObserver(){
     if(!window.MutationObserver || document.__fateSmoothObserver) return;
-    // Only fire when the added nodes contain at least one IMG element. The previous
-    // version fired on EVERY DOM mutation anywhere in the document — text changes
-    // in the pending badge, presence renders, notifications, etc. — which on the
-    // title screen meant ~44 times per second of useless work for a node tree
-    // that has zero new images.
-    function recordHasImage(record){
-      if(!record.addedNodes || !record.addedNodes.length) return false;
-      for(let i=0; i<record.addedNodes.length; i++){
-        const n = record.addedNodes[i];
-        if(!n || n.nodeType !== 1) continue;
-        if(n.tagName === 'IMG') return true;
-        if(n.querySelector && n.querySelector('img')) return true;
-      }
-      return false;
-    }
+    // Optimize inserted subtrees rather than rescanning the entire cached menu.
     document.__fateSmoothObserver = new MutationObserver(function(records){
-      let anyImage = false;
       const roots = new Set();
-      for(let i=0; i<records.length; i++){
-        const record = records[i];
-        if(!recordHasImage(record)) continue;
-        anyImage = true;
-        if(record.target && isHighChurnGameRoot(record.target)) continue;
-        if(record.target && record.target.nodeType === 1) {
-          const root = getRelevantImageRoot(record.target);
-          if(root) roots.add(root);
-        }
+      records.forEach(function(record){
         record.addedNodes.forEach(function(node){
-          if(isHighChurnGameRoot(node)) return;
-          const root = getRelevantImageRoot(node);
-          if(root) roots.add(root);
+          if(!node || node.nodeType !== 1 || isHighChurnGameRoot(node)) return;
+          if(node.tagName === 'IMG' || (node.querySelector && node.querySelector('img'))) roots.add(node);
         });
-      }
-      if(!anyImage) return;
+      });
       roots.forEach(function(root){
-        if(isHighChurnGameRoot(root)) return;
+        for(let parent = root.parentElement; parent; parent = parent.parentElement){
+          if(roots.has(parent)) return;
+        }
         scheduleOptimizeImages(root);
       });
     });

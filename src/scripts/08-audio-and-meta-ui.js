@@ -676,7 +676,7 @@ function playSfx(type) {
     return window.playCarolynLockTone();
   }
   const isTurnChangeSound = type === 'turnChange';
-  const isMenuSound = ['uiClick','navClick','tabSwitch','backBtn','filterClick','danger','deckAdd','deckRemove','menuOpen','menuClose','hover','cardHover','boardCardHover','deckComplete','cardPreview','playBtn','categorySwitch','modalConfirm','modalCancel','screenTransition','socialAction','socialOpen','socialNotify'].includes(type);
+  const isMenuSound = ['uiClick','navClick','tabSwitch','backBtn','filterClick','danger','deckAdd','deckRemove','menuOpen','menuClose','hover','cardHover','boardCardHover','deckComplete','cardPreview','playBtn','categorySwitch','dossierOpen','modalConfirm','modalCancel','screenTransition','socialAction','socialOpen','socialNotify'].includes(type);
   if(isMenuSound) {
     const startupOverlay = typeof document !== 'undefined' ? document.getElementById('fate-loading-screen') : null;
     if(startupOverlay && !startupOverlay.classList.contains('is-hiding')) return;
@@ -1176,6 +1176,21 @@ function playSfx(type) {
       const subG = ctx.createGain(); subG.gain.setValueAtTime(0.025,now);
       subG.gain.exponentialRampToValueAtTime(0.001,now+0.03);
       sub.connect(subG); subG.connect(vol); sub.start(now); sub.stop(now+0.04);
+    }
+
+    else if(type==='dossierOpen'){
+      // Give the category inspection cue a stronger presence at the user's volume.
+      const dossierGain=ctx.createGain();dossierGain.gain.value=2;dossierGain.connect(vol);
+      // A dry folder-open cue: two paper strokes followed by a restrained clasp.
+      const paperA=noiseBurst(.16,1.7,.28,'bandpass',1350,1.2);
+      const paperAG=ctx.createGain();paperAG.gain.setValueAtTime(.001,now);paperAG.gain.linearRampToValueAtTime(.34,now+.012);paperAG.gain.exponentialRampToValueAtTime(.001,now+.16);
+      paperA.disconnect();paperA.connect(paperAG);paperAG.connect(dossierGain);paperA.start(now);
+      const paperB=noiseBurst(.12,1.5,.22,'bandpass',2100,1.5);
+      const paperBG=ctx.createGain();paperBG.gain.setValueAtTime(.001,now+.075);paperBG.gain.linearRampToValueAtTime(.24,now+.09);paperBG.gain.exponentialRampToValueAtTime(.001,now+.21);
+      paperB.disconnect();paperB.connect(paperBG);paperBG.connect(dossierGain);paperB.start(now+.075);
+      const clasp=ctx.createOscillator();clasp.type='triangle';clasp.frequency.setValueAtTime(620,now+.12);clasp.frequency.exponentialRampToValueAtTime(260,now+.2);
+      const claspG=ctx.createGain();claspG.gain.setValueAtTime(.16,now+.12);claspG.gain.exponentialRampToValueAtTime(.001,now+.23);
+      clasp.connect(claspG);claspG.connect(dossierGain);clasp.start(now+.12);clasp.stop(now+.24);
     }
 
     else if(type==='uiClick'){
@@ -2293,9 +2308,9 @@ const CARD_SOUNDS = {
   '20': '20set', '21': 'henry-consolidation-20261103', '22': '22set', '23': '23set',
   '24': '24set', '25': '25set', '26': '26set', '27': '27set',
   '28': '28set', '29': '29set', '30': '30set', '31': '31set',
-  '32': '32set', '33': '33set', '34': '34set', '35': '35set',
-  '36': '36set', '37': '37set', '38': '38set', '39': '39set',
-  '40': '40set', '41': '41set', '42': '42set', '43': '43set',
+  '32': '32set', '33': '33set', '34': 'rozsi-consolidation-20261107', '35': 'alexander-consolidation-20261107',
+  '36': '36set', '37': '37set', '38': '38set', '39': 'juan-consolidation-20261108',
+  '40': 'chris-consolidation-20261108', '41': '41set', '42': '42set', '43': 'mark-consolidation-20261108',
   '44': '44set', '45': '45set', '46': '46set', '47': '47set',
   '48': '48set', '49': '49set', '50': '50set', '51': '51set',
   '52': '52set', '53': '53set', '54': '54set', '55': '55set',
@@ -2332,8 +2347,8 @@ const AVAILABLE_CARD_SOUND_FILES = new Set([
   '101', '103',
   '102',
   '1set','2set','3set','4set','6set','maja-consolidation-20261030','8set','10set','11set','12set','johnathan-consolidation-20261030','14set','15set',
-  'carolyn-consolidation-20261102','kvetka-consolidation-20261103','henry-consolidation-20261103','22set','23set','27set','29set','30set','34set','35set','36set','38set',
-  '39set','40set','41set','43set','45set','46set','48set','51set','55set','56set','57set','61set',
+  'carolyn-consolidation-20261102','kvetka-consolidation-20261103','henry-consolidation-20261103','22set','23set','27set','29set','30set','rozsi-consolidation-20261107','alexander-consolidation-20261107','36set','38set',
+  'juan-consolidation-20261108','chris-consolidation-20261108','41set','mark-consolidation-20261108','45set','46set','48set','51set','55set','56set','57set','61set',
   '66set','67set','77set','bh1','bh2','bh3','bh4','bh5','bh6','bh7','bh8','bh9','bh10','bh11','bh12','bh13','bh14','bh15','bh16','bh17','bh18','bh19','bh20','horizons24set','../new voices/81set','../new voices/82set','../new voices/83set',
   '../new voices/84set','../new voices/85set','../new voices/86set','../new voices/87set','../new voices/88set',
   '../new voices/89set','../new voices/90set','../new voices/99set','../new voices/100set'
@@ -2341,6 +2356,7 @@ const AVAILABLE_CARD_SOUND_FILES = new Set([
 const DEFAULT_AUDIO_SETTINGS = {
   music: 0.20,
   voice: 0.8,
+  chatter: 0.8,
   sfx: 0.8,
   master: 1.0,
   menu: 1.0
@@ -2355,6 +2371,7 @@ let _bh19UnderlyingGameMusic = null;
 let _currentScreen = 's-title';
 let _musicVol = DEFAULT_AUDIO_SETTINGS.music;
 let _voiceVol = DEFAULT_AUDIO_SETTINGS.voice;
+let _chatterVol = DEFAULT_AUDIO_SETTINGS.chatter;
 let _sfxVol = DEFAULT_AUDIO_SETTINGS.sfx;
 let _masterVol = DEFAULT_AUDIO_SETTINGS.master;
 let _menuVol = DEFAULT_AUDIO_SETTINGS.menu;
@@ -2668,7 +2685,7 @@ function playCardSound(cardId) {
   if(AVAILABLE_CARD_SOUND_FILES && !AVAILABLE_CARD_SOUND_FILES.has(soundFile)) return;
   try {
     let src = SET_VOICELINE_PATH(soundFile);
-    const updatedSetVoices = new Set(['2set','11set','14set','15set','17set','35set','40set','61set','bh8']);
+    const updatedSetVoices = new Set(['2set','11set','14set','15set','17set','alexander-consolidation-20261107','40set','61set','bh8']);
     if(updatedSetVoices.has(soundFile)) src += (src.indexOf('?') >= 0 ? '&' : '?') + (soundFile === '2set' ? 'v=20261008-anicka-replacement' : soundFile === 'bh8' ? 'v=20260723a' : 'v=20260615a');
     const audio = new Audio(src);
     applyCardVoiceGain(audio, cardId);
@@ -2850,6 +2867,12 @@ function setVoiceVolume(val) {
   syncAudioControl('vol-voice', pct);
 }
 
+function setChatterVolume(val) {
+  const pct = clampAudioPercent(val);
+  _chatterVol = pct/100;
+  syncAudioControl('vol-chatter', pct);
+}
+
 function setSfxVolume(val) {
   const pct = clampAudioPercent(val);
   _sfxVol = pct/100;
@@ -2948,6 +2971,7 @@ function fateAudioReport() {
     musicVolume: _musicVol,
     sfxVolume: _sfxVol,
     voiceVolume: _voiceVol,
+    chatterVolume: _chatterVol,
     menuVolume: _menuVol,
     masterVolume: _masterVol,
     bg: _bgMusic ? { src: _bgMusic.currentSrc || _bgMusic.src, paused: _bgMusic.paused, readyState: _bgMusic.readyState, error: _bgMusic.error && _bgMusic.error.code } : null,
@@ -3305,6 +3329,7 @@ function showAudioSettings() {
   const av = Math.round(_masterVol*100);
   const mv = Math.round(_musicVol*100);
   const vv = Math.round(_voiceVol*100);
+  const cv = Math.round(_chatterVol*100);
   const sv = Math.round(_sfxVol*100);
   showModal('Audio',`
     <div class="audio-settings-content">
@@ -3326,6 +3351,10 @@ function showAudioSettings() {
       <div class="audio-slider-row">
         <div class="audio-slider-meta"><span>Voices</span><output id="vol-voice-readout">${vv}%</output></div>
         <input type="range" min="0" max="100" value="${vv}" oninput="setVoiceVolume(this.value);var o=document.getElementById('vol-voice-readout');if(o)o.textContent=this.value+'%';">
+      </div>
+      <div class="audio-slider-row">
+        <div class="audio-slider-meta"><label for="vol-chatter">Chatter Voices</label><output id="vol-chatter-readout">${cv}%</output></div>
+        <input id="vol-chatter" type="range" min="0" max="100" value="${cv}" oninput="setChatterVolume(this.value);var o=document.getElementById('vol-chatter-readout');if(o)o.textContent=this.value+'%';">
       </div>
     </div>
     `,[{label:'Close',action:closeModal}], {immediate:true});

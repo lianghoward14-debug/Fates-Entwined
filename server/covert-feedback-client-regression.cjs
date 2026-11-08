@@ -1,0 +1,25 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
+let harness=fs.readFileSync('server/idle-chatter-regression.cjs','utf8').split('const h=harness();')[0];
+harness=harness.replace('addEventListener(){}','addEventListener(name,fn){handlers[name]=fn;}').replace('return {g,window,document,audios,classes,','return {g,window,document,audios,classes,handlers,');
+const context=vm.createContext({require,__dirname,console});
+vm.runInContext(harness+`
+const receiver=harness();
+receiver.window.FatePhase7CurrentMultiplayerUi={report:()=>({active:true,matchId:'covert'})};
+receiver.g.board=[];
+const receive=index=>receiver.handlers['fate-v3-beta-message']({detail:{kind:'idle-chatter',matchId:'covert',characterKey:'anicka',index}});
+receive(0);assert.equal(receiver.audios.length,0,'absent character stays silent');
+receiver.g.board=[[[{id:'02',owner:1,faceDown:true}]]];
+receive(1);assert.equal(receiver.audios.length,0,'face-down character stays silent');
+receiver.g.board[0][0][0].faceDown=false;
+receive(2);assert.equal(receiver.audios.length,1,'visible opposing character speaks');
+receive(0);assert.equal(receiver.audios.length,1,'suppressed line is not replayed');
+`,context);
+const source=fs.readFileSync('src/scripts/06-rendering-and-helpers.js','utf8');
+const start=source.indexOf('        if(cell && !entry){',source.indexOf('function showBoardTargetPicker('));
+const end=source.indexOf('        cells.appendChild(cellEl);',start);
+const notices=[],cellEl={setAttribute(){}};let prevented=0,stopped=0;
+vm.runInNewContext(source.slice(start,end),{cell:{iid:'stale'},entry:null,cellEl,toast:message=>notices.push(message)});
+cellEl.onclick({preventDefault(){prevented++},stopPropagation(){stopped++}});
+cellEl.onkeydown({key:'Enter',preventDefault(){prevented++},stopPropagation(){stopped++}});
+assert.equal(notices.length,2);assert(notices.every(s=>s==='That move is not eligible. Choose another target.'));assert.equal(prevented,2);assert.equal(stopped,2);
+console.log('PASS: invisible chatter is suppressed; ineligible target clicks and keyboard input show feedback.');

@@ -2,6 +2,67 @@
 (function(){
   'use strict';
   const characters = Object.freeze({
+    chingachlook:{name:'Chingachlook',portrait:'pfp/pfp45.png',file:'Chingachlook',ids:new Set(['45']),clips:[
+      ['Great Spirit, Maker of All Life.','A warrior goes to you swift and straight as an arrow shot into the sun.','Welcome him and let him take his place at the council fire of my people.','He is Uncas, my son.'],
+      ['The frontier moves with the sun and pushes the Red Man of these wilderness forests in front of it','until one day there will be nowhere left.','Then our race will be no more, or be not us.'],
+      ['There is no future for someone like me.','There are no more paths to walk, no more stories to tell.','I hold onto my heritage, the traditions of my people, because I am the last of my kind.','If I die, then the Mohicans will die with me.'],
+      ['Look upon the sky - the Running Deer, as swift as the wind, is visible tonight.','And look besides him, to the east - you can see the Leaping Salmon.','Across the vast prarie and trickling river, these animals run free, unbothered by the threat of the hunt.'],
+      ['My son may have fallen years ago, but I still carry his axe besides me, so that his spirit may never be lost.','I know that even in this foreign wilderness, he and his ancestors still watch over me,','guiding me along my final journey.']
+    ]},
+    phil:{name:'Phil',portrait:'pfp/pfp46.png',file:'Phil',ids:new Set(['46']),clips:[
+      ['It doesn\'t matter if its Moloch, Baal, Satan, Barack Obama, or Mason Russell-','there is no greater evil, no greater malice, no greater depravity in an infinite amount of eons of the universe,','than the 115 IQ rock climbing matcha drinking midwits who work in this financial firm.'],
+      ["REAL feudalism hasn't been tried before -",'if you look here in my monarchist manifesto, you would see exactly what I\'m talking about.','Mrs. Stroschneider from high school even thought I made a convincing argument.'],
+      ['We should all lament what our universities have become -','putrid farms for corporate advancement, stinking of upper middle class students who used ChatGPT and exaggerated resumes to buy their way in.','What happened to the love of learning?'],
+      ['ARE YOU HAPPY? IS THIS WHAT YOU WANTED?','I DARE YOU TO CALL ME A BLACK HOLE ONE MORE TIME,','SEE WHAT HAPPENS, YOU SOCIOPATHIC LITTLE SHUT'],
+      ['In the most respectful way possible,','I hope all of the subhumans who work in corporate finance have their bones grinded into dust under a hydraulic press.','They contribute nothing to society, and get paid hundreds of thousands a year','to let Claude make pretty colors on a computer app for eight hours straight.']
+    ]},
+    mark:{name:'Mark Kemper',portrait:'pfp/pfp43.png',file:'Mark',ids:new Set(['43']),clips:[
+      ['Howard... take a fucking log and swallow it and fucking choke.'],
+      ['I think this whole "back Israel no matter what" thing actually isn\'t good for our country.',"Now, I'm not antisemitic, I have Jewish friends, like Dylan.",'Well, sometimes he really gets on my nerves.','Like sometimes he gets a little too Jewish, you know?'],
+      ["After I'm done pounding your face to a pulp with my bare hands,",'I think I\'m going to take a nap, hit the gym, take a nap, eat some Indian food, and suffer terrible indigestion.','Ahh, what a perfect day.'],
+      ["Johnny Cash is God's greatest gift this past century.",'His iconic, deep baritone, his emotional themes, the weight he puts into every line.',"It's all so moving... Huh? What do you mean all his songs are stolen?"],
+      ["What year was it again? 1914?","Didn't the South rise up against the North in the Civil War to eradicate the Jews from Europe during that time?"]
+    ]},
+    isaac:{name:'Isaac Perez',portrait:'pfp/pfp22.png',file:'Isaac',ids:new Set(['22']),clips:[
+      ['The unfortunate reality is that infinite energy is not necessarily infinite energy for the masses -','it becomes a tool used by those in power to improve their own selfish positions.'],
+      ['Look at the diagnostic feeds—alpha heating has completely taken over and Q is climbing past fifteen.','The external heaters are totally throttled down, but the confinement is holding;','we have a self-sustaining burning plasma.'],
+      ["We're dealing with severe anomalous transport in the scrape-off layer,",'and the resulting edge-localized modes are threatening a catastrophic plasma disruption.',"If we can't mitigate these magnetohydrodynamic instabilities,",'the heat flux will completely erode the divertor armor.'],
+      ["I'm not the head scientist of ALPINE because I know the most or am the smartest.","It's because I understand that the key to discovery is collaboration and humility."],
+      ['No achievement is solely my own -','it is built on the backs of the great scientific minds of past and present.','May the lord continue to bless the path of discovery.']
+    ]},
+    jake:{name:'Jake',portrait:'pfp/pfp38.png',file:'Jake',ids:new Set(['38']),clips:[
+      ['My name is Jake, my likes include Heroes, being fat, gay sex and hot men.','I hope I can be a good husband to a loving man.','Also I work at Del Taco and wish I was Mexican. I love Jimmy.'],
+      ["Oh so you don't like watching me play Star of Providence?","Would you prefer it if you watched me make love to your sister instead,","burying her underneath the rolls of my stomach?"],
+      ['Where is my goth, short hair, tomboy, small feet, Winco, King Gizzard, munchie meal, skater, asian girlfriend,','who I have to beg to physically pleasure me?'],
+      ['Besides jacking off to tomboys and being fat, my favorite thing to do is to be playing video games with my friends,','leave to go use the bathroom, never come back,','and keep them waiting for hours with no indication.'],
+      ['If you put a gun to my head and asked for me to choose between never eating a Munchie Meal from Jack in the Box ever again','or to accept that the Clockwork God cannot exist,','I will take the gun and blow my brains out immediately.']
+    ]},
+    juan:{name:'Juan Carlos',portrait:'pfp/pfp39.png',file:'Juan',ids:new Set(['39']),clips:[
+      ['Stand behind me, my brothers and sisters of Costa Rica.','Gaze upon my unparalleled divinity, and be inspired!'],
+      ['Down with the bird cult. Down with MINAE.','Down with Makenna. Down with Mimi, and all the misery that she\'s caused!'],
+      ['Mimi is not what she seems. On the outside, is a regular bird.','But she is the fury of the nebula - she is the destruction of cosmos, of stars, of galaxies -','we must see to her defeat, else we risk the destruction all that we know!'],
+      ['I am no mere mortal. I am the brother to Bobby Jones, Providence of the Cosmos.','I was born in the heart of a supernova.','My galactic flail, holds the core of an infinitely collapsing neutron star. Makenna cannot defeat me.'],
+      ["Makenna's Bird Cult is divorced from the concept of true divinity.",'There is no god in such simple creatures,','There is no rationality behind behind her deluded cult of personality.']
+    ]},
+    chris:{name:'Christopher Erbs',portrait:'pfp/pfp40.png',file:'Chris',ids:new Set(['40']),clips:[
+      ["People ask me, why do we patrol the wastes of Temecula, fighting zombie hordes?","I then ask them, what's the alternative? Hiding behind a wall like a sitting duck?"],
+      ["Just like everyone else, I've lost my parents.","But I've also lost a many good men along the way. And yet we must march on, no?"],
+      ["If you're resourceful enough, anything can become useful.",'Here in the wastes, the outside body of cars can be perfectly molded into a set of armor -',"that's what the kids at Great Oak do.",'And look, road signs are everywhere - they make the perfect shield.'],
+      ['Pechanga...Pechanga has fallen. My old home... the parks I used to go to...','the walks I used to take with Daisy...all of it...it is completely overrun now...', 'Those zombies!...we will take it back one day...'],
+      ['Brawler Company! Hold up your shields, fasten your weapons.','The students of Great Oak, our home, our comrades, are surrounded on all sides by miles of zombie hordes!','We must liberate them! We must break the siege!','Prepare to charge, show no mercy, and break their lines!']
+    ]},
+    jimmy:{name:'Jimmy',portrait:'pfp/pfp41.png',file:'Jimmy',ids:new Set(['41','bh18']),clips:[
+      ['Within the depths of my unloving heart, burns a blazing fire -','The fire of incel rage!'],
+      ['The establishment is out to get me - They keep sending me government agents to try to turn me,','because they know just how dangerous I can be, but I know the truth!','All of them are foids! All of them pretend to care about me, but its all a psyop!'],
+      ['These foids would never understand the frighteningly complex inner world that I harbor.','Do they know about HOI4 space marines? NO.','Do they know how to find a sword shrine in Terraria? NO.','They are clueless people, and all they care about is hypergamy!'],
+      ['I call upon the powers of incel past, incel present, and incel future to aid me in this defining moment!','May all those who have, do, and ever will feel incelic fury strike down the evil foid in front of me!'],
+      ['In the depths of foidal hypergamy, there is an incel shackled to the earth.','He is the first incel, the true incel, and he has been filled with an unspeakable rage.','His wrath, his fury, his unparalleled desire to destroy foids -','his coming will bring true inceldom into this hypergamous world.']
+    ]},
+    santiago:{"name":"Santiago","portrait":"pfp/pfp30.png","file":"Santiago","clips":[["Your defiance is charming - I'm almost tempted to keep you alive.","But I do not take lightly to treason and disobedience.","Throw him overboard."],["I have no pity for who oppose me.","But I do have pity for those who may still be useful."],["Tengo muchos enemigos.","Pero muchos de mis enemigos también tienen sus propios enemigos.","Lo mejor es dejar que se enfrenten entre ellos mientras tanto."],["They don't call me \"El Matador del Mares\" because I kill people.","No, they call me \"El Matador\" because I kill people, and then I kill anyone who may have been allied with them, in one way or another."],["I hold many grudges.","But there is one grudge in particular that I've dedicated the entirety of my life to..."]],ids:new Set(["30"])},
+    rozsi:{"name":"Rozsi Szocs","portrait":"pfp/pfp34.png","file":"Rozsi","clips":[["I want Hungarian schoolchildren across the nation, to feel the same joy I felt, when I picked up my first history book as a child."],["We are not true citizens of the country unless we are properly educated on what our nation is, where it came from, and what it could become"],["The future of our country lies with its ability to educate the population.","Already, under my sister and I, we have propelled Hungarian Education as the model to emulate across the world."],["I could not rule this country without my sister.","She knows me well, I know her well.","We cover each other weaknesses, and support each others strengths."],["Every day spent not reading a book, is a day spent as if you are dead."]],ids:new Set(["34"])},
+    alexander:{"name":"Alexander the Magnificient","portrait":"pfp/pfp35.png","file":"Alexander","clips":[["That age may be over, of when kings used to fight their own battles - but here I stand, as a testament to that glorious tradition!"],["Athenians!","Macedonians!","Thracians!","Spartans!","Epirots!","Let us show them what it means to be Greek!","Let us show them the meaning of  a Hellenic Age!"],["I am not Alexander the Great.","I am not his cousin, his son, or even his grandson.","I am Alexander the Magnificient, and I will be Alexander the Magnificient untill I die!"],["A golden sun rises behind me.","The men of my nation stands beside me, at the ready.","I hold a bronze shield, and the spear of noble warriors that came before me.","On this day, on this battlefield, you will be defeated!"],["This is a war you cannot win.","We will fight, we will die, we will march to the ends of the world to defeat you!"]],ids:new Set(["35"])},
+    marie:{"name":"Marie L'amboure","portrait":"pfp/pfp36.png","file":"Marie","clips":[["I am certain the Maginot will hold against the Soviet and German advance.","The French people today are unlike their ancestors in previous conflicts - they are fiercer, they are stronger, and most of all, they are ready to prove their point."],["hahaha, Do not bother me the trivialities of my political opponent.","Their voice is so meager, so frail, I cannot hear it over the sound of my own footsteps."],["Make no mistake about it.","Not only will never reach Paris, but even if Paris fell, I am not surrendering the French Nation.","I will not surrender even if all of France is taken, or if even all of her posessions across the sea are taken.","We will never surrender."],["I'm not sure my political opponent is even tall enough to speak to me eye to eye - isn't he like 168cm?","These days, that's a little short!","I better take off my shoes to speak to him, no?","I don't want to be mistaken around children."],["Denigrating your political opponent, insulting them, digging up their old dirt- this has been the way of winning politics for decades now.","To bury your head in the sand and pretend that this isn't true is delusion."]],ids:new Set(["36"])},
+
     kvetka:{name:"Květka Svoboda",portrait:"pfp/pfp19.png",ids:new Set(["19","87"]),file:"Kvetka",
       clips:[["I may be the queen of Czechoslovakia, but I like to think I'm still a young girl at heart,","Picking snow-tipped flowers in the Carpathian mountains."],["If you were to ask me, whether I like being Queen of Czechoslovakia or being a","College student better, It's a pretty obvious decision.","After all, monarchies don't have midterms!"],["My siblings in Poland and Hungary have their own idea of what's the best for economic","Growth in their nations.","But Czechoslovakia has always been a land of winding rivers and picturesque woods -","I'm not going to spoil Bohemia with factories."],["I used to hate the idea of being a politician.","But I realize now, it's not so bad when the entire nation universally adores you."],["My favorite part of the day is the part where I wake up, walk up to my window,","And get thrown out by Slovakian secessionists."]]
     },
@@ -128,7 +189,7 @@
       || g?.consolidating || (report?.active && report.consolidationActive)
       || document.body.classList.contains('cinematic-lock')
       || !!document.querySelector('.cc-overlay-v2, .effect-activation-cinematic, .morale-cycle-resolution-reveal, .consolidation-cinematic-overlay');
-    const audio = typeof fateAudioReport === 'function' ? fateAudioReport() : {voiceVolume:1, masterVolume:1};
+    const audio = typeof fateAudioReport === 'function' ? fateAudioReport() : {chatterVolume:0.8, masterVolume:1};
     return {
       matchId:local?.state.matchId || (report?.active ? report.matchId : ''),
       multiplayer:!!(report?.active && report.matchId && !local),
@@ -143,7 +204,7 @@
         && (state.phase || 'main') === 'main' && !state.outcome && !g?._phase7Outcome
         && eligibleCharacters.length > 0 && !busy),
       eligibleCharacters,
-      volume:Math.min(0.7, Math.max(0, audio.voiceVolume * audio.masterVolume))
+      volume:Math.min(0.7, Math.max(0, (audio.chatterVolume ?? audio.voiceVolume ?? 0.8) * audio.masterVolume))
     };
   }
   function ensurePanel(){
@@ -160,7 +221,7 @@
     const audio = new Audio(clipUrl(character, choice.index));
     window.applyCardVoiceGain?.(audio, [...character.ids][0]);
     const run = {audio, key:choice.key, started:false, requestedAt:Date.now()};
-    current = run; audio.volume = volume;
+    current = run; audio.volume = Math.min(1, volume * (character.file === 'Marie' ? 1.4 : 1));
     function fail(error){
       if(current !== run) return;
       // Autoplay denial is retryable after user input; corrupt/missing clips are skipped.
@@ -203,14 +264,14 @@
     if(s.majorPresentation) activity();
     if(s.interrupt || s.inactive || (s.volume <= 0 && !s.multiplayer)){stop(); return;}
     if(current){
-      current.audio.volume = s.volume;
+      current.audio.volume = Math.min(1, s.volume * (characters[current.key.split(':')[0]]?.file === 'Marie' ? 1.4 : 1));
       if(now - current.requestedAt > 120000 || (!current.started && now - current.requestedAt > 10000)) stop();
       return;
     }
     if(!s.ready) return;
     if(now - quietSince < 8000 || now < nextAt) return;
     const remaining = s.eligibleCharacters.flatMap(characterKey =>
-      characters[characterKey].clips.map((_, index) => ({characterKey, index, key:characterKey + ':' + index}))
+      characters[characterKey].clips.flatMap((clip, index) => clip ? [{characterKey, index, key:characterKey + ':' + index}] : [])
     ).filter(choice => !used.has(choice.key) && !failed.has(choice.key));
     if(remaining.length){
       const choice = remaining[Math.floor(Math.random() * remaining.length)];
@@ -233,19 +294,19 @@
     used.add(key);
     nextAt = Date.now() + 60000;
     // Hidden/muted clients consume the shared selection without replaying it later.
-    if(s.inactive || s.interrupt || s.volume <= 0) return;
+    if(s.inactive || s.interrupt || s.volume <= 0 || !s.eligibleCharacters.includes(message.characterKey)) return;
     stop();
     start({characterKey:message.characterKey,index:message.index,key}, s.volume);
   });
   window.FateIdleChatter = Object.freeze({reset, activity, trackVoice,
     clipsForCard:cardId => {
       const character = Object.values(characters).find(entry => entry.ids.has(String(cardId)));
-      return character ? character.clips.map((_, index) => clipUrl(character, index)) : [];
+      return character ? character.clips.flatMap((clip, index) => clip ? [clipUrl(character, index)] : []) : [];
     },
     report:() => ({
       used:used.size,
-      remaining:eligibleNow.reduce((total, characterKey)=>total + characters[characterKey].clips.filter((_, index)=>
-        !used.has(characterKey + ':' + index) && !failed.has(characterKey + ':' + index)
+      remaining:eligibleNow.reduce((total, characterKey)=>total + characters[characterKey].clips.filter((clip, index)=>
+        clip && !used.has(characterKey + ':' + index) && !failed.has(characterKey + ':' + index)
       ).length, 0),
       playing:!!current
     })});

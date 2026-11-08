@@ -1,3 +1,4 @@
+import {projectStateForPlayer} from '../../shared/engine/projections.mjs';
 import {serveGame} from './game-static.mjs';
 import crypto from 'node:crypto';
 import {createDeltaEncoder} from '../../shared/multiplayer-delta.mjs';
@@ -65,6 +66,10 @@ const DISCONNECT_FORFEIT_MS = Math.max(
   1000,
   Number(process.env.FATE_AUTHORITY_V3_DISCONNECT_FORFEIT_MS || 5000) || 5000
 );
+// Queue polling, network handshakes and reconnects need more time than an
+// established player's disconnect allowance. Keep this independent of uptime.
+const MATCH_JOIN_GRACE_MS = Math.max(60000,
+  Math.min(300000, Number(process.env.FATE_AUTHORITY_V3_MATCH_JOIN_GRACE_MS) || 120000));
 const RETAINED_MATCHES = BETA_MODE
   ? Math.max(10, Number(process.env.FATE_AUTHORITY_V3_RETAINED_MATCHES || 50) || 50)
   : 0;
@@ -350,6 +355,8 @@ function scheduleDisconnectForfeit(matchId, playerId){
   const actor = manager.actor(id);
   if(!actor || actor.state.outcome || actor.state.phase === 'ended') return;
   if(actor.state.warfrontAiSeats?.includes(actor.state.players.findIndex(player=>player.id===pid)))return;
+  const waitingForMatchStart = actor.state.phase === 'coin' && Number(actor.state.revision || 0) === 0;
+  const allowance = waitingForMatchStart ? Math.max(DISCONNECT_FORFEIT_MS, MATCH_JOIN_GRACE_MS) : DISCONNECT_FORFEIT_MS;
   const timer = setTimeout(async ()=>{
     disconnectForfeitTimers.delete(key);
     if((matchSockets.get(id)?.get(pid)?.size || 0) > 0) return;
@@ -369,7 +376,7 @@ function scheduleDisconnectForfeit(matchId, playerId){
     }catch(error){
       console.error(`authoritative v3 disconnect forfeit failed for ${id}/${pid}:`, error.message || error);
     }
-  }, Math.max(DISCONNECT_FORFEIT_MS,60000-process.uptime()*1000));
+  }, Math.max(allowance,60000-process.uptime()*1000));
   timer.unref?.();
   disconnectForfeitTimers.set(key, timer);
 }
@@ -491,8 +498,12 @@ function scheduleTurnTimer(actor){
     clearTurnTimer(matchId);
     return;
   }
-  // Opponent reactions preserve the active player's remaining time.
-  if(actor.state.pendingPrompt?.type === 'REACTION'){
+  // Preserve the active player's clock through the entire opponent response,
+  // including the card/board pickers opened after accepting a reaction.
+  const prompt = actor.state.pendingPrompt;
+  const opponentChoice = Number.isInteger(prompt?.playerIndex)
+    && prompt.playerIndex !== actor.state.activePlayer;
+  if(prompt?.type === 'REACTION' || opponentChoice){
     const entry = turnTimers.get(matchId);
     if(entry?.signature !== timeout.turnSignature){
       clearTurnTimer(matchId);
@@ -544,6 +555,10 @@ function scheduleAuthorityTimers(actor){
 // Presentation-only selection, shared by both seats and excluded from game state.
 const chatterSessions = new WeakMap();
 const chatterCardIds = {
+  chingachlook:['45'], phil:['46'],
+  mark:['43'],
+  isaac:['22'], jake:['38'], juan:['39'], chris:['40'], jimmy:['41','bh18'],
+  santiago:['30'], rozsi:['34'], alexander:['35'], marie:['36'],
   kvetka:['19','87'], henry:['21'], kazumi:['27'],
   howard:['03'], maja:['07'], lina:['08'], anne:['11'], makenna:['12'],
   johnathan:['13'], anicka:['02','bh01','bh04'], felicyta:['01','82','85','100','bh11'],
@@ -562,8 +577,21 @@ function relayChatter(session, message){
   if(now < chatter.nextAt || chatter.used.has(key)) return;
   chatter.used.add(key);chatter.nextAt=now+60000;
   const event={kind:'idle-chatter',matchId:session.matchId,characterKey:message.characterKey,index:message.index};
+  const visibleSeats = new Map();
+  const liveIids = new Set(state.board.flat(3)
+    .filter(card => card && !card.faceDown && ids.includes(String(card.id)))
+    .map(card => String(card.iid)));
   for(const peers of matchSockets.get(session.matchId)?.values() || []){
-    for(const peer of peers) send(peer,event);
+    for(const peer of peers){
+      const seat = peer.authorityV3Session?.playerIndex;
+      if(!Number.isInteger(seat)) continue;
+      if(!visibleSeats.has(seat)){
+        const projected = projectStateForPlayer(state, seat);
+        visibleSeats.set(seat, projected.board.flat(3).some(card => card && !card.faceDown
+          && ids.includes(String(card.id)) && liveIids.has(String(card.iid))));
+      }
+      if(visibleSeats.get(seat)) send(peer,event);
+    }
   }
 }
 
@@ -757,6 +785,7 @@ const server = http.createServer(async (req, res)=>{
         }, {freeplay:0, challenger:0, warfront:0}) : null,
         queueStaleMs:BETA_MODE ? PHASE7_QUEUE_STALE_MS : null,
         disconnectForfeitMs:BETA_MODE ? DISCONNECT_FORFEIT_MS : null,
+        matchJoinGraceMs:BETA_MODE ? MATCH_JOIN_GRACE_MS : null,
         engineVersion:ENGINE_VERSION,
         rulesetVersion:RULESET_VERSION,
         testMatches:ALLOW_TEST_MATCHES,

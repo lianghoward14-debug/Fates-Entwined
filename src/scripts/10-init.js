@@ -1218,7 +1218,6 @@ function showMissionControl(){
     document.body.classList.add('mission-control-open');
   }
   renderMissionDaily();
-  renderMissionLive({defer:true});
 }
 
 function closeMissionControl(){
@@ -1239,6 +1238,24 @@ function closeMissionControl(){
 }
 
 function renderMissionDaily(){
+  var missionWindow=document.querySelector('#mission-control-window .mission-window');
+  if(missionWindow){
+    missionWindow.classList.add('command-ledger');
+    missionWindow.querySelector('.mission-window-kicker').textContent='FATES ENTWINED / DAILY OPERATIONS';
+    missionWindow.querySelector('.mission-daily-panel .mission-panel-label').textContent='TODAY’S ORDERS';
+    missionWindow.querySelector('.mission-live-panel')?.remove();
+    var grid=missionWindow.querySelector('.mission-window-grid');
+    var allocation=missionWindow.querySelector('.ledger-allocation');
+    if(grid && !allocation){
+      allocation=document.createElement('aside');allocation.className='ledger-allocation';grid.prepend(allocation);
+    }
+    if(allocation && typeof getDailyLoginState==='function'){
+      var login=getDailyLoginState();
+      var reward=login.reward || {};
+      allocation.innerHTML='<svg class="ledger-sun" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 2v2M4.93 4.93l1.42 1.42M2 12h2M20 12h2M17.65 6.35l1.42-1.42M3 18h18M5 22h14M6 18a6 6 0 0112 0M12 8v6M9 11l3-3 3 3"/></svg><div class="ledger-caption">DAILY ALLOCATION</div><div class="ledger-amount">'+(reward.starlight || reward.profileBoosters || reward.amount || '')+'</div><div class="ledger-reward-name">'+(typeof dailyLoginRewardText==='function'?(reward.starlight && !reward.profileBoosters?'Starlight':!reward.starlight && reward.profileBoosters?'Profile Booster'+(reward.profileBoosters===1?'':'s'):dailyLoginRewardText(reward)):'Daily reward')+'</div><button class="ledger-collect" '+(login.claimedToday?'disabled':'')+'>'+(login.claimedToday?'Collected today':'Collect reward')+'</button><div class="ledger-bottom-star" aria-hidden="true">✧</div>';
+      allocation.querySelector('button').onclick=function(){claimDailyLoginReward();renderMissionDaily();};
+    }
+  }
   var el = document.getElementById('mission-window-daily-container') || document.getElementById('mission-daily-container');
   if(!el) return;
   if(typeof getDailyChallenges !== 'function') return;
@@ -1251,6 +1268,12 @@ function renderMissionDaily(){
     var def = pool.find(function(c){ return c.id === ch.id; });
     return sum + (def && ch.completed ? (def.reward.starlight || 0) : 0);
   }, 0);
+  if(missionWindow){
+    var orderHeader=missionWindow.querySelector('.mission-daily-panel .mission-panel-header');
+    var completion=orderHeader.querySelector('.ledger-completion');
+    if(!completion){completion=document.createElement('span');completion.className='ledger-completion';orderHeader.appendChild(completion);}
+    completion.textContent=doneCount+' / 3 COMPLETE';
+  }
   var allDoneNow = doneCount >= 3;
   var bonusClaimedNow = !!localStorage.getItem('fate_daily_bonus_' + today);
   var totalBonuses = Number(USER_PROFILE && USER_PROFILE.dailyMissionBonusClaims || localStorage.getItem('fate_daily_bonus_claims_total') || 0) || 0;
@@ -1280,14 +1303,14 @@ function renderMissionDaily(){
   var allDone = doneCount >= 3;
   var bonusClaimed = !!localStorage.getItem('fate_daily_bonus_' + today);
   var allMissionsIcon = typeof renderDailyChallengeIcon === 'function' ? renderDailyChallengeIcon('ALL') : '<span class="dc-icon-mark dc-icon-svg-host dc-icon-all"><svg class="dc-icon-svg" viewBox="0 0 32 32"><text class="dc-emblem-stamp" x="16" y="21" text-anchor="middle">✪</text></svg></span>';
-  html += '<div class="dc-item dc-bonus-row' + (allDone ? ' dc-done' : '') + '" style="border-color:rgba(199,168,91,.18)!important;background:linear-gradient(135deg,rgba(130,200,239,.045),rgba(199,168,91,.025))!important;margin-top:.15rem;">'
-    + '<div class="dc-item-icon-wrap" style="background:rgba(130,200,239,.075)!important;border-color:rgba(130,200,239,.26)!important;"><span class="dc-icon">' + allMissionsIcon + '</span></div>'
+  html += '<div class="dc-item dc-bonus-row' + (allDone ? ' dc-done' : '') + '">'
+    + '<div class="dc-item-icon-wrap"><span class="dc-icon">' + allMissionsIcon + '</span></div>'
     + '<div class="dc-item-center">'
-    + '<div class="dc-item-label" style="color:#eee7d8!important;">Complete All Missions</div>'
+    + '<div class="dc-item-label">Complete All Missions</div>'
     + '<div class="dc-item-desc">Finish all 3 daily missions for a bonus</div>'
-    + '<div class="dc-bar-wrap"><div class="dc-bar" style="width:' + Math.round((doneCount/3)*100) + '%;background:linear-gradient(90deg,rgba(130,200,239,.74),rgba(236,216,123,.58))!important;"></div><span class="dc-bar-text">' + (bonusClaimed ? '✓ Claimed' : doneCount + '/3') + '</span></div>'
+    + '<div class="dc-bar-wrap"><div class="dc-bar" style="width:' + Math.round((doneCount/3)*100) + '%;"></div><span class="dc-bar-text">' + (bonusClaimed ? '✓ Claimed' : doneCount + '/3') + '</span></div>'
     + '</div>'
-    + '<div class="dc-reward-badge" style="color:#dbc981!important;border-color:rgba(199,168,91,.24)!important;">+50 ★</div>'
+    + '<div class="dc-reward-badge">+50 ★</div>'
     + '</div>';
   html += '</div>';
   var sig = today + '|' + doneCount + '|' + totalReward + '|' + totalBonuses + '|' + daily.challenges.map(function(ch){

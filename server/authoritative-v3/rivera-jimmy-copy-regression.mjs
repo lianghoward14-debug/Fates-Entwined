@@ -11,16 +11,17 @@ for(const owner of [0,1])for(const hidden of [false,true]){
  let n=0;const send=(p,type,payload)=>{const result=reduceCommand(state,{commandId:String(++n),matchId:state.matchId,expectedRevision:state.revision,type,payload},{playerId:'p'+p});assert(result.ok,JSON.stringify(result.rejection));state=result.state};
  send(owner,'ACTIVATE_EFFECT',{sourceIid:rivera,userActivated:true});send(owner,'END_TURN',{});
  const find=iid=>state.board.flat(2).find(c=>c?.iid===iid);
+ const sources=[jimmy,...state.players[enemy].hand.slice(0,2).map(card=>card.iid)];
  for(let i=1;i<=3;i++){
   op({type:'MODIFY_FATE',targetIid:target,amount:4,sourceController:owner});
   const riveraBefore=find(rivera).currentFate,jimmyBefore=effectiveFate(state,find(jimmy));
-  op({type:'MODIFY_FATE',targetIid:target,amount:-1,sourceIid:jimmy,sourceController:enemy});
+  op({type:'MODIFY_FATE',targetIid:target,amount:-1,sourceIid:sources[i-1],sourceController:enemy});
   assert.equal(effectiveFate(state,find(jimmy)),jimmyBefore+3,'Jimmy retains his full +3 derived Fate');
   assert.equal(find(rivera).currentFate,riveraBefore+3,'Rivera also receives +3');
   const ownView=projectStateForPlayer(state,owner);const projected=ownView.board.flat(2).find(c=>c?.iid===rivera);assert(projected,'Rivera remains in owner projection');
  }
 }
-console.log('PASS multiplayer Rivera/Jimmy: three successive +3 gains retained and copied, both seats, face-up and hidden Rivera.');
+console.log('PASS multiplayer Rivera/Jimmy: three distinct card contributions retained and copied, both seats, face-up and hidden Rivera.');
 
 for(const owner of [0,1])for(const hidden of [false,true]){
  const enemy=1-owner;
