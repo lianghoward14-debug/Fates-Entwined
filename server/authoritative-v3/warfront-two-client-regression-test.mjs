@@ -132,9 +132,9 @@ try{
   await a.war.pull();assert.equal(a.state().zones[0].matches.length,3,'a client cannot upload a fourth battle to a new front');
   await a.war.command('end');await b.war.pull();finished={state:a.state()};
   assert.equal(finished.state.lastResult.matches,15);assert.equal(a.state().status,'results');
-  assert.equal(a.state().lastResult.score.match.a,10);assert.equal(a.state().lastResult.score.match.b,5);
+  assert.equal(a.state().lastResult.score.match.a,5);assert.equal(a.state().lastResult.score.match.b,0);
   assert.equal(a.state().lastResult.score.award.a,1);assert.equal(a.state().lastResult.winner,'a');
-  assert.match(a.pane.innerHTML,/11/);assert.match(b.pane.innerHTML,/11/);
+  assert.match(a.pane.innerHTML,/6/);assert.match(b.pane.innerHTML,/6/);
   const rewardCounts=[a.c.USER_PROFILE.warfrontParticipations,b.c.USER_PROFILE.warfrontParticipations];
   await Promise.all([a.war.pull(),b.war.pull()]);assert.deepEqual([a.c.USER_PROFILE.warfrontParticipations,b.c.USER_PROFILE.warfrontParticipations],rewardCounts,'repeated archive refresh cannot grant rewards twice');
   await a.war.command('deployment');

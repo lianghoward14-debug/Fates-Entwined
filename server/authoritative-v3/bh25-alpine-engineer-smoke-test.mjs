@@ -7,6 +7,7 @@ const definitions = [
   {id:'bh15',name:'Hsei-Ling',type:'Improvisor',aff:'third_great_war',fate:3,cost:2},
   {id:'bh17',name:'Jakob Eltzholtz',type:'Improvisor',aff:'expanded_worlds',fate:6,cost:3},
   {id:'bh25',name:'ALPINE Engineer',type:'Supporter',aff:'expanded_worlds',fate:1,cost:0},
+  {id:'109',name:'Don Julio',type:'Dauntless',aff:'eventide',fate:8,cost:3},
   {id:'32',name:'Temecula Resident',type:'Supporter',aff:'reality',fate:1,cost:0}
 ];
 
@@ -85,6 +86,23 @@ for(const sourceZone of [0,1,2]){
   assert.equal(result.ok,true);
   assert.equal(result.state.board[0][2][0].currentFate,boleslaw.currentFate);
   assert(result.events.some(event=>event.type==='EFFECT_CONDITION_UNMET' && event.reason==='TURN_BEFORE_18'));
+}
+
+{
+  const state=createInitialState({matchId:'BH25-JULIO',seed:'BH25-JULIO',handSize:99,
+    cardDefinitions:definitions,players:[{id:'p0',deckIds:['109','bh25']},{id:'p1',deckIds:['32']}]});
+  state.turn=18;
+  const julio=take(state,'109');
+  state.board[1][2][0]=julio;
+  const engineer=state.players[0].hand.find(card=>card.id==='bh25');
+  const result=reduceCommand(state,command(state,'p0',1,'SET_CARD',{
+    cardIid:engineer.iid,destination:{z:0,r:2,c:0}
+  }),{playerId:'p0'});
+  assert.equal(result.ok,true);
+  const roll=result.events.find(event=>event.type==='FATE_DIE_ROLLED' && event.sourceIid===julio.iid);
+  assert(roll && roll.roll>=1 && roll.roll<=6,'Engineer must roll Don Julio’s die');
+  assert.equal(result.state.board[1][2][0].currentFate,julio.currentFate+roll.roll);
+  assert.equal(result.state.board[1][2][0].counters.alpineEngineerProcCount,1);
 }
 
 console.log('BH25 ALPINE Engineer smoke test passed');

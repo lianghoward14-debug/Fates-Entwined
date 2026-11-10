@@ -329,7 +329,7 @@ export function createFlyDataApi({readBody, writeJson, resolveMatchState = ()=>n
     const score={a:0,b:0,match:{a:0,b:0},award:{a:0,b:0}};
     const {achievements,playerStats}=warfrontReportStats(completed.zones);
     for(const award of achievements)if(award.leader){score[award.leader.team]+=1;score.award[award.leader.team]+=1;}
-    for(const zone of completed.zones){const z=zoneScore(zone);for(const team of ['a','b']){score[team]+=z[team];score.match[team]+=z[team];}}
+    for(const zone of completed.zones){const winner=zoneScore(zone).bonus;if(winner){score[winner]+=1;score.match[winner]+=1;}}
     prepareWarfrontRoster(completed);
     const players=[];for(const zone of completed.zones)for(const team of ['a','b'])if(zone[team])players.push({...clone(zone[team]),team,zoneId:zone.id,matches:zoneScore(zone).played,wins:zoneScore(zone)[team],losses:zoneScore(zone)[team==='a'?'b':'a']});
     for(const entry of Object.values(completed.service||{})){const index=players.findIndex(p=>p.uid===entry.uid);const wins=completed.zones.reduce((n,z)=>n+z.matches.filter(m=>m.participants?.[entry.team]?.uid===entry.uid&&m.winnerTeam===entry.team&&!m.voidedByForfeit).length,0);const {matchIds,...person}=entry;const row={...person,matches:matchIds.length,wins,losses:matchIds.length-wins};if(index>=0)players[index]=row;else players.push(row);}

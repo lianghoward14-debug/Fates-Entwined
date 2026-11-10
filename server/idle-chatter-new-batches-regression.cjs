@@ -28,7 +28,7 @@ function harness(){
     busy(v){busy=v;},volume(v){volume=v;},input(){handlers.pointerdown();}};
 }
 
-for(const [id,file] of [["30","Santiago"],["34","Rozsi"],["35","Alexander"],["36","Marie"],["22","Isaac"],["38","Jake"],["39","Juan"],["40","Chris"],["41","Jimmy"],["bh18","Jimmy"],["43","Mark"],["45","Chingachlook"],["46","Phil"]]){
+for(const [id,file] of [["30","Santiago"],["34","Rozsi"],["35","Alexander"],["36","Marie"],["22","Isaac"],["38","Jake"],["39","Juan"],["40","Chris"],["41","Jimmy"],["bh18","Jimmy"],["43","Mark"],["45","Chingachlook"],["46","Phil"],["51","Rivera"],["104","Rivera"],["55","Bobby"],["56","Lydia"]]){
  const h=harness();h.g.board=[[[{id,owner:0}]]];h.advance(15000);
  for(let i=0;i<5;i++){
   const a=h.audios.at(-1);assert(a.src.includes(file));assert(h.panel.querySelector('p').textContent.length>0);assert(fs.statSync(path.join(__dirname,'../',a.src)).size>0);

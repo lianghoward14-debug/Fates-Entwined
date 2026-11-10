@@ -19,6 +19,7 @@ import {createDeckPreservationPrior} from './deck-preservation.mjs';
 import {createArchiveExpansionPrior} from './archive-expansion-heuristics.mjs';
 import {contestedCommandDelta} from './contested-space.mjs';
 import {createSupportCompanyPrior} from './support-company.mjs';
+import {createNewPublicDeckPrior} from './new-public-deck-heuristics.mjs';
 
 // Build shared indexes once per position, not once per legal placement.
 export function createCommandOrderer(state,player,personality='balanced'){
@@ -44,6 +45,7 @@ export function createCommandOrderer(state,player,personality='balanced'){
   const revolutionPrior=createRevolutionPrior(state,player);
   const havanoViajePrior=createHavanoViajePrior(state,player);
   const lakesMomentumPrior=createLakesMomentumPrior(state,player);
+  const newPublicDeckPrior=createNewPublicDeckPrior(state,player,entries,cards);
   let supportCompanyPrior;
   const values=new Map();
   const dependencyValues=new Map();
@@ -85,7 +87,7 @@ export function createCommandOrderer(state,player,personality='balanced'){
       // merely because the discarded card has powerful operation tags.
       return -8-departureValue([p.targetIid || p.sourceIid])+deckPreservationPrior(command)+contestedCommandDelta(state,player,command,cards);
     }
-    let score=havanoViajePrior(command)+revolutionPrior(command)+lakesMomentumPrior(command)+value(card)+incelPrior(command)+assaultPrior(command)+freeWorldPrior(command)+majaPrior(command)+timePrior(command)+patiencePrior(command)+wintertidePrior(command)+endlessSeaPrior(command)+publicComboPrior(command)+archiveExpansionPrior(command)+comboPlanPrior(command)+deckPreservationPrior(command);
+    let score=havanoViajePrior(command)+revolutionPrior(command)+lakesMomentumPrior(command)+newPublicDeckPrior(command)+value(card)+incelPrior(command)+assaultPrior(command)+freeWorldPrior(command)+majaPrior(command)+timePrior(command)+patiencePrior(command)+wintertidePrior(command)+endlessSeaPrior(command)+publicComboPrior(command)+archiveExpansionPrior(command)+comboPlanPrior(command)+deckPreservationPrior(command);
     if(command.type==='ACTIVATE_EFFECT' && card){
       // Explore live draw/search actions before dismissing the source as a
       // low-Fate body. Copied effects inherit the runtime rule's operations.

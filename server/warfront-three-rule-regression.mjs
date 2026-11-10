@@ -14,8 +14,8 @@ vm.createContext(context);
 vm.runInContext(source.slice(source.indexOf('function score('),source.indexOf('function telemetry('))+
   source.slice(source.indexOf('function totals('),source.indexOf('function participation(')),context);
 const totals=context.totals();
-assert.equal(totals.match.a+totals.match.b,15,'five zones award fifteen battle stars');
+assert.equal(totals.match.a+totals.match.b,5,'five won fronts award five battle stars');
 assert.equal(totals.award.a+totals.award.b,3,'three commendations award one star each');
-assert.equal(totals.a+totals.b,18,'front control adds no extra star');
+assert.equal(totals.a+totals.b,8,'five front stars plus three commendation stars');
 for(const zone of zones)assert.equal(warfrontPlayed(zone),3);
 console.log('Warfront three-match limits and client star totals passed');

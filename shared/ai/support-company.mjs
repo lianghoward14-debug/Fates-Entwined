@@ -14,6 +14,12 @@ export function createSupportCompanyPrior(state,player,personality='balanced'){
   const own=boardEntries(state).filter(e=>controllerOf(e.card)===player);
   const enemy=boardEntries(state).filter(e=>controllerOf(e.card)!==player && !e.card.faceDown);
   const hand=state.players[player].hand || [];
+  const original=state.players[player].originalDeck || [];
+  const originalIds=new Set(original.map(card=>String(card?.id||card)));
+  const hungryBubble=['bh19','bh13','120','94','69'].every(id=>originalIds.has(id));
+  const drawIds=new Set(['27','32','42','80','86','103','108']);
+  const searchIds=new Set(['06','07','08','13','29','48','58','60','68','69','72','78','84','90','91','94','105','115','118','119','120','bh05','bh10']);
+  const bubbleCategoryBonus=category=>hungryBubble?(category==='draw'?24:category==='search'?15:0):0;
   const placements=Math.max(0,Math.min(5-Number(state.supportersSetForCapThisTurn?.[player] || 0),
     Number(state.baseSupportersPerTurn ?? 2)+Number(state.extraSupportersThisTurn?.[player] || 0)-Number(state.supportersSetThisTurn?.[player] || 0)));
   let open=0;
@@ -34,6 +40,7 @@ export function createSupportCompanyPrior(state,player,personality='balanced'){
     let value=3+fate*.7+assessRecruitment(card,{...context,playable}).score;
     if(ops.some(op=>['DISCARD_CARD','DISCARD_CARDS','CHANGE_CONTROL'].includes(op)))value+=enemy.length?10:0;
     if(ops.some(op=>['DRAW_CARD','DRAW_CARDS','TRANSFER_CARDS'].includes(op)))value+=!late && hand.length<4?7:0;
+    if(hungryBubble)value+=drawIds.has(card.id)?16:searchIds.has(card.id)?8:0;
     if(card.type==='Supporter' && hand.some(c=>Number(c.cost)>supply))value+=4;
     if(margins.some(m=>m<=0 && m+fate>0))value+=8;
     if(hand.some(c=>c.id===card.id))value-=3;
@@ -45,10 +52,10 @@ export function createSupportCompanyPrior(state,player,personality='balanced'){
     if(command.type==='SUPPORT_COMPANY'){
       const morale=Number(state.moralePressure?.morale?.[player] || 0);
       if(p.ability==='desperate' && morale-supportCompanyCost(morale)<=0)return -100000;
-      return cardValue(p.cardId)-(p.ability==='desperate'?supportCompanyCost(morale)*1.5:0);
+      return cardValue(p.cardId)+bubbleCategoryBonus(p.category)-(p.ability==='desperate'?supportCompanyCost(morale)*1.5:0);
     }
     if(command.type==='ANSWER_PROMPT' && state.pendingPrompt?.title==='Call to Arms'){
-      if(p.choice)return Math.max(-100,...supportCompanyOffers(state.cardCatalog || [],state.matchId,player,p.choice).map(cardValue));
+      if(p.choice)return bubbleCategoryBonus(p.choice)+Math.max(-100,...supportCompanyOffers(state.cardCatalog || [],state.matchId,player,p.choice).map(cardValue));
       return (p.selectedIids || [p.selectedIid]).reduce((n,id)=>n+cardValue(id),0);
     }
     return 0;

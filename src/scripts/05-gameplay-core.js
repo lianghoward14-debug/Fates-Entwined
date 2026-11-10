@@ -6116,7 +6116,7 @@ function resolveBoleslawAfterSearchSelection(searchingPlayer, chosen, context = 
     });
 }
 
-const ALPINE_ENGINEER_TRIGGERED_FATE_IDS = new Set(['15','46','86','95','100','bh02','bh08']);
+const ALPINE_ENGINEER_TRIGGERED_FATE_IDS = new Set(['15','46','86','95','100','109','bh02','bh08']);
 async function resolveAlpineEngineerAmbition(engineer, zoneIndex, controller){
   if(!G || Number(G.turn) < 18){
     toast("An Engineer's Ambition cannot activate before turn 18.");
@@ -6129,6 +6129,7 @@ async function resolveAlpineEngineerAmbition(engineer, zoneIndex, controller){
     if(!card || card === engineer) return;
     if(Number(card.controller ?? card.owner) !== Number(controller)) return;
     if(![...ALPINE_ENGINEER_TRIGGERED_FATE_IDS].some(id=>cardActsAsPassive(card,id) || String(card._whisperCopiedEffectId||'')===id)) return;
+    if(card.faceDown && cardActsAsPassive(card,'109')) return;
     if(card._effectNegatedByReaction || card._effectSuppressedByReaction || card._reactionSuppressed || card._lydiaSuppressed || card._lumberjackSuppressed) return;
     sources.push({card,z,r,c,fieldWide:!!card._whisperCopiedEffectId});
   })));
@@ -6147,6 +6148,7 @@ async function resolveAlpineEngineerAmbition(engineer, zoneIndex, controller){
       '86':{kind:'boleslaw_exclaim',label:'!!!'},
       '95':{kind:'specter_ghost',label:'Thousand Year Sorrow'},
       '100':{kind:'wintertide',label:'Wintertide'},
+      '109':{kind:'don_julio_dice',label:'An Oligarch’s Gamble'},
       'bh02':{kind:'joie_thousand_reel',label:'Thousand Reel Stare'},
       'bh08':{kind:'bh08_mischief',label:'Mischievous Activities'}
     }[id];
@@ -6175,6 +6177,12 @@ async function resolveAlpineEngineerAmbition(engineer, zoneIndex, controller){
       presentGain(live, 1);
     }else if(id === '100'){
       presentGain(live, 2);
+    }else if(id === '109'){
+      const rng = typeof G._onlineRng==='function' ? G._onlineRng : Math.random;
+      const roll = Math.floor(rng()*6)+1;
+      window.holdDonJulioFate?.({sourceIid:live.iid,before:Number(live.currentFate??live.fate)||0});
+      modifyFate(live,roll,'unclassified',owner);
+      await window.presentDonJulioDieRoll?.({type:'FATE_DIE_ROLLED',roll,sourceIid:live.iid,cardIid:live.iid,playerIndex:owner},null,{...live});
     }else continue;
     live._alpineEngineerProcCount = Math.max(0, Number(live._alpineEngineerProcCount)||0) + 1;
     activated++;
@@ -7843,9 +7851,18 @@ async function resolveSmartInvestments(card, cp) {
     return invested.length;
   };
   if(G.aiEnabled && cp === G.aiPlayer){
+    const bubble=G._selectedAI?._deckStrategy==='ai_ai_bubble_2026';
+    const investmentPriority=['27','13','94','06','80','32','120','69','60','74'];
     const chosen = eligible.slice().sort(function(a, b){
+      if(bubble){
+        const rank=card=>{
+          const index=investmentPriority.indexOf(String(card.id));
+          return index<0?100:index;
+        };
+        if(rank(a)!==rank(b))return rank(a)-rank(b);
+      }
       return (Number(a.currentFate ?? a.fate) || 0) - (Number(b.currentFate ?? b.fate) || 0);
-    }).slice(0, Math.min(3, Math.max(0, eligible.length - 2)));
+    }).slice(0, Math.min(3, Math.max(0, eligible.length - (bubble?1:2))));
     return commit(chosen);
   }
   if(typeof pickCardsVisual !== 'function') return commit([]);

@@ -1,11 +1,11 @@
 import {pickRoyalSeal} from './support-company-royal-seal.mjs?v=20261011-presentation-order';
 import {callToArmsReserveValue,recruitmentDeckFit,assessRecruitment} from '../../shared/ai/recruitment-timing.mjs';
 window.FateAIRecruitmentTiming={callToArmsReserveValue,recruitmentDeckFit,assessRecruitment};
-import {SUPPORT_COMPANY_NAMES, supportCompanyCardEligible, supportCompanyAvailability, createSupportCompanyPool, SUPPORT_COMPANY_CATEGORIES, supportCompanyOffers} from '../../shared/support-company.mjs?v=20261108-random-offers';
+import {SUPPORT_COMPANY_NAMES, supportCompanyCardEligible, supportCompanyAvailability, createSupportCompanyPool, SUPPORT_COMPANY_CATEGORIES, supportCompanyOffers} from '../../shared/support-company.mjs?v=20261109-draw-search';
 import {playSupportCompanyAnimation} from './support-company-animation.mjs?v=20261008-selected-title';
 
 const escape = value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const categoryPaths={"power": "M12 3v18M3 12h18M6 6l12 12M6 18L18 6", "weaken": "M4 5l8 14 8-14M6 5h12M8 12h8", "remove": "M5 5l14 14M19 5L5 19M4 9V4h5M15 20h5v-5", "disrupt": "M14 2L5 14h7l-2 8 9-13h-7z", "protect": "M12 3l8 3v6c0 5-8 9-8 9s-8-4-8-9V6zM8 12h8M12 8v8", "draw": "M4 5h11v15H4zM9 2h11v15M7 10h5M7 14h5", "recycle": "M4 10a8 8 0 0114-4l2 3M20 3v6h-6M20 14a8 8 0 01-14 4l-2-3M4 21v-6h6", "deploy": "M12 20V4M6 10l6-6 6 6M3 17v4h18v-4", "position": "M12 2v20M2 12h20M8 6l4-4 4 4M8 18l4 4 4-4M6 8l-4 4 4 4M18 8l4 4-4 4", "morale": "M12 21S2 15 2 8a5 5 0 0110-2A5 5 0 0122 8c0 7-10 13-10 13M5 12h4l2-4 3 8 2-4h3", "tactics": "M12 2l3 7 7 3-7 3-3 7-3-7-7-3 7-3z"};
+const categoryPaths={"power": "M12 3v18M3 12h18M6 6l12 12M6 18L18 6", "weaken": "M4 5l8 14 8-14M6 5h12M8 12h8", "remove": "M5 5l14 14M19 5L5 19M4 9V4h5M15 20h5v-5", "disrupt": "M14 2L5 14h7l-2 8 9-13h-7z", "protect": "M12 3l8 3v6c0 5-8 9-8 9s-8-4-8-9V6zM8 12h8M12 8v8", "draw": "M4 5h11v15H4zM9 2h11v15M7 10h5M7 14h5", "search": "M16.5 10a6.5 6.5 0 1 1-13 0a6.5 6.5 0 0 1 13 0ZM14.8 14.8 21 21M7 10h6M10 7v6", "recycle": "M4 10a8 8 0 0114-4l2 3M20 3v6h-6M20 14a8 8 0 01-14 4l-2-3M4 21v-6h6", "deploy": "M12 20V4M6 10l6-6 6 6M3 17v4h18v-4", "position": "M12 2v20M2 12h20M8 6l4-4 4 4M8 18l4 4 4-4M6 8l-4 4 4 4M18 8l4 4-4 4", "morale": "M12 21S2 15 2 8a5 5 0 0110-2A5 5 0 0122 8c0 7-10 13-10 13M5 12h4l2-4 3 8 2-4h3", "tactics": "M12 2l3 7 7 3-7 3-3 7-3-7-7-3 7-3z"};
 Object.assign(categoryPaths, {
  power: 'M12 2l4 7-2 5h4l-6 8-6-8h4L8 9z',
  empower: 'M12 3v12M8 7l4-4 4 4M3 17h6v4H3zM15 17h6v4h-6zM12 12l-6 5M12 12l6 5',

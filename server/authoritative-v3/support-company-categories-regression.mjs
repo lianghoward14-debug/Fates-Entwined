@@ -14,4 +14,4 @@ for(const ability of ['call','desperate'])for(const player of [0,1])for(const ca
  for(const viewer of [0,1]){const event=projectEvents(result.events,viewer).find(e=>e.type==='SUPPORT_COMPANY_USED');assert.equal(event.category,category.id);assert(!event.cardId);}
 }
 assert(SUPPORT_COMPANY_CATEGORIES.find(c=>c.id==='deploy').cardIds.includes('98'));assert(SUPPORT_COMPANY_CATEGORIES.find(c=>c.id==='subterfuge').cardIds.includes('bh21'));
-console.log('Royal Seal: 14 categories, both seats, three non-Star offers, server validation, private card and public category passed.');
+console.log(`Royal Seal: ${SUPPORT_COMPANY_CATEGORIES.length} categories, both seats, three non-Star offers, server validation, private card and public category passed.`);

@@ -1286,6 +1286,9 @@ function aiRankSupportCompanyOffers(offers, ability='call', cost=0){
     turn:G.turn,maxTurns:G.maxTurns,style:G._selectedAI?.style || 'balanced'};
   const reserve=timing?.callToArmsReserveValue(recruitment) || 0;
   const viaje=G._selectedAI?._deckStrategy==='ai_el_viaje';
+  const bubble=G._selectedAI?._deckStrategy==='ai_ai_bubble_2026';
+  const bubbleDrawIds=new Set(['27','32','42','80','86','103','108']);
+  const bubbleSearchIds=new Set(['06','07','08','13','29','48','58','60','68','69','72','78','84','90','91','94','105','115','118','119','120','bh05','bh10']);
   const viajeRecruitBonus=card=>{
     if(!viaje)return 0;
     const has=id=>ownBoard.some(c=>c.id===id && !c.faceDown), held=id=>original.some(c=>c.id===id);
@@ -1316,6 +1319,7 @@ function aiRankSupportCompanyOffers(offers, ability='call', cost=0){
         for(const move of moves){
           let score=aiEvaluateMove(move);
           score+=viajeRecruitBonus(card);
+          if(bubble)score+=bubbleDrawIds.has(card.id)?420:bubbleSearchIds.has(card.id)?260:0;
           if(ability==='call'){
             score+=timing?.assessRecruitment ? timing.assessRecruitment(card,{...recruitment,playable:true}).score
               : timing?.recruitmentDeckFit(card,[...original,...(G.players[cp].deck || [])]) || 0;
@@ -1346,9 +1350,11 @@ function aiRankSupportCompanyOffers(offers, ability='call', cost=0){
           value=viajeRecruitBonus(card)*.4+Number(card.fate || 0)-Number(card.cost || 0)*10;
           if(G.maxTurns-G.turn<=1 && !['79','56'].includes(card.id))value-=300;
         }
+        if(bubble && ability==='triggered' && !Number.isFinite(value))
+          value=(bubbleDrawIds.has(card.id)?360:bubbleSearchIds.has(card.id)?220:0)+Number(card.fate||0);
         values.set(offer.card.id,value);
       }
-      ranked.push({...offer,score:values.get(offer.card.id)});
+      ranked.push({...offer,score:values.get(offer.card.id)+(bubble?(offer.category==='draw'?280:offer.category==='search'?180:0):0)});
     }
   }finally{G.players[cp].hand=original;aiClearZoneScoreCache();}
   return ranked.sort((a,b)=>b.score-a.score);
@@ -1425,6 +1431,18 @@ function aiEvaluateMove(move) {
 
 function aiDeckSearchPriority(deckId, kind) {
   const priorities = {
+    ai_oppression_old_elite: {
+      supporter:['115','113','117','111','119','75','60','74','79','28','09'],
+      character:['109','36','bh05','27','06'],coordinator:[],
+      jorge:['109','36','115','113','117','111','119'],
+      dylan:['109','36','115','113','117','111'],lina:['109','36']
+    },
+    ai_ai_bubble_2026: {
+      supporter:['120','69','94','80','32','60','74','79','28'],
+      character:['bh19','bh13','27','13','06'],coordinator:[],
+      jorge:['bh19','bh13','120','27','69','94'],
+      dylan:['bh19','bh13','27','13','120'],lina:['bh19','bh13','27']
+    },
     ai_infantry_havano: {
       supporter:['114','37','74','60','68','16','32','79','28'],
       character:['07','34','66','13','27'], coordinator:['34','66'],
@@ -1847,7 +1865,62 @@ function aiDeckStrategyBonus(move, deckId) {
   let bonus = 0;
   const cp = G.aiPlayer;
 
-  if(deckId === 'ai_infantry_havano' || deckId === 'ai_el_viaje') {
+  if(deckId === 'ai_oppression_old_elite') {
+    const id=String(move.card?.id||''), hand=G.players[cp].hand;
+    const julioHere=aiCountOwnCardsInZone(move.z,c=>c.id==='109');
+    const marieHere=aiCountOwnCardsInZone(move.z,c=>c.id==='36');
+    const enemySupporters=aiCountOpponentCardsInZone(move.z,c=>c.type==='Supporter');
+    const covertActive=Number(G._saboteurCloudOwner)===cp && Number(G._saboteurCloudTurn)===Number(G.turn);
+    const julioWaiting=hand.some(c=>c.id==='109');
+    if(move.type==='place'){
+      if(id==='113') bonus+=G.players[1-cp].deck.length>=3?420:80;
+      if(id==='117') bonus+=G.turn<=20 && julioWaiting && !covertActive ? 540 : (G.turn<=20?140:-500);
+      if(id==='36') bonus+=enemySupporters*100+(julioHere?360:170);
+      if(id==='111') bonus+=180;
+      if(id==='115') bonus+=430; // Exactly 30 Eventide cards trigger Call to Arms.
+      if(id==='119') bonus+=hand.length<=3?130:-190; // Three missed draws are costly here.
+      if(id==='60'||id==='75') bonus+=hand.length<=4?270:110;
+      if(id==='74'||id==='09') bonus+=julioWaiting?260:110;
+      if(id==='79') bonus-=hand.filter(c=>c.id==='79').length<=1?650:250;
+    }
+    if(move.type==='consolidate'){
+      if(id==='109') bonus+=520+marieHere*130+enemySupporters*85+(covertActive?650:0)
+        +(hand.some(c=>c.id==='117') && G.turn<=20 && !covertActive?-650:0);
+      if(id==='36') bonus+=enemySupporters*120+(julioHere?220:0);
+      if(id==='bh05') bonus+=hand.some(c=>['109','36'].includes(c.id))?180:40;
+      for(const tribute of move.tributes||[]){
+        if(tribute.card?.id==='109') bonus-=2000;
+        if(tribute.card?.id==='36' && enemySupporters) bonus-=700;
+      }
+    }
+  }
+  else if(deckId === 'ai_ai_bubble_2026') {
+    const id=String(move.card?.id||''), hand=G.players[cp].hand;
+    const highTActive=typeof getHighTPotencyCount==='function' && getHighTPotencyCount(cp)>0;
+    const hughWaiting=hand.some(c=>c.id==='bh13');
+    const abedWaiting=hand.some(c=>c.id==='bh19');
+    const invested=G.players[cp].deck.some(c=>Number(c.currentFate??c.fate)>Number(c.fate));
+    if(move.type==='place'){
+      if(id==='120') bonus+=390; // No Star card: free set and Call to Arms.
+      if(id==='69') bonus+=G.players[cp].discard.some(c=>['bh13','bh19','27','13','06'].includes(c.id))?320:-280;
+      if(['27','32','60','13'].includes(id)) bonus+=invested?340:(hand.length<=4?230:100);
+      if(id==='94') bonus+=G.turn<=Math.max(1,(G.maxTurns||20)-5) && G.players[cp].deck.some(c=>c.id==='bh13')?290:-170;
+      if(id==='80') bonus+=aiCountOwnCardsInZone(move.z,c=>['27','06','13'].includes(c.id))?200:-210;
+      if(id==='74') bonus+=hughWaiting||abedWaiting?190:80;
+      if(id==='79') bonus-=hand.filter(c=>c.id==='79').length<=1?650:250;
+    }
+    if(move.type==='consolidate'){
+      if(id==='bh19') bonus+=hughWaiting && hand.length>=3?850:(highTActive?-550:180);
+      if(id==='bh13') bonus+=highTActive && hand.length>=3?900:(abedWaiting?-500:hand.length>=4?250:-170);
+      if(id==='27') bonus+=invested?440:180;
+      for(const tribute of move.tributes||[]){
+        if(tribute.card?.id==='bh19' && hughWaiting) bonus-=1600;
+        if(tribute.card?.id==='bh13' && !highTActive) bonus-=900;
+      }
+    }
+  }
+
+  else if(deckId === 'ai_infantry_havano' || deckId === 'ai_el_viaje') {
     const id=String(move.card?.id || ''), hand=G.players[cp].hand, grave=G.players[cp].discard;
     const havano=deckId==='ai_infantry_havano', future=G.turn<G.maxTurns;
     const safe=move.r===(typeof getSafeRowForPlayer==='function'?getSafeRowForPlayer(cp):cp===0?2:0);
@@ -4199,6 +4272,12 @@ async function aiTriggerWhenSet(inst, z, r, c) {
   }
 
   switch(id) {
+    case '117':
+    case '118':
+    case '119':
+    case '120':
+      await _executeWhenSetSwitch(inst,z,r,c,cp,opp,id);
+      break;
     case '112':
     case '113':
     case '115': await resolveCaribbeaSupporter(inst,cp,id,true); break;
@@ -4770,6 +4849,7 @@ async function aiTriggerWhenSet(inst, z, r, c) {
         if(!G.players[cp].hand.some(c=>c.id === '89') && !aiOwnBoardCardsById('89').length) winterPriority.push('89');
         winterPriority.push('90','99','89');
       }
+      if(strat === 'ai_ai_bubble_2026') winterPriority.push('bh13');
       const triangles = G.players[cp].deck.filter(function(deckCard){ return deckCard.rarity === 'triangle'; }).sort(function(a,b){
         const ap = aiPriorityIndex(a, winterPriority);
         const bp = aiPriorityIndex(b, winterPriority);

@@ -1431,11 +1431,12 @@ function runEffectStack(state, ctx){
         ctx.events.push({type:'EFFECT_CONDITION_UNMET',sourceIid:frame.sourceIid,semanticSourceCardId:'bh25',reason:'TURN_BEFORE_18'});
         continue;
       }
-      const eligibleIds = new Set(['15','46','86','95','100','bh02','bh08']);
+      const eligibleIds = new Set(['15','46','86','95','100','109','bh02','bh08']);
       const sources = boardEntries(state).filter(entry=>
         String(entry.card.iid || '') !== String(frame.sourceIid || '')
         && controllerOf(entry.card) === controllerOf(engineerEntry.card)
         && eligibleIds.has(runtimeRuleId(entry.card))
+        && (runtimeRuleId(entry.card) !== '109' || !entry.card.faceDown)
         && !isEffectSourceSuppressed(state, entry)
       );
       for(const entry of sources){
@@ -1471,6 +1472,10 @@ function runEffectStack(state, ctx){
         }else if(id === '86'){
           applyResolvedEffectOperation(ctx,{type:'DRAW_CARD',playerIndex:owner,count:1,activatedEffect:true,sourceIid:entry.card.iid,sourceController:owner,semanticSourceCardId:id,reason:'ENGINEERS_AMBITION_FORCED_PROC'},frame);
           applyResolvedEffectOperation(ctx,{type:'MODIFY_FATE',targetIid:entry.card.iid,amount:2,sourceIid:entry.card.iid,sourceController:owner,semanticSourceCardId:id,reason:'ENGINEERS_AMBITION_FORCED_PROC',bypassReaction:true,presentationDelayMs:3500},frame);
+        }else if(id === '109'){
+          applyResolvedEffectOperation(ctx,{type:'ROLL_FATE_DIE',targetIid:entry.card.iid,
+            sourceIid:entry.card.iid,sourceController:owner,semanticSourceCardId:id,
+            reason:'ENGINEERS_AMBITION_FORCED_PROC',bypassReaction:true},frame);
         }else if(id==='46'){
           applyResolvedEffectOperation(ctx,{type:'MODIFY_FATE',targetIid:entry.card.iid,amount:2,
             sourceIid:entry.card.iid,sourceController:owner,semanticSourceCardId:'46',

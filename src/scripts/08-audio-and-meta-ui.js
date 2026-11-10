@@ -2314,7 +2314,7 @@ const CARD_SOUNDS = {
   '44': '44set', '45': '45set', '46': '46set', '47': '47set',
   '48': '48set', '49': '49set', '50': '50set', '51': '51set',
   '52': '52set', '53': '53set', '54': '54set', '55': '55set',
-  '56': '56set', '57': '57set', '58': '58set', '59': '59set',
+  '56': 'lydia-consolidation-20261110', '57': '57set', '58': '58set', '59': '59set',
   '60': '60set', '61': '61set', '62': '62set', '63': '63set',
   '64': '64set', '65': '65set', '66': '66set', '67': '67set',
   '68': '68set', '69': '69set', '70': '70set', '71': '71set',
@@ -2349,7 +2349,7 @@ const AVAILABLE_CARD_SOUND_FILES = new Set([
   '1set','2set','3set','4set','6set','maja-consolidation-20261030','8set','10set','11set','12set','johnathan-consolidation-20261030','14set','15set',
   'carolyn-consolidation-20261102','kvetka-consolidation-20261103','henry-consolidation-20261103','22set','23set','27set','29set','30set','rozsi-consolidation-20261107','alexander-consolidation-20261107','36set','38set',
   'juan-consolidation-20261108','chris-consolidation-20261108','41set','mark-consolidation-20261108','45set','46set','48set','51set','55set','56set','57set','61set',
-  '66set','67set','77set','bh1','bh2','bh3','bh4','bh5','bh6','bh7','bh8','bh9','bh10','bh11','bh12','bh13','bh14','bh15','bh16','bh17','bh18','bh19','bh20','horizons24set','../new voices/81set','../new voices/82set','../new voices/83set',
+  '66set','67set','77set','lydia-consolidation-20261110','bh1','bh2','bh3','bh4','bh5','bh6','bh7','bh8','bh9','bh10','bh11','bh12','bh13','bh14','bh15','bh16','bh17','bh18','bh19','bh20','horizons24set','../new voices/81set','../new voices/82set','../new voices/83set',
   '../new voices/84set','../new voices/85set','../new voices/86set','../new voices/87set','../new voices/88set',
   '../new voices/89set','../new voices/90set','../new voices/99set','../new voices/100set'
 ]);

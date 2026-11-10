@@ -572,6 +572,16 @@ const STARTER_DECKS = [
 ];
 
 const AI_ONLY_RANDOM_DECKS = [
+  {id:'ai_oppression_old_elite',baseStrategy:'ai_oppression_old_elite',name:'Oppression of the Old Elite',
+    description:'Control draws with the Old Elite, anchor Marie and Don Julio, then use Covert Operations to conceal a decisive Don Julio consolidation.',
+    theme:'AI Only - Eventide Control',faceCardId:'109',displayCardIds:['36','113','bh05','115'],
+    sourcePublicDeckId:'nNbfvYwsoDfnvTHQhK4lwN5a2B22_1794144503230',enabled:true,
+    ids:['36','36','36','bh05','109','109','09','09','113','113','113','79','79','79','27','27','27','06','06','06','60','60','60','111','111','111','115','115','115','74','74','74','119','119','119','75','75','28','75','117']},
+  {id:'ai_ai_bubble_2026',baseStrategy:'ai_ai_bubble_2026',name:'The AI Bubble of 2026',
+    description:'Activate Abed before Hugh Roberts so Smart Investments doubles, then draw or recover the permanently grown cards. Emerald Eyed Children supplies free recruitment.',
+    theme:'AI Only - High-T Investments',faceCardId:'bh13',displayCardIds:['bh19','bh13','27','32'],
+    sourcePublicDeckId:'nNbfvYwsoDfnvTHQhK4lwN5a2B22_1794142984357',enabled:true,
+    ids:['bh19','bh19','bh19','bh13','bh13','bh13','27','27','27','32','32','32','28','28','28','69','69','69','60','60','60','13','13','120','120','120','74','74','74','79','79','79','94','94','94','80','80','80','06','06']},
 {"id":"ai_infantry_havano","baseStrategy":"ai_infantry_havano","name":"Infantry of Havano","description":"Custom deck","theme":"AI Only","faceCardId":"114","displayCardIds":["07","37","66","34"],"sourcePublicDeckId":"nNbfvYwsoDfnvTHQhK4lwN5a2B22_1793418513874","ids":["114","114","114","37","37","37","79","79","79","60","60","60","07","13","13","13","27","27","27","32","32","32","16","16","16","28","28","28","68","68","68","34","34","34","66","66","66","74","74","74"],"enabled":true},
 {"id":"ai_el_viaje","baseStrategy":"ai_el_viaje","name":"El Viaje Del Hombre Pina","description":"Caribbea must be saved, but only the Pineapple man can do it","theme":"AI Only","faceCardId":"101","displayCardIds":["bh22","33","119","120"],"sourcePublicDeckId":"nNbfvYwsoDfnvTHQhK4lwN5a2B22_1793371018171","ids":["101","101","bh22","bh22","84","84","84","33","33","33","60","60","60","12","12","58","58","58","bh20","bh20","bh20","28","28","28","98","98","120","120","120","119","119","119","79","79","79","72","72","72","118","118"],"enabled":true},
 

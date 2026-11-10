@@ -2,6 +2,27 @@
 (function(){
   'use strict';
   const characters = Object.freeze({
+    rivera:{name:'Rivera',portrait:'pfp/pfp51.png',file:'Rivera',ids:new Set(['51','104']),clips:[
+      ['I am a simple man in a complex world.','But I will everything in my power to make any difference I can.','Jorge Alvarez, I will follow you.'],
+      ['When my wife died years ago, I thought I would not have the strength to go on.','But thanks to my daughter, I have found that strength.'],
+      ['It pains me to leave my daughter behind.','But it is so that no one else in the world will ever have to experience this same dilemna ever again.'],
+      ["Sofia, It's okay to go out and play with your friends,", "but make sure you do your homework first and don't get lost.", "But remember, above else, be sure to come home for dinner on time - i'm making your favorite papayas!"],
+      ['My daughter is the star of my world - it is difficult for me to leave her behind,','for she is the only thing I have left in this world.','Though sometimes I wonder, what am I without her? Is there anything left of me?']
+    ]},
+    bobby:{name:'Bobby Jones',portrait:'pfp/pfp55.png',file:'Bobby',ids:new Set(['55']),clips:[
+      ['Within my cosmic locks, are entire stars and galaxies embedded within.','A fountain of golden stardust, an endless tapestry containing the birth and death of infinite universes.'],
+      ['No mortal can gaze upon my form and comprehend it -','the pure divinity of my cosmic figure would rupture the very atoms of your physical existence.'],
+      ['In the Third Reckoning. thousands of eons past, I brought low the cosmic horror Szecicine -','our battle was fought over the course of countless millennia, across the expanse of ten thousand universes.'],
+      ['My domain is that of this universe - I am the ruler of stars, galaxies, and clusters,','the protector and warrior of all creation.','I serve the divine entity Cosmic GF, and my son, Juan Carlos, protects the world of the living.'],
+      ["Behold, wretched demon of the Outer Realms, gaze upon my ultimate move!", "Chasm of Singularity, Shattered Dimensional Fracture, Aether's Final Oblivion!!!"]
+    ]},
+    lydia:{name:'Lydia',portrait:'pfp/pfp56.png',file:'Lydia',ids:new Set(['56']),clips:[
+      ['This is actual bullshit!','Why do I get the lame talking floating sword that follows me everywhere I go,including when I shower,','and you get the awesome matter altering atomic manipulation ability!!! What the fuck!!'],
+      ["You're telling me... that you are the same guy who wrote an entire book on sharing shit?", "Hypocritical asshole. I'm not going to let some buff, shirtless, tantrum throwing apparition of Karl Marx",'get between me and Croads chocolate chip cookies before my cs61a class!'],
+      ['The homeless people. The tweakers. The shitty dining hall food. The cutthroatedness.','The club applications. The grade deflation. The chopped guys. The immense class sizes...','if only these were the only things I had to worry about.'],
+      ['Do you ever get this strange feeling from inside Evans Hall?','When I get close, I am filled with an ancient dread,','as if there is a great evil being harbored within its winding labyrinths.'],
+      ['So, why exactly is it that students who touch the 4.0 seal end up not being able to get a 4.0 GPA?','Follow up question - How mentally traumatizing do you think it is','to see your GBO Leader get decapitated by a giant Crayfish from Strawberry Creek?']
+    ]},
     chingachlook:{name:'Chingachlook',portrait:'pfp/pfp45.png',file:'Chingachlook',ids:new Set(['45']),clips:[
       ['Great Spirit, Maker of All Life.','A warrior goes to you swift and straight as an arrow shot into the sun.','Welcome him and let him take his place at the council fire of my people.','He is Uncas, my son.'],
       ['The frontier moves with the sun and pushes the Red Man of these wilderness forests in front of it','until one day there will be nowhere left.','Then our race will be no more, or be not us.'],

@@ -3,7 +3,7 @@ const {byId}=require('./fate-card-catalog.js').getCardCatalog();
 const runtime={window:{FateJapaneseCatalog:{},FateChineseContent:[]}};
 vm.runInNewContext(fs.readFileSync('src/scripts/53-caribbea-translations.js','utf8'),runtime);
 const zh=new Map(runtime.window.FateChineseContent);
-const expected={108:['Sofia',2,3],109:['Don Julio',6,4],110:['Sebastián',2,2],111:['West Caribbea Villager',1,0],112:['Caribbea Revolutionary',1,0],113:['Old Elite Oligarch',1,0],114:['Loyalist Soldier',1,0],115:['Caribbea Loyalist',1,0],116:['Anarquista Revolutionary',1,0],117:['Anarquista Saboteur',1,0],118:['Caribbea Fisherman',1,0],119:['Havano Merchant',1,0],120:['The Emerald Eyed Children',1,0]};
+const expected={108:['Sofia',2,3],109:['Don Julio',8,3],110:['Sebastián',2,2],111:['West Caribbea Villager',1,0],112:['Caribbea Revolutionary',1,0],113:['Old Elite Oligarch',1,0],114:['Loyalist Soldier',1,0],115:['Caribbea Loyalist',1,0],116:['Anarquista Revolutionary',1,0],117:['Anarquista Saboteur',1,0],118:['Caribbea Fisherman',1,0],119:['Havano Merchant',1,0],120:['The Emerald Eyed Children',1,0]};
 for(const [id,[name,fate,cost]] of Object.entries(expected)){
   const card=byId.get(id);assert.deepEqual([card.name,card.fate,card.cost],[name,fate,cost]);
   assert.equal(card.img.split('?')[0],id+'.png');
