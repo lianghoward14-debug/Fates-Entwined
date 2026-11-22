@@ -568,6 +568,25 @@
     return refreshLegacyMoralePressure({announce:true,events:[event]});
   }
 
+  function applyLegacyBlazingInfernoEvents(state,events){
+    for(const event of events){
+      if(event.type !== 'MORALE_DAMAGED' || Number(event.amount) <= 0
+        || /(?:^|_)COST$/i.test(String(event.reason || ''))) continue;
+      const victim=Number(event.playerIndex);
+      if(victim!==0 && victim!==1) continue;
+      const attacker=1-victim;
+      const sourceOwner=event.sourcePlayerIndex == null ? -1 : Number(event.sourcePlayerIndex);
+      const sourceCard=event.sourceIid ? state.board.flat(2).find(card=>String(card?.iid||'')===String(event.sourceIid)) : null;
+      if(sourceOwner!==attacker && Number(sourceCard?.owner)!==attacker) continue;
+      for(const magician of state.board.flat(2).filter(card=>card && String(card.id)==='121'
+        && Number(card.owner)===attacker && !(card.statuses||[]).includes('EFFECTS_SUPPRESSED'))){
+        magician.counters ||= {};
+        magician.counters.infernoCounters=Math.max(0,Number(magician.counters.infernoCounters)||0)+1;
+        window.playBraveHorizonsCounterSfx?.(false);
+      }
+    }
+  }
+
   function refreshLegacyMoralePressure(options){
     const state = legacyGameState();
     if(!legacyRulesEnabled() || !state?._moralePressure) return false;
@@ -600,6 +619,7 @@
       system.ledger[player] = nextLedger;
       system.pressure[player] = Math.max(0,nextLedger.reduce(function(sum,entry){return sum+Number(entry.amount||0);},0));
     }
+    applyLegacyBlazingInfernoEvents(state,events);
     finalizeLegacyPressureEvents(events,before);
     if(opts.present !== false) queueLegacyPresentation(events);
     else renderMoralePressureHud(system);
@@ -922,6 +942,7 @@
     const lowMoraleDiscard = resolveLegacyMoraleLowHandDiscard(Number(endingPlayer));
     if(lowMoraleDiscard) events.push(lowMoraleDiscard);
     system.cycle+=1;
+    applyLegacyBlazingInfernoEvents(state,events);
     queueLegacyPresentation(events);
     return true;
   }

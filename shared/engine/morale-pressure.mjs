@@ -109,6 +109,25 @@ function pushEvent(ctx, event){
     moralePressureEvent:true,
     turn:Number(ctx.state?.turn || 1)
   });
+  if(event.type !== 'MORALE_DAMAGED' || Number(event.amount) <= 0
+    || /(?:^|_)COST$/i.test(String(event.reason || ''))) return;
+  const victim = Number(event.playerIndex);
+  const sourceCard = event.sourceIid ? findBoardCard(ctx.state,event.sourceIid)?.card : null;
+  const attacker = Number(event.sourcePlayerIndex ?? event.sourceController ?? (sourceCard ? controllerOf(sourceCard) : -1));
+  if((victim !== 0 && victim !== 1) || attacker !== 1 - victim) return;
+  const deck = ctx.state?.players?.[victim]?.deck;
+  if(!Array.isArray(deck)) return;
+  for(const source of boardEntries(ctx.state).filter(entry=>
+    String(entry.card?.id || '') === '121'
+    && controllerOf(entry.card) === attacker
+    && !isEffectSourceSuppressed(ctx.state, entry)
+  )){
+    const next=Math.max(0,Number(source.card.counters?.infernoCounters)||0)+1;
+    source.card.counters ||= {};
+    source.card.counters.infernoCounters=next;
+    ctx.events.push({type:'CARD_COUNTER_SET',cardIid:source.card.iid,counterKey:'infernoCounters',value:next,
+      sourceIid:source.card.iid,reason:'BLAZING_INFERNO_COUNTER'});
+  }
 }
 
 // Jorge converts one third of healing originating in his current zone.

@@ -1666,9 +1666,9 @@
     return !!type && type !== 'Supporter' && type !== 'Counter';
   }
   const ONLINE_HAVANO_FIRST_SET_SOURCE_IDS = new Set([
-    '04','10','14','16','17','18','21','26','30','31','36','39','50','52','53','61','62','64','71','72'
+    '04','10','14','16','17','18','21','26','30','31','36','39','50','52','53','61','62','64','71','72','123','126','127'
   ]);
-  const ONLINE_SECULES_WHEN_SET_IDS = new Set(['108','111','112','113','115','116','117','118',
+  const ONLINE_SECULES_WHEN_SET_IDS = new Set(['108','111','112','113','115','116','117','118','119',
     '02','03','04','05','06','07','08','12','13','14','16','17','18','21','22','25','26','27','29','30','31','32','33','34','35','37','38','39','40','42','43','45','46','48','50','51','52','54','56','58','60','61','62','66','68','69','71','72','73','75','76','77','80','84','91','94','bh09','bh23','bh24','bh25'
   ]);
   const resumedOnlinePlacementReactionPrompts = new Set();
@@ -3399,7 +3399,7 @@
       next._phase7RozsiYouthCharacterCount = projectedCharacterCount;
     }
     if(card.counters?.fishCounter === true || card.fishCounter === true || String(card.id) === 'token-fish'){
-      Object.assign(next,{fishCounter:true,token:true,img:'fishtoken.png?v=20261021',type:'Counter',cost:0,ability:'The Daily Catch',effect:'This card counts as a token. This card counts as 0.5 Reinforcement and can be set for free.'});
+      Object.assign(next,{fishCounter:true,token:true,img:'fishtoken.png?v=20261122-new-art',type:'Counter',cost:0,ability:'The Daily Catch',effect:'This card counts as a token. This card counts as 1 Reinforcement and can be set for free.'});
     }
     if(card.counters?.whisperLandscapeToken === true || String(card.id || '') === 'whisper17'){
       // Concrete Roads stores the copied rule in authoritative counters. The
@@ -3458,7 +3458,7 @@
       // Authoritative prompts carry gameplay state, not a duplicate of every
       // immutable catalogue field. Reattach all data used by picker artwork
       // and information windows instead of hydrating only the thumbnail.
-      ['img','runtimeImg','rarity','type','name','ability','effect','flavor','cost','xCost','xFate','set'].forEach(function(key){
+      ['img','runtimeImg','rarity','type','name','ability','effect','flavor','cost','xCost','xFate','set','pfpId','cinematicPortrait'].forEach(function(key){
         if((next[key] == null || next[key] === '') && definition[key] != null) next[key] = definition[key];
       });
       // Jaime shipped while an older authority catalog still supplied another
@@ -4759,6 +4759,10 @@
     if(String(card?.id || '') === '38') return {label:'Fat Fuck', prompt:'Fat Fuck'};
     if(String(card?.id || '') === '93') return {label:'Snowball Fight', prompt:'Snowball Fight'};
     if(String(card?.id || '') === 'bh16') return {label:'Storm of Ten Thousand Blades', prompt:'Storm of Ten Thousand Blades'};
+    if(String(card?.id || '') === 'bh01') return {label:'Expend 2 counters', prompt:'Call to Arms'};
+    if(String(card?.id || '') === '120') return {label:'Put 1 counter on a card', prompt:'The Story Never Ends'};
+    if(String(card?.id || '') === '36') return {label:'Expend 1 counter', prompt:'Deterrance'};
+    if(String(card?.id || '') === '121') return {label:'Expend 1 counter', prompt:'Blazing Inferno'};
     if(String(card?.id || '') === '20') return {label:'Shield Wall', prompt:'Shield Wall'};
     return {label:'Activate Effect', prompt:'Activate Effect'};
   }
@@ -4815,6 +4819,7 @@
       });
       const activationPresentation = phase7ActivationActionPresentation(card);
       if(activations.length && !card.faceDown && phase7RequiresManualActivation(card, activations[0])) add(card.faceDown ? 'Activate Face Down' : activationPresentation.label, function(){
+        if(String(card.id || '') === 'bh01') window.playBraveHorizonsCounterSfx?.(true);
         closeModal();
         phase7ChooseCommand(activations, activationPresentation.prompt, {manualActivationIntent:true});
       }, {primary:true, phase7Action:'activate', iid});
@@ -5400,7 +5405,7 @@
       });
       return;
     }
-    if(prompt?.type === 'MODAL_CHOICE' && ['51','66','77','90'].includes(sourceId)
+    if(prompt?.type === 'MODAL_CHOICE' && ['51','66','77','90','130'].includes(sourceId)
       && typeof window.showAffiliationPickerVisual === 'function'){
       let affiliationSubmitted = false;
       const submitAffiliation = function(affiliation){
@@ -5408,8 +5413,13 @@
         affiliationSubmitted = true;
         return submitChoice(affiliation, 'choice');
       };
+      const available=prompt.options.map(option=>String(option.value));
+      const firstForNytress=sourceId==='130' && prompt.local==='secondAffiliation'
+        ? ['reality','third_great_war','expanded_worlds','eventide'].filter(aff=>!available.includes(aff)) : [];
       withOnlinePromptBypass(gameState(), function(){
-        window.showAffiliationPickerVisual(submitAffiliation, source);
+        window.showAffiliationPickerVisual(submitAffiliation, source, null, {
+          allowedAffiliations:available,selectedAffiliations:firstForNytress
+        });
       });
       // Presentation coordination may defer construction until after this
       // function returns. Bind the exact shipping picker once it is visible,
@@ -6313,7 +6323,16 @@
         }
       }
       if(!Array.isArray(preview.state.board?.[z]?.[r])) return;
-      preview.state.board[z][r][c] = cloneOnlinePlain(projected.card);
+      const placedCard = cloneOnlinePlain(projected.card);
+      const haunted = events.some(function(item){
+        return item?.type === 'STATUS_CREATED' && item.status === 'HAUNTED_NO_EFFECTS'
+          && String(item.cardIid) === iid;
+      });
+      if(haunted && !placedCard.statuses?.includes('HAUNTED_NO_EFFECTS')){
+        placedCard.statuses = [...(placedCard.statuses || []),'HAUNTED_NO_EFFECTS'];
+      }
+      if(haunted){placedCard.counters ||= {};placedCard.counters.ellieHauntedVisual=true;}
+      preview.state.board[z][r][c] = placedCard;
       changed = true;
     });
     return changed ? preview : null;
@@ -6331,7 +6350,7 @@
       const key = phase7CardSetFeedbackKey(batchId, event);
       if(phase7CurrentUiSession.cardSetFeedbackUntilByKey.has(key)) continue;
       const projected = phase7FindProjectedEntry(view, event.cardIid);
-      const card = projected?.card;
+      const card = phase7PresentationCard(projected?.card);
       const destination = event?.destination || projected;
       const fishCounter = !!card && (card.fishCounter === true || card.counters?.fishCounter === true || String(card.id || '') === 'token-fish');
       if(!card || card.faceDown === true || fishCounter || !window.FateSquareFeedbackFx?.playSet) continue;
@@ -6383,7 +6402,7 @@
     }
     for(const event of setEvents){
       const projected = phase7FindProjectedEntry(view, event?.cardIid);
-      const card = projected?.card;
+      const card = phase7PresentationCard(projected?.card);
       if(!card || card.faceDown === true) continue;
       const token = phase7IsTokenCard(card);
       const supporter = String(card.type || '') === 'Supporter';
@@ -6550,7 +6569,9 @@
     }else if(typeof window.flashCardEffect === 'function'){
       shown = !!window.flashCardEffect(liveTarget, descriptor.kind, {
         label:descriptor.label,
-        soundKey:['phase7', String(view?.presentationBatch?.id || ''), String(eventIndex ?? ''), String(event?.type || ''), String(liveTarget?.iid || '')].join(':'),
+        soundKey:descriptor.kind==='yokai_judgement'
+          ? ['phase7-yokai',String(view?.presentationBatch?.id||''),String(event?.sourceIid||'')].join(':')
+          : ['phase7', String(view?.presentationBatch?.id || ''), String(eventIndex ?? ''), String(event?.type || ''), String(liveTarget?.iid || '')].join(':'),
         onlineRemote:true
       });
       if(shown && projectedTarget && projectedTarget !== liveTarget && liveTarget._effectFlash){
@@ -6753,6 +6774,9 @@
       }
       prePresentedMoveIndexes.add(eventIndex);
     }
+    for(const event of events)if(event.type==='CARD_COUNTER_SET' && event.counterKey==='braveHorizonsCounters'
+      && Number(event.value)>0 && events.some(move=>move.type==='CARD_MOVED' && String(move.cardIid||'')===String(event.cardIid||'')))
+      window.playBraveHorizonsCounterSfx?.(false);
     phase7PresentJimmyCounterGain(view);
     // Hand resets resolve visibly in the same order as their rules: the
     // activation cinematic has finished, then discard, then ordinary draws.
@@ -6942,6 +6966,17 @@
     };
     events.forEach(function(event, eventIndex){
       const type = String(event?.type || '').toUpperCase();
+      if(type === 'CARD_COUNTER_SPENT'){
+        window.dismissCardInfoOverlay?.();
+        const spentCard = phase7FindAnyCard(event.cardIid) || phase7FindProjectedEntry(view,event.cardIid)?.card;
+        if(event.cardId === '121'){
+          const discard = events.find(item=>item.type === 'CARD_DISCARDED' && item.reason === 'BLAZING_INFERNO' && String(item.sourceIid) === String(event.cardIid));
+          window.showBlazingInfernoDiscard?.(discard?.cardName || '',event.cardIid,discard?.playerIndex);
+        }else if(spentCard && typeof window.flashCardEffect === 'function'){
+          const kind = event.cardId === '36' ? 'marie_deterrence' : 'anicka_voyager_boat';
+          window.flashCardEffect(spentCard,kind,{label:event.cardId === '36' ? 'Deterrance' : 'Brave Horizons',soundKey:['counter-spent',String(view?.presentationBatch?.id||''),String(eventIndex)].join(':')});
+        }
+      }
       const source = phase7PresentationCard(phase7FindAnyCard(event?.sourceIid)) || phase7FindProjectedEntry(view, event?.sourceIid)?.card;
       const targetIid = String(event?.cardIid || event?.targetIid || '');
       const targetLocation = phase7FindCardLocation(targetIid);
@@ -7070,6 +7105,10 @@
         }
         if(window.toast) toast('The Genesis of all Inceldom sent ' + String(event.cardName || target?.name || 'a card') + ' from the deck to the discard pile.');
       }
+      if(type === 'CARD_DISCARDED' && event.reason === 'BLAZING_INFERNO'){
+        if(!events.some(item=>item.type === 'CARD_COUNTER_SPENT' && String(item.cardIid) === String(event.sourceIid)))
+          window.showBlazingInfernoDiscard?.(event.cardName, event.sourceIid, event.playerIndex);
+      }
       if(type === 'CARD_DISCARDED' && target){
         if(handResetDiscardIndexes.has(eventIndex)) return;
         // The consolidation stage already consumed/animated these tributes.
@@ -7191,9 +7230,20 @@
         if(window.toast) toast((source?.name || 'The effect') + ' was ' + (type === 'EFFECT_BLOCKED' ? 'blocked' : 'skipped') + (reason ? ': ' + reason : '') + '.');
         return;
       }
+      if(type === 'INVESTIGATION_RESOLVED'){
+        if(window.toast) toast('Investigation found '+Number(event.matchCount||0)+' original-deck match'+(Number(event.matchCount||0)===1?'':'es')+' and gained '+Number(event.fateGained||0)+' Fate.');
+        return;
+      }
       if(type === 'FATE_CHANGED' && target){
         const fateBefore = Math.max(0, Number(event.before) || 0);
         const fateAfter = Math.max(0, Number(event.after) || 0);
+        if(String(event.reason || '').toUpperCase()==='ELEMENTAL_MASTERY' && fateAfter>fateBefore
+          && typeof window.flashCardEffect==='function'){
+          window.flashCardEffect(target,'elemental_mastery',{
+            label:'Elemental Mastery',
+            soundKey:['phase7',batchId,'elemental',String(event.sourceIid||'')].join(':')
+          });
+        }
         // A clamped/recomputed no-op is not visible game feedback. Showing an
         // effect crest when the printed Fate number did not change creates an
         // overlay that can never be paired with a legitimate number motion.
@@ -7474,6 +7524,13 @@
     // Placement overlays and their Fate deltas belong to the start of result feedback,
     // not after waiting for those same result animations to finish.
     if(typeof onResultsStarted === 'function') onResultsStarted();
+    const cipherHandDiscards=events.filter(event=>event?.type==='CARD_DISCARDED' && event.reason==='FLAMING_LIGHTNING_STORM_HAND').map(event=>String(event.cardName||'Card'));
+    if(cipherHandDiscards.length){
+      const handDiscardEvent=events.find(event=>event?.reason==='FLAMING_LIGHTNING_STORM_HAND');
+      const actor=Number.isInteger(Number(handDiscardEvent?.sourceController))
+        ? Number(handDiscardEvent.sourceController) : 1-Number(handDiscardEvent?.playerIndex);
+      window.showCipherDiscardBanner?.(cipherHandDiscards,actor,view.playerIndex);
+    }
     if(resultMotionStarted) await phase7WaitForPresentationIdle({minQuietMs:110, timeoutMs:7600});
     for(const event of events){
       if(event?.type === 'VILLAGER_SEARCH_EMPTY' && Number(event.playerIndex) === Number(view.playerIndex)){
@@ -8149,13 +8206,17 @@
     const events = Array.isArray(batch?.events) ? batch.events : [];
     const unseenBatch = !!(batchId && events.length && !phase7CurrentUiSession.seenPresentationBatchIds.has(batchId));
     const hasCommittedView = !!phase7CurrentUiSession.view?.state;
+    const revealingCovertBoard = hasCommittedView
+      && String(phase7CurrentUiSession.view.state.matchId || '') === String(view.state.matchId || '')
+      && phase7CurrentUiSession.view.state.saboteurConcealment?.active === true
+      && view.state.saboteurConcealment?.active !== true;
     if(unseenBatch) phase7RememberPresentationBatch(batchId);
 
     // A CARD_SET is visible state, even while an older cinematic or picker is
     // still draining. Commit its placement-only preview at snapshot arrival so
     // every Character and Supporter appears on the board immediately. The full
     // authoritative view and its prompts remain gated by the presentation queue.
-    if(unseenBatch && hasCommittedView){
+    if(unseenBatch && hasCommittedView && !revealingCovertBoard){
       const placementPreview = phase7BuildCardSetPresentationPreview(view, events);
       if(placementPreview){
         phase7CommitCurrentView(placementPreview, 'Phase 7 immediate authoritative placement');
@@ -8195,6 +8256,12 @@
     };
     const task = async function(){
       if(!presentationStillCurrent()) return false;
+      if(revealingCovertBoard){
+        // A concealed board is replaced by its real snapshot in one commit.
+        // The newly visible cards were played earlier, so this batch has no
+        // placement, activation, or result cinematics for this viewer.
+        return phase7CommitCurrentView(view, reason);
+      }
       for(const event of events)if(event.type==='FATE_DIE_ROLLED')window.holdDonJulioFate?.(event);
       for(const event of events)if(event.type==='FISH_COUNTER_CREATED')window.holdSebastianFishCards?.(event.createdIids);
       const flipEvents = events.filter(event=>event.type === 'CARD_FLIPPED');

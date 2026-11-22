@@ -22,7 +22,7 @@ for(const count of [0,1,3]){
   const selected=state.players[0].hand.filter(c=>c.id==='32').slice(0,count).map(c=>c.iid);
   assert(state.pendingPrompt);
   state=send(state,'ANSWER_PROMPT',{promptId:state.pendingPrompt.promptId,selectedIids:selected});
-  for(const iid of selected){assert.equal(state.players[0].deck.find(c=>c.iid===iid)?.currentFate,8);assert(!state.players[0].hand.some(c=>c.iid===iid));}
+  for(const iid of selected){assert.equal(state.players[0].deck.find(c=>c.iid===iid)?.currentFate,10);assert(!state.players[0].hand.some(c=>c.iid===iid));}
 }
 for(const copiedId of ['15','bh02','bh08']){
   let state=fresh();

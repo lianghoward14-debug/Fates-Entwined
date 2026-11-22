@@ -46,8 +46,11 @@ const quiet=harness();quiet.busy(true);quiet.advance(30000);assert.equal(quiet.a
 quiet.busy(false);quiet.advance(7750);assert.equal(quiet.audios.length,0);quiet.advance(250);assert.equal(quiet.audios.length,1);
 const absent=harness();absent.g.board[0][0][0].owner=1;absent.advance(40000);assert.equal(absent.audios.length,0);
 absent.g.board[0][0][0].owner=0;absent.g.board[0][0][0].faceDown=true;absent.advance(20000);assert.equal(absent.audios.length,0);
-const mute=harness();mute.volume(0);mute.advance(30000);assert.equal(mute.audios.length,0);
-mute.volume(1);mute.advance(8000);assert.equal(mute.audios.length,1);mute.document.hidden=true;mute.advance(750);assert.equal(mute.panel.hidden,true);
+const mute=harness();mute.volume(0);mute.advance(30000);assert.equal(mute.audios.length,1);
+assert.equal(mute.panel.hidden,false,'muting chatter keeps its caption box visible');
+assert.equal(mute.audios[0].muted,true,'muting chatter silences the clip');
+mute.volume(1);mute.advance(750);assert.equal(mute.audios[0].muted,false);
+mute.document.hidden=true;mute.advance(750);assert.equal(mute.panel.hidden,true);
 const input=harness();input.advance(14000);input.input();input.advance(7750);assert.equal(input.audios.length,0);input.advance(250);assert.equal(input.audios.length,1);
 const voice=harness();const setVoice={addEventListener(){}};
 const release=voice.window.FateIdleChatter.trackVoice(setVoice);voice.advance(40000);assert.equal(voice.audios.length,0);release();voice.advance(8000);assert.equal(voice.audios.length,1);

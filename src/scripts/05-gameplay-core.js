@@ -5,7 +5,7 @@ function emeraldChildrenEligibleLocal(player){
    return !!card && String(card.rarity).toLowerCase()!=='star';
  });
 }
-function emeraldChildrenFreeSetLocal(card,player){return String(card?.id)==='120' && (typeof card.emeraldChildrenEligible==='boolean'?card.emeraldChildrenEligible:emeraldChildrenEligibleLocal(player));}
+function emeraldChildrenFreeSetLocal(){return false;}
 function triggerDonJulioSupporterSet(placed, zone){
   const owner = placed.controller ?? placed.owner;
   forEachBoardCard(function(card,z,r,c){
@@ -33,7 +33,7 @@ async function resolveDonJulioSupporterArrival(inst){
 
 function hasNoSuppressibleFieldEffect(card){
   const id=String(typeof getCardRuntimeEffectId==='function'?getCardRuntimeEffectId(card):card?.id || '');
-  return ['76','bh01'].includes(id);
+  return id==='76';
 }
 function isFlowerPickingEligible(player){
   if(typeof G.players?.[player]?.flowerPickingEligible==='boolean')return G.players[player].flowerPickingEligible;
@@ -41,7 +41,7 @@ function isFlowerPickingEligible(player){
   // or belong to the other seat and cannot fill in a missing server flag.
   if(G._onlineRoomCode || G._phase7CurrentMultiplayer)return false;
   const original=player===0?G.p1Deck:G.p2Deck;
-  const drawIds=['27','32','42','80','86','108','bh01'];
+  const drawIds=['27','32','42','80','86','108'];
   if(Array.isArray(original) && original.length)return !original.some(c=>drawIds.includes(String(c?.id || c)));
   return false;
 }
@@ -83,6 +83,7 @@ function frenchFusiliersCopies(card, sourceId) {
 
 function cardActsAsPassive(card, sourceId) {
   if(!card) return false;
+  if(card.statuses?.includes('HAUNTED_NO_EFFECTS')) return false;
   if(card._effectNegatedByReaction || card._effectSuppressedByReaction || card._reactionSuppressed || card._lydiaSuppressed || card._lumberjackSuppressed) return false;
   // Multiplayer projects reaction suppression as the canonical public card
   // status.  Every passive consumer (including Dylan's Fate aura) comes
@@ -772,6 +773,39 @@ function showSangrePorVictoriaMoralePicker(player,onConfirm,onCancel,options={})
 }
 window.showSangrePorVictoriaMoralePicker=showSangrePorVictoriaMoralePicker;
 
+function captureLocalBoardTurnStart(player){
+  if(!G._boardTurnStartSnapshots)G._boardTurnStartSnapshots=[null,null];
+  const cards=[];
+  G.board.forEach((zone,z)=>zone.forEach((row,r)=>row.forEach((card,c)=>{
+    if(card&&Number(card.owner)===Number(player))cards.push({z,r,c,card:structuredClone(card)});
+  })));
+  G._boardTurnStartSnapshots[player]={turn:G.turn,cards};
+}
+
+function recalibrateLocalOpponentBoard(controller,source){
+  const opponent=1-controller,snapshot=G._boardTurnStartSnapshots?.[opponent];
+  if(!snapshot){toast('Recalibration: the opponent has not begun a turn yet.');return;}
+  const wanted=new Set(snapshot.cards.map(entry=>String(entry.card.iid)));
+  G.board.forEach((zone,z)=>zone.forEach((row,r)=>row.forEach((card,c)=>{
+    if(!card||Number(card.owner)!==opponent)return;
+    G.board[z][r][c]=null;
+    if(!wanted.has(String(card.iid)))fatePushDiscard(card.owner,card);
+  })));
+  snapshot.cards.forEach(entry=>{
+    const iid=String(entry.card.iid);
+    G.players.forEach(player=>['hand','deck','discard'].forEach(pile=>{
+      player[pile]=player[pile].filter(card=>String(card.iid)!==iid);
+    }));
+    G.board.forEach((zone,z)=>zone.forEach((row,r)=>row.forEach((card,c)=>{
+      if(card&&String(card.iid)===iid)G.board[z][r][c]=null;
+    })));
+    if(!G.board[entry.z]?.[entry.r]?.[entry.c])G.board[entry.z][entry.r][entry.c]=structuredClone(entry.card);
+  });
+  toast('Recalibration restored the opponent’s board to the start of turn '+snapshot.turn+'.');
+  log(controller===0?'p1':'p2','Recalibration restored opponent board state.');
+  renderGame({board:true,scores:true,hand:true,piles:true,topbar:true});
+}
+
 function endTurn(opts) {
   if(G && G._ledgerArchivePending) return false;
   // Authoritative v3 single-player has its own reducer-backed turn owner.
@@ -1197,6 +1231,7 @@ const WHISPER_FIELD_WIDE_EFFECT_TEXT = Object.freeze({
   '34':'Declare an affiliation. During Morale Calculation, inflict 2 Morale Damage for each card you control on the field with that affiliation.',
   '57':'All Coordinator auras you control on the field gain 1 Fate in potency.',
   '77':'When set, declare an affiliation. All cards you control on the field with that affiliation gain 4 Fate.',
+  '130':'When you set or consolidate a card with either declared affiliation, cards you control in this card’s zone gain 1 Fate.',
   'bh02':'Each time you activate a draw effect, all cards you control on the field gain 1 Fate.',
   'bh07':'For each Dauntless card adjacent to this card, all cards you control on the field gain 2 Fate.',
   'bh08':'Each time you would negate or suppress an opponent\'s card, all cards you control in this card\'s zone gain 2 Fate.',
@@ -1258,6 +1293,11 @@ function createWhisperOfTheHeartToken(player, sourceCard) {
   token._whisperCopiedSourceName = String(sourceCard.name || 'Coordinator');
   token._whisperCopiedAbility = String(sourceCard.ability || 'Copied Effect');
   token._whisperCopiedPrintedEffect = String(sourceCard.effect || '');
+  if(String(sourceCard.id)==='130'){
+    token.counters=token.counters||{};
+    token.counters.elementalAffiliationA=sourceCard.counters?.elementalAffiliationA;
+    token.counters.elementalAffiliationB=sourceCard.counters?.elementalAffiliationB;
+  }
   token._whisperCopiedFieldEffect = getWhisperFieldWideEffectText(sourceCard);
   token.effect = token._whisperCopiedFieldEffect;
   token._whisperCreatedTurn = Number(G.turn) || 1;
@@ -1809,7 +1849,7 @@ function applyCrushingMomentumAfterConsolidation(card, playerIndex) {
     sources.push(source);
   });
   sources.forEach(function(source, index){
-    applyPairedOverlayFateGain(card, 3, playerIndex, {
+    applyPairedOverlayFateGain(card, 4, playerIndex, {
       type:'permanent',
       kind:'bh17_crushing_momentum',
       label:'Crushing Momentum',
@@ -1851,6 +1891,7 @@ async function nextPlayerTurn() {
   }
   G.currentPlayer = 1 - G.currentPlayer;
   G.turn++;
+  captureLocalBoardTurnStart(G.currentPlayer);
   // Turn-based restrictions expire now, before turn-start effects and pickers.
   if(typeof window.renderGameImmediate === 'function') window.renderGameImmediate({board:true});
   else renderGame({board:true});
@@ -2069,7 +2110,7 @@ async function nextPlayerTurn() {
 
   if(typeof tickCarpathianSpecters === 'function') tickCarpathianSpecters(currentPlayer);
 
-  // Phil (46) — Monarchist Manifesto: gains 2 Fate per draw phase after being set.
+  // Phil (46) — Monarchist Manifesto: gains 3 Fate per draw phase after being set.
   // Authoritative projections persist the entry turn in counters; older local
   // games used _philSetTurn.  Accept both so the passive survives every client
   // path, including multiplayer state reconciliation.
@@ -2080,7 +2121,7 @@ async function nextPlayerTurn() {
       && philController===currentPlayer
       && Number.isFinite(philSetTurn)
       && philSetTurn < Number(G.turn)) {
-      applyPairedOverlayFateGain(card, 2, currentPlayer, {
+      applyPairedOverlayFateGain(card, 3, currentPlayer, {
         kind:'phil_crown',
         label:'Monarchist Manifesto',
         sourceIid:String(card.iid || card.id || '46'),
@@ -4029,13 +4070,29 @@ async function resolveAnickaVoyagerMove(z, r, c) {
       requestAnimationFrame(function(){ requestAnimationFrame(resolve); });
     });
   }
-  const drewCard = Array.isArray(G.players?.[G.currentPlayer]?.deck) && G.players[G.currentPlayer].deck.length > 0;
-  if(drewCard) await drawCard(G.currentPlayer, 1, {activatedDrawEffect:true, effectSource:card});
-  toast(drewCard ? 'Ani\u010dka moved and drew 1 card.' : 'Ani\u010dka moved.');
-  if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(G.currentPlayer, {hand:drewCard, piles:drewCard});
-  else renderGame({board:true, hand:drewCard, scores:true, piles:drewCard, blocks:true, topbar:true});
+  card._braveHorizonsCounters=Math.max(0,Number(card._braveHorizonsCounters||0))+1;
+  card.counters=card.counters||{};card.counters.braveHorizonsCounters=card._braveHorizonsCounters;
+  window.playBraveHorizonsCounterSfx?.(false);
+  modifyFate(card,1,'permanent',G.currentPlayer);
+  toast('Ani\u010dka moved: +1 Fate and 1 counter ('+card._braveHorizonsCounters+').');
+  if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(G.currentPlayer, {hand:false,piles:false,scores:true});
+  else renderGame({board:true, hand:false, scores:true, blocks:true, topbar:true});
   return true;
 }
+async function activateAnickaVoyagerCallToArms(card){
+  if(!G||!card||String(card.id)!=='bh01'||card.owner!==G.currentPlayer)return false;
+  const count=Math.max(0,Number(card._braveHorizonsCounters??card.counters?.braveHorizonsCounters)||0);
+  if(count<2){toast('Brave Horizons needs 2 counters for Call to Arms.');return false;}
+  if(typeof isCardEffectSuppressed==='function'&&isCardEffectSuppressed(card)){toast('Brave Horizons is suppressed.');return false;}
+  card._braveHorizonsCounters=count-2;
+  card.counters=card.counters||{};card.counters.braveHorizonsCounters=count-2;
+  window.dismissCardInfoOverlay?.();
+  flashCardEffect(card,'anicka_voyager_boat',{label:'Brave Horizons'});
+  renderGame({board:true});
+  await window.resolveHopliteCallToArms?.(card,card.owner);
+  return true;
+}
+window.activateAnickaVoyagerCallToArms=activateAnickaVoyagerCallToArms;
 
 async function clickCell(z,r,c) {
   if(typeof window.fateHandleOnlineImprovisorHavanoDeploymentClick === 'function' && window.fateHandleOnlineImprovisorHavanoDeploymentClick(z,r,c)) {
@@ -4551,6 +4608,7 @@ async function clickCell(z,r,c) {
       window.recordLegacyMoralePressureCardSet(inst);
     }
     applyRiveraBuffToPlacedCard(inst, inst.owner);
+    applyElementalMasteryOnCardSet(inst,z,G.currentPlayer);
     if(placementCountsAsConsolidated) {
       if(typeof applyMarieDeterranceForConsolidation === 'function') applyMarieDeterranceForConsolidation(G.currentPlayer, z, inst);
       if(typeof applyCrushingMomentumAfterConsolidation === 'function') applyCrushingMomentumAfterConsolidation(inst, G.currentPlayer);
@@ -5698,26 +5756,16 @@ function applyMarieDeterranceForConsolidation(consolidatingPlayer, zoneIndex, co
     row.forEach(function(cell, c){
       if(!cell || !cardActsAsPassive(cell, '36') || cell.owner === consolidatingPlayer || isCardEffectSuppressed(cell)) return;
       activations++;
-      G.fateModifiers['deterrance_z' + z] = (G.fateModifiers['deterrance_z' + z] || 0) - 4;
       cell.counters ||= {};
-      cell.counters.marieFateReduced = Math.max(0, Number(cell.counters.marieFateReduced) || 0) + 4;
-      log('sys', 'Deterrance activated! Zone ' + (z + 1) + ' Fate reduced by 4.');
-      flashCardEffect(cell, 'marie_deterrence', {
-        label:'Deterrance',
-        soundKey:'marie:' + String(cell.iid || cell.id) + ':' + String(G.turn || 0) + ':' + String(consolidatedCard && (consolidatedCard.iid || consolidatedCard.id) || 'consolidation')
-      });
+      cell.counters.deterranceCounters = Math.max(0, Number(cell.counters.deterranceCounters) || 0) + 1;
+      window.playBraveHorizonsCounterSfx?.(false);
+      log('sys', 'Deterrance gained a counter.');
       if(typeof shouldShowPlayerEffectFeedback !== 'function' || shouldShowPlayerEffectFeedback(cell.owner)) {
-        toast('Deterrance activated: Zone ' + (z + 1) + ' loses 4 Fate.');
+        toast('Deterrance gained a counter.');
       }
       if(typeof showEffectActivationGlow === 'function') showEffectActivationGlow(z, r, c, cell);
     });
   });
-  if(activations){
-    if(typeof window.showZoneFateDecrease === 'function') window.showZoneFateDecrease(z, consolidatingPlayer, activations * 4, {
-      soundKey:['marie-zone-loss', z, consolidatingPlayer, Number(G.turn || 0), String(consolidatedCard && (consolidatedCard.iid || consolidatedCard.id) || '')].join(':')
-    });
-    if(typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
-  }
   return activations;
 }
 if(typeof window !== 'undefined') window.applyMarieDeterranceForConsolidation = applyMarieDeterranceForConsolidation;
@@ -5801,6 +5849,7 @@ function finalizeConsolidate(card, tributes, targetIdx, conContext) {
     if(typeof consumeAdministrativeBloatForPlayer === 'function') consumeAdministrativeBloatForPlayer(cp);
     if(typeof noteBalladConsolidation === 'function') noteBalladConsolidation(cp, inst);
     if(typeof applyRiveraBuffToPlacedCard === 'function') applyRiveraBuffToPlacedCard(inst, inst.owner);
+    applyElementalMasteryOnCardSet(inst,targetZ,cp);
     if(typeof trackDailyCardPlacement === 'function') {
       setTimeout(function(){ trackDailyCardPlacement(inst, targetZ, targetR, targetC); }, 0);
     }
@@ -6116,7 +6165,7 @@ function resolveBoleslawAfterSearchSelection(searchingPlayer, chosen, context = 
     });
 }
 
-const ALPINE_ENGINEER_TRIGGERED_FATE_IDS = new Set(['15','46','86','95','100','109','bh02','bh08']);
+const ALPINE_ENGINEER_TRIGGERED_FATE_IDS = new Set(['15','46','86','95','100','109','bh02','bh08','bh01','130']);
 async function resolveAlpineEngineerAmbition(engineer, zoneIndex, controller){
   if(!G || Number(G.turn) < 18){
     toast("An Engineer's Ambition cannot activate before turn 18.");
@@ -6139,6 +6188,7 @@ async function resolveAlpineEngineerAmbition(engineer, zoneIndex, controller){
     if(!live || String(live.iid || '') !== String(source.card.iid || '')) continue;
     const owner = Number(live.controller ?? live.owner);
     const id = [...ALPINE_ENGINEER_TRIGGERED_FATE_IDS].find(id=>cardActsAsPassive(live,id) || String(live._whisperCopiedEffectId||'')===id);
+    if(id==='130' && ![live.counters?.elementalAffiliationA,live.counters?.elementalAffiliationB].every(Boolean))continue;
     if(typeof flashCardEffect === 'function') flashCardEffect(live, 'alpine_engineer_proc', {label:"An Engineer's Ambition"});
     // Resolve rules immediately; the paired presenter holds the displayed Fate
     // until Engineer's 3.5-second overlay has finished, just like authority events.
@@ -6151,6 +6201,8 @@ async function resolveAlpineEngineerAmbition(engineer, zoneIndex, controller){
       '109':{kind:'don_julio_dice',label:'An Oligarch’s Gamble'},
       'bh02':{kind:'joie_thousand_reel',label:'Thousand Reel Stare'},
       'bh08':{kind:'bh08_mischief',label:'Mischievous Activities'}
+      ,'bh01':{kind:'anicka_voyager_boat',label:'Brave Horizons'}
+      ,'130':{kind:'elemental_mastery',label:'Elemental Mastery'}
     }[id];
     const presentGain = (target,amount,type='permanent')=>applyPairedOverlayFateGain(target,amount,owner,{
       ...normalOverlay,type,sourceIid:String(live.iid),delayMs:3500,
@@ -6172,7 +6224,7 @@ async function resolveAlpineEngineerAmbition(engineer, zoneIndex, controller){
       await drawCard(owner, 1, {afterSetOrCinematic:true,activatedDrawEffect:true,effectSource:live});
       presentGain(live, 2);
     }else if(id === '46'){
-      presentGain(live, 2);
+      presentGain(live, 3);
     }else if(id === '95'){
       presentGain(live, 1);
     }else if(id === '100'){
@@ -6183,6 +6235,14 @@ async function resolveAlpineEngineerAmbition(engineer, zoneIndex, controller){
       window.holdDonJulioFate?.({sourceIid:live.iid,before:Number(live.currentFate??live.fate)||0});
       modifyFate(live,roll,'unclassified',owner);
       await window.presentDonJulioDieRoll?.({type:'FATE_DIE_ROLLED',roll,sourceIid:live.iid,cardIid:live.iid,playerIndex:owner},null,{...live});
+    }else if(id === 'bh01'){
+      live._braveHorizonsCounters=Math.max(0,Number(live._braveHorizonsCounters??live.counters?.braveHorizonsCounters)||0)+1;
+      live.counters=live.counters||{};live.counters.braveHorizonsCounters=live._braveHorizonsCounters;
+      presentGain(live,1);
+    }else if(id === '130'){
+      G.board[source.z].forEach(row=>(row||[]).forEach(target=>{
+        if(target && !(typeof isTargetImmuneToEffectOwner==='function'&&isTargetImmuneToEffectOwner(target,owner)))presentGain(target,1);
+      }));
     }else continue;
     live._alpineEngineerProcCount = Math.max(0, Number(live._alpineEngineerProcCount)||0) + 1;
     activated++;
@@ -6238,7 +6298,7 @@ function noteBalladConsolidation(player, card) {
       || !cardActsAsPassive(source, '110') || isCardEffectSuppressed(source)) return;
     const fish = createCardInstance({id:'token-fish',name:'Fish Token',ability:'The Daily Catch',
       type:'Counter',aff:'eventide',rarity:'circle',fate:0,cost:0,token:true,fishCounter:true,
-      img:'fishtoken.png?v=20261021',effect:'This card counts as a token. This card counts as 0.5 Reinforcement and can be set for free.',
+      img:'fishtoken.png?v=20261122-new-art',effect:'This card counts as a token. This card counts as 1 Reinforcement and can be set for free.',
       flavor:'"Never bring an exotic fish fan to the docks of Havano."'}, player);
     G.players[player].hand.push(fish);
     window.holdSebastianFishCards?.([fish.iid]);
@@ -6632,7 +6692,7 @@ const INITIAL_SET_INITIATOR_IDS = new Set(['108','03','04','06','07','08','13','
 // Browser timing mirror for shared/engine/cards/registry.mjs. This is the seam
 // that keeps single-player interaction timing identical to authoritative play.
 const AUTHORITATIVE_ACTIVATE_EFFECT_IDS = new Set(['03','06','20','22','27','29','30','38','39','40','48','83','93','102','104','105','107','bh01']);
-const AUTHORITATIVE_WHEN_SET_EFFECT_IDS = new Set(['119','120','108','111','112','113','115','116','117','118',
+const AUTHORITATIVE_WHEN_SET_EFFECT_IDS = new Set(['119','120','108','111','112','113','115','116','117','118','122','123','125','126','127','130',
   '02','04','05','07','08','12','13','14','16','17','18','25','26','31','32','33','37','42','43','50','51','52','54','58','60','61','62','65','66','68','69','71','72','73','75','76','77','78','80','81','82','84','87','90','94','96','97','99','103','bh04','bh05','bh06','bh09','bh10','bh12','bh13','bh14','bh18','bh19','bh20','bh21','bh22','bh23','bh24','bh25'
 ]);
 const PRESSURE_REWORK_TIMING_CARD_IDS = new Set(['20','25','33','34','35','44','45','47','64','65','69','73']);
@@ -7827,7 +7887,7 @@ async function resolveSmartInvestments(card, cp) {
       if(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(live)) return;
       if(typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(live)) return;
       const before = Math.max(0, Number(live.currentFate ?? live.fate) || 0);
-      modifyFate(live, 7, 'permanent', cp, {deferBasePresentation:true});
+      modifyFate(live, 9, 'permanent', cp, {deferBasePresentation:true});
       const after = Math.max(0, Number(live.currentFate ?? live.fate) || 0);
       if(after <= before) return;
       if(typeof recordHandCardEffectModifier === 'function') {
@@ -8130,9 +8190,29 @@ async function resolveCaribbeaSupporter(inst, cp, id, ai = false) {
   }
 }
 
+function applyElementalMasteryOnCardSet(placed,z,player){
+  if(!placed || placed.faceDown || !G?.board?.[z])return;
+  const affiliation=String(placed.affiliation||placed.aff||'');
+  const sources=G.board.flat(2).filter(source=>source && (String(source.id)==='130'||String(source._whisperCopiedEffectId||'')==='130')
+    && Number(source.controller??source.owner)===Number(player)
+    && !source.faceDown
+    && !(typeof isCardEffectSuppressed==='function' && (()=>{const pos=getBoardCardPosition(source);return isCardEffectSuppressed(source,pos?.z,pos?.r,pos?.c);})())
+    && (source.whisperLandscapeToken===true || getBoardCardPosition(source)?.z===z)
+    && [source.counters?.elementalAffiliationA,source.counters?.elementalAffiliationB].map(String).includes(affiliation));
+  for(const source of sources){
+    for(const target of (source.whisperLandscapeToken===true?G.board.flat(2):G.board[z].flat())){
+      if(!target || Number(target.controller??target.owner)!==Number(player)
+        || (typeof isTargetImmuneToEffectOwner==='function' && isTargetImmuneToEffectOwner(target,player)))continue;
+      if(typeof applyPairedOverlayFateGain==='function')applyPairedOverlayFateGain(target,1,player,{
+        kind:'elemental_mastery',label:'Elemental Mastery',sourceIid:String(source.iid||source.id),
+        soundKey:'elemental:'+String(source.iid||source.id)+':'+String(placed.iid||placed.id)
+      });
+    }
+  }
+}
+
 async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
   if(id==='120'){
-    if(emeraldChildrenEligibleLocal(cp))await window.resolveHopliteCallToArms(inst,cp);
     return;
   }
   if(id === '117'){
@@ -8171,6 +8251,22 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
     window.recordLegacyMoralePressureCardSet(inst, {resolveWhenSetEffects:true});
   }
   switch(id) {
+    case '130': {
+      const chooseSecond=first=>showAffiliationPickerVisual(second=>{
+        if(second===first){toast('Choose a different second affiliation.');chooseSecond(first);return;}
+        inst.counters ||= {};
+        inst.counters.elementalAffiliationA=first;
+        inst.counters.elementalAffiliationB=second;
+        toast('Elemental Mastery declared '+AFF_LABEL[first]+' and '+AFF_LABEL[second]+'.');
+        renderEffectResolutionForPlayer(cp,{hand:false});
+      },inst,()=>{},{selectedAffiliations:[first]});
+      showAffiliationPickerVisual(first=>chooseSecond(first),inst,()=>{},{});
+      break;
+    }
+    case '123':
+    case '125':
+      await triggerCharacterEffect(inst,z,r,c,{fromSet:true});
+      break;
     case 'bh23':
       await resolvePanaceaMilitia(inst, z, cp);
       break;
@@ -8479,7 +8575,7 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       renderEffectResolutionForPlayer(cp, {hand:false, blocks:false, topbar:false, effects:false, hover:false}); break;
     case '01': // Felicyta Janowicz: no special when-set (passive aura handled in getEffectiveFate)
       break;
-    case '46': // Phil: Monarchist Manifesto — Dauntless, gains 2 Fate per draw phase
+    case '46': // Phil: Monarchist Manifesto — Dauntless, gains 3 Fate per draw phase
       inst._philSetTurn = G.turn; break;
     case '57': // Jeremiah Jones: no special when-set (aura potency boost handled in getEffectiveFate)
       break;
@@ -9082,7 +9178,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
   try {
   // These abilities are player-timed. Never enter their
   // cinematics or pickers from placement or the automatic board scheduler.
-  if(['38','bh01','bh16'].includes(getCardRuntimeEffectId(card)) && (opts.fromSet || opts.autoActivation)) return false;
+  if(['36','38','bh01','bh16','120','121'].includes(getCardRuntimeEffectId(card)) && (opts.fromSet || opts.autoActivation)) return false;
   closeModal();
   const cp = G.currentPlayer;
   const opp = 1-cp;
@@ -9118,6 +9214,10 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
   // Coordinators: passive/continuous or once per placement.
   // Dauntless: most have ongoing/active effects; handled case-by-case below.
   // Improvisors: triggered/reactive.
+  if(['122','123','125'].includes(String(id)) && !opts.fromSet && card._effectTurnLocked){
+    toast(card.name + "'s set effect already activated.");
+    return;
+  }
   if(card.type==='Initiator' && id !== '107' && card.effectUsedInitial && card._effectTurnLocked && !reusableCopiedEffect){
     toast(card.name + "'s Initiator effect already activated.");
     return;
@@ -9384,6 +9484,107 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
         if(typeof window.FateCodexUi?.update === 'function') window.FateCodexUi.update();
       });
     } break;
+    case '127': {
+      markInitialEffectResolved(card);
+      recalibrateLocalOpponentBoard(cp,card);
+      break;
+    }
+    case '126': { // Cipher: chosen deck discards, then random opponent hand discards
+      markInitialEffectResolved(card);
+      const deck=G.players[cp].deck;
+      const finish=(chosen)=>{
+        const selected=(chosen||[]).slice(0,2);
+        const deckDiscarded=[];
+        selected.forEach(target=>{
+          const index=deck.findIndex(item=>item.iid===target.iid);
+          if(index>=0){const removed=deck.splice(index,1)[0];deckDiscarded.push(removed.name);fatePushDiscard(cp,removed);}
+        });
+        const hand=G.players[opp].hand;
+        const discarded=[];
+        for(let i=0;i<2 && hand.length;i++){
+          const index=deterministicOnlineRandomIndex(hand.length,'flamingLightningStorm:'+String(card.iid)+':'+i,opp);
+          const target=hand.splice(index,1)[0];
+          fatePushDiscard(opp,target);
+          discarded.push(target.name);
+        }
+        window.showCipherDiscardBanner?.(discarded,cp,G.humanPlayer??0);
+        log(cp===0?'p1':'p2','Flaming Lightning Storm discarded '+selected.length+' deck cards and '+discarded.length+' opponent hand cards.');
+        renderGame({hand:true,board:true,scores:true,topbar:true,piles:true});
+      };
+      if(!deck.length){finish([]);break;}
+      const count=Math.min(2,deck.length);
+      pickCardsVisual(deck.slice(),{sourceCard:card,title:'Flaming Lightning Storm',subtitle:'Choose '+count+' card'+(count===1?'':'s')+' from your deck to discard.',minCount:count,maxCount:count,confirmLabel:'Discard',immediate:true,allowCancel:false},finish);
+      break;
+    }
+    case '125': { // The Detective: identify cards in the opponent's original deck
+      markInitialEffectResolved(card);
+      const catalog=[...new Map((typeof CARDS!=='undefined'?CARDS:[])
+        .filter(candidate=>candidate?.id && !candidate.token)
+        .map(candidate=>[String(candidate.id),candidate])).values()];
+      if(!catalog.length){toast('The card catalog is unavailable.');break;}
+      pickCardsVisual(catalog,{sourceCard:card,title:'Investigation',
+        subtitle:'Select up to 15 different cards. Each match in your opponent’s original deck grants this card 3 Fate.',
+        minCount:0,maxCount:15,confirmLabel:'Finish Investigation',immediate:true},function(chosen){
+        const selected=[...new Set((chosen||[]).map(candidate=>String(candidate?.id||'')))].filter(Boolean).slice(0,15);
+        const original=G.players[opp]?.originalDeckIds||(cp===0?G.p2Deck:G.p1Deck)||[];
+        const originalIds=new Set(original.map(entry=>String(entry?.id||entry)));
+        const matches=selected.filter(id=>originalIds.has(id));
+        const gained=matches.length*3;
+        if(gained)modifyFate(card,gained,'permanent',cp);
+        toast('Investigation found '+matches.length+' match'+(matches.length===1?'':'es')+' and gained '+gained+' Fate.');
+        log(cp===0?'p1':'p2','Investigation found '+matches.length+' original-deck matches');
+        renderGame({board:true,scores:true,topbar:true});
+      });
+      break;
+    }
+    case '123': { // Kotoha and Beast: move the target's current Fate onto this card
+      markInitialEffectResolved(card);
+      pickCardFromAnyZone('Yokai’s Judgement: select one opponent card on the field.',function(target,tz,tr,tc){
+        if(!target || target.owner!==opp || !G.players[opp])return;
+        if(typeof isTargetImmuneToEffectOwner==='function' && isTargetImmuneToEffectOwner(target,cp)){
+          showBlockedAnimation('this card is immune');return;
+        }
+        const before=Math.max(0,Number(target.currentFate??target.fate)||0);
+        if(!setCardFateValue(target,0,cp,{countOncePerSourceEffect:card}) && before>0){
+          showBlockedAnimation('this card is immune');return;
+        }
+        const after=Math.max(0,Number(target.currentFate??target.fate)||0);
+        const reduced=Math.max(0,before-after);
+        if(reduced)modifyFate(card,reduced,'permanent',cp);
+        if(typeof flashCardEffect==='function'){
+          const soundKey='yokai-judgement:'+String(card.iid||card.id)+':'+String(G.turn||0);
+          flashCardEffect(target,'yokai_judgement',{label:'Yokai’s Judgement',soundKey});
+          flashCardEffect(card,'yokai_judgement',{label:'Yokai’s Judgement',soundKey});
+        }
+        toast('Yokai’s Judgement moved '+reduced+' Fate from '+target.name+' to '+card.name+'.');
+        log(cp===0?'p1':'p2','Yokai’s Judgement moved '+reduced+' Fate from '+target.name);
+        renderGame({board:true,scores:true,topbar:true});
+      },function(target){return target && target.owner===opp && !(typeof isTargetImmuneToEffectOwner==='function' && isTargetImmuneToEffectOwner(target,cp));});
+      break;
+    }
+    case '122': { // Sharia Ellie: revive one discarded card without its effects
+      markInitialEffectResolved(card);
+      const candidates=G.players[cp].discard.slice();
+      if(!candidates.length){toast('No card in your discard pile to set.');break;}
+      pickCardsVisual(candidates,{sourceCard:card,title:'Call of the Haunted',subtitle:'Set a discarded card for free. Its effects will be disabled.',minCount:1,maxCount:1,confirmLabel:'Set for free',immediate:true},function(chosen){
+        const target=chosen?.[0];
+        if(!target)return;
+        const pile=G.players[cp].discard;
+        const index=pile.findIndex(item=>item?.iid===target.iid);
+        if(index<0)return;
+        pile.splice(index,1);
+        target.statuses ||= [];
+        if(!target.statuses.includes('HAUNTED_NO_EFFECTS'))target.statuses.push('HAUNTED_NO_EFFECTS');
+        target.counters ||= {};target.counters.ellieHauntedVisual=true;
+        G.players[cp].hand.push(target);
+        beginImmediateFreePlacement(cp,target,'Place '+target.name+' for free. Its effects are disabled.',{
+          key:'sharia-haunted-set',name:'Sharia Ellie',ability:'Call of the Haunted',
+          text:'This card can be set for free. Its effects are disabled.'
+        });
+        renderEffectResolutionForPlayer(cp,{hand:true,piles:true});
+      });
+      break;
+    }
     case '08': // Lina: search Reality card from deck/discard, set for free
       searchAnySource(cp,c=>c.aff==='reality','Search for a Reality card:',(found)=>{
         if(typeof addCardToHand==='function') addCardToHand(cp, found);
@@ -9819,6 +10020,59 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
           return;
         }
       } break;
+    case '120': {
+      const used=Math.max(0,Number(card.counters?.effectUses)||0);
+      if(used>=2){toast('The Story Never Ends has no uses remaining.');break;}
+      const entries=[];
+      G.board.forEach((zone,tz)=>zone.forEach((row,tr)=>row.forEach((target,tc)=>{
+        if(target)entries.push({card:target,z:tz,r:tr,c:tc});
+      })));
+      const selected=G.aiEnabled && cp===G.aiPlayer
+        ? (entries.find(entry=>entry.card.owner===cp && ['bh01','36','121'].includes(String(entry.card.id))) || entries[0])
+        : await new Promise(resolve=>showBoardTargetPicker({sourceCard:card,title:'The Story Never Ends',
+            prompt:'Choose any field card to receive one counter.',entries,zones:[0,1,2],
+            minCount:1,maxCount:1,showZoneTitles:true,confirmLabel:'Add Counter',viewerPlayerIndex:cp,
+            onCancel:()=>resolve(null)},chosen=>resolve(chosen?.[0]||null)));
+      if(!selected){clearEffectActivationInFlight();return false;}
+      const target=G.board?.[selected.z]?.[selected.r]?.[selected.c];
+      if(target!==selected.card){clearEffectActivationInFlight();return false;}
+      const key=({bh01:'braveHorizonsCounters','36':'deterranceCounters','121':'infernoCounters'})[String(target.id)]||'storyCounters';
+      target.counters ||= {};
+      target.counters[key]=Math.max(0,Number(target.counters[key])||0)+1;
+      if(key==='braveHorizonsCounters')target._braveHorizonsCounters=target.counters[key];
+      card.counters ||= {};card.counters.effectUses=used+1;
+      window.playBraveHorizonsCounterSfx?.(false);
+      renderGame({board:true,scores:true});
+      break;
+    }
+    case '36': {
+      const count=Math.max(0,Number(card.counters?.deterranceCounters)||0);
+      if(!count){toast('Deterrance needs a counter.');break;}
+      card.counters.deterranceCounters=count-1;
+      G.fateModifiers['deterrance_z'+z]=(G.fateModifiers['deterrance_z'+z]||0)-4;
+      window.dismissCardInfoOverlay?.();
+      flashCardEffect(card,'marie_deterrence',{label:'Deterrance'});
+      window.playBraveHorizonsCounterSfx?.(true);
+      renderGame({board:true,scores:true});
+      break;
+    }
+    case '121': {
+      const count=Math.max(0,Number(card.counters?.infernoCounters)||0);
+      if(!count){toast('Blazing Inferno needs a counter.');break;}
+      card.counters.infernoCounters=count-1;
+      window.dismissCardInfoOverlay?.();
+      const deck=G.players?.[opp]?.deck;
+      let discardedName='';
+      if(deck?.length){
+        const discarded=deck.shift();
+        G.players[Number(discarded.owner)].discard.push(discarded);
+        discardedName=discarded.name;
+      }
+      window.showBlazingInfernoDiscard?.(discardedName,card.iid,opp);
+      window.playBraveHorizonsCounterSfx?.(true);
+      renderGame({board:true,hand:true,piles:true});
+      break;
+    }
     case '20': { // South Wind Spearman: Shield Wall (two player-timed uses).
       const remaining = Number(card.usesLeft == null ? 2 : card.usesLeft);
       if(remaining <= 0){
@@ -9910,6 +10164,9 @@ function canUseManualCharacterEffect(card) {
   if(id === 'bh16') return Number(card.usesLeft == null ? 2 : card.usesLeft) > 0;
   if(id === '38') return card.effectUsedThisTurn !== true;
   if(id === 'bh01') return !hasAnickaVoyagerMovedThisTurn(card);
+  if(id === '120') return Number(card.counters?.effectUses||0)<2;
+  if(id === '36') return Number(card.counters?.deterranceCounters||0)>0;
+  if(id === '121') return Number(card.counters?.infernoCounters||0)>0;
   if(AUTHORITATIVE_ACTIVATE_EFFECT_IDS.has(id)) {
     // Snowball Fight keeps its dedicated supporter action and label below.
     if(id === '93') return false;
@@ -11062,6 +11319,7 @@ function getCookIslandsDuelistTarget(source, zHint) {
 }
 
 function isDirectCardEffectSuppressed(card) {
+  if(card?.statuses?.includes('HAUNTED_NO_EFFECTS')) return true;
   if(card && hasNoSuppressibleFieldEffect(card))return false;
   if(!card || (typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(card) : isEffectImmuneSource(card))) return false;
   const canonicalSuppression = Array.isArray(card.statuses) && card.statuses.some(function(status){
@@ -11090,6 +11348,7 @@ function reconcileHenrySuppressionTriggers() {
 }
 
 function isCardEffectSuppressed(card) {
+  if(card?.statuses?.includes('HAUNTED_NO_EFFECTS')) return true;
   if(card && hasNoSuppressibleFieldEffect(card))return false;
   const z = arguments[1], r = arguments[2], c = arguments[3];
   if(!card || (typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(card) : isEffectImmuneSource(card))) return false;
@@ -12293,6 +12552,9 @@ function getCharacterEffectAffectedOwners(card, z, r, c, cp, opp) {
     '39', // Juan Carlos moves an opponent card
     '52', // Vigilantes mark an opponent card
     '61', // Maria Song reduces copies of a revealed opponent Character
+    '123', // Kotoha and Beast drains an opponent field card
+    '126', // Cipher discards cards from the opponent's hand
+    '127', // Titan Ex restores the opponent's board
     'bh04' // Selva Island Anicka reduces a declared opponent card type
   ]);
   const bothTargets = new Set([

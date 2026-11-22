@@ -85,6 +85,7 @@ export function isEffectSourceSuppressed(state, value){
     : (value?.iid ? findBoardCard(state, value.iid) : null);
   const card = entry?.card || value;
   if(!card) return false;
+  if(card.statuses?.includes('HAUNTED_NO_EFFECTS')) return true;
   if(isEffectImmutable(card)) return false;
   if(card.statuses?.includes('EFFECTS_SUPPRESSED')) return true;
   if(entry && structuralCardType(state, card) === 'Supporter'
@@ -339,7 +340,7 @@ function isAdjacent(a, b){
 export function effectiveReinforcement(state, entry, playerIndex){
   const card = entry?.card;
   if(!card || controllerOf(card) !== Number(playerIndex)) return 0;
-  if(card.counters?.fishCounter === true) return 0.5;
+  if(card.counters?.fishCounter === true) return 1;
   let value = runtimeRuleId(card) === '09' && activeAuraSource(state, entry) ? 2 : 1;
   value += Number(card.counters?.reinforcementBonus || 0) || 0;
   for(const status of card.statuses || []){
@@ -376,7 +377,7 @@ export function canUseAsConsolidationTribute(state, entry, playerIndex, consolid
   }
   if(card.counters?.fishCounter === true){
     if(card.noConsolidate === true || card.statuses?.includes('CANNOT_CONSOLIDATE')) return rejection('TRIBUTE_PREVENTED', 'this Fish cannot be used for consolidation');
-    return {ok:true, reinforcement:0.5};
+    return {ok:true, reinforcement:1};
   }
   if(cardType !== 'Supporter'){
     const irvinePermission = boardEntries(state).some(source=>
@@ -463,14 +464,14 @@ export function effectiveConsolidationCost(state, card, playerIndex, destination
 
 export function isImmuneToOpponentEffects(card, state = null){
   if(!card) return false;
-  if(['bh01', '76'].includes(String(card.id || ''))) return true;
+  if(['76', '124'].includes(String(card.id || ''))) return true;
   if((card.statuses || []).includes('IMMUNE_TO_OPPONENT_EFFECTS')) return true;
   return false;
 }
 
 export function isEffectImmutable(card){
   if(!card) return false;
-  if(['bh01', '76'].includes(String(card.id || ''))) return true;
+  if(String(card.id || '') === '76') return true;
   return (card.statuses || []).some(status=>
     status === 'IMMUNE_TO_ALL_EFFECTS'
     || status === 'EFFECT_IMMUTABLE'

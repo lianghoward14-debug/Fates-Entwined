@@ -2,6 +2,34 @@
 (function(){
   'use strict';
   const characters = Object.freeze({
+    dylan:{name:'Dylan Kirby',portrait:'pfp/pfp29.png',file:'Dylan',extension:'ogg',ids:new Set(['29']),clips:[
+      ['Far across the seas, in distant shores, the people of the world look upon our nation as the example to follow.','We are the bastion of democracy. We bear the banners of liberty. We are the defenders of freedom.','We are the hope for millions around the world.'],
+      ['The torch may have been lit by the great deeds of our founding fathers... Jefferson, Washington, Adams...','but we are the sons and daughters of democracy, those who bear the torch passed down to us by our fathers, and their fathers father.'],
+      ['What separates America from the other nations of the world? It is our trust in hope.','It is our everlasting belief that no matter our circumstances, no matter how grim things might seem,','that the people of this nation will persevere and prosper, always finding light at the end of the tunnel.'],
+      ['We are not America because we are black, white, latino or asian. Nor are we America because we are Christian, muslim, hindi or atheist.','We are America because we believe in Freedom, liberty, and equality -','ideals laid down by our founding fathers, and carried tirelessly through the greatest and darkest days of our history.'],
+      ['Men and women of America, come sit with me once more by the fireplace.','Let us talk not as president to citizen, or leader to follower - but as a brother to a brother, a friend to a friend.']
+    ]},
+    jeremiah:{name:'Jeremiah Jones',portrait:'pfp/pfp57.png',file:'Jeremiah',ids:new Set(['57']),clips:[
+      ['Hidden within the snow dusted peaks of the Alpines, is a secret facility buried in the interior of an entire mountain -','there, the most brilliant minds of this age work tirelessly with the shared goal of protecting humanity against the Anomaly.'],
+      ["I know this world better than anyone else. I've met with politicians, world leaders, businessmen, army generals, scientists, actors, all manner of great people.",'Behind closed doors, In my negotiations, I pull the strings to make ALPINE work.'],
+      ['The men and women of ALPINE are unparalleled in their ability to solve the greatest scientific problems of this world.','I have no such abilities. But I do have my words, my person, my ability to recognize talent when I see it.'],
+      ['ALPINE may be located in the Swiss Alps, but ALPINE is what it is today because of its connections to people around the world.','Even in the wastes of the Taklamakan or the deepest jungles of the Amazon, I know someone who can aid us in our mission.'],
+      ["There came a point in my life, when I realized that my wealth was meaningless if I couldn't make a meaningful impact on the world that contributed to humanity.",'I took a gamble, a losing gamble at that, and decided to build a secret research facility deep within the Alpine Mountains.']
+    ]},
+    maria:{name:'Maria Song',portrait:'pfp/pfp61.png',file:'Maria',ids:new Set(['61']),clips:[
+      ["Life in Pacifica was never easy for me. And I don't intend to make myself the type of person that makes it easy for others either.",'I keep to myself, which means I only owe to myself.'],
+      ["Hey, let's not over complicate this. Practical and logical thinking gets you far in these seas.",'We can either do it my way, or we do it the hard way.'],
+      ['No, the idea that everything has a price is an illusion. The true reality is that everything has a cost.','And the cost of my rifle runs high. But you won\'t find a better Cocana distributor or transporter anywhere west of the Lograna Channel.'],
+      ['There is no question or debate about it. There is no one in Pacifica more accurate or more lethal with a Rifle than I,','and I\'ve won every sharpshooting contest that matters - the ones where across the alley, another man holds a rifle to your heart.'],
+      ['Pacifica has many squabbles, whether between the outlying islands and Panacea, or between factions vying for control of the seas.','I choose to position myself right outside of it, close enough to reap the benefits but far enough to not be affiliated.']
+    ]},
+    heyward:{name:'Duncan Heyward',portrait:'pfp/pfp77.png',file:'Heyward',ids:new Set(['77']),clips:[
+      ['I was there when the Great Calamity happened.','I was there, five hundred years ago, when the world I knew was rent asundered and turned into dust because of the greed of human ambition.'],
+      ['I understand your pain. I understand the betrayal you feel.','But you cannot possibly imagine the truth of this world, the actions that must be taken, the sacrifices that must be made so that the world that you and I know is protected.'],
+      ['Five hundred years ago, across the horizon, there used to be lands as vast as the seas itself -','a land filled with deserts, forests, mountains, plains, and hills, a land of countless great civilizations and cultures.','Now, there is nothing but an unending wasteland.'],
+      ['During the Age of Ash, over four hundred years ago, I guided the people of Colombo across the seas to Panacea -','Those who wanted a better life, those who wanted a new opportunity, became the founders of Pacifica.'],
+      ['Every day, every hour, every minute I make a difficult decision.','It is a choice engraved with the blood of thousands, and yet I must remain steadfast.','The Great Calamity... it must never happen again.']
+    ]},
     rivera:{name:'Rivera',portrait:'pfp/pfp51.png',file:'Rivera',ids:new Set(['51','104']),clips:[
       ['I am a simple man in a complex world.','But I will everything in my power to make any difference I can.','Jorge Alvarez, I will follow you.'],
       ['When my wife died years ago, I thought I would not have the strength to go on.','But thanks to my daughter, I have found that strength.'],
@@ -130,8 +158,21 @@
         ['I know that somewhere in the Western Seas, Kazumi is there, waiting for me.', "I'll find her, I'll bring her back.", "I won't let the seas take my family away from me ever again."]
       ]
     },
+    markmenz:{name:'Mark Menz',portrait:'pfp/pfp66.png',file:'MarkMenz',extension:'m4a',ids:new Set(['66']),clips:[
+      ['What it do Flight Crew? FTC, Flight Team stand up! Today we got the Golden State Warriors. And their opponents? A bunch of nobodies.'],
+      ["I always feel like somebody's watching meeeee...and I have no privacy who-oa-oa"],
+      ["Speed please I need this. My mom is kind of homeless. I live with my dad. I want to help out Speed. I'm watching the stream. Why you tryin' not to laugh bro? That's disrespectful bro."],
+      ["Lebron call ba-a-all out. That's why he's the ki-i-ing wearing nu-u-umber twenty-three."],
+      ["I'm going to become the greatest animator of all time. Then everyone will have to respect me. Believe it."]
+    ]},
+    youngfelicyta:{name:'Felicyta Janowicz (Youth)',portrait:'pfp/pfp82.png',file:'YoungFelicyta',ids:new Set(['82']),clips:[
+      ['Why are there no penguins in the Carpathians? I would like to have a penguin as a pet.'],
+      ['The snow is falling, winter is here, and now I want to build a handsome snowman!'],
+      ['I heard there are many pretty flowers in the forests... I want to find a pretty one and draw it one day.'],
+      ['Its sooo cold this morning! Because its so cold, does this mean I can have another hot chocolate with extra sugar???']
+    ]},
     felicyta:{
-      name:'Felicyta Janowicz', portrait:'pfp/pfp1.png', ids:new Set(['01', '82', '85', '100', 'bh11']), file:'Felicyta',
+      name:'Felicyta Janowicz', portrait:'pfp/pfp1.png', ids:new Set(['01', '85', '100', 'bh11']), file:'Felicyta',
       clips:[
         ["I've made my decision.", 'I will not deploy troops in the Polish heartland.', 'I will not force my soldiers to fight.', 'I will not subject my people to the horrors of war.'],
         ['A thousand year of history rests upon my shoulders.', 'But the only thing that matters are the people who live in this country right now.'],
@@ -141,10 +182,12 @@
       ]
     }
   });
-  const clipUrl = (character, index) => 'assets/audio/chatter/' + character.file + (index + 1) + '.mp3' + (character.file === 'Lina' && (index === 3 || index === 4) ? '?v=20261103-new-lina' + (index + 1) : '');
+  const clipUrl = (character, index) => 'assets/audio/chatter/' + character.file + (index + 1) + '.' + (character.extension || 'mp3') + (character.file === 'Lina' && (index === 3 || index === 4) ? '?v=20261103-new-lina' + (index + 1) : '');
   let used = new Set(), failed = new Set(), current = null, panel = null;
   let eligibleNow = [];
-  let quietSince = Date.now(), nextAt = quietSince + 15000, matchId = '';
+  const MIN_CHATTER_GAP_MS = 30000;
+  const MULTIPLAYER_CHATTER_GAP_MS = MIN_CHATTER_GAP_MS;
+  let quietSince = Date.now(), nextAt = quietSince + MIN_CHATTER_GAP_MS, matchId = '';
   let voiceCount = 0;
   let hideAt = 0;
   function positionPanel(){
@@ -164,7 +207,7 @@
       old.audio.pause();
       old.audio.removeAttribute('src');
       old.audio.load();
-      nextAt = Date.now() + 15000;
+      nextAt = Math.max(nextAt, Date.now() + (old.multiplayer ? MULTIPLAYER_CHATTER_GAP_MS : MIN_CHATTER_GAP_MS));
     }
     if(panel && !panel.hidden && !hideAt){
       panel.style.opacity = '0';
@@ -174,7 +217,7 @@
   function activity(){ quietSince = Date.now(); }
   function reset(){
     stop(); used = new Set(); failed = new Set(); eligibleNow = []; matchId = '';
-    quietSince = Date.now(); nextAt = quietSince + 15000;
+    quietSince = Date.now(); nextAt = quietSince + MIN_CHATTER_GAP_MS;
   }
   function trackVoice(audio){
     activity(); voiceCount++;
@@ -241,8 +284,9 @@
     const character = characters[choice.characterKey];
     const audio = new Audio(clipUrl(character, choice.index));
     window.applyCardVoiceGain?.(audio, [...character.ids][0]);
-    const run = {audio, key:choice.key, started:false, requestedAt:Date.now()};
+    const run = {audio, key:choice.key, multiplayer:snapshot().multiplayer, started:false, requestedAt:Date.now()};
     current = run; audio.volume = Math.min(1, volume * (character.file === 'Marie' ? 1.4 : 1));
+    audio.muted = volume <= 0;
     function fail(error){
       if(current !== run) return;
       // Autoplay denial is retryable after user input; corrupt/missing clips are skipped.
@@ -283,9 +327,10 @@
     positionPanel();
     if(s.matchId && s.matchId !== matchId){reset(); matchId = s.matchId;}
     if(s.majorPresentation) activity();
-    if(s.interrupt || s.inactive || (s.volume <= 0 && !s.multiplayer)){stop(); return;}
+    if(s.interrupt || s.inactive){stop(); return;}
     if(current){
       current.audio.volume = Math.min(1, s.volume * (characters[current.key.split(':')[0]]?.file === 'Marie' ? 1.4 : 1));
+      current.audio.muted = s.volume <= 0;
       if(now - current.requestedAt > 120000 || (!current.started && now - current.requestedAt > 10000)) stop();
       return;
     }
@@ -313,9 +358,10 @@
     const key = message.characterKey + ':' + message.index;
     if(used.has(key)) return;
     used.add(key);
-    nextAt = Date.now() + 60000;
-    // Hidden/muted clients consume the shared selection without replaying it later.
-    if(s.inactive || s.interrupt || s.volume <= 0 || !s.eligibleCharacters.includes(message.characterKey)) return;
+    nextAt = Date.now() + MULTIPLAYER_CHATTER_GAP_MS;
+    // Hidden clients consume the shared selection without replaying it later.
+    // Muted clients still show the chatter box and timed captions.
+    if(s.inactive || s.interrupt || !s.eligibleCharacters.includes(message.characterKey)) return;
     stop();
     start({characterKey:message.characterKey,index:message.index,key}, s.volume);
   });

@@ -82,7 +82,12 @@ const studies={
  '22':['22','Isaac Perez','Down for the Count','Excited nucleus','approved','#77b8ff',2000],
  '27':['27','Kazumi','Fables of the Old Age','The Living Storybook','book','#eac989',2000],
  '40':['40','Christopher Erbs','Hard Times, Strong Men','Tempered Resolve','anvil','#f1a879',2000],
- '48':['48','Cosmic GF','The Kitchen at the End of Time','Galactic Breakfast','cosmic','#bc9bf2',2000]
+ '48':['48','Cosmic GF','The Kitchen at the End of Time','Galactic Breakfast','cosmic','#bc9bf2',2000],
+ '124':['124','Pony in a Shell (choyo)','Farmhouse Fun','Shell Cap Lifts','approved','#e8d990',2000],
+ '125':['125','The Detective (choyo)','Investigation','Four Documents','approved','#dbca92',2000],
+ '126':['126','Cipher (choyo)','Flaming Lightning Storm','Split Flamebolt Seal','approved','#e78763',2000],
+ '127':['127','Titan Ex (choyo)','Recalibration','Clock Rewinds','approved','#91d2dc',2000],
+ '130':['130','Nytress (Sasabiki)','Elemental Mastery','Sunward Seal','approved','#d9b881',2000]
 };
 const cardPalettes={"13":["#edb052","#ffdf9b"],"14":["#d68c9d","#ead1c0"],"17":["#b9d675","#f3e8b8"],"21":["#db6871","#ead4bb"],"22":["#e4c659","#a7d9f1"],"29":["#8cacd2","#ecbfc3"],"30":["#cedee4","#e5a48f"],"38":["#ed9e60","#eccc8e"],"39":["#dbc477","#92cbbd"],"40":["#bfc575","#e6a367"],"43":["#81b5df","#d2e6f5"],"45":["#d7b196","#edbe7d"],"48":["#ae99dc","#a2d2e6"],"51":["#88d19d","#d8edac"],"56":["#719ce8","#eed075"],"66":["#cbd170","#eece9c"],"67":["#b89de2","#d7e4fc"],"81":["#b5cd8a","#efd4a1"],"82":["#8bb8df","#e1efff"],"83":["#a8c878","#dfddb0"],"87":["#cf9dcd","#e8c58e"],"90":["#78acd1","#bae0db"],"99":["#e1a581","#f0d29e"],"01":["#fff1ee","#e25b65"],"bh11":["#f2ede8","#c74858"],"bh07":["#b4c4f0","#80d2db"],"02":["#77d6e3","#d9f1f2"],"03":["#e1ac56","#e7d1b3"],"04":["#b594ed","#e5c9ff"],"07":["#799feb","#d3e3f6"],"08":["#edce61","#a9d3f0"],"bh04":["#8faec9","#dcb184"],"bh05":["#d296ad","#e0bea5"],"bh06":["#8faeee","#dca6a2"],"bh09":["#b8d48e","#e6d9a6"],"bh10":["#8abea1","#ccd4b1"],"bh13":["#d2ad7a","#eed6a3"],"bh14":["#8caaeb","#bddff1"],"bh16":["#82cfff","#b2bff5"],"bh20":["#c2dbea","#e8ce9e"],"bh22":["#b8a1ec","#92cde9"]};
 function mount(overlay,card,options){const id=String(card?.id||''),study=studies[id];if(!study||options?.perfLite)return null;
@@ -103,7 +108,7 @@ function path(fn,end,col,alpha=1,width=1.5,start=0){let pts=[];for(let j=0;j<=45
 function polygon(x,y,r,n,rot,col,a){let pts=[];for(let j=0;j<n;j++)pts.push([x+Math.cos(j*TAU/n+rot)*r,y+Math.sin(j*TAU/n+rot)*r]);line(pts,col,a,1.5,true);}
 function txt(s,x,y,size,col,a=1){ctx.save();ctx.globalAlpha=clamp(a);ctx.fillStyle=col;ctx.font=size+'px Georgia';ctx.textAlign='center';ctx.fillText(s,x,y);ctx.restore();}
 function frame(x,y,w,h,col,a){line([[x,y],[x+w,y],[x+w,y+h],[x,y+h]],col,a,1.5,true);}
-function draw(){const d=study,k=d[4],col=cardPalettes[id]?.[0]||d[5],gold=cardPalettes[id]?.[1]||'#efd29a',x=W/2,y=H*.50,s=Math.min(82,W*.235)*(["03","27","48"].includes(id)?1.45:1),a=ease(seg(t,0,.2))*(1-ease(seg(t,.8,1))),u=ease(seg(t,.08,.58));ctx.clearRect(0,0,W,H);
+function draw(){const d=study,k=d[4],col=cardPalettes[id]?.[0]||d[5],gold=cardPalettes[id]?.[1]||'#efd29a',x=W/2,y=H*.50,s=Math.min(82,W*.235)*(["03","27","48"].includes(id)?1.45:id==='40'?1.65:1),a=ease(seg(t,0,.2))*(1-ease(seg(t,.8,1))),u=ease(seg(t,.08,.58));ctx.clearRect(0,0,W,H);
 
 if(false){ring(x,y,s*.7,s*.7,col,.65);txt('ACTIVATE EFFECT',x,y+5,18,gold);return;}
 if(window.FateApprovedActivationArt?.handles(id)){window.FateApprovedActivationArt.draw(ctx,id,t,W,H,options);return;}
@@ -216,7 +221,7 @@ function playPlacement(card,options={}){
  return playCoordinator(card,{...options,placement:true});
 }
 function playCoordinator(card,options={}){
- if(!(options.placement===true && studies[String(card?.id||'')] && ['Dauntless','Improvisor'].includes(card?.type)) && !['04','17','106','01','bh07','bh11','10','19','bh12','11','bh02','bh08','57','12','23','15','34','77'].includes(String(card?.id||'')))return false;
+ if(!(options.placement===true && studies[String(card?.id||'')] && ['Dauntless','Improvisor'].includes(card?.type)) && !['04','17','106','01','bh07','bh11','10','19','bh12','11','bh02','bh08','57','12','23','15','34','77','130'].includes(String(card?.id||'')))return false;
  if(typeof window.isHiddenEffectForViewer==='function' ? window.isHiddenEffectForViewer(card) : card.faceDown)return false;
  if(document.documentElement.classList.contains('fate-animations-off') || document.documentElement.classList.contains('fate-super-performance-mode') || document.hidden)return false;
  const overlay=document.createElement('div');overlay.style.cssText='position:fixed;inset:0;pointer-events:none;z-index:999998;opacity:1;visibility:visible';overlay.setAttribute('aria-hidden','true');

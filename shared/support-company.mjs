@@ -32,20 +32,21 @@ export function supportCompanyAvailability(uses, morale, moraleEnabled = true){
 }
 
 export const SUPPORT_COMPANY_CATEGORIES = Object.freeze([
- ['power','Power','Recruit strong units and build their own Fate.','14 21 38 41 44 45 46 55 63 65 66 76 85 86 88 89 95 100 101 104 107 109 bh09 bh23'],
- ['empower','Empower','Strengthen your other cards and amplify Fate bonuses.','01 05 11 15 19 22 23 25 40 44 51 57 59 73 77 83 87 90 106 112 bh02 bh07 bh08 bh11 bh12 bh13 bh15 bh17 bh19 bh24 bh25'],
+ ['power','Power','Recruit strong units and build their own Fate.','14 21 38 41 44 45 46 55 63 65 66 76 85 86 88 89 95 100 101 104 107 109 125 bh09 bh23'],
+ ['empower','Empower','Strengthen your other cards and amplify Fate bonuses.','01 05 11 15 19 22 23 25 40 44 51 57 59 73 77 83 87 90 106 112 130 bh02 bh07 bh08 bh11 bh12 bh13 bh15 bh17 bh19 bh24 bh25'],
+ ['utility','Utility','Use flexible counters, copies, and card tools.','37 90 105 107 120 bh06 bh14'],
  ['weaken','Weaken','Reduce enemy Fate and zone strength.','10 31 36 61 70 93 bh04 bh16'],
  ['lockdown','Lockdown','Restrict squares, deployment, and consolidation.','04 14 17 50 53 62 81 97 114'],
- ['sabotage','Sabotage','Remove cards, negate effects, and disrupt enemy resources.','16 18 30 52 61 67 70 72 79 118 bh03 bh18'],
- ['protect','Protect & Recover','Protect cards and restore Morale.','12 20 33 76 79 bh01 bh22'],
- ['draw','Draw','Draw cards to refill your hand.','27 32 42 80 86 103 108 bh01'],
- ['search','Search','Find, recover, or recruit cards for your hand.','06 07 08 13 29 48 58 60 68 69 72 78 84 90 91 94 105 115 118 119 120 bh05 bh10'],
- ['recycle','Recycle','Recover discarded resources.','08 29 48 58 69 96'],
- ['deploy','Deploy','Gain Reinforcement and deployment options.','02 07 08 09 24 28 49 73 74 79 81 91 92 98 99 100 110 116 120 bh06 bh10 bh14 bh24'],
- ['position','Position & Terrain','Move cards and reshape the battlefield.','02 17 39 43 54 62 81 82 111 bh01'],
- ['morale','Morale Pressure','Deal or amplify Morale damage.','34 35 47 64'],
- ['intelligence','Intelligence','Reveal hands, inspect decks, and shape upcoming draws.','26 61 71 75 113'],
- ['subterfuge','Subterfuge','Conceal your plans, prepare traps, and predict enemy actions.','102 104 105 107 116 117 bh21'],
+ ['sabotage','Sabotage','Remove cards, negate effects, and disrupt enemy resources.','16 18 30 52 61 67 70 72 79 118 121 126 bh03 bh18'],
+ ['protect','Protect & Recover','Protect cards and restore Morale.','12 20 33 76 79 124 bh22'],
+ ['draw','Draw','Draw cards to refill your hand.','27 32 42 80 86 103 108'],
+ ['search','Search','Find, recover, or recruit cards for your hand.','06 07 08 13 29 48 58 60 68 69 72 78 84 90 91 94 105 115 118 119 bh05 bh10'],
+ ['recycle','Recycle','Recover discarded resources.','08 29 48 58 69 96 122'],
+ ['deploy','Deploy','Gain Reinforcement and deployment options.','02 07 08 09 24 28 49 73 74 79 81 91 92 98 99 100 110 116 122 bh06 bh10 bh14 bh24'],
+ ['position','Position & Terrain','Move cards and reshape the battlefield.','02 17 39 43 54 62 81 82 111 127'],
+ ['morale','Morale Pressure','Deal or amplify Morale damage.','34 35 47 64 121'],
+ ['intelligence','Intelligence','Reveal hands, inspect decks, and shape upcoming draws.','26 61 71 75 113 125'],
+ ['subterfuge','Subterfuge','Conceal your plans, prepare traps, and predict enemy actions.','102 104 105 107 116 117 127 bh21'],
  ['adaptation','Adaptation','Copy effects, transform cards, and change the rules of engagement.','37 66 99 108 bh06 bh14 bh20']
 ].map(([id,name,description,ids])=>Object.freeze({id,name,description,cardIds:Object.freeze(ids.split(' '))})));
 export function supportCompanyOffers(cards, seed, player, category, callIndex=0){

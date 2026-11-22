@@ -29792,3 +29792,192 @@ html body #pack-opening-overlay .profile-pack-card.profile-pack-full-art{
 .cd-consolidation-chain>b{position:absolute;right:-5px;bottom:-5px;min-width:14px;height:14px;display:grid;place-items:center;border:1px solid #d6c2ed;border-radius:8px;color:#f5e9ff;background:#21162f;font:900 9px/1 Georgia,serif}
 .cd-consolidation-chain:hover .cd-moscow-tooltip,.cd-consolidation-chain:focus .cd-moscow-tooltip{opacity:1;visibility:visible;transform:translateY(0)}
 .cd-consolidation-chain>b{box-sizing:border-box;width:16px;min-width:16px;height:16px;padding:0;margin:0;display:flex;align-items:center;justify-content:center;border-radius:50%;font:700 10px/1 Arial,sans-serif;text-indent:0;letter-spacing:0;text-align:center}
+html body .blazing-inferno-banner{position:fixed;z-index:9001;top:9%;left:50%;transform:translateX(-50%);max-width:min(90vw,640px);padding:13px 24px;border:2px solid #f6b45d;border-radius:12px;background:linear-gradient(110deg,#411a16,#9a3820 52%,#411a16);box-shadow:0 0 30px #f57527aa,0 6px 20px #0009;color:#fff2d6;font:700 17px 'Cinzel',serif;text-align:center;pointer-events:none;animation:blazing-banner-in .25s ease-out both}
+html body .blazing-inferno-fire{position:fixed;z-index:9000;pointer-events:none;overflow:visible;contain:layout style}
+html body .blazing-inferno-fire .blazing-inferno-card-glow{position:absolute;box-sizing:border-box;border:3px solid #ffc457;border-radius:8px;box-shadow:inset 0 0 22px #ff4b0b,0 0 26px 9px #ff7824;animation:blazing-glow-pulse 2.3s ease-out both}
+html body #board .bc .bc-haunted-overlay{position:absolute;inset:0;z-index:4;display:grid;place-items:center;border:2px solid rgba(193,206,255,.75);border-radius:inherit;background:rgba(64,57,110,.21);box-shadow:inset 0 0 18px rgba(142,163,233,.28);pointer-events:none}
+html body #board .bc .bc-haunted-overlay svg{width:80%;max-width:144px;overflow:visible;fill:none;stroke:#e4edff;stroke-width:3.2;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 7px rgba(143,185,255,.8))}
+html body #board .bc .bc-haunted-overlay svg circle{fill:#e4edff;stroke:none}
+.bc.effect-flash-yokai_judgement{
+  --effect-flash-color:rgba(221,242,245,.98);--effect-flash-glow:rgba(105,209,220,.72);
+  --effect-flash-tint:rgba(29,104,119,.22);--effect-flash-inset:rgba(177,237,238,.16);
+  --effect-flash-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='2.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M16 18 9 4l18 8M48 18 55 4 37 12M12 23Q32 6 52 23L48 48 32 59 16 48Z'/%3E%3Cpath d='M16 31q8-7 14 2l-14 4M48 31q-8-7-14 2l14 4M32 38l-4 6h8Z'/%3E%3C/g%3E%3C/svg%3E");
+}
+.bc.effect-flash-elemental_mastery{
+  --effect-flash-color:rgba(244,231,177,.99);--effect-flash-glow:rgba(124,204,226,.72);
+  --effect-flash-tint:rgba(74,117,119,.17);--effect-flash-inset:rgba(229,176,92,.14);
+  --effect-flash-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='black' stroke-width='2.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='32' cy='32' r='25'/%3E%3Cpath d='M32 7q-7 10 0 16 7-6 0-16ZM57 32q-10-7-16 0 6 7 16 0ZM32 57q7-10 0-16-7 6 0 16ZM7 32q10 7 16 0-6-7-16 0ZM32 23l4 9-4 9-4-9z'/%3E%3C/g%3E%3C/svg%3E");
+}
+html body .blazing-inferno-fire .blazing-inferno-layer{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;will-change:transform,opacity;animation:blazing-inferno-surge 2.3s ease-out both}
+html body .blazing-inferno-fire .blazing-inferno-flicker{opacity:.2;animation:blazing-flame-flicker 2.3s ease-out both}
+html body .blazing-inferno-fire i{position:absolute;left:var(--x);top:var(--y);width:3px;height:3px;border-radius:50%;background:#ffe8a1;box-shadow:0 0 6px 2px #ff8526;animation:blazing-real-ember 1.45s ease-out var(--delay) both}
+@keyframes blazing-inferno-surge{0%{opacity:0;transform:scale(.86) translateY(8px)}16%{opacity:1}32%{transform:scale(1.05) translateY(-3px)}55%{transform:scale(.95,1.03)}78%{opacity:1;transform:scale(1.12) translateY(-12px)}100%{opacity:0;transform:scale(1.17) translateY(-17px)}}
+@keyframes blazing-flame-flicker{0%{opacity:0;transform:scale(.88)}18%{opacity:.18;transform:scale(1.02) skewX(-1deg)}38%{opacity:.3;transform:scale(1.06,1.02) skewX(1deg)}56%{opacity:.12;transform:scale(1.01,1.09) skewX(-2deg)}75%{opacity:.28;transform:scale(1.14,1.13) skewX(1deg)}100%{opacity:0;transform:scale(1.19,1.18)}}
+@keyframes blazing-glow-pulse{0%{opacity:0}15%{opacity:1}65%{opacity:.9}100%{opacity:0}}
+@keyframes blazing-real-ember{0%{opacity:0;transform:translateY(0) scale(.3)}20%{opacity:1}100%{opacity:0;transform:translate(12px,-60px) scale(.7)}}
+@keyframes blazing-banner-in{from{opacity:0;transform:translate(-50%,-16px)}to{opacity:1;transform:translate(-50%,0)}}
+/* Nytress keeps the first declaration visible while the second is chosen. */
+html body #modal .modal.affiliation-picker-modal .aff-pick-square.aff-pick-selected,
+html body #modal .modal.affiliation-picker-modal .aff-pick-square.aff-pick-selected:disabled{
+  opacity:1!important;
+  border:2px solid var(--aff-accent)!important;
+  background:linear-gradient(180deg,rgba(var(--aff-glow),.3),rgba(var(--aff-glow),.09) 52%,rgba(12,18,27,.96))!important;
+  box-shadow:0 0 0 2px rgba(255,255,255,.7),0 0 26px rgba(var(--aff-glow),.48),inset 0 0 24px rgba(var(--aff-glow),.2)!important;
+  cursor:default!important;
+  transform:none!important;
+}
+html body #modal .modal.affiliation-picker-modal .aff-pick-choice-tag{
+  color:#fff!important;
+  font:700 .62rem 'Cinzel',serif!important;
+  letter-spacing:.11em!important;
+  text-shadow:0 0 8px var(--aff-accent)!important;
+}
+/* Keep Nytress's selected banner and its label clear of the card edge. */
+html body #modal .modal.affiliation-picker-modal .aff-pick-square.aff-pick-selected,
+html body #modal .modal.affiliation-picker-modal .aff-pick-square.aff-pick-pending{
+  overflow:visible!important;
+  z-index:2!important;
+  transform:none!important;
+}
+html body #modal .modal.affiliation-picker-modal .aff-pick-square.aff-pick-pending{
+  border:2px solid var(--aff-accent)!important;
+  box-shadow:0 0 0 2px #fff9,0 0 24px rgba(var(--aff-glow),.55)!important;
+}
+html body #modal .modal.affiliation-picker-modal .aff-pick-choice-tag{
+  display:block!important;
+  max-width:100%!important;
+  margin-top:.1rem!important;
+  line-height:1.15!important;
+  text-align:center!important;
+  white-space:normal!important;
+}
+html body #modal .modal.affiliation-picker-modal #modal-acts{
+  min-height:46px!important;
+  display:flex!important;
+  justify-content:center!important;
+  padding-top:12px!important;
+}
+html body #modal .modal.affiliation-picker-modal .aff-pick-confirm:disabled{opacity:.48!important;cursor:default!important;}
+html body #board .bc .bc-haunted-overlay{
+  z-index:8!important;
+  filter:none!important;
+}
+html body #board .bc.fate-suppressed .bc-haunted-overlay{
+  filter:none!important;
+}
+html body #board .bc.fate-suppressed .bc-haunted-overlay::before{
+  content:'';
+  position:absolute;
+  left:16%;right:16%;top:24%;bottom:24%;
+  border-radius:50%;
+  background:rgba(29,27,49,.96);
+  z-index:0;
+}
+html body #board .bc.fate-suppressed .bc-haunted-overlay svg{position:relative;z-index:1;}
+html body #modal .modal.affiliation-picker-modal .aff-pick-square.aff-pick-selected{
+  min-height:174px!important;
+  padding-bottom:1rem!important;
+  box-sizing:border-box!important;
+}
+html body #modal .modal.affiliation-picker-modal .aff-pick-choice-tag{
+  flex:none!important;
+  position:relative!important;
+  z-index:3!important;
+  margin-bottom:.15rem!important;
+}
+html body #modal .modal.affiliation-picker-modal{
+  max-height:calc(100dvh - 28px)!important;
+  overflow-y:auto!important;
+}
+html body .cd-live-tracker.cd-nytress-tracker .cd-live-tracker-value{
+  white-space:normal!important;
+  overflow-wrap:normal!important;
+  line-height:1.25!important;
+}
+html body #modal .cd-live-tracker.cd-nytress-tracker,
+html body .card-info-overlay .cd-live-tracker.cd-nytress-tracker{
+  grid-template-columns:minmax(0,1fr)!important;
+  gap:3px!important;
+  min-height:0!important;
+  transform:none!important;
+}
+html body .cd-live-tracker.cd-nytress-tracker :is(.cd-live-tracker-label,.cd-live-tracker-value,.cd-live-tracker-sub){
+  grid-column:1!important;
+}
+html body #modal .cd-info .cd-live-tracker.cd-nytress-tracker,
+html body .card-info-overlay .cd-info .cd-live-tracker.cd-nytress-tracker{
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:flex-start!important;
+  gap:4px!important;
+  padding:10px 12px!important;
+  margin:10px 0 18px!important;
+  height:auto!important;
+}
+html body #modal .cd-info .cd-nytress-tracker + .cd-eff,
+html body .card-info-overlay .cd-info .cd-nytress-tracker + .cd-eff{
+  margin-top:0!important;
+  position:relative!important;
+  transform:none!important;
+}
+html body #modal .cd-info .cd-live-tracker.cd-nytress-tracker,
+html body .card-info-overlay .cd-info .cd-live-tracker.cd-nytress-tracker{
+  display:grid!important;
+  grid-template-columns:auto minmax(0,1fr)!important;
+  align-items:center!important;
+  gap:2px 8px!important;
+  min-height:66px!important;
+  padding:8px 12px!important;
+  margin:.28rem 0 .6rem!important;
+}
+html body #modal .cd-nytress-tracker .cd-live-tracker-kicker,
+html body .card-info-overlay .cd-nytress-tracker .cd-live-tracker-kicker,
+html body #modal .cd-nytress-tracker .cd-live-tracker-sub,
+html body .card-info-overlay .cd-nytress-tracker .cd-live-tracker-sub{
+  grid-column:1/-1!important;
+}
+html body #modal .cd-nytress-tracker .cd-live-tracker-label,
+html body .card-info-overlay .cd-nytress-tracker .cd-live-tracker-label{grid-column:1!important;}
+html body #modal .cd-nytress-tracker .cd-live-tracker-value,
+html body .card-info-overlay .cd-nytress-tracker .cd-live-tracker-value{
+  grid-column:2!important;
+  min-width:0!important;
+  overflow-wrap:anywhere!important;
+}
+#cipher-discard-banner{position:fixed;top:12%;left:50%;z-index:10020;box-sizing:border-box;width:min(520px,90vw);padding:14px 18px;display:grid;gap:5px;transform:translate(-50%,-12px);opacity:0;pointer-events:none;border:2px solid #df9d61;border-radius:9px;background:linear-gradient(135deg,#261a29,#472b2c 52%,#251b2a);box-shadow:0 8px 35px #000b,0 0 25px #e17e4b66;color:#f9ecdc;font:600 13px/1.4 Georgia,serif;transition:opacity .2s ease,transform .2s ease}
+#cipher-discard-banner.on{opacity:1;transform:translate(-50%,0)}
+#cipher-discard-banner strong{color:#ffce94;font:700 16px/1.3 'Cinzel',serif;letter-spacing:.05em}
+#cipher-discard-banner{text-align:center;justify-items:center;}
+#s-game .bc .bc-voyager-counters{position:absolute;left:4px;top:28%;z-index:8;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;gap:2px;padding:3px;border:1px solid #ddd4bd;border-radius:12px;background:#151b23ee;box-shadow:0 2px 8px #000b;pointer-events:none;filter:none!important}
+#s-game .bc .bc-voyager-counters i{display:grid;place-items:center;width:17px;height:17px;border-radius:50%;background:#eee5d2;color:#27313b;font:700 11px/1 Georgia,serif;font-style:normal;box-shadow:inset 0 0 0 1px #bdad8d}
+#s-game .bc .bc-voyager-counters i.empty{background:#29313a;color:#e5dac4}
+#s-game .bc .bc-voyager-counters b{font:700 10px/1 Georgia,serif;color:#f4e6c9}
+#s-game .bc .bc-voyager-counters{
+  left:auto!important;right:3px!important;top:calc(22% + 1px)!important;
+  width:24px!important;height:24px!important;padding:0!important;
+  display:grid!important;place-items:center!important;
+  border-radius:50%!important;border:1px solid #d9c8a4!important;
+  background:#18212b!important;
+  box-shadow:-3px 2px 0 -1px #18212b,-3px 2px 0 #d9c8a4,-6px 4px 0 -1px #18212b,-6px 4px 0 #d9c8a4,0 2px 7px #000b!important;
+}
+#s-game .bc .bc-voyager-counters i{
+  width:auto!important;height:auto!important;min-width:0!important;
+  border-radius:0!important;background:none!important;box-shadow:none!important;
+  color:#f4e6c9!important;font:700 12px/1 Georgia,serif!important;
+}
+/* Approved stacked-token design, positioned just below the Fate badge. */
+#s-game .bc .bc-voyager-counters{
+  top:calc(22% + 1px)!important;right:4px!important;
+  width:auto!important;height:auto!important;min-width:25px!important;
+  display:flex!important;flex-direction:column!important;align-items:center!important;
+  gap:2px!important;padding:3px!important;
+  border:1px solid #d9c8a4!important;border-radius:13px!important;
+  background:#151b23f5!important;box-shadow:0 2px 8px #000b!important;
+}
+#s-game .bc .bc-voyager-counters i{
+  display:grid!important;place-items:center!important;
+  width:17px!important;height:17px!important;border-radius:50%!important;
+  background:#f6ead6!important;color:#263241!important;
+  font:700 13px/1 Georgia,serif!important;
+}
+#s-game .bc .bc-voyager-counters b{font:700 9px/1 Georgia,serif!important;color:#f4e6c9!important;}

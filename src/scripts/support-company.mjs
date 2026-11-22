@@ -1,7 +1,7 @@
 import {pickRoyalSeal} from './support-company-royal-seal.mjs?v=20261011-presentation-order';
 import {callToArmsReserveValue,recruitmentDeckFit,assessRecruitment} from '../../shared/ai/recruitment-timing.mjs';
 window.FateAIRecruitmentTiming={callToArmsReserveValue,recruitmentDeckFit,assessRecruitment};
-import {SUPPORT_COMPANY_NAMES, supportCompanyCardEligible, supportCompanyAvailability, createSupportCompanyPool, SUPPORT_COMPANY_CATEGORIES, supportCompanyOffers} from '../../shared/support-company.mjs?v=20261109-draw-search';
+import {SUPPORT_COMPANY_NAMES, supportCompanyCardEligible, supportCompanyAvailability, createSupportCompanyPool, SUPPORT_COMPANY_CATEGORIES, supportCompanyOffers} from '../../shared/support-company.mjs?v=20261122-utility-category';
 import {playSupportCompanyAnimation} from './support-company-animation.mjs?v=20261008-selected-title';
 
 const escape = value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -9,6 +9,7 @@ const categoryPaths={"power": "M12 3v18M3 12h18M6 6l12 12M6 18L18 6", "weaken": 
 Object.assign(categoryPaths, {
  power: 'M12 2l4 7-2 5h4l-6 8-6-8h4L8 9z',
  empower: 'M12 3v12M8 7l4-4 4 4M3 17h6v4H3zM15 17h6v4h-6zM12 12l-6 5M12 12l6 5',
+ utility: 'M6 4h12v16H6zM9 8h6M9 12h6M9 16h3M17 3v5M14.5 5.5h5',
  lockdown: 'M5 10h14v11H5zM8 10V7a4 4 0 018 0v3M12 14v3',
  sabotage: 'M14 2L5 14h7l-2 8 9-13h-7z',
  intelligence: 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12M15 12a3 3 0 11-6 0 3 3 0 016 0',
@@ -169,10 +170,10 @@ window.showSupportCompanyCategoryWindow = function(options){
     });
     return;
   }
-  const {ability='call',categories:offeredCategories=SUPPORT_COMPANY_CATEGORIES,cost=0,cancellable=true,onSelect,promptId}=options;
+  const {ability='call',categories:offeredCategories=SUPPORT_COMPANY_CATEGORIES,cost=0,cancellable=true,onSelect,onCancel,promptId}=options;
   let categories=offeredCategories;
   categories=categories.map(category=>({...SUPPORT_COMPANY_CATEGORIES.find(item=>item.id===category.id),...category,description:category.description || SUPPORT_COMPANY_CATEGORIES.find(item=>item.id===category.id)?.description || ''}));
-  showModal(SUPPORT_COMPANY_NAMES[ability],`<section class="sc-category-window"><div class="sc-category-intro"><span>SUPPORT COMPANY · 01 / 02</span><h3>What does your battle need?</h3><p>Right-click an order to inspect its full reinforcement roster.</p>${ability==='desperate'?`<p class="sc-category-cost">${cost} Morale · Paid only when you choose a card</p>`:''}</div><div class="sc-category-grid">${categories.map((c,i)=>`<button type="button" class="sc-category" data-category="${c.id}" title="Right-click to inspect ${escape(c.name)} cards">${categoryIcon(c.id)}<strong>${escape(c.name)}</strong><span>${escape(c.description)}</span></button>`).join('')}</div></section>`,cancellable ? [{label:'Cancel',action:()=>closeModal()}] : [],{immediate:true});
+  showModal(SUPPORT_COMPANY_NAMES[ability],`<section class="sc-category-window"><div class="sc-category-intro"><span>SUPPORT COMPANY · 01 / 02</span><h3>What does your battle need?</h3><p>Right-click an order to inspect its full reinforcement roster.</p>${ability==='desperate'?`<p class="sc-category-cost">${cost} Morale · Paid only when you choose a card</p>`:''}</div><div class="sc-category-grid">${categories.map((c,i)=>`<button type="button" class="sc-category" data-category="${c.id}" title="Right-click to inspect ${escape(c.name)} cards">${categoryIcon(c.id)}<strong>${escape(c.name)}</strong><span>${escape(c.description)}</span></button>`).join('')}</div></section>`,cancellable ? [{label:'Cancel',action:()=>{closeModal();onCancel?.();}}] : [],{immediate:true});
   if(promptId){
     const picker=document.querySelector('.sc-category-window');
     if(picker)picker.dataset.phase7PromptId=String(promptId);
@@ -316,7 +317,7 @@ window.tryAiSupportCompany = async function(player){
 };
 
 // Card-triggered Call to Arms uses the normal category offers without spending either order.
-window.resolveHopliteCallToArms = async function(source,player){
+window.resolveHopliteCallToArms = async function(source,player,options={}){
   const game=G;
   if(window.waitForSupportCompanyPresentation && !await window.waitForSupportCompanyPresentation(()=>G===game))return false;
   game._supportCompanyOfferSeed ||= `${Date.now()}:${Math.random()}`;
@@ -329,9 +330,9 @@ window.resolveHopliteCallToArms = async function(source,player){
   const ranked=ai && typeof aiRankSupportCompanyOffers==='function' ? aiRankSupportCompanyOffers(categories.flatMap(category=>
       supportCompanyOffers(CARDS,seed,player,category.id,callIndex).map(id=>({category:category.id,card:CARDS.find(card=>String(card.id)===id)}))), 'triggered') : [];
   const category=ai ? (ranked[0]?.category || categories[0].id) : await new Promise(resolve=>{
-    window.showSupportCompanyCategoryWindow({categories,cancellable:false,onSelect:category=>{closeModal();resolve(category);}});
+    window.showSupportCompanyCategoryWindow({categories,cancellable:options.cancellable===true,onSelect:category=>{closeModal();resolve(category);},onCancel:()=>resolve(null)});
   });
-  if(G!==game)return false;
+  if(G!==game || !category)return false;
   const offerIds=supportCompanyOffers(CARDS,seed,player,category,callIndex);
   game._callToArmsOfferCounts[player]++;
   const cards=offerIds.map(id=>CARDS.find(card=>String(card.id)===id));
@@ -347,6 +348,6 @@ window.resolveHopliteCallToArms = async function(source,player){
   return new Promise(resolve=>pickRoyalSeal(cards,{
     abilityName:'Call to Arms',categoryLabel:categories.find(item=>item.id===category)?.name,isCurrent:()=>G===game,
     sourceCard:source,title:'Call to Arms',subtitle:'Choose one of these three cards for free.',
-    minCount:1,maxCount:1,allowCancel:false,confirmLabel:'Call to Arms',viewerPlayerIndex:player,immediate:true
+    minCount:1,maxCount:1,allowCancel:options.cancellable===true,onCancel:()=>resolve(false),confirmLabel:'Call to Arms',viewerPlayerIndex:player,immediate:true
   },async chosen=>resolve(await add(chosen?.[0]))));
 };

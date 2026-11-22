@@ -393,7 +393,7 @@ const FATE_OVERLAY_SFX_FAMILIES = {
   anicka_voyager_boat:'ocean', rivera_crest:'ocean', maria_target:'precision',
   isaac_beaker:'tech', bh07_overclock:'tech', alpine_engineer_proc:'tech',
   joie_thousand_reel:'void', jimmy_wrath:'void', marie_deterrence:'void',
-  specter_ghost:'spectral', bh18_genesis_inceldom:'void', bh04_selva_paradise:'nature',
+  specter_ghost:'spectral', yokai_judgement:'spectral', elemental_mastery:'nature', bh18_genesis_inceldom:'void', bh04_selva_paradise:'nature',
   idyllic_polish_village:'nature', wintertide:'winter', snowball:'winter',
   rozsi_dance:'music', sebastyen_visegrad:'royal', phil_crown:'royal',
   west_caribbea_marines:'martial', boleslaw_exclaim:'comic', jake_burger:'comic',
@@ -587,6 +587,57 @@ function playSebastianFishSfx(){
     return true;
   }catch(e){return false;}
 }
+function playBraveHorizonsCounterSfx(spend=false){
+  if(document.hidden || _masterVol<=0 || _sfxVol<=0)return false;
+  try{
+    const ctx=getAudioCtx(),out=ctx.createGain(),now=ctx.currentTime;
+    out.gain.value=_masterVol*_sfxVol*.5;
+    out.connect(getSfxBus(ctx).input);
+    const notes=spend?[740,555]:[580,780];
+    notes.forEach((frequency,index)=>{
+      const osc=ctx.createOscillator(),gain=ctx.createGain(),at=now+index*.065;
+      osc.type='sine';osc.frequency.setValueAtTime(frequency,at);
+      osc.frequency.exponentialRampToValueAtTime(frequency*(spend?.82:1.12),at+.12);
+      gain.gain.setValueAtTime(.0001,at);
+      gain.gain.exponentialRampToValueAtTime(spend?.17:.11,at+.008);
+      gain.gain.exponentialRampToValueAtTime(.0001,at+.19);
+      osc.connect(gain).connect(out);osc.start(at);osc.stop(at+.2);
+    });
+    setTimeout(()=>out.disconnect(),450);
+    return true;
+  }catch(e){return false;}
+}
+window.playBraveHorizonsCounterSfx=playBraveHorizonsCounterSfx;
+function playElementalConvergenceSfx(){
+  if(_masterVol<=0 || _sfxVol<=0)return false;
+  try{
+    const ctx=getAudioCtx(),now=ctx.currentTime,out=ctx.createGain();
+    out.gain.value=_masterVol*_sfxVol*.72;
+    out.connect(getSfxBus(ctx).input);
+    [[245,330,0],[370,494,.055],[555,660,.105]].forEach(([from,to,delay],index)=>{
+      const start=now+delay,osc=ctx.createOscillator(),gain=ctx.createGain();
+      osc.type=index===0?'triangle':'sine';
+      osc.frequency.setValueAtTime(from,start);
+      osc.frequency.exponentialRampToValueAtTime(to,start+.3);
+      gain.gain.setValueAtTime(.0001,start);
+      gain.gain.exponentialRampToValueAtTime(.10/(index+1),start+.025);
+      gain.gain.exponentialRampToValueAtTime(.0001,start+.48);
+      osc.connect(gain).connect(out);osc.start(start);osc.stop(start+.5);
+    });
+    const noise=ctx.createBufferSource(),filter=ctx.createBiquadFilter(),air=ctx.createGain();
+    noise.buffer=getCachedSfxNoiseBuffer(ctx,.3,1.8,.035,'elemental-convergence');
+    filter.type='bandpass';filter.Q.value=.7;
+    filter.frequency.setValueAtTime(450,now);
+    filter.frequency.exponentialRampToValueAtTime(1500,now+.28);
+    air.gain.setValueAtTime(.0001,now);
+    air.gain.exponentialRampToValueAtTime(.05,now+.05);
+    air.gain.exponentialRampToValueAtTime(.0001,now+.3);
+    noise.connect(filter).connect(air).connect(out);noise.start(now);noise.stop(now+.3);
+    setTimeout(()=>out.disconnect(),900);
+    return true;
+  }catch(e){return false;}
+}
+
 function playCardEffectFlashSfx(kind, options) {
   const opts = options || {};
   const cleanKind = String(kind || '').toLowerCase();
@@ -594,12 +645,13 @@ function playCardEffectFlashSfx(kind, options) {
   const nowMs = Date.now();
   const key = String(opts.key || (cleanKind + ':' + nowMs));
   const previous = Number(_cardEffectFlashSfxKeys.get(key)) || 0;
-  if(nowMs - previous < 900) return false;
+  if(nowMs - previous < (cleanKind === 'elemental_mastery' ? 6000 : 900)) return false;
   _cardEffectFlashSfxKeys.set(key, nowMs);
   if(_cardEffectFlashSfxKeys.size > 180) {
     _cardEffectFlashSfxKeys.forEach(function(stamp, storedKey){ if(nowMs - stamp > 15000) _cardEffectFlashSfxKeys.delete(storedKey); });
   }
   if(cleanKind === 'jose_clock') return !!window.FateApprovedActivationSfx?.play('jose-clock');
+  if(cleanKind === 'elemental_mastery') return playElementalConvergenceSfx();
   if(cleanKind === 'military_blockade') return !!window.FateApprovedActivationSfx?.play('military-blockade');
   if(cleanKind === 'military_blockade_release') return !!window.FateApprovedActivationSfx?.play('military-blockade-release');
   if(cleanKind === 'sebastian_fish') return playSebastianFishSfx();
@@ -664,6 +716,37 @@ function playFateCountTick(progress, remainingMs, decreasing) {
   } catch(e) {}
 }
 window.playFateCountTick = playFateCountTick;
+
+function playBlazingInfernoSfx() {
+  if(_masterVol <= 0 || _sfxVol <= 0) return;
+  try {
+    if(localStorage.getItem('fateAudioMuted') === '1' || localStorage.getItem('fateMute') === '1') return;
+    const ctx = getAudioCtx();
+    const now = ctx.currentTime;
+    const duration = 1.15;
+    const buffer = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * duration), ctx.sampleRate);
+    const samples = buffer.getChannelData(0);
+    let rumble = 0, crackle = 0;
+    for(let i=0;i<samples.length;i++){
+      const t = i / ctx.sampleRate;
+      const noise = Math.random() * 2 - 1;
+      rumble += (noise - rumble) * .055;
+      crackle = Math.random() < .0007 ? (Math.random() * 1.2 + .5) : crackle * .93;
+      const ignition = Math.exp(-t * 11);
+      const burn = Math.sin(Math.PI * Math.min(1, t / duration)) ** .65;
+      samples[i] = (rumble * 1.65 + noise * .16 + crackle * noise * 1.9) * (ignition * .65 + burn * .66);
+    }
+    const source = ctx.createBufferSource();
+    const gain = ctx.createGain();
+    source.buffer = buffer;
+    gain.gain.value = Math.min(.7, _masterVol * _sfxVol * .42);
+    source.connect(gain);
+    gain.connect(getSfxBus(ctx).input);
+    source.onended = ()=>{source.disconnect();gain.disconnect();};
+    source.start(now);
+  } catch(e) {}
+}
+window.playBlazingInfernoSfx = playBlazingInfernoSfx;
 
 function playSfx(type) {
   if(_masterVol<=0) return;
@@ -2325,6 +2408,7 @@ const CARD_SOUNDS = {
   '84': '../new voices/84set', '85': '../new voices/85set', '86': '../new voices/86set',
   '87': '../new voices/87set', '88': '../new voices/88set', '89': '../new voices/89set',
   '90': '../new voices/90set', '99': '../new voices/99set', '100': '../new voices/100set',
+  '121': '121set', '122':'122set', '123':'123set', '124':'124set', '125':'125set', '126':'126set', '127':'127set', '130':'130set',
   'bh01': 'bh1', 'bh02': 'bh2', 'bh03': 'bh3', 'bh04': 'bh4', 'bh05': 'bh5', 'bh06': 'bh6', 'bh07': 'bh7', 'bh08': 'bh8', 'bh09': 'bh9', 'bh10': 'bh10', 'bh11': 'bh11', 'bh12': 'bh12', 'bh13': 'bh13', 'bh14': 'bh14', 'bh15': 'bh15', 'bh16': 'bh16', 'bh17': 'bh17', 'bh18': 'bh18', 'bh19': 'bh19', 'bh20': 'bh20', 'bh25': 'bh25set'
 };
 const GAME_SONGS = Array.from({length:24}, (_,i)=>'board'+(i+1));
@@ -2337,6 +2421,7 @@ const IGB17_BACKGROUND_FILES = Object.freeze([
   'igb17/9.png','igb17/10.png'
 ]);
 const AVAILABLE_CARD_SOUND_FILES = new Set([
+  '121set','122set','123set','124set','125set','126set','127set','130set',
   '110',
   '109',
   '108',
@@ -2650,14 +2735,15 @@ function transitionGameLandscape(song, opts = {}) {
 }
 window.transitionGameLandscape = transitionGameLandscape;
 
-// Carolyn's new recordings need extra gain before playback. Keep voice/master
+// Quiet cinematic recordings need extra gain before playback. Keep voice/master
 // volume on the audio element and limit peaks without using the SFX/reverb bus.
 function applyCardVoiceGain(audio, cardId) {
-  if(String(cardId) !== '17') return;
+  const gainLevel = ({'17':2.5,'124':1.8,'127':2.2})[String(cardId)];
+  if(!gainLevel) return;
   try {
     const ctx = getAudioCtx();
     const gain = ctx.createGain(), limiter = ctx.createDynamicsCompressor();
-    gain.gain.value = 2.5;
+    gain.gain.value = gainLevel;
     limiter.threshold.value = -3;
     limiter.knee.value = 3;
     limiter.ratio.value = 20;
@@ -3624,7 +3710,7 @@ function stopProfilePickerObserver() {
 
 function profilePickerThumbSrc(pfpId) {
   const id = Math.max(1, parseInt(pfpId, 10) || 1);
-  if(id >= 126 && id <= 145) return PFP_PATH(id, 'square');
+  if(id >= 126 && id <= 153) return PFP_PATH(id, 'square');
   // Lydia's full portrait was replaced after the thumbnail sheet was built.
   // Use the versioned source so the picker and cropper always show the same art.
   if(id === 56 || id === 121) return PFP_PATH(id, 'square');

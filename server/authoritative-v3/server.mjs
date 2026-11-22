@@ -555,6 +555,7 @@ function scheduleAuthorityTimers(actor){
 // Presentation-only selection, shared by both seats and excluded from game state.
 const chatterSessions = new WeakMap();
 const chatterCardIds = {
+  dylan:['29'], jeremiah:['57'], maria:['61'], heyward:['77'],
   rivera:['51','104'], bobby:['55'], lydia:['56'],
   chingachlook:['45'], phil:['46'],
   mark:['43'],

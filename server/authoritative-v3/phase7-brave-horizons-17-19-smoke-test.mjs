@@ -59,7 +59,7 @@ assert(crushing, 'BH17 must trigger while its controller leads in total Fate');
 assert.equal(crushing.sourceIid, jakob.iid);
 const bh17Ctx = {state, events:[], ruleEvents:[]};
 applyOperation(bh17Ctx, crushing);
-assert.equal(consolidated.currentFate, 4, 'BH17 must add exactly 3 Fate to the consolidated target');
+assert.equal(consolidated.currentFate, 5, 'BH17 must add exactly 4 Fate to the consolidated target');
 
 const abedOne = board(state, 0, 'bh19', {z:1,r:2,c:0});
 const abedTwo = board(state, 0, 'bh19', {z:1,r:2,c:1});

@@ -1,4 +1,4 @@
-import {recordDylanReductionUses} from './modifiers.mjs';
+import {recordDylanReductionUses,canTarget} from './modifiers.mjs';
 import {emeraldChildrenEligible,emeraldChildrenFreeSet} from './emerald-children.mjs';
 import {havanoDestinations} from './havano-destinations.mjs';
 import {projectStateForPlayer,projectStateForSpectator} from './projections.mjs';
@@ -53,6 +53,38 @@ import {
   rowOwner
 } from './selectors.mjs';
 import {canonicalHash, cloneSerializable, stableStringify} from './serialization.mjs';
+
+function captureBoardTurnStart(state,playerIndex){
+  if(!Array.isArray(state.boardTurnStartSnapshots))state.boardTurnStartSnapshots=[null,null];
+  state.boardTurnStartSnapshots[playerIndex]={turn:state.turn,cards:boardEntries(state)
+    .filter(entry=>controllerOf(entry.card)===playerIndex)
+    .map(entry=>({z:entry.z,r:entry.r,c:entry.c,card:cloneSerializable(entry.card)}))};
+}
+
+function recalibrateOpponentBoard(ctx,controller,sourceIid){
+  const state=ctx.state,opponent=1-controller;
+  const snapshot=state.boardTurnStartSnapshots?.[opponent];
+  if(!snapshot){ctx.events.push({type:'EFFECT_CONDITION_UNMET',sourceIid,reason:'NO_PREVIOUS_OPPONENT_TURN'});return;}
+  const wanted=new Set(snapshot.cards.map(entry=>String(entry.card.iid)));
+  let removed=0,restored=0;
+  for(const entry of boardEntries(state)){
+    if(controllerOf(entry.card)!==opponent)continue;
+    state.board[entry.z][entry.r][entry.c]=null;
+    if(!wanted.has(String(entry.card.iid))){state.players[entry.card.owner].discard.push(entry.card);removed++;}
+  }
+  for(const entry of snapshot.cards){
+    const iid=String(entry.card.iid);
+    for(const player of state.players)for(const pile of ['hand','deck','discard']){
+      const index=player[pile].findIndex(card=>String(card.iid)===iid);
+      if(index>=0)player[pile].splice(index,1);
+    }
+    for(const current of boardEntries(state))if(String(current.card.iid)===iid)state.board[current.z][current.r][current.c]=null;
+    if(state.board[entry.z]?.[entry.r]?.[entry.c])continue;
+    state.board[entry.z][entry.r][entry.c]=cloneSerializable(entry.card);
+    restored++;
+  }
+  ctx.events.push({type:'BOARD_RECALIBRATED',sourceIid,playerIndex:opponent,snapshotTurn:snapshot.turn,restored,removed});
+}
 import {calculateOutcome, zoneScore} from './scoring.mjs';
 import {nextInt} from './rng.mjs';
 import {
@@ -840,6 +872,16 @@ function openInstructionPrompt(state, frame, instruction, ctx){
       title:'Chauffeur — Supporter Catalog',prompt:'Choose a Supporter to add to your hand.'};
     return true;
   }
+  if(instruction.kind === 'SELECT_FULL_CATALOG'){
+    const cards=[...new Map(state.cardCatalog.filter(card=>card?.id && card.token!==true).map(card=>[String(card.id),card])).values()];
+    frame.waitingFor='CARD_SELECTION';
+    state.pendingPrompt={promptId:nextId(state,'prompt'),type:PROMPT_TYPES.CARD_SELECTION,
+      playerIndex:frame.controller,sourceIid:frame.sourceIid,local:instruction.local,
+      eligibleIids:cards.map(card=>String(card.id)),eligibleCards:cards.map(card=>({...cloneSerializable(card),iid:String(card.id)})),
+      min:0,max:Math.min(Number(instruction.max)||15,cards.length),cancellable:true,cancelBehavior:'CONTINUE',timeoutPolicy:'FIRST_ELIGIBLE',
+      title:'Investigation',prompt:'Select up to 15 different cards. Each match in your opponent’s original deck grants 3 Fate.'};
+    return true;
+  }
   if(instruction.kind === 'CHOOSE_OPTION'){
 
     let options = (instruction.options || []).map(option=>
@@ -853,7 +895,7 @@ function openInstructionPrompt(state, frame, instruction, ctx){
     ).filter(option=>
       instruction.landscapeChoices !== true
       || (option.value !== state.landscapeId && !landscapeChangeBlockReason(state, option.value))
-    );
+    ).filter(option=>!instruction.excludeLocal || option.value !== frame.locals[instruction.excludeLocal]);
     if(instruction.moralePaymentStep){
       const maximum=Math.floor(Math.max(0,Number(state.moralePressure?.morale?.[frame.controller])||0)/15);
       options=Array.from({length:maximum+1},(_,i)=>({value:String(i*15),label:i?'Pay '+(i*15)+' Morale — Draw '+i:'Do not pay'}));
@@ -882,6 +924,8 @@ function openInstructionPrompt(state, frame, instruction, ctx){
       sourceIid:frame.sourceIid,
       options,
       local:instruction.local,
+      ...(instruction.title ? {title:String(instruction.title)} : {}),
+      ...(instruction.prompt ? {prompt:String(instruction.prompt)} : {}),
       ...(instruction.moralePaymentStep ? {title:'Sangre Por Victoria',moralePaymentStep:15} : {}),
       cancellable:instruction.cancellable !== false,
       cancelBehavior:instruction.cancelBehavior || 'END_EFFECT',
@@ -979,6 +1023,7 @@ function openInstructionPrompt(state, frame, instruction, ctx){
       max,
       local:instruction.local,
       cancellable:true,
+      deferOnCancel:instruction.deferOnCancel !== false,
       cancelBehavior:instruction.cancelBehavior || 'END_EFFECT',
       timeoutPolicy:min === 0 ? 'CANCEL' : 'FIRST_ELIGIBLE'
     };
@@ -1141,6 +1186,49 @@ function runEffectStack(state, ctx){
       frame.instructionIndex=emeraldChildrenEligible(state,frame.controller)?frame.instructionIndex+1:frame.program.length;
       continue;
     }
+    if(instruction?.kind === 'GIVE_EMERALD_COUNTER'){
+      const targetIid=frame.locals[instruction.local];
+      const target=targetIid && findBoardCard(state,targetIid)?.card;
+      const counterKey=target && (({bh01:'braveHorizonsCounters','36':'deterranceCounters','121':'infernoCounters'})[String(target.id)] || 'storyCounters');
+      if(counterKey)applyOperation(ctx,{type:'SET_CARD_COUNTER',targetIid:target.iid,
+        counterKey,value:Math.max(0,Number(target.counters?.[counterKey])||0)+1,
+        sourceIid:frame.sourceIid,sourceController:frame.controller,reason:'EMERALD_STORY_COUNTER'});
+      frame.instructionIndex++;
+      continue;
+    }
+    if(instruction?.kind === 'SPEND_DETERRANCE_COUNTER'){
+      const source=findBoardCard(state,frame.sourceIid);
+      if(source && Number(source.card.counters?.deterranceCounters||0)>0){
+        applyOperation(ctx,{type:'SET_CARD_COUNTER',targetIid:source.card.iid,counterKey:'deterranceCounters',
+          value:Number(source.card.counters.deterranceCounters)-1,sourceIid:source.card.iid});
+        ctx.events.push({type:'CARD_COUNTER_SPENT',cardIid:source.card.iid,cardId:'36',sourceIid:source.card.iid});
+        applyOperation(ctx,{type:'CREATE_MATCH_STATUS',status:{
+          statusId:`deterrance:${source.card.iid}:use:${Number(source.card.counters?.effectUses||0)}`,
+          type:'ZONE_FATE_MODIFIER',zone:source.z,playerIndex:1-frame.controller,value:-4,
+          sourceIid:source.card.iid,requiresActiveSource:true,reason:'MARIE_DETERRANCE'}});
+      }
+      frame.instructionIndex++;
+      continue;
+    }
+    if(instruction?.kind === 'SPEND_INFERNO_COUNTER'){
+      const source=findBoardCard(state,frame.sourceIid);
+      if(source && Number(source.card.counters?.infernoCounters||0)>0){
+        applyOperation(ctx,{type:'SET_CARD_COUNTER',targetIid:source.card.iid,counterKey:'infernoCounters',
+          value:Number(source.card.counters.infernoCounters)-1,sourceIid:source.card.iid});
+        ctx.events.push({type:'CARD_COUNTER_SPENT',cardIid:source.card.iid,cardId:'121',sourceIid:source.card.iid});
+        const deck=state.players[1-frame.controller].deck;
+        if(deck.length){
+          const card=deck.shift();
+          state.players[Number(card.owner)].discard.push(card);
+          ctx.events.push({type:'CARD_DISCARDED',cardIid:card.iid,cardId:String(card.id||''),
+            cardName:String(card.name||'Card'),owner:Number(card.owner),playerIndex:1-frame.controller,
+            previousZone:'deck',sourceIid:source.card.iid,sourceController:frame.controller,
+            reason:'BLAZING_INFERNO',turn:Number(state.turn||1)});
+        }
+      }
+      frame.instructionIndex++;
+      continue;
+    }
     if(instruction?.kind === 'REQUIRE_ORIGINAL_AFFILIATION_COUNT'){
       const counts = new Map();
       for(const card of state.players[frame.controller].originalDeck || []){
@@ -1155,6 +1243,36 @@ function runEffectStack(state, ctx){
     }
     if(instruction?.kind === 'REVOLUTIONARY_FLIPPED_FATE'){
       state.statuses.push({statusId:nextId(state,'status'),type:'REVOLUTIONARY_FLIP_GAIN',turn:state.turn,sourceIid:frame.sourceIid,playerIndex:frame.controller});
+      frame.instructionIndex++;
+      continue;
+    }
+    if(instruction?.kind === 'DETECTIVE_INVESTIGATION'){
+      const selected=[...new Set((frame.locals.investigationIds||[]).map(String))].slice(0,15);
+      const opponent=1-frame.controller;
+      const originalIds=new Set((state.players[opponent]?.originalDeck||[]).map(card=>String(card?.id||card)));
+      const matches=selected.filter(id=>originalIds.has(id));
+      if(matches.length)applyOperation(ctx,{type:'MODIFY_FATE',targetIid:frame.sourceIid,amount:matches.length*3,
+        sourceIid:frame.sourceIid,sourceController:frame.controller,reason:'DETECTIVE_INVESTIGATION'});
+      ctx.events.push({type:'INVESTIGATION_RESOLVED',sourceIid:frame.sourceIid,playerIndex:frame.controller,
+        selectedCount:selected.length,matchCount:matches.length,fateGained:matches.length*3});
+      frame.instructionIndex++;
+      continue;
+    }
+    if(instruction?.kind === 'RECALIBRATE_OPPONENT_BOARD'){
+      recalibrateOpponentBoard(ctx,frame.controller,frame.sourceIid);
+      frame.instructionIndex++;
+      continue;
+    }
+    if(instruction?.kind === 'YOKAI_JUDGEMENT'){
+      const target=findCard(state,frame.locals.targetIid);
+      const source=findCard(state,frame.sourceIid);
+      if(target?.zone==='board' && source?.zone==='board' && controllerOf(target.card)!==frame.controller && controllerOf(source.card)===frame.controller){
+        const before=Math.max(0,Number(target.card.currentFate)||0);
+        applyOperation(ctx,{type:'SET_FATE',targetIid:target.card.iid,value:0,sourceIid:frame.sourceIid,sourceController:frame.controller,reason:'YOKAI_JUDGEMENT'});
+        const after=Math.max(0,Number(findCard(state,target.card.iid)?.card?.currentFate)||0);
+        const reduced=Math.max(0,before-after);
+        if(reduced)applyOperation(ctx,{type:'MODIFY_FATE',targetIid:frame.sourceIid,amount:reduced,sourceIid:frame.sourceIid,sourceController:frame.controller,reason:'YOKAI_JUDGEMENT'});
+      }
       frame.instructionIndex++;
       continue;
     }
@@ -1431,12 +1549,13 @@ function runEffectStack(state, ctx){
         ctx.events.push({type:'EFFECT_CONDITION_UNMET',sourceIid:frame.sourceIid,semanticSourceCardId:'bh25',reason:'TURN_BEFORE_18'});
         continue;
       }
-      const eligibleIds = new Set(['15','46','86','95','100','109','bh02','bh08']);
+      const eligibleIds = new Set(['15','46','86','95','100','109','bh02','bh08','bh01','130']);
       const sources = boardEntries(state).filter(entry=>
         String(entry.card.iid || '') !== String(frame.sourceIid || '')
         && controllerOf(entry.card) === controllerOf(engineerEntry.card)
         && eligibleIds.has(runtimeRuleId(entry.card))
         && (runtimeRuleId(entry.card) !== '109' || !entry.card.faceDown)
+        && (runtimeRuleId(entry.card) !== '130' || [entry.card.counters?.elementalAffiliationA,entry.card.counters?.elementalAffiliationB].every(Boolean))
         && !isEffectSourceSuppressed(state, entry)
       );
       for(const entry of sources){
@@ -1476,8 +1595,22 @@ function runEffectStack(state, ctx){
           applyResolvedEffectOperation(ctx,{type:'ROLL_FATE_DIE',targetIid:entry.card.iid,
             sourceIid:entry.card.iid,sourceController:owner,semanticSourceCardId:id,
             reason:'ENGINEERS_AMBITION_FORCED_PROC',bypassReaction:true},frame);
+        }else if(id==='bh01'){
+          entry.card.counters.braveHorizonsCounters=Math.max(0,Number(entry.card.counters.braveHorizonsCounters)||0)+1;
+          ctx.events.push({type:'CARD_COUNTER_SET',cardIid:entry.card.iid,counterKey:'braveHorizonsCounters',value:entry.card.counters.braveHorizonsCounters});
+          applyResolvedEffectOperation(ctx,{type:'MODIFY_FATE',targetIid:entry.card.iid,amount:1,
+            sourceIid:entry.card.iid,sourceController:owner,semanticSourceCardId:id,
+            reason:'ENGINEERS_AMBITION_FORCED_PROC',bypassReaction:true,presentationDelayMs:3500},frame);
+        }else if(id==='130'){
+          for(const target of boardEntries(state).filter(candidate=>candidate.z===entry.z
+            && canTarget(state,entry.card,candidate.card,{type:'MODIFY_FATE',sourceController:owner,
+              sourceIid:entry.card.iid,targetIid:candidate.card.iid}).ok)){
+            applyResolvedEffectOperation(ctx,{type:'MODIFY_FATE',targetIid:target.card.iid,amount:1,
+              sourceIid:entry.card.iid,sourceController:owner,semanticSourceCardId:id,
+              reason:'ENGINEERS_AMBITION_FORCED_PROC',bypassReaction:true,presentationDelayMs:3500},frame);
+          }
         }else if(id==='46'){
-          applyResolvedEffectOperation(ctx,{type:'MODIFY_FATE',targetIid:entry.card.iid,amount:2,
+          applyResolvedEffectOperation(ctx,{type:'MODIFY_FATE',targetIid:entry.card.iid,amount:3,
             sourceIid:entry.card.iid,sourceController:owner,semanticSourceCardId:'46',
             reason:'MONARCHIST_MANIFESTO',bypassReaction:true,presentationDelayMs:3500},frame);
         }else{
@@ -1612,6 +1745,7 @@ function completeEndTurn(state, ctx, actorIndex){
   }
   state.activePlayer = actorIndex === 0 ? 1 : 0;
   state.turn += 1;
+  captureBoardTurnStart(state,state.activePlayer);
   state.statuses = state.statuses.filter(status=>status.type !== 'REVOLUTIONARY_FLIP_GAIN');
   if(state.landscapeId === 'igb24'
     && state.turn >= 20
@@ -2138,7 +2272,7 @@ function resolvePrompt(state, ctx, actorIndex, payload){
   if(cancelRequested){
     if(!prompt.cancellable) throw Object.assign(new Error('this prompt cannot be cancelled'), {code:'PROMPT_NOT_CANCELLABLE'});
     const source = findBoardCard(state, frame.sourceIid);
-    if(payload.cancel === true && source && controllerOf(source.card) === actorIndex
+    if(payload.cancel === true && prompt.deferOnCancel !== false && source && controllerOf(source.card) === actorIndex
       && actorIndex === state.activePlayer
       && state.effectStack.every(item=>['CARD_EFFECT', 'COPIED_CARD_EFFECT'].includes(item.kind)
         && item.controller === actorIndex && ['WHEN_SET', 'DECK_SET', 'ACTIVATE', 'COPIED'].includes(item.timing))){
@@ -2154,6 +2288,9 @@ function resolvePrompt(state, ctx, actorIndex, payload){
       return;
     }
     frame.locals[prompt.local || frame.program[frame.instructionIndex]?.local] = null;
+    if(frame.sourceCardId==='120' && frame.timing==='ACTIVATE' && source?.card?.counters){
+      source.card.counters.effectUses=Math.max(0,Number(source.card.counters.effectUses||0)-1);
+    }
     state.pendingPrompt = null;
     frame.waitingFor = null;
     frame.instructionIndex = prompt.cancelBehavior === 'CONTINUE'
@@ -2484,7 +2621,7 @@ function performCommand(state, ctx, command, actorIndex, options){
         throw Object.assign(new Error('Concrete Roads can only be used once per game'), {code:'USE_LIMIT_REACHED'});
       }
       const source = findBoardCard(state, payload.sourceIid);
-      const copyableIds = new Set(['10', '11', '15', '19', '23', '34', '57', '77', 'bh02', 'bh07', 'bh08', 'bh11']);
+      const copyableIds = new Set(['10', '11', '15', '19', '23', '34', '57', '77', '130', 'bh02', 'bh07', 'bh08', 'bh11']);
       if(!source
         || controllerOf(source.card) !== actorIndex
         || String(source.card.counters?.bh14OriginalType || source.card.type || '') !== 'Coordinator'
@@ -2526,6 +2663,8 @@ function performCommand(state, ctx, command, actorIndex, options){
           whisperLandscapeToken:true,
           copiedSourceName:String(source.card.name || 'Coordinator'),
           createdTurn:state.turn,
+          ...(copiedId==='130' ? {elementalAffiliationA:source.card.counters?.elementalAffiliationA,
+            elementalAffiliationB:source.card.counters?.elementalAffiliationB} : {}),
           ...(copiedRule?.timings?.includes('PASSIVE') ? {copiedPassiveId:copiedId} : {}),
           ...(copiedRule?.timings?.some(timing=>timing !== 'PASSIVE') ? {copiedEffectId:copiedId} : {})
         }
@@ -2932,13 +3071,15 @@ function performCommand(state, ctx, command, actorIndex, options){
     });
     if(String(entry.card.id) === 'bh01'){
       entry.card.counters.lastMoveTurn = state.turn;
+      entry.card.counters.braveHorizonsCounters=Math.max(0,Number(entry.card.counters.braveHorizonsCounters||0))+1;
+      ctx.events.push({type:'CARD_COUNTER_SET',cardIid:entry.card.iid,counterKey:'braveHorizonsCounters',value:entry.card.counters.braveHorizonsCounters});
       applyOperation(ctx, {
-        type:'DRAW_CARD',
-        playerIndex:actorIndex,
-        count:1,
+        type:'MODIFY_FATE',
+        targetIid:entry.card.iid,
+        amount:1,
         sourceIid:entry.card.iid,
         sourceController:actorIndex,
-        activatedEffect:true
+        reason:'BRAVE_HORIZONS_MOVE'
       });
     }
     if(state.gameSettings?.pressureCardReworks !== true && String(entry.card.id) === '73') entry.card.counters.lastMoveTurn = state.turn;
@@ -3005,6 +3146,13 @@ function performCommand(state, ctx, command, actorIndex, options){
       return;
     }
     const rule = cardRule(activationRuleId, state);
+    if(activationRuleId==='bh01' && Number(entry.card.counters?.braveHorizonsCounters||0)<2){
+      throw Object.assign(new Error('Brave Horizons needs two counters'),{code:'INSUFFICIENT_COUNTERS'});
+    }
+    if((activationRuleId==='36' && Number(entry.card.counters?.deterranceCounters||0)<1)
+      || (activationRuleId==='121' && Number(entry.card.counters?.infernoCounters||0)<1)){
+      throw Object.assign(new Error('this effect needs a counter'),{code:'INSUFFICIENT_COUNTERS'});
+    }
     const hiddenWhenSet = entry.card.faceDown === true && !entry.card.counters?.whenSetResolved && rule?.timings?.includes('WHEN_SET');
     if((!rule?.timings?.includes('ACTIVATE') && !hiddenWhenSet) || !rule.program){
       throw Object.assign(new Error('this card has no v3 activated effect'), {code:'EFFECT_NOT_IMPLEMENTED'});
@@ -3050,6 +3198,11 @@ function performCommand(state, ctx, command, actorIndex, options){
       program:rule.program
     }, rule.program)){
       throw Object.assign(new Error('the effect has no eligible resolution'), {code:'NO_LEGAL_TARGETS'});
+    }
+    if(activationRuleId==='bh01'){
+      entry.card.counters.braveHorizonsCounters-=2;
+      ctx.events.push({type:'CARD_COUNTER_SET',cardIid:entry.card.iid,counterKey:'braveHorizonsCounters',value:entry.card.counters.braveHorizonsCounters});
+      ctx.events.push({type:'CARD_COUNTER_SPENT',cardIid:entry.card.iid,cardId:'bh01',sourceIid:entry.card.iid});
     }
     consumeEffectUse(entry.card);
     if(rule.oncePerTurn) entry.card.counters.lastEffectTurn = state.turn;

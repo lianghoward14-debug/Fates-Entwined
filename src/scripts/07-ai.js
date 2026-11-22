@@ -1360,6 +1360,36 @@ function aiRankSupportCompanyOffers(offers, ability='call', cost=0){
   return ranked.sort((a,b)=>b.score-a.score);
 }
 
+function aiRecentCardMoveBonus(move){
+  const id=String(move?.card?.id||''),cp=G.aiPlayer,opp=1-cp;
+  if(!['121','122','123','124','125','126','127','130'].includes(id))return 0;
+  const own=G.players?.[cp],enemy=G.players?.[opp];
+  if(id==='121'){
+    const moraleCards=[...(own?.hand||[]),...(own?.deck||[])].filter(card=>/Morale Damage|inflict .*Morale/i.test(String(card?.effect||''))).length;
+    return 115+Math.min(5,moraleCards)*28;
+  }
+  if(id==='122')return (own?.discard?.length||0)?105+Math.min(8,own.discard.length)*22:-135;
+  if(id==='123'){
+    let peak=0;forEachBoardCard(card=>{if(card?.owner===opp&&!isFaceDownCard(card))peak=Math.max(peak,Number(card.currentFate??card.fate)||0);});
+    return peak>0?110+Math.min(peak,25)*22:-100;
+  }
+  if(id==='124')return 120+(move.contested?75:0);
+  if(id==='125')return 70+Math.min(8,new Set(aiCollectObservedOpponentCards().map(card=>String(card.id||''))).size)*35;
+  if(id==='126')return 80+Math.min(2,enemy?.hand?.length||0)*105-Math.min(2,own?.deck?.length||0)*18;
+  if(id==='127'){
+    const enemyZone=aiCountOpponentCardsInZone(move.z,()=>true);
+    return 60+enemyZone*45+Math.max(0,aiCachedZoneScore(move.z,opp)-aiCachedZoneScore(move.z,cp))*15;
+  }
+  const ownZone=aiCountOwnCardsInZone(move.z,()=>true);
+  const affCounts=new Map();
+  for(const card of [...(own?.hand||[]),...(own?.deck||[])]){
+    const aff=String(card?.affiliation||card?.aff||'');
+    if(aff)affCounts.set(aff,(affCounts.get(aff)||0)+1);
+  }
+  const future=[...affCounts.values()].sort((a,b)=>b-a).slice(0,2).reduce((sum,count)=>sum+count,0);
+  return 100+Math.min(4,ownZone)*38+Math.min(8,future)*12;
+}
+
 function aiEvaluateMove(move) {
   let score = 0;
   if(move.type==='place'){
@@ -1425,6 +1455,7 @@ function aiEvaluateMove(move) {
   score += aiMoraleMoveBonus(move);
   score += aiLearnedMoveBonus(move);
   score += aiTurnPlanMoveBonus(move);
+  score += aiRecentCardMoveBonus(move);
 
   return score;
 }
@@ -1901,7 +1932,7 @@ function aiDeckStrategyBonus(move, deckId) {
     const abedWaiting=hand.some(c=>c.id==='bh19');
     const invested=G.players[cp].deck.some(c=>Number(c.currentFate??c.fate)>Number(c.fate));
     if(move.type==='place'){
-      if(id==='120') bonus+=390; // No Star card: free set and Call to Arms.
+      if(id==='120') bonus+=aiOwnBoardCardsById('bh01').length?220:90;
       if(id==='69') bonus+=G.players[cp].discard.some(c=>['bh13','bh19','27','13','06'].includes(c.id))?320:-280;
       if(['27','32','60','13'].includes(id)) bonus+=invested?340:(hand.length<=4?230:100);
       if(id==='94') bonus+=G.turn<=Math.max(1,(G.maxTurns||20)-5) && G.players[cp].deck.some(c=>c.id==='bh13')?290:-170;
@@ -1943,7 +1974,8 @@ function aiDeckStrategyBonus(move, deckId) {
         if(id==='bh22')bonus+=aiOwnBoardCardsById('101').length?420:180;
         if(id==='33')bonus+=150+jorgeHere*230;
         if(id==='12')bonus+=jorgeHere?350:-120;
-        if(id==='120'||id==='84')bonus+=350;
+        if(id==='120')bonus+=aiOwnBoardCardsById('bh01').length?220:90;
+        if(id==='84')bonus+=350;
         if(id==='119'){
           const lost=Math.min(3,Math.max(0,Math.ceil((G.maxTurns-G.turn)/2)-Number(G.players[cp]._merchantDrawPhases || 0)));
           const threatened=[0,1,2].some(z=>getZoneScore(z,cp)<getZoneScore(z,1-cp));
@@ -3216,7 +3248,7 @@ function aiDeckStrategyBonus(move, deckId) {
 
   else if(deckId === 'ai_thousand_reel_drawstorm') {
     const joieZone = aiFirstOwnCardZone(c => c.id === 'bh02');
-    const drawIds = ['32','42','80','27','bh01'];
+    const drawIds = ['32','42','80','27'];
     if(move.type === 'place') {
       if(move.card.id === '68') bonus += aiOwnBoardCardsById('bh02').length ? 45 : 215;
       if(move.card.id === '60') bonus += 105;
@@ -4272,6 +4304,96 @@ async function aiTriggerWhenSet(inst, z, r, c) {
   }
 
   switch(id) {
+    case '130': { // Choose affiliations from cards the AI can actually play soon.
+      const weights=new Map(Object.keys(AFF_LABEL).map(aff=>[aff,0]));
+      for(const card of [...G.players[cp].hand,...G.players[cp].deck]){
+        const aff=String(card?.affiliation||card?.aff||'');
+        if(weights.has(aff)) weights.set(aff,weights.get(aff)+(G.players[cp].hand.includes(card)?3:1));
+      }
+      const chosen=[...weights].sort((a,b)=>b[1]-a[1]).slice(0,2).map(([aff])=>aff);
+      inst.counters ||= {};
+      inst.counters.elementalAffiliationA=chosen[0]||'reality';
+      inst.counters.elementalAffiliationB=chosen[1]||'eventide';
+      log('p2','AI: Elemental Mastery declared '+AFF_LABEL[inst.counters.elementalAffiliationA]+' and '+AFF_LABEL[inst.counters.elementalAffiliationB]);
+      break;
+    }
+    case '127':
+      recalibrateLocalOpponentBoard(cp,inst);
+      markInitialEffectResolved(inst);
+      break;
+    case '126': { // Spend the least useful deck cards before the random hand disruption.
+      const deck=G.players[cp].deck;
+      const chosen=deck.slice().sort((a,b)=>{
+        const value=card=>(Number(card?.fate)||0)*2+(Number(card?.cost)||0)*3+(card?.type==='Supporter'?2:7);
+        return value(a)-value(b);
+      }).slice(0,2);
+      for(const card of chosen){const index=deck.findIndex(item=>item.iid===card.iid);if(index>=0)fatePushDiscard(cp,deck.splice(index,1)[0]);}
+      const hand=G.players[opp].hand;
+      for(let i=0;i<2&&hand.length;i++){
+        const index=deterministicOnlineRandomIndex(hand.length,'flamingLightningStorm:'+String(inst.iid)+':'+i,opp);
+        fatePushDiscard(opp,hand.splice(index,1)[0]);
+      }
+      markInitialEffectResolved(inst);
+      break;
+    }
+    case '125': { // Guesses use visible evidence, never the hidden original deck.
+      const observed=aiCollectObservedOpponentCards().filter(card=>card?.id);
+      const counts=new Map(),affinities=new Map();
+      for(const card of observed){const id=String(card.id),aff=String(card.affiliation||card.aff||'');counts.set(id,(counts.get(id)||0)+1);affinities.set(aff,(affinities.get(aff)||0)+1);}
+      const guesses=(typeof CARDS!=='undefined'?CARDS:[]).filter(card=>card?.id&&!card.token)
+        .sort((a,b)=>{
+          const rank=card=>(counts.get(String(card.id))||0)*100+(affinities.get(String(card.affiliation||card.aff||''))||0)*3+(card.type==='Supporter'?2:0);
+          return rank(b)-rank(a);
+        }).slice(0,15);
+      const original=G.players[opp]?.originalDeckIds||(cp===0?G.p2Deck:G.p1Deck)||[];
+      const originalIds=new Set(original.map(entry=>String(entry?.id||entry)));
+      const matches=guesses.filter(card=>originalIds.has(String(card.id))).length;
+      if(matches)modifyFate(inst,matches*3,'permanent',cp);
+      log('p2','AI: Investigation found '+matches+' original-deck matches.');
+      markInitialEffectResolved(inst);
+      break;
+    }
+    case '123': {
+      const targets=[];
+      forEachBoardCard((card,tz,tr,tc)=>{
+        if(card && card.owner===opp && !isFaceDownCard(card)
+          && !(typeof isTargetImmuneToEffectOwner==='function'&&isTargetImmuneToEffectOwner(card,cp)))targets.push(card);
+      });
+      targets.sort((a,b)=>(Number(b.currentFate??b.fate)||0)-(Number(a.currentFate??a.fate)||0));
+      const target=targets[0];
+      if(target){
+        const before=Math.max(0,Number(target.currentFate??target.fate)||0);
+        if(setCardFateValue(target,0,cp,{countOncePerSourceEffect:inst})||before===0){
+          const reduced=Math.max(0,before-(Number(target.currentFate??target.fate)||0));
+          if(reduced)modifyFate(inst,reduced,'permanent',cp);
+          if(typeof flashCardEffect==='function'){
+            const soundKey='yokai-judgement:'+String(inst.iid||inst.id)+':'+String(G.turn||0);
+            flashCardEffect(target,'yokai_judgement',{label:'Yokai’s Judgement',soundKey});
+            flashCardEffect(inst,'yokai_judgement',{label:'Yokai’s Judgement',soundKey});
+          }
+        }
+      }
+      markInitialEffectResolved(inst);
+      break;
+    }
+    case '122': {
+      const pile=G.players[cp].discard;
+      const candidate=pile.filter(card=>card?.id).sort((a,b)=>(Number(b.fate)||0)-(Number(a.fate)||0))[0];
+      if(candidate){
+        const index=pile.findIndex(card=>card.iid===candidate.iid);
+        if(index>=0){
+          const target=pile.splice(index,1)[0];
+          target.statuses ||= [];
+          if(!target.statuses.includes('HAUNTED_NO_EFFECTS'))target.statuses.push('HAUNTED_NO_EFFECTS');
+          target._linaFree=true;
+          G._linaFreeIids ||= new Set();
+          G._linaFreeIids.add(target.iid);
+          G.players[cp].hand.push(target);
+        }
+      }
+      markInitialEffectResolved(inst);
+      break;
+    }
     case '117':
     case '118':
     case '119':

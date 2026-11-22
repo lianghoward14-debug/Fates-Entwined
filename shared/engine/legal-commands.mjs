@@ -178,7 +178,24 @@ export function legalCommandTemplates(state, playerIndex){
       const eligible = prompt.eligibleIids || [];
       const min = Number(prompt.min || 0);
       const max = Number(prompt.max || 1);
-      if(prompt.ordered){
+      if(prompt.local === 'investigationIds'){
+        // Enumerating every 0–15 subset of the full catalog is intractable.
+        // The reducer still accepts any validated selection from a human.
+        const opponent=1-player,seen=new Map(),catalog=new Map((state.cardCatalog||[]).map(card=>[String(card.id),card]));
+        for(const card of [...(state.players[opponent]?.discard||[]),...state.board.flat(3).filter(card=>card && Number(card.controller??card.owner)===opponent && !card.faceDown)]){
+          const id=String(card.id||'');if(id)seen.set(id,(seen.get(id)||0)+1);
+        }
+        const familiar=[...seen].sort((a,b)=>b[1]-a[1]).map(([id])=>id);
+        const knownSet=new Map(),knownAff=new Map();
+        for(const id of familiar){const card=catalog.get(id);if(!card)continue;knownSet.set(card.set,(knownSet.get(card.set)||0)+1);knownAff.set(card.aff,(knownAff.get(card.aff)||0)+1);}
+        const ranked=eligible.slice().sort((a,b)=>{
+          const score=id=>{const card=catalog.get(String(id));return (seen.get(String(id))||0)*100+(knownSet.get(card?.set)||0)*5+(knownAff.get(card?.aff)||0)*3+(card?.type==='Supporter'?1:0);};
+          return score(b)-score(a);
+        });
+        const lists=[ranked.slice(0,max),[...familiar,...ranked.filter((_,i)=>i%2===0)].slice(0,max),[...familiar,...ranked.filter((_,i)=>i%2===1)].slice(0,max)];
+        const unique=new Set();
+        for(const list of lists){const selectedIids=[...new Set(list)].filter(id=>eligible.includes(id)).slice(0,max);const key=selectedIids.join('|');if(selectedIids.length>=min&&!unique.has(key)){unique.add(key);commands.push({type:'ANSWER_PROMPT',payload:{promptId:prompt.promptId,selectedIids}});}}
+      }else if(prompt.ordered){
         function arrange(prefix, remaining){
           if(!remaining.length){
             commands.push({type:'ANSWER_PROMPT', payload:{promptId:prompt.promptId, selectedIids:prefix}});
@@ -473,7 +490,10 @@ export function legalCommandTemplates(state, playerIndex){
     if(!deferredPicker && (rule?.timings?.includes('ACTIVATE') || hiddenWhenSet)
       && rule.program
       && !isEffectSourceSuppressed(state, entry)
-      && !zoneActionBlock(state, player, entry.z)){
+      && !zoneActionBlock(state, player, entry.z)
+      && (runtimeRuleId(entry.card)!=='bh01' || Number(entry.card.counters?.braveHorizonsCounters||0)>=2)
+      && (runtimeRuleId(entry.card)!=='36' || Number(entry.card.counters?.deterranceCounters||0)>=1)
+      && (runtimeRuleId(entry.card)!=='121' || Number(entry.card.counters?.infernoCounters||0)>=1)){
       if(!rule.maxUses || Number(entry.card.counters?.effectUses || 0) < Number(rule.maxUses)){
         if(rule.oncePerTurn && Number(entry.card.counters?.lastEffectTurn) === state.turn) continue;
         if(rule.blockedWhileStatus && entry.card.statuses?.includes(rule.blockedWhileStatus)) continue;
@@ -547,7 +567,7 @@ export function legalCommandTemplates(state, playerIndex){
   }
   if(state.landscapeId === 'igb17'
     && Number(state.landscapeState.oncePerGameUses[player] || 0) < 1){
-    const copyableIds = new Set(['10', '11', '15', '19', '23', '57', '77', 'bh02', 'bh07', 'bh08', 'bh11']);
+    const copyableIds = new Set(['10', '11', '15', '19', '23', '34', '57', '77', '130', 'bh02', 'bh07', 'bh08', 'bh11']);
     const sources = boardEntries(state).filter(entry=>
       controllerOf(entry.card) === player
       && effectiveCardType(state, entry.card) === 'Coordinator'

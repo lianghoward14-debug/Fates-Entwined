@@ -174,7 +174,7 @@ for(const sourceId of ['08', '84']){
   assert.ok(result.events.some(event=>event.type === 'CARD_CONSOLIDATED' && event.cost === 0));
   assert.ok(result.events.some(event=>event.reason === 'CRUSHING_MOMENTUM'));
   assert.ok(result.events.some(event=>event.reason === 'KVETKA_BALLAD_CONSOLIDATION'));
-  assert.ok(result.state.statuses.some(status=>status.reason === 'MARIE_DETERRANCE'));
+  assert.equal(E.findBoardCard(result.state,state.board[1][0][0].iid)?.card.counters.deterranceCounters,1);
 }
 {
   const state = fixture(['45', '23']);

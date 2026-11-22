@@ -717,7 +717,8 @@
     }
     if(!state) state = {primary:statuses.blocked ? 'blocked' : (statuses.marked ? 'marked' : (statuses.immune ? 'immune' : '')), immune:false};
     const kind = state.primary || '';
-    if(!kind) return;
+    const haunted=card.statuses?.includes('HAUNTED_NO_EFFECTS');
+    if(!kind && !haunted) return;
     const radius = Math.max(3, Math.min(8, rect.w * .08));
     const fill = kind === 'marked' ? 'rgba(118,44,54,.16)' : (kind === 'blocked' ? 'rgba(70,42,120,.16)' : 'rgba(32,95,124,.12)');
     if(kind) {
@@ -727,6 +728,17 @@
       ctx.fillStyle = fill;
       ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
       drawStatusGlyph(ctx, rect, kind);
+      ctx.restore();
+    }
+    if(haunted){
+      const cx=rect.x+rect.w/2,cy=rect.y+rect.h/2,s=Math.max(40,Math.min(90,rect.w*.72))/64;
+      ctx.save();roundedPath(ctx,rect.x,rect.y,rect.w,rect.h,radius);ctx.clip();
+      ctx.fillStyle='rgba(64,57,110,.21)';ctx.fillRect(rect.x,rect.y,rect.w,rect.h);
+      ctx.translate(cx-32*s,cy-32*s);ctx.scale(s,s);
+      ctx.strokeStyle='#e4edff';ctx.lineWidth=3.2;ctx.lineCap='round';ctx.lineJoin='round';
+      ctx.shadowColor='rgba(143,185,255,.8)';ctx.shadowBlur=7;
+      ctx.beginPath();ctx.moveTo(17,49);ctx.lineTo(17,29);ctx.bezierCurveTo(17,15,25,9,32,9);ctx.bezierCurveTo(41,9,48,17,48,29);ctx.lineTo(48,50);ctx.lineTo(41,44);ctx.lineTo(35,51);ctx.lineTo(29,44);ctx.lineTo(23,51);ctx.closePath();ctx.stroke();
+      ctx.beginPath();ctx.arc(27,28,2,0,Math.PI*2);ctx.arc(38,28,2,0,Math.PI*2);ctx.fillStyle='#e4edff';ctx.fill();
       ctx.restore();
     }
   }

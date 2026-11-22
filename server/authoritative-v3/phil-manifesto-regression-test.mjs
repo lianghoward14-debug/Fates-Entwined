@@ -82,7 +82,7 @@ assert.equal(result.ok, true);
 current = result.state;
 result = reduceCommand(current, command(current, 'p0', 'END_TURN'), {playerId:'p0'});
 assert.equal(result.ok, true);
-assert.equal(boardCard(result.state, phil.iid).currentFate, 6);
+assert.equal(boardCard(result.state, phil.iid).currentFate, 7);
 assert(result.events.some(event=>
   event.type === 'FATE_CHANGED'
   && event.reason === 'MONARCHIST_MANIFESTO'

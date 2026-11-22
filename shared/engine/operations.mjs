@@ -1120,6 +1120,11 @@ function changeStatus(ctx, operation, remove){
       entry.card.statuses.push(status);
       entry.card.statuses.sort();
     }
+    if(status==='HAUNTED_NO_EFFECTS'){
+      entry.card.counters ||= {};
+      if(remove) delete entry.card.counters.ellieHauntedVisual;
+      else entry.card.counters.ellieHauntedVisual=true;
+    }
     const statusEvent = {
       type:remove ? 'STATUS_REMOVED' : 'STATUS_CREATED',
       cardIid:entry.card.iid,
@@ -1876,8 +1881,8 @@ function createTokens(ctx, operation){
     };
     if(fish) Object.assign(card, {
       ability:'The Daily Catch', type:'Counter', affiliation:'eventide',
-      baseFate:0, currentFate:0, img:'fishtoken.png?v=20261021', token:true,
-      effect:'This card counts as a token. This card counts as 0.5 Reinforcement and can be set for free.',
+      baseFate:0, currentFate:0, img:'fishtoken.png?v=20261122-new-art', token:true,
+      effect:'This card counts as a token. This card counts as 1 Reinforcement and can be set for free.',
       flavor:'"Never bring an exotic fish fan to the docks of Havano."', statuses:[], counters:{fishCounter:true}
     });
     ctx.state.players[playerIndex].hand.push(card);

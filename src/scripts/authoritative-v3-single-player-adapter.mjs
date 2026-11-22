@@ -11,7 +11,7 @@ import {chooseStrategicV3AiCommand} from './authoritative-v3-ai-policy.mjs';
 import {AiSearchWorker} from './new-ai-worker-client.mjs';
 import {filterAiTargets} from '../../shared/ai/targeting.mjs';
 import {createCommandOrderer} from '../../shared/ai/ordering.mjs';
-import {FateAuthoritativeV3SinglePlayerScreen} from './authoritative-v3-single-player-screen.mjs?v=20261103-square-lock-effects';
+import {FateAuthoritativeV3SinglePlayerScreen} from './authoritative-v3-single-player-screen.mjs?v=20261122-yokai-both-cards';
 
 export const FATE_V3_SINGLE_PLAYER_QUERY_FLAG = 'fateV3SinglePlayer';
 const RECORDER_QUERY_FLAG = 'fateV3Recorder';
@@ -172,6 +172,16 @@ export class FateAuthoritativeV3SinglePlayerAdapter {
       payload
     );
     if(!template){
+      const prompt=this.session.projectionFor(this.humanPlayerId)?.pendingPrompt;
+      if(String(type||'')==='ANSWER_PROMPT' && prompt?.local==='investigationIds'
+        && String(payload?.promptId||'')===String(prompt.promptId||'')
+        && Array.isArray(payload?.selectedIids)){
+        // The catalog selection is reducer-validated. Legal projection keeps
+        // only bounded AI candidates instead of all catalog combinations.
+        return this.session.dispatchForPlayer(this.humanPlayerId,'ANSWER_PROMPT',{
+          promptId:prompt.promptId,selectedIids:payload.selectedIids.map(String)
+        },commandId);
+      }
       if(String(type || '') === 'DISCARD_TO_HAND_LIMIT' && Array.isArray(payload?.discardedIids)){
         // Voluntary over-discard batches are reducer-validated even though the
         // compact legal projection enumerates only minimum-size combinations.

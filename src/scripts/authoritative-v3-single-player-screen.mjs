@@ -754,14 +754,15 @@ export class FateAuthoritativeV3SinglePlayerScreen {
       if(type === 'FATE_CHANGED' && Number(event?.presentationDelayMs) > 0){
         this.window.setTimeout?.(()=>{
           const delayedTarget=this.findCard(event.cardIid || event.targetIid || event.sourceIid) || target;
-          if(delayedTarget && typeof this.window.flashCardEffect === 'function') this.window.flashCardEffect(delayedTarget,descriptor.kind,{label:descriptor.label,onlineRemote:true});
+          if(delayedTarget && typeof this.window.flashCardEffect === 'function') this.window.flashCardEffect(delayedTarget,descriptor.kind,{label:descriptor.label,onlineRemote:true,soundKey:descriptor.kind==='yokai_judgement'?'v3-yokai:'+String(event.sourceIid||'')+':'+String(this.view?.state?.turn||0):undefined});
         },Math.max(0,Number(event.presentationDelayMs)||0));
         continue;
       }
       if(descriptor.kind === 'snowball' && typeof this.window.markSnowballFightHit === 'function'){
         this.window.markSnowballFightHit(target);
       }else if(typeof this.window.flashCardEffect === 'function'){
-        this.window.flashCardEffect(target, descriptor.kind, {label:descriptor.label, onlineRemote:true});
+        this.window.flashCardEffect(target, descriptor.kind, {label:descriptor.label, onlineRemote:true,
+          soundKey:descriptor.kind==='yokai_judgement'?'v3-yokai:'+String(event.sourceIid||'')+':'+String(this.view?.state?.turn||0):undefined});
       }
     }
     if(batch.length) this.render(metadata?.view || this.view);

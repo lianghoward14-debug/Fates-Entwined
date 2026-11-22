@@ -1,11 +1,9 @@
-import {emeraldChildrenEligible} from './emerald-children.mjs';
 import {cloneSerializable} from './serialization.mjs';
 import {effectiveFate, isEffectSourceSuppressed} from './modifiers.mjs';
 import {zoneScore} from './scoring.mjs';
 import {flowerPickingStatus} from './cards/flower-picking.mjs';
 
 function flowerPickingProjection(state, card){
-  if(String(card.id)==='120')return {emeraldChildrenEligible:emeraldChildrenEligible(state,Number(card.controller ?? card.owner))};
   if(String(card.id) === '115'){
     const counts = new Map();
     for(const original of state.players[Number(card.controller ?? card.owner)]?.originalDeck || []){
@@ -31,7 +29,9 @@ function boardProjection(state, viewer){
     };
     const projected = {...cloneSerializable(card), ...flowerPickingProjection(state, card), _authoritativeFate:fate};
     projected.statuses ||= [];
-    if(isEffectSourceSuppressed(state, {card, z, r, c}) && !projected.statuses.includes('EFFECTS_SUPPRESSED')) projected.statuses.push('EFFECTS_SUPPRESSED');
+    if(!projected.statuses.includes('HAUNTED_NO_EFFECTS')
+      && isEffectSourceSuppressed(state, {card, z, r, c})
+      && !projected.statuses.includes('EFFECTS_SUPPRESSED')) projected.statuses.push('EFFECTS_SUPPRESSED');
     return projected;
   })));
 }

@@ -1,14 +1,47 @@
 import {TEMPORARILY_RETIRED_CARD_IDS as retiredCardIds} from '../../card-availability.mjs';
 const REGISTRY = Object.freeze({
+  '127':{timings:['WHEN_SET'],operations:[],prompts:[],havanoTargeting:'OPPONENT',program:[{kind:'RECALIBRATE_OPPONENT_BOARD'}]},
+  '126':{timings:['WHEN_SET'],operations:['DISCARD_CARD','RANDOM_DISCARD_HAND'],prompts:['CARD_SELECTION'],havanoTargeting:'OPPONENT',program:[
+    {kind:'SELECT_CARDS',local:'deckIids',exactUpToAvailable:2,cancellable:false,cancelBehavior:'CONTINUE',filter:{locations:['deck'],playerIndex:'controller',targetable:'DISCARD_CARD'},title:'Flaming Lightning Storm',prompt:'Choose two cards from your deck to discard.'},
+    {kind:'OPERATION',operation:{type:'DISCARD_CARD',targetIids:'$deckIids',revealDiscard:true,reason:'FLAMING_LIGHTNING_STORM_DECK'}},
+    {kind:'OPERATION',operation:{type:'RANDOM_DISCARD_HAND',playerIndex:'$opponent',revealDiscard:true,reason:'FLAMING_LIGHTNING_STORM_HAND'}},
+    {kind:'OPERATION',operation:{type:'RANDOM_DISCARD_HAND',playerIndex:'$opponent',revealDiscard:true,reason:'FLAMING_LIGHTNING_STORM_HAND'}}
+  ]},
+  '130':{timings:['WHEN_SET','PASSIVE'],operations:['SET_CARD_COUNTER','MODIFY_FATE'],prompts:['MODAL_CHOICE'],triggerSubscriptions:['CARD_SET'],program:[
+    {kind:'CHOOSE_OPTION',local:'firstAffiliation',options:[
+      {value:'reality',label:'Reality'},{value:'third_great_war',label:'Third Great War'},
+      {value:'expanded_worlds',label:'Expanded Worlds'},{value:'eventide',label:'Eventide'}
+    ],title:'Elemental Mastery',prompt:'Declare the first affiliation.'},
+    {kind:'CHOOSE_OPTION',local:'secondAffiliation',excludeLocal:'firstAffiliation',options:[
+      {value:'reality',label:'Reality'},{value:'third_great_war',label:'Third Great War'},
+      {value:'expanded_worlds',label:'Expanded Worlds'},{value:'eventide',label:'Eventide'}
+    ],title:'Elemental Mastery',prompt:'Declare a different second affiliation.'},
+    {kind:'OPERATION',operation:{type:'SET_CARD_COUNTER',targetIid:'$sourceIid',counterKey:'elementalAffiliationA',value:'$firstAffiliation'}},
+    {kind:'OPERATION',operation:{type:'SET_CARD_COUNTER',targetIid:'$sourceIid',counterKey:'elementalAffiliationB',value:'$secondAffiliation'}}
+  ]},
+  '125':{timings:['WHEN_SET'],operations:['MODIFY_FATE'],prompts:['CARD_SELECTION'],program:[
+    {kind:'SELECT_FULL_CATALOG',local:'investigationIds',max:15},
+    {kind:'DETECTIVE_INVESTIGATION'}
+  ]},
+  '124':{timings:['PASSIVE'],operations:[],prompts:[],program:[]},
+  '123':{timings:['WHEN_SET'],operations:['SET_FATE','MODIFY_FATE'],prompts:['BOARD_TARGET'],havanoTargeting:'OPPONENT',program:[
+    {kind:'SELECT_BOARD',local:'targetIid',filter:{opponent:true,effectMutable:true,targetable:'SET_FATE'}},
+    {kind:'YOKAI_JUDGEMENT'}
+  ]},
+  '122':{timings:['WHEN_SET'],operations:['CREATE_STATUS','SET_CARD'],prompts:['CARD_SELECTION','BOARD_DESTINATION'],program:[
+    {kind:'SELECT_CARDS',local:'targetIid',min:1,max:1,filter:{locations:['discard'],playerIndex:'controller'},title:'Call of the Haunted',prompt:'Choose a card from your discard pile to set without its effects.'},
+    {kind:'SELECT_DESTINATION',local:'destination',filter:{ownSide:true,open:true}},
+    {kind:'OPERATION',operation:{type:'CREATE_STATUS',targetIid:'$targetIid',status:'HAUNTED_NO_EFFECTS',sourceIid:'$sourceIid'}},
+    {kind:'FREE_SET',cardIid:'$targetIid',destination:'$destination'}
+  ]},
   '119':{timings:['WHEN_SET'],operations:['CREATE_MATCH_STATUS'],prompts:['MODAL_CHOICE','CARD_SELECTION'],program:[
     {kind:'OPERATION',operation:{type:'CREATE_MATCH_STATUS',status:{type:'MERCHANT_DRAW_DENIAL',playerIndex:'$controller',sourceIid:'$sourceIid',remainingDrawPhases:3}}},
     {kind:'SELECT_HOPLITE_CALL',local:'callCardId',unconditional:true},
     {kind:'RESOLVE_HOPLITE_CALL',cardId:'$callCardId'}
   ]},
-  '120':{timings:['WHEN_SET'],operations:[],prompts:['MODAL_CHOICE','CARD_SELECTION'],program:[
-    {kind:'REQUIRE_NO_ORIGINAL_STARS'},
-    {kind:'SELECT_HOPLITE_CALL',local:'callCardId',unconditional:true},
-    {kind:'RESOLVE_HOPLITE_CALL',cardId:'$callCardId'}
+  '120':{timings:['ACTIVATE'],manualOnly:true,maxUses:2,operations:['SET_CARD_COUNTER'],prompts:['BOARD_TARGET'],program:[
+    {kind:'SELECT_BOARD',local:'counterTarget',optional:true,deferOnCancel:false,filter:{}},
+    {kind:'GIVE_EMERALD_COUNTER',local:'counterTarget'}
   ]},
   '117':{timings:['WHEN_SET'],operations:['CREATE_MATCH_STATUS'],prompts:[],program:[
     {kind:'REQUIRE_MAX_TURN',turn:20},
@@ -301,11 +334,13 @@ const REGISTRY = Object.freeze({
   },
   '36':{
     havanoPassiveEntry:true,
-    timings:['PASSIVE'],
-    operations:['CREATE_MATCH_STATUS'],
+    timings:['PASSIVE','ACTIVATE'],manualOnly:true,
+    operations:['SET_CARD_COUNTER','CREATE_MATCH_STATUS'],
     prompts:[],
-    triggerSubscriptions:['CARD_CONSOLIDATED']
+    triggerSubscriptions:['CARD_CONSOLIDATED'],
+    program:[{kind:'SPEND_DETERRANCE_COUNTER'}]
   },
+  '121':{timings:['PASSIVE','ACTIVATE'],manualOnly:true,operations:['SET_CARD_COUNTER','DISCARD_CARD'],prompts:[],program:[{kind:'SPEND_INFERNO_COUNTER'}]},
   '41':{
     timings:['PASSIVE'],
     operations:[],
@@ -1450,9 +1485,14 @@ const REGISTRY = Object.freeze({
   },
   'bh01':{
     timings:['ACTIVATE', 'PASSIVE'],
-    operations:['MOVE_CARD', 'DRAW_CARD'],
-    prompts:['BOARD_DESTINATION'],
-    customCommand:'MOVE_AND_DRAW'
+    operations:['MOVE_CARD', 'MODIFY_FATE', 'SET_CARD_COUNTER'],
+    prompts:['BOARD_DESTINATION', 'MODAL_CHOICE', 'CARD_SELECTION'],
+    manualOnly:true,
+    customCommand:'MOVE_AND_DRAW',
+    program:[
+      {kind:'SELECT_HOPLITE_CALL',local:'callCardId',unconditional:true},
+      {kind:'RESOLVE_HOPLITE_CALL',cardId:'$callCardId'}
+    ]
   },
   'bh02':{
     timings:['PASSIVE'],
@@ -1609,7 +1649,7 @@ const REGISTRY = Object.freeze({
       },
       {
         kind:'OPERATION',
-        operation:{type:'MODIFY_FATE', targetIids:'$targetIids', amount:7}
+        operation:{type:'MODIFY_FATE', targetIids:'$targetIids', amount:9}
       },
       {
         kind:'OPERATION',

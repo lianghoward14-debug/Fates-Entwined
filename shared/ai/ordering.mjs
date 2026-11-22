@@ -88,6 +88,22 @@ export function createCommandOrderer(state,player,personality='balanced'){
       return -8-departureValue([p.targetIid || p.sourceIid])+deckPreservationPrior(command)+contestedCommandDelta(state,player,command,cards);
     }
     let score=havanoViajePrior(command)+revolutionPrior(command)+lakesMomentumPrior(command)+newPublicDeckPrior(command)+value(card)+incelPrior(command)+assaultPrior(command)+freeWorldPrior(command)+majaPrior(command)+timePrior(command)+patiencePrior(command)+wintertidePrior(command)+endlessSeaPrior(command)+publicComboPrior(command)+archiveExpansionPrior(command)+comboPlanPrior(command)+deckPreservationPrior(command);
+    if(card && ['SET_CARD','SET_CARD_FROM_DECK','CONSOLIDATE_CARD'].includes(command.type)){
+      const id=String(card.id||''),enemy=entries.filter(e=>controllerOf(e.card)===1-player&&!e.card.faceDown);
+      if(id==='121')score+=4;
+      if(id==='122')score+=(state.players[player].discard||[]).length?5:-5;
+      if(id==='123')score+=Math.min(12,Math.max(0,...enemy.map(e=>Number(e.card.currentFate??e.card.fate)||0))*.6);
+      if(id==='124')score+=5;
+      if(id==='125')score+=Math.min(6,new Set([...enemy.map(e=>e.card.id),...(state.players[1-player].discard||[]).map(c=>c.id)]).size);
+      if(id==='126')score+=Math.min(8,(state.players[1-player].hand||[]).length*3);
+      if(id==='127')score+=Math.min(9,enemy.length*2);
+      if(id==='130'){
+        const counts=new Map();for(const candidate of [...(state.players[player].hand||[]),...(state.players[player].deck||[])]){
+          const aff=String(candidate.affiliation||candidate.aff||'');if(aff)counts.set(aff,(counts.get(aff)||0)+1);
+        }
+        score+=Math.min(8,[...counts.values()].sort((a,b)=>b-a).slice(0,2).reduce((a,b)=>a+b,0));
+      }
+    }
     if(command.type==='ACTIVATE_EFFECT' && card){
       // Explore live draw/search actions before dismissing the source as a
       // low-Fate body. Copied effects inherit the runtime rule's operations.
@@ -114,6 +130,26 @@ export function createCommandOrderer(state,player,personality='balanced'){
       },0);
     }
     if(p.reactionIid)score+=8;
+    if(command.type==='ANSWER_PROMPT' && promptSource?.id==='130' && p.choice){
+      const affinity=String(p.choice),ownCards=[...(state.players[player].hand||[]),...(state.players[player].deck||[])];
+      score+=ownCards.filter(c=>String(c.affiliation||c.aff||'')===affinity).length*1.8;
+    }
+    if(command.type==='ANSWER_PROMPT' && promptSource?.id==='122' && p.selectedIid){
+      const revived=cards.get(String(p.selectedIid));
+      score+=Math.max(0,Number(revived?.currentFate??revived?.fate)||0)*.8;
+    }
+    if(command.type==='ANSWER_PROMPT' && promptSource?.id==='123' && p.selectedIid){
+      const target=cards.get(String(p.selectedIid));
+      score+=Math.max(0,Number(target?.currentFate??target?.fate)||0)*2;
+    }
+    if(command.type==='ANSWER_PROMPT' && promptSource?.id==='126' && p.selectedIids){
+      // The two deck discards are a cost; prefer expending weaker cards.
+      score-=p.selectedIids.reduce((sum,iid)=>sum+Math.max(0,value(cards.get(iid)))*2,0);
+    }
+    if(command.type==='ANSWER_PROMPT' && promptSource?.id==='125' && p.selectedIids){
+      const seen=new Set([...(state.players[1-player].discard||[]),...entries.filter(e=>controllerOf(e.card)===1-player&&!e.card.faceDown).map(e=>e.card)].map(c=>String(c.id||'')));
+      score+=p.selectedIids.filter(id=>seen.has(String(id))).length*6;
+    }
     if(card && controllerOf(card)!==player && (p.targetIid || p.selectedIid)){
       // A low-Fate aura or combo enabler can matter more than the largest body.
       score+=Math.max(0,-departureValue([card.iid]))*.6;

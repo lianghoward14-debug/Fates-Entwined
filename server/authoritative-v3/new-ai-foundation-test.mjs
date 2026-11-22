@@ -22,8 +22,8 @@ function put(state,p,id,z,c=0,fate=null) {
 const majaIds=['bh08','bh08','67','67','67','06','06','06','27','27','27','56',
   ...['60','28','74','79','18','98','bh23','bh25'].flatMap(id=>[id,id,id]),'32','32','09','09'];
 const audit=auditDeck(majaIds.map(id=>definitions.find(c=>c.id===id)));
-assert.equal(audit.cards,40);assert.equal(audit.reinforcementDemand,17);
-assert.equal(audit.reinforcementSupply,30);assert.equal(audit.balance,13);
+assert.equal(audit.cards,40);assert.equal(audit.reinforcementDemand,19);
+assert.equal(audit.reinforcementSupply,30);assert.equal(audit.balance,11);
 assert.equal(auditDeck(['76','09'].map(id=>definitions.find(c=>c.id===id))).reinforcementSupply,2);
 let state=fixture(['63','63','63']);
 const hoplite=put(state,0,'63',0);put(state,0,'63',0,1);put(state,0,'63',0,2);

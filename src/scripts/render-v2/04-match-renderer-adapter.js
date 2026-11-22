@@ -3268,7 +3268,8 @@
     }
     const flags = entry && entry.card && entry.card.flags ? entry.card.flags : {};
     const markedForDeath = !!(showStatus && entry && entry.card && (entry.card._markedForDeath || flags.markedForDeath));
-    const suppressed = !!(showStatus && entry && entry.card && flags.suppressed);
+    const haunted=!!(entry?.card?.statuses?.includes('HAUNTED_NO_EFFECTS')||entry?.card?.counters?.ellieHauntedVisual===true);
+    const suppressed = !!(showStatus && entry && entry.card && flags.suppressed && !haunted);
     const negated = !!(showStatus && entry && entry.card && flags.negated);
     const snowballHit = !!(showStatus && entry && entry.card && flags.snowballHit);
     const flowerKingBlessed = !!(showStatus && entry && entry.card && flags.flowerKingBlessed);
@@ -3335,7 +3336,37 @@
       drawFlowerKingCardOverlay(ctx, r);
       scheduleLowMoraleSupporterPulse();
     }
+    if(haunted && showStatus) drawHauntedCardOverlay(ctx,r);
+    const counterCardId=String(entry?.card?.id||'');
+    const counterKey=({bh01:'braveHorizonsCounters','36':'deterranceCounters','121':'infernoCounters'})[counterCardId]||'storyCounters';
+    const rawCounterValue=counterKey==='braveHorizonsCounters'
+      ? (entry.card.counters?.[counterKey]??entry.card._braveHorizonsCounters)
+      : entry.card.counters?.[counterKey];
+    const count=Math.max(0,Math.floor(Number(rawCounterValue)||0));
     if(!opts.hideFateBadge) drawFateBadge(ctx, visual, r, entry && entry.card);
+    if(opts.showCounters !== false && count>0){
+      const shown=Math.min(count,6),radius=Math.max(7,Math.min(9,r.w*.06));
+      const step=radius*2+2,overflow=count>shown;
+      const badgeH=Math.max(24,Math.min(34,r.w*.255));
+      const x=r.x+r.w-radius-5,top=r.y+badgeH+8;
+      const holderW=radius*2+8,holderH=shown*step+6+(overflow?12:0);
+      ctx.save();
+      ctx.fillStyle='rgba(20,26,35,.96)';ctx.strokeStyle='#d9c8a4';ctx.lineWidth=1.2;
+      ctx.beginPath();ctx.roundRect(x-holderW/2,top,holderW,holderH,radius+4);ctx.fill();ctx.stroke();
+      ctx.textAlign='center';ctx.textBaseline='middle';
+      for(let index=0;index<shown;index++){
+        const cy=top+4+radius+index*step;
+        ctx.beginPath();ctx.arc(x,cy,radius,0,Math.PI*2);
+        ctx.fillStyle='#f6ead6';ctx.fill();
+        ctx.fillStyle='#263241';ctx.font='bold '+Math.max(10,radius*1.5)+'px Georgia';
+        ctx.fillText('✦',x,cy+1);
+      }
+      if(overflow){
+        ctx.fillStyle='#f4e6c9';ctx.font='bold 9px Georgia';
+        ctx.fillText('+'+(count-shown),x,top+holderH-7);
+      }
+      ctx.restore();
+    }
     ctx.restore();
   }
 
@@ -3433,6 +3464,26 @@
     ctx.restore();
   }
 
+  function drawHauntedCardOverlay(ctx,r){
+    if(!ctx || !r) return;
+    ctx.save();
+    roundedPath(ctx,r.x,r.y,r.w,r.h,Math.max(3,Math.min(8,r.w*.08)));
+    ctx.clip();
+    ctx.fillStyle='rgba(64,57,110,.21)';
+    ctx.fillRect(r.x,r.y,r.w,r.h);
+    ctx.strokeStyle='rgba(193,206,255,.72)';
+    ctx.lineWidth=Math.max(1.2,r.w*.018);
+    ctx.strokeRect(r.x+2,r.y+2,r.w-4,r.h-4);
+    // Cover the suppression lock before painting the persistent spirit.
+    ctx.fillStyle='rgba(29,27,49,.96)';
+    ctx.beginPath();
+    ctx.ellipse(r.x+r.w/2,r.y+r.h/2,r.w*.34,r.h*.27,0,0,Math.PI*2);
+    ctx.fill();
+    ctx.globalAlpha=.88;
+    drawEffectFlashIcon(ctx,r.x+r.w/2,r.y+r.h/2,Math.max(64,Math.min(144,r.w*1.0)),'specter_ghost');
+    ctx.restore();
+  }
+
   function drawNegatedCardOverlay(ctx, r){
     if(!ctx || !r) return;
     const radius = Math.max(3, Math.min(8, r.w * .08));
@@ -3465,6 +3516,8 @@
     jorge_pineapple:{color:'rgba(255,233,173,.99)',glow:'rgba(236,183,83,.72)',tint:'rgba(145,99,30,.18)'},
     jake_burger:{color:'rgba(255,236,176,.99)',glow:'rgba(235,173,62,.72)',tint:'rgba(139,86,28,.20)'},
     specter_ghost:{color:'rgba(224,239,255,.98)',glow:'rgba(140,184,255,.58)',tint:'rgba(104,126,174,.16)'},
+    yokai_judgement:{color:'rgba(221,242,245,.98)',glow:'rgba(105,209,220,.72)',tint:'rgba(29,104,119,.22)'},
+    elemental_mastery:{color:'rgba(244,231,177,.99)',glow:'rgba(124,204,226,.72)',tint:'rgba(74,117,119,.17)'},
     kvetka_ballad:{color:'rgba(255,202,238,.98)',glow:'rgba(244,94,184,.60)',tint:'rgba(142,42,104,.16)'},
     marie_deterrence:{color:'rgba(255,225,211,.98)',glow:'rgba(225,105,78,.52)',tint:'rgba(170,78,64,.14)'},
     movement_boot:{color:'rgba(255,224,166,.98)',glow:'rgba(255,158,61,.60)',tint:'rgba(172,91,24,.15)'},
@@ -3848,11 +3901,23 @@
       line([[32,8],[37,27],[56,32],[37,37],[32,56],[27,37],[8,32],[27,27],[32,8]],true);
       ctx.lineWidth = 2.6;
       circle(32,32,7);
+    } else if(kind === 'yokai_judgement') {
+      line([[16,18],[9,4],[27,12]],false);line([[48,18],[55,4],[37,12]],false);
+      line([[12,23],[22,15],[32,11],[42,15],[52,23],[48,48],[32,59],[16,48],[12,23]],false);
+      line([[16,31],[23,27],[30,33],[16,37]],false);line([[48,31],[41,27],[34,33],[48,37]],false);
+      line([[32,38],[28,44],[36,44],[32,38]],false);
+    } else if(kind === 'elemental_mastery') {
+      circle(32,32,25);
+      line([[32,7],[27,15],[32,23],[37,15],[32,7]],false);
+      line([[57,32],[49,27],[41,32],[49,37],[57,32]],false);
+      line([[32,57],[37,49],[32,41],[27,49],[32,57]],false);
+      line([[7,32],[15,37],[23,32],[15,27],[7,32]],false);
+      line([[32,23],[36,32],[32,41],[28,32],[32,23]],false);
     } else if(kind === 'specter_ghost') {
       ctx.beginPath();
       ctx.moveTo(17,49); ctx.lineTo(17,29); ctx.bezierCurveTo(17,15,25,9,32,9); ctx.bezierCurveTo(41,9,48,17,48,29);
       ctx.lineTo(48,50); ctx.lineTo(41,44); ctx.lineTo(35,51); ctx.lineTo(29,44); ctx.lineTo(23,51); ctx.closePath(); ctx.stroke();
-      circle(27,28,2); circle(38,28,2); line([[26,37],[32,34],[39,37]],false);
+      circle(27,28,2); circle(38,28,2);
     } else if(kind === 'kvetka_ballad') {
       line([[38,11],[38,43]],false); line([[38,12],[52,16],[52,27],[38,23]],true);
       ctx.beginPath(); ctx.ellipse(25,46,11,7,-.15,0,Math.PI*2); ctx.stroke();
@@ -5006,7 +5071,7 @@
     const r = hovered ? (hoverHandRect(item) || baseRect) : baseRect;
     const angle = hovered ? (Number(item.angle) || 0) * .62 : Number(item.angle) || 0;
     const entry = {card:item.card, c:item.index, r:0, z:0};
-    const drawOptions = {pulse:false, tilt:0, lift:hovered ? .06 : 0, hideFateBadge:true, noShadow:true, showStatus:false};
+    const drawOptions = {pulse:false, tilt:0, lift:hovered ? .06 : 0, hideFateBadge:true, noShadow:true, showStatus:false, showCounters:false};
     if(!angle) {
       drawCardVisual(ctx, entry, visual, r, onChange, drawOptions);
       if(Number.isFinite(Number(item.card?.currentFate)) && Number(item.card.currentFate) !== Number(item.card.fate)) drawFateBadge(ctx, visual, r, item.card);

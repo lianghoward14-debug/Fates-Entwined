@@ -14,6 +14,12 @@
     '105':[['rally-rise',.14,.76,140],['rally-drum',.86,.43,105],['rally-drum',1.02,.32,155],['rally-brass',1.04,.78,293.66]],
     // Sands of Patience: sand .16–1.50s, final settling burst begins 1.36s.
     '106':[['glass-tick',.12,.16,1300],['sand-flow',.16,1.34,3200],['glass-tick',.60,.13,1100],['glass-tick',1.08,.13,1300],['sand-settle',1.36,.25,1500],['hourglass-bell',1.50,.40,880]],
+    '124':[['shell-tap',.12,.12,810],['eggshell',.51,.38,1850],['shell-lift',.83,.58,720],['shell-tap',1.45,.13,580]],
+    '125':[['glass-tick',.10,.18,1120],['paper',.66,.34,1050],['paper-pin',1.06,.11,930],['paper-pin',1.24,.11,750],['paper-pin',1.42,.11,1050]],
+    '126':[['fuse',.22,.54,2300],['firebolt',.82,.34,1450],['firebolt',1.13,.17,1050],['rumble',1.25,.46,82]],
+    '127':[['clock-tick',.10,.10,1120],['clock-tick',.30,.10,920],['clock-tick',.50,.10,720],['clock-rewind',.58,.74,460],['clock-tick',1.47,.16,660]],
+    // Sunward Seal: dry flame crackle on the warm half, then a low water swell as the halves meet.
+    '130':[['fuse',.08,.58,2600],['surf',.27,1.04,470],['water',.82,.62,620],['ping',1.33,.37,760]],
     // Seconds match normalized visual beats multiplied by the two-second duration.
     '101':[['water',.08,.65,620],['chord',.7,.65,330],['ping',1.04,.5,660]],
     '102':[['fuse',.24,.94,2600],['blast',1.2,.65,65],['debris',1.29,.5,1450]],
@@ -485,6 +491,13 @@ if(String(id)==='bh17'){const gain=ac.createGain();gain.gain.value=Math.min(1,vo
       if(kind==='rally-drum'){tone('sine',f*1.7,f*.60,at,dur,.62);noise(at,.10,650,.20,'lowpass');continue;}
       if(kind==='rally-brass'){[1,1.5,2].forEach((n,j)=>tone('triangle',f*n*.96,f*n,at+j*.018,dur-j*.018,.16/(1+j*.5)));continue;}
       if(kind==='glass-tick'){tone('sine',f,f*.99,at,dur,.18);tone('sine',f*2.7,f*2.68,at,dur*.5,.06);continue;}
+      if(kind==='shell-tap'){tone('sine',f,f*.72,at,dur,.13);noise(at,Math.min(.07,dur),2100,.08,'highpass');continue;}
+      if(kind==='eggshell'){for(let j=0;j<7;j++)noise(at+j*.042,.044,f+j*120,.13,'highpass');tone('triangle',460,240,at,dur,.09);continue;}
+      if(kind==='shell-lift'){noise(at,dur,f,.12,'bandpass');tone('sine',310,390,at,dur,.055);continue;}
+      if(kind==='paper-pin'){noise(at,.055,f,.12,'highpass');tone('triangle',f*.58,f*.32,at,dur,.075);continue;}
+      if(kind==='firebolt'){noise(at,.21,f,.28,'highpass');tone('sawtooth',f,f*.18,at,dur,.14);tone('sine',220,82,at+.04,dur-.04,.11);continue;}
+      if(kind==='clock-tick'){tone('triangle',f,f*.65,at,dur,.15);noise(at,.045,1500,.075,'highpass');continue;}
+      if(kind==='clock-rewind'){tone('triangle',f*2,f*.5,at,dur,.18);noise(at,dur,720,.17,'bandpass');continue;}
       if(kind==='sand-flow'){noise(at,dur,f,.16,'highpass');for(let j=0;j<13;j++)noise(at+j*.095,.075,2400+j*67,.07,'highpass');continue;}
       if(kind==='sand-settle'){noise(at,dur,f,.16);continue;}
       if(kind==='hourglass-bell'){tone('sine',f,f,at,dur,.25);tone('sine',f*2.76,f*2.76,at,dur*.6,.07);continue;}

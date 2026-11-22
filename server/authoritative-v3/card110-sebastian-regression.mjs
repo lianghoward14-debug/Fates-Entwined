@@ -36,12 +36,11 @@ for(const seat of [0,1]){
  assert.equal(state.supportersSetThisTurn[seat],5);
  const target=state.players[seat].hand.find(c=>c.id==='67');
  const moves=legalCommandTemplates(state,seat).filter(c=>c.type==='CONSOLIDATE_CARD'&&c.payload.cardIid===target.iid);
- assert(!moves.some(c=>c.payload.tributeIids.length===1&&fish.some(f=>f.iid===c.payload.tributeIids[0])));
- const paid=moves.find(c=>c.payload.tributeIids.length===2&&c.payload.tributeIids.every(i=>fish.some(f=>f.iid===i)));
- assert(paid,'Two half-Reinforcements pay one cost');
+ const paid=moves.find(c=>c.payload.tributeIids.length===1&&fish.some(f=>f.iid===c.payload.tributeIids[0]));
+ assert(paid,'One Fish Token pays one reinforcement');
  const result=reduceCommand(state,command(state,'p'+seat,++n,paid.type,paid.payload),{playerId:'p'+seat});
  assert.equal(result.ok,true,JSON.stringify(result.rejection));state=result.state;
  assert.equal(state.players[seat].hand.filter(c=>c.counters.fishCounter).length,2,'Each Sebastian triggers on the committed consolidation');
  assertInvariants(state);
 }
-console.log('Sebastian: both seats, suppression, hidden sources, stacked triggers, free Fish sets, half-Reinforcement payment and consolidation integration passed.');
+console.log('Sebastian: both seats, suppression, hidden sources, stacked triggers, free Fish sets, full-Reinforcement payment and consolidation integration passed.');

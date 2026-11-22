@@ -52,6 +52,24 @@ function collectRiveraArrivalBonuses(state, event, operations){
 export function collectTriggeredOperations(state, event){
   const operations = collectAnneNewPath(state, event);
   collectRiveraArrivalBonuses(state, event, operations);
+  if(event.type==='CARD_SET'){
+    const placed=boardEntries(state).find(entry=>String(entry.card.iid)===String(event.cardIid));
+    if(placed)for(const source of boardEntries(state)){
+      if((source.z!==placed.z && source.card.counters?.whisperLandscapeToken!==true) || runtimeRuleId(source.card)!=='130'
+        || controllerOf(source.card)!==controllerOf(placed.card)
+        || isEffectSourceSuppressed(state,source))continue;
+      const declared=[source.card.counters?.elementalAffiliationA,source.card.counters?.elementalAffiliationB].map(String);
+      if(!declared.includes(String(placed.card.affiliation||'')))continue;
+      for(const target of boardEntries(state).filter(entry=>
+        controllerOf(entry.card)===controllerOf(source.card)
+        && (entry.z===source.z || source.card.counters?.whisperLandscapeToken===true))){
+        if(!canTarget(state,source.card,target.card,{type:'MODIFY_FATE',sourceController:controllerOf(source.card),
+          sourceIid:source.card.iid,targetIid:target.card.iid}).ok)continue;
+        operations.push({type:'MODIFY_FATE',targetIid:target.card.iid,amount:1,sourceIid:source.card.iid,
+          sourceController:controllerOf(source.card),reason:'ELEMENTAL_MASTERY',bypassReaction:true});
+      }
+    }
+  }
   if(event.type === 'CARD_SET'){
     const placed = boardEntries(state).find(entry=>String(entry.card.iid) === String(event.cardIid));
     if(placed && !isEffectImmutable(placed.card)){
@@ -364,7 +382,7 @@ export function collectTriggeredOperations(state, event){
           operations.push({
             type:'MODIFY_FATE',
             targetIid:event.cardIid,
-            amount:3,
+            amount:4,
             sourceIid:sourceEntry.card.iid,
             semanticSourceCardId:'bh17',
             sourceController:playerIndex,
@@ -425,19 +443,9 @@ export function collectTriggeredOperations(state, event){
       if(runtimeRuleId(entry.card) !== '36') continue;
       if(controllerOf(entry.card) === Number(event.playerIndex)) continue;
       if(isEffectSourceSuppressed(state, entry)) continue;
-      operations.push({
-        type:'CREATE_MATCH_STATUS',
-        status:{
-          statusId:`deterrance:${entry.card.iid}:${event.cardIid}`,
-          type:'ZONE_FATE_MODIFIER',
-          zone:entry.z,
-          playerIndex:Number(event.playerIndex),
-          value:-4,
-          sourceIid:entry.card.iid,
-          requiresActiveSource:true,
-          reason:'MARIE_DETERRANCE'
-        }
-      });
+      operations.push({type:'SET_CARD_COUNTER',targetIid:entry.card.iid,counterKey:'deterranceCounters',
+        value:Math.max(0,Number(entry.card.counters?.deterranceCounters)||0)+1,
+        sourceIid:entry.card.iid,reason:'MARIE_DETERRANCE_COUNTER'});
     }
   }
   if(event.type === 'TURN_STARTED'){
@@ -516,7 +524,7 @@ export function collectTriggeredOperations(state, event){
       operations.push({
         type:'MODIFY_FATE',
         targetIid:entry.card.iid,
-        amount:2,
+        amount:3,
         sourceIid:entry.card.iid,
         sourceController:Number(event.playerIndex),
         reason:'MONARCHIST_MANIFESTO',

@@ -554,7 +554,7 @@ function shouldSuppressConsolidationCinematic(card) {
 }
 
 function isInnatelyFullyEffectImmuneCard(card) {
-  return isAnickaVoyagerCard(card) || isAliIndomitableHandCard(card);
+  return isAliIndomitableHandCard(card);
 }
 
 function isFishCounter(card) {
@@ -582,6 +582,7 @@ function canApparitionDiscard(source, card, z, r, c, player) {
 
 function isOpponentEffectOnlyImmuneCard(card) {
   if(!card) return false;
+  if(String(card.id || '') === '124') return true;
   if(card._igb24OpponentEffectImmune === true || card._immuneByMakenna === true || card.opponentEffectImmune === true) return true;
   if(typeof G === 'undefined' || !G || !Array.isArray(G.board)) return false;
   let targetPosition = null;
@@ -1095,7 +1096,7 @@ function getHandCardEffectModifiers(card) {
 }
 
 function getSupportReinforcementValue(card) {
-  if(isFishCounter(card)) return 0.5;
+  if(isFishCounter(card)) return 1;
   if (!card) return 0;
   applyPermanentEffectImmunity(card);
   if (isCardEffectImmutable(card)) {

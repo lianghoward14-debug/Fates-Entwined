@@ -199,6 +199,7 @@ export function createInitialState(input = {}){
       zoneControlRework && input.gameSettings?.expandedContestedRow === true
         && input.gameSettings?.zoneLayout444 === true
     ),
+    boardTurnStartSnapshots:[null,null],
     geometry:{
       rowOwners:Array.from({length:3}, ()=>[1, -1, 0]),
       playableExtraSquares:[],

@@ -23,7 +23,7 @@ const challengerV2Source = read('src/scripts/09-challenger-v2.js');
 const indexSource = read('index.html');
 const finalCss = read('src/styles/zz-codex-last.css');
 
-assert.match(profileSource, /const PFP_CATALOG_SIZE = 145;/, 'profile booster catalog must include card portraits through card 120');
+assert.match(profileSource, /const PFP_CATALOG_SIZE = 153;/, 'profile booster catalog must include the new card portraits');
 assert.match(profileSource, /length:PFP_CATALOG_SIZE/, 'profile booster pool must use the full profile-picture catalog');
 assert.match(profileSource, /n<=PFP_CATALOG_SIZE/, 'owned profile normalization must retain every catalog ID');
 assert.match(challengerSource, /generateProfilePack\(\)[\s\S]*grantProfilePictures\(pack\)/, 'store booster must draw and grant from the shared profile pool');
@@ -37,7 +37,12 @@ assert.match(cardSource, /id:'100',pfpId:100/);
 for(const [cardId, pfpId] of [[101,126],[102,127],[103,128],[104,129],[105,130],[106,131],[107,132],[108,133],[109,134],[110,135],[111,136],[112,137],[113,138],[114,139],[115,140],[116,141],[117,142],[118,143],[120,144],[119,145]]) {
   assert.match(cardSource, new RegExp(`id:'${cardId}',pfpId:${pfpId}`), `card ${cardId} must point to its profile booster portrait`);
 }
-assert.match(profilePickerSource, /id >= 126 && id <= 145/, 'new card portraits must use their direct art in the profile picker');
+for(const [cardId,pfpId] of [[121,146],[122,147],[123,148],[124,149],[125,150],[130,151],[126,152],[127,153]]){
+  assert.match(cardSource,new RegExp(`id:'${cardId}',pfpId:${pfpId}`));
+  assert.deepStrictEqual(pngDimensions('pfp/pfp'+pfpId+'.png'),{width:591,height:453});
+  assert(fs.existsSync(path.join(root,'pfp/card-'+cardId+'-portrait.png')));
+}
+assert.match(profilePickerSource, /id >= 126 && id <= 153/, 'new card portraits must use their direct art in the profile picker');
 
 for(let id = 80; id <= 100; id += 1) {
   const cardPath = `${id}.png`;
@@ -68,4 +73,4 @@ assert.match(profileSource, /id >= 126 && id <= 128[\s\S]*card-\$\{id-25\}-portr
 assert.match(profileSource, /id >= 129 && id <= 131[\s\S]*card-\$\{id-25\}-portrait\.png/);
 
 for(let id=133;id<=145;id++){assert.deepStrictEqual(pngDimensions('pfp/pfp'+id+'.png'),{width:591,height:453});assert(fs.existsSync(path.join(root,'optimized/pfp-thumbs/pfp'+id+'.jpg')));}
-console.log('fate profile picture booster smoke passed (pfp1-pfp145)');
+console.log('fate profile picture booster smoke passed (pfp1-pfp153)');

@@ -1,0 +1,33 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const source = fs.readFileSync(require('node:path').join(__dirname,'../src/scripts/27-morale-pressure-ui.js'),'utf8');
+const start = source.indexOf('  function applyLegacyBlazingInfernoEvents(');
+const end = source.indexOf('\n  function refreshLegacyMoralePressure(',start);
+assert(start>=0 && end>start);
+const calls=[];
+const context={window:{showBlazingInfernoDiscard:(...args)=>calls.push(args)}};
+vm.runInNewContext(source.slice(start,end)+'\nthis.applyLegacyBlazingInfernoEvents=applyLegacyBlazingInfernoEvents;',context);
+for(const attacker of [0,1]){
+  const victim=1-attacker;
+  const top={id:'01',iid:'top',name:'Top card',owner:victim};
+  const sourceCard={id:'121',iid:'fire',owner:attacker,statuses:[]};
+  const state={board:[[[sourceCard]]],players:[{deck:[],discard:[]},{deck:[],discard:[]}]};
+  state.players[victim].deck.push(top);
+  context.applyLegacyBlazingInfernoEvents(state,[{type:'MORALE_DAMAGED',playerIndex:victim,sourcePlayerIndex:attacker,amount:3}]);
+  assert.equal(sourceCard.counters.infernoCounters,1);
+  assert.equal(state.players[victim].deck[0],top);
+  assert.equal(state.players[victim].discard.length,0);
+  assert.equal(calls.length,0);
+  state.players[victim].deck.push({id:'02',iid:'cost',name:'Cost card',owner:victim});
+  context.applyLegacyBlazingInfernoEvents(state,[{type:'MORALE_DAMAGED',playerIndex:victim,sourcePlayerIndex:attacker,amount:2,reason:'ABILITY_COST'}]);
+  assert.equal(sourceCard.counters.infernoCounters,1);
+  sourceCard.statuses.push('EFFECTS_SUPPRESSED');
+  context.applyLegacyBlazingInfernoEvents(state,[{type:'MORALE_DAMAGED',playerIndex:victim,sourcePlayerIndex:attacker,amount:2}]);
+  assert.equal(sourceCard.counters.infernoCounters,1);
+  sourceCard.statuses.length=0;
+  context.applyLegacyBlazingInfernoEvents(state,[{type:'MORALE_DAMAGED',playerIndex:victim,sourceIid:'fire',amount:2}]);
+  assert.equal(sourceCard.counters.infernoCounters,2,'card effect damage identifies its source card');
+}
+assert(source.includes('applyLegacyBlazingInfernoEvents(state,events);\n    queueLegacyPresentation(events);'));
+console.log('PASS local Morale damage adds card 121 counters for both seats; costs and suppression do not');
