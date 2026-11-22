@@ -182,7 +182,7 @@
       ]
     }
   });
-  const clipUrl = (character, index) => 'assets/audio/chatter/' + character.file + (index + 1) + '.' + (character.extension || 'mp3') + (character.file === 'Lina' && (index === 3 || index === 4) ? '?v=20261103-new-lina' + (index + 1) : '');
+  const clipUrl = (character, index) => 'assets/audio/chatter/' + character.file + (index + 1) + '.' + (character.extension || 'mp3') + (character.file === 'Lina' && (index === 3 || index === 4) ? '?v=20261103-new-lina' + (index + 1) : character.file === 'YoungFelicyta' && index === 3 ? '?v=20261123-new-youth-line-4' : '');
   let used = new Set(), failed = new Set(), current = null, panel = null;
   let eligibleNow = [];
   const MIN_CHATTER_GAP_MS = 30000;
