@@ -1456,7 +1456,8 @@ function setCardCounter(ctx, operation){
     cardIid:entry.card.iid,
     counterKey,
     value,
-    sourceIid:operation.sourceIid || null
+    sourceIid:operation.sourceIid || null,
+    reason:operation.reason || undefined
   });
   return {cardIid:entry.card.iid, counterKey, value};
 }

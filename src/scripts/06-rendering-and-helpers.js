@@ -1353,7 +1353,12 @@ function cardRenderSignature(card, z, r, c) {
     isCardVisuallyNegated(card) ? 1 : 0,
     card.noConsolidate ? 1 : 0, card.usesLeft || 0, card._copiedPassiveId || card.copiedPassiveId || '',
     card.vigilanteUsed ? 1 : 0, card.wolfCreekUsed ? 1 : 0,
-    card._expMoved ? 1 : 0, card._busserMovedThisTurn ? 1 : 0
+    card._expMoved ? 1 : 0, card._busserMovedThisTurn ? 1 : 0,
+    Number(card.counters?.braveHorizonsCounters ?? card._braveHorizonsCounters) || 0,
+    Number(card.counters?.deterranceCounters) || 0,
+    Number(card.counters?.infernoCounters) || 0,
+    Number(card.counters?.storyCounters) || 0,
+    card.statuses?.includes('HAUNTED_NO_EFFECTS') || card.counters?.ellieHauntedVisual === true ? 1 : 0
   ].join(':');
 }
 
@@ -9702,6 +9707,7 @@ function showAffiliationPickerVisual(callback, sourceCard, confirmCharacterBanne
   const modalBox = document.querySelector('#modal .modal');
   if(modalBox) {
     modalBox.classList.add('affiliation-picker-modal');
+    modalBox.classList.toggle('nytress-affiliation-picker',nytress);
     modalBox.style.maxWidth = '458px';
   }
   if(body) body.style.overflow = 'visible';

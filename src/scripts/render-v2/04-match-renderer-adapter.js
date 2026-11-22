@@ -3268,7 +3268,12 @@
     }
     const flags = entry && entry.card && entry.card.flags ? entry.card.flags : {};
     const markedForDeath = !!(showStatus && entry && entry.card && (entry.card._markedForDeath || flags.markedForDeath));
-    const haunted=!!(entry?.card?.statuses?.includes('HAUNTED_NO_EFFECTS')||entry?.card?.counters?.ellieHauntedVisual===true);
+    const liveAtSquare=(typeof G!=='undefined' && entry?.z!=null && entry?.r!=null && entry?.c!=null)
+      ? G?.board?.[entry.z]?.[entry.r]?.[entry.c] : null;
+    const haunted=!!(entry?.card?.statuses?.includes('HAUNTED_NO_EFFECTS')
+      || entry?.card?.counters?.ellieHauntedVisual===true
+      || (liveAtSquare && String(liveAtSquare.iid)===String(entry?.card?.iid)
+        && (liveAtSquare.statuses?.includes('HAUNTED_NO_EFFECTS')||liveAtSquare.counters?.ellieHauntedVisual===true)));
     const suppressed = !!(showStatus && entry && entry.card && flags.suppressed && !haunted);
     const negated = !!(showStatus && entry && entry.card && flags.negated);
     const snowballHit = !!(showStatus && entry && entry.card && flags.snowballHit);
@@ -3348,8 +3353,9 @@
       const shown=Math.min(count,6),radius=Math.max(7,Math.min(9,r.w*.06));
       const step=radius*2+2,overflow=count>shown;
       const badgeH=Math.max(24,Math.min(34,r.w*.255));
-      const x=r.x+r.w-radius-5,top=r.y+badgeH+8;
-      const holderW=radius*2+8,holderH=shown*step+6+(overflow?12:0);
+      const badgeW=Math.max(badgeH,Math.min(43,badgeH+Math.max(0,String(visual?.displayFate??'').length-1)*5.4));
+      const x=r.x+r.w-badgeW/2-Math.max(1,badgeH*.04),top=r.y+badgeH+8;
+      const holderW=radius*2+8,holderH=Math.max(1,shown)*step+6+(overflow?12:0);
       ctx.save();
       ctx.fillStyle='rgba(20,26,35,.96)';ctx.strokeStyle='#d9c8a4';ctx.lineWidth=1.2;
       ctx.beginPath();ctx.roundRect(x-holderW/2,top,holderW,holderH,radius+4);ctx.fill();ctx.stroke();
@@ -3474,11 +3480,6 @@
     ctx.strokeStyle='rgba(193,206,255,.72)';
     ctx.lineWidth=Math.max(1.2,r.w*.018);
     ctx.strokeRect(r.x+2,r.y+2,r.w-4,r.h-4);
-    // Cover the suppression lock before painting the persistent spirit.
-    ctx.fillStyle='rgba(29,27,49,.96)';
-    ctx.beginPath();
-    ctx.ellipse(r.x+r.w/2,r.y+r.h/2,r.w*.34,r.h*.27,0,0,Math.PI*2);
-    ctx.fill();
     ctx.globalAlpha=.88;
     drawEffectFlashIcon(ctx,r.x+r.w/2,r.y+r.h/2,Math.max(64,Math.min(144,r.w*1.0)),'specter_ghost');
     ctx.restore();

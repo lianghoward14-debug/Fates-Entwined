@@ -15,6 +15,7 @@ html body #modal .modal.declaration-approved.declaration-aff .aff-pick-square .a
 html body #modal .modal.declaration-approved.declaration-aff .aff-pick-icon-frame img{display:block!important;width:76px!important;height:76px!important;object-fit:contain!important;}
 html body #modal .modal.declaration-approved.declaration-aff .aff-pick-label{font:500 14px/1.3 Georgia,serif!important;min-height:34px!important;color:#f1e6cf!important;}
 html body #modal .modal.declaration-approved.declaration-aff .aff-pick-note{font:11px/1.5 system-ui!important;margin-top:7px!important;color:#b6bdbe!important;}
+html body #modal .modal.nytress-affiliation-picker .aff-pick-note{display:none!important;}
 @media(max-width:560px){html body #modal .modal.declaration-approved.declaration-aff .aff-pick-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;padding:16px!important;}html body #modal .modal.declaration-approved.declaration-aff .declaration-profile{padding:20px 16px!important;}}
 
 /* Nytress keeps the entire selected banner visible, including its lower tip. */
@@ -61,4 +62,34 @@ html body #modal .modal.declaration-approved.declaration-aff .aff-pick-square.af
   opacity:1!important;
   z-index:-1!important;
   pointer-events:none!important;
+}
+
+/* Nytress has no description line, so its banners can fit their contents. */
+html body #modal .modal.declaration-approved.declaration-aff.nytress-affiliation-picker .aff-pick-grid{
+  align-items:start!important;
+  padding-bottom:12px!important;
+}
+html body #modal .modal.declaration-approved.declaration-aff.nytress-affiliation-picker .aff-pick-square{
+  min-height:166px!important;
+  height:166px!important;
+  padding:23px 8px 13px!important;
+  justify-content:flex-start!important;
+  box-sizing:border-box!important;
+}
+html body #modal .modal.declaration-approved.declaration-aff.nytress-affiliation-picker .aff-pick-square .aff-pick-icon-frame{
+  width:68px!important;height:68px!important;min-width:68px!important;
+  margin:0 auto 8px!important;
+}
+html body #modal .modal.declaration-approved.declaration-aff.nytress-affiliation-picker .aff-pick-square .aff-pick-icon-frame svg,
+html body #modal .modal.declaration-approved.declaration-aff.nytress-affiliation-picker .aff-pick-square .aff-pick-icon-frame img{
+  width:68px!important;height:68px!important;max-width:68px!important;max-height:68px!important;
+}
+html body #modal .modal.declaration-approved.declaration-aff.nytress-affiliation-picker .aff-pick-square.aff-pick-selected,
+html body #modal .modal.declaration-approved.declaration-aff.nytress-affiliation-picker .aff-pick-square.aff-pick-pending{
+  min-height:178px!important;
+  height:178px!important;
+  padding-bottom:18px!important;
+}
+html body #modal .modal.declaration-approved.declaration-aff.nytress-affiliation-picker .aff-pick-square.aff-pick-selected .aff-pick-choice-tag{
+  bottom:19px!important;
 }

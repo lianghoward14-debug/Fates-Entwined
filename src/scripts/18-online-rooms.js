@@ -6774,6 +6774,8 @@
       }
       prePresentedMoveIndexes.add(eventIndex);
     }
+    for(const event of events)if(event.type==='CARD_COUNTER_SET' && event.reason==='EMERALD_STORY_COUNTER')
+      window.playEmeraldStoryCounterSfx?.();
     for(const event of events)if(event.type==='CARD_COUNTER_SET' && event.counterKey==='braveHorizonsCounters'
       && Number(event.value)>0 && events.some(move=>move.type==='CARD_MOVED' && String(move.cardIid||'')===String(event.cardIid||'')))
       window.playBraveHorizonsCounterSfx?.(false);
@@ -7136,6 +7138,12 @@
           if(window._lastJimmyHandShredSoundKey !== soundKey){
             window._lastJimmyHandShredSoundKey = soundKey;
             if(typeof window.playSfx === 'function') window.playSfx('discard');
+          }
+        }else if(String(event.reason||'').toUpperCase()==='FLAMING_LIGHTNING_STORM_HAND'){
+          const key=String(batchId)+':cipher-hand';
+          if(window._lastCipherHandDiscardSoundKey!==key){
+            window._lastCipherHandDiscardSoundKey=key;
+            window.playSfx?.('cipherHandDiscard');
           }
         }else if(typeof window.playDiscardSfx === 'function') window.playDiscardSfx({count:1});
         else if(typeof window.playSfx === 'function') window.playSfx('discard');

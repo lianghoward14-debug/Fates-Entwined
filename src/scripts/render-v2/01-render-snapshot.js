@@ -163,6 +163,15 @@
     base.runtimeImg = runtimeCardImageSrc((visual && (visual.runtimeImg || visual.img)) || card.runtimeImg || base.img, 'board');
     base.fate = card.fate;
     base.currentFate = card.currentFate;
+    if(onBoard){
+      const visibleCounterKeys=['braveHorizonsCounters','deterranceCounters','infernoCounters','storyCounters','ellieHauntedVisual'];
+      base.counters={};
+      for(const key of visibleCounterKeys){
+        if(card.counters?.[key] !== undefined) base.counters[key]=card.counters[key];
+      }
+      if(card._braveHorizonsCounters !== undefined) base._braveHorizonsCounters=card._braveHorizonsCounters;
+      if(card.statuses?.includes('HAUNTED_NO_EFFECTS')) base.statuses=['HAUNTED_NO_EFFECTS'];
+    }
     if(card._suppressCinematicSubtitle) base._suppressCinematicSubtitle = true;
     if(card._placementFateReveal) {
       base._placementFateReveal = {

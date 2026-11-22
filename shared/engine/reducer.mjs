@@ -1189,7 +1189,7 @@ function runEffectStack(state, ctx){
     if(instruction?.kind === 'GIVE_EMERALD_COUNTER'){
       const targetIid=frame.locals[instruction.local];
       const target=targetIid && findBoardCard(state,targetIid)?.card;
-      const counterKey=target && (({bh01:'braveHorizonsCounters','36':'deterranceCounters','121':'infernoCounters'})[String(target.id)] || 'storyCounters');
+      const counterKey=target?.faceDown!==true && ({bh01:'braveHorizonsCounters','36':'deterranceCounters','121':'infernoCounters'})[String(target?.id)];
       if(counterKey)applyOperation(ctx,{type:'SET_CARD_COUNTER',targetIid:target.iid,
         counterKey,value:Math.max(0,Number(target.counters?.[counterKey])||0)+1,
         sourceIid:frame.sourceIid,sourceController:frame.controller,reason:'EMERALD_STORY_COUNTER'});

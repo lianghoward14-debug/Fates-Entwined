@@ -29865,15 +29865,27 @@ html body #board .bc .bc-haunted-overlay{
 html body #board .bc.fate-suppressed .bc-haunted-overlay{
   filter:none!important;
 }
-html body #board .bc.fate-suppressed .bc-haunted-overlay::before{
-  content:'';
-  position:absolute;
-  left:16%;right:16%;top:24%;bottom:24%;
-  border-radius:50%;
-  background:rgba(29,27,49,.96);
-  z-index:0;
-}
 html body #board .bc.fate-suppressed .bc-haunted-overlay svg{position:relative;z-index:1;}
+/* Keep Ellie's persistent spirit visible above the canvas card layer. */
+html.fate-render-v2-card-layer-mode.fate-canvas-board-mode body #s-game #board .zone:has(.bc-haunted-overlay){z-index:21!important;}
+html.fate-render-v2-card-layer-mode.fate-canvas-board-mode body #s-game #board .cell:has(.bc-haunted-overlay){z-index:22!important;}
+html.fate-render-v2-card-layer-mode.fate-canvas-board-mode body #s-game #board .cell.has-card .bc > .bc-haunted-overlay,
+html.fate-canvas-board-mode body #s-game #board .cell.has-card .bc > .bc-haunted-overlay{
+  opacity:1!important;visibility:visible!important;display:grid!important;
+}
+html body #board .bc .bc-haunted-overlay svg{
+  transform-origin:center;
+  animation:ellie-spirit-breathe 3.6s ease-in-out infinite!important;
+  will-change:transform,opacity;
+}
+@keyframes ellie-spirit-breathe{
+  0%,100%{transform:scale(.96);opacity:.76}
+  50%{transform:scale(1.025);opacity:1}
+}
+html.fate-animations-off body #board .bc .bc-haunted-overlay svg{
+  animation:none!important;transform:none!important;opacity:.9!important;will-change:auto!important;
+}
+@media(prefers-reduced-motion:reduce){html body #board .bc .bc-haunted-overlay svg{animation:none!important;transform:none!important;opacity:.9!important;will-change:auto!important;}}
 html body #modal .modal.affiliation-picker-modal .aff-pick-square.aff-pick-selected{
   min-height:174px!important;
   padding-bottom:1rem!important;

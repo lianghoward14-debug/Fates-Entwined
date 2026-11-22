@@ -134,6 +134,7 @@ const FATE_SAMPLE_SFX = {
   consolidationModeOff: {src:'soundeffects/codex-redesign/menu_close_soft_lock.wav', gain:0.66},
   discard: {src:'soundeffects/codex-redesign/discard_deck_coffin.wav', gain:0.9},
   discardCard: {src:'soundeffects/codex-redesign/discard_deck_coffin.wav', gain:0.9},
+  cipherHandDiscard: {src:'soundeffects/codex-redesign/cipher_hand_arc_discard.wav', gain:0.95},
   jimmyHandShred: {src:'soundeffects/codex-redesign/jimmy_hand_shred.wav', gain:1.25},
   blocked: {src:'soundeffects/codex-redesign/blocked_metal_gate.wav', gain:0.82},
   invalidAction: {src:'soundeffects/codex-redesign/blocked_metal_gate.wav', gain:0.58},
@@ -608,6 +609,27 @@ function playBraveHorizonsCounterSfx(spend=false){
   }catch(e){return false;}
 }
 window.playBraveHorizonsCounterSfx=playBraveHorizonsCounterSfx;
+function playEmeraldStoryCounterSfx(){
+  if(document.hidden || _masterVol<=0 || _sfxVol<=0)return false;
+  try{
+    const ctx=getAudioCtx(),out=ctx.createGain(),now=ctx.currentTime;
+    out.gain.value=_masterVol*_sfxVol*.45;
+    out.connect(getSfxBus(ctx).input);
+    [523.25,783.99,1174.66].forEach((frequency,index)=>{
+      const at=now+index*.055,osc=ctx.createOscillator(),gain=ctx.createGain();
+      osc.type=index===0?'triangle':'sine';
+      osc.frequency.setValueAtTime(frequency*.88,at);
+      osc.frequency.exponentialRampToValueAtTime(frequency,at+.095);
+      gain.gain.setValueAtTime(.0001,at);
+      gain.gain.exponentialRampToValueAtTime(index===0?.10:.075,at+.012);
+      gain.gain.exponentialRampToValueAtTime(.0001,at+.3);
+      osc.connect(gain).connect(out);osc.start(at);osc.stop(at+.31);
+    });
+    setTimeout(()=>out.disconnect(),650);
+    return true;
+  }catch(e){return false;}
+}
+window.playEmeraldStoryCounterSfx=playEmeraldStoryCounterSfx;
 function playElementalConvergenceSfx(){
   if(_masterVol<=0 || _sfxVol<=0)return false;
   try{

@@ -1,6 +1,6 @@
 (function(){'use strict';
 const rows=[
- ['At any time during your turn, put one counter on any card on the field. (Two uses.)','自分のターン中、いつでも場のカード1枚にカウンターを1個置ける。（2回使用可能）','在你的回合中，你可以随时在场上一张牌上放置一个指示物。（可使用两次）'],
+ ['At any time during your turn, put one counter on a face-up card with a counter ability. (Two uses.)','自分のターン中、いつでもカウンター能力を持つ表向きのカード1枚にカウンターを1個置ける。（2回使用可能）','在你的回合中，你可以随时在一张拥有指示物能力的正面朝上的牌上放置一个指示物。（可使用两次）'],
  ['This card can move to any open square on the field once a turn. Each time this card moves, put a counter on it and it gains 1 Fate. At any time during your turn, remove 2 counters to trigger a Call to Arms.','このカードは各ターンに1回、場の空いているマスへ移動できる。移動するたびにカウンターを1個置き、運命値を1得る。自分のターン中、いつでもカウンターを2個取り除いて「召集」を発動できる。','此牌每回合可移动至场上任意空位一次。每次移动时，在其上放置一个指示物并获得1点命运值。在你的回合中，你可以随时移除两个指示物来发动「号召」。'],
  ['For every one of your Draw phases that passes after this card is set, this card permanently gains 3 Fate.','このカードをセットした後に迎える自分のドローフェイズごとに、このカードは運命値を永久に3得る。','放置此牌后，每经过你的一个抽牌阶段，此牌永久获得3点命运值。'],
  ['Whenever you would consolidate a card, add a Fish Token to your hand. Fish Tokens count as 1 Reinforcement and can be set for free.','カードを統合するたび、魚トークンを1枚手札に加える。魚トークンは増援1として扱い、無料でセットできる。','每当你整合一张牌时，将一张鱼衍生物加入手牌。鱼衍生物算作1点增援，可以免费放置。'],

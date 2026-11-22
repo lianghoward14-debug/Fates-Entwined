@@ -535,7 +535,7 @@ const CARDS = [
     effect:'When set, trigger a Call to Arms, but forgo drawing a card for your next three Draw Phases.',
     flavor:'"In the open air markets of Havano, a discount means market price"',img:'119.png?v=18a38d2fef25'},
   {id:'120',pfpId:144,cinematicPortrait:'pfp/card-120-portrait.png?v=b549245e0626',name:'The Emerald Eyed Children',ability:'The Story Never Ends',type:'Supporter',aff:'eventide',
-    fate:1,cost:0,rarity:'circle',effect:'At any time during your turn, put one counter on any card on the field. (Two uses.)',flavor:"Their eyes shining emerald green even on this cloudy day, illustrated heroic adventures and epic voyages destined to pass.",img:'120.png?v=20261122-counter-art',},
+    fate:1,cost:0,rarity:'circle',effect:'At any time during your turn, put one counter on a face-up card with a counter ability. (Two uses.)',flavor:"Their eyes shining emerald green even on this cloudy day, illustrated heroic adventures and epic voyages destined to pass.",img:'120.png?v=20261122-counter-art',},
   {id:'121',pfpId:146,cinematicPortrait:'pfp/card-121-portrait.png?v=20261116-new-art',name:'Seventh Magician (Sasabiki)',ability:'Blazing Inferno',type:'Improvisor',aff:'reality',set:'brave_horizons',
     fate:8,cost:4,rarity:'square',effect:"Whenever you would inflict Morale Damage, put a counter on this card. During your turn, remove one counter to discard the top card of your opponent's deck.",
     flavor:'"I am the Strongest"',img:'121.png?v=20261122-new-art'},

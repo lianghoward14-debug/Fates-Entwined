@@ -18,6 +18,10 @@
     '125':[['glass-tick',.10,.18,1120],['paper',.66,.34,1050],['paper-pin',1.06,.11,930],['paper-pin',1.24,.11,750],['paper-pin',1.42,.11,1050]],
     '126':[['fuse',.22,.54,2300],['firebolt',.82,.34,1450],['firebolt',1.13,.17,1050],['rumble',1.25,.46,82]],
     '127':[['clock-tick',.10,.10,1120],['clock-tick',.30,.10,920],['clock-tick',.50,.10,720],['clock-rewind',.58,.74,460],['clock-tick',1.47,.16,660]],
+    // Eight ember orbit, rising flame, and the final warm pulse.
+    '121':[['fuse',.08,.54,2350],['crack',.38,.18,1680],['rise',.58,.58,340],['firebolt',1.07,.36,1020]],
+    // One ritual seal forms before the spirit rises through it.
+    '122':[['wind',.08,.66,560],['specter',.42,.68,780],['chord',.80,.64,392],['ping',1.28,.44,784]],
     // Sunward Seal: dry flame crackle on the warm half, then a low water swell as the halves meet.
     '130':[['fuse',.08,.58,2600],['surf',.27,1.04,470],['water',.82,.62,620],['ping',1.33,.37,760]],
     // Seconds match normalized visual beats multiplied by the two-second duration.

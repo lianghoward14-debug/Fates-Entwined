@@ -40,7 +40,7 @@ const REGISTRY = Object.freeze({
     {kind:'RESOLVE_HOPLITE_CALL',cardId:'$callCardId'}
   ]},
   '120':{timings:['ACTIVATE'],manualOnly:true,maxUses:2,operations:['SET_CARD_COUNTER'],prompts:['BOARD_TARGET'],program:[
-    {kind:'SELECT_BOARD',local:'counterTarget',optional:true,deferOnCancel:false,filter:{}},
+    {kind:'SELECT_BOARD',local:'counterTarget',optional:true,deferOnCancel:false,filter:{cardIds:['bh01','36','121'],faceUp:true}},
     {kind:'GIVE_EMERALD_COUNTER',local:'counterTarget'}
   ]},
   '117':{timings:['WHEN_SET'],operations:['CREATE_MATCH_STATUS'],prompts:[],program:[

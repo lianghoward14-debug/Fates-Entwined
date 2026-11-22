@@ -9504,9 +9504,10 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
         for(let i=0;i<2 && hand.length;i++){
           const index=deterministicOnlineRandomIndex(hand.length,'flamingLightningStorm:'+String(card.iid)+':'+i,opp);
           const target=hand.splice(index,1)[0];
-          fatePushDiscard(opp,target);
+          fatePushDiscard(opp,target,{sound:false});
           discarded.push(target.name);
         }
+        if(discarded.length)playSfx('cipherHandDiscard');
         window.showCipherDiscardBanner?.(discarded,cp,G.humanPlayer??0);
         log(cp===0?'p1':'p2','Flaming Lightning Storm discarded '+selected.length+' deck cards and '+discarded.length+' opponent hand cards.');
         renderGame({hand:true,board:true,scores:true,topbar:true,piles:true});
@@ -10025,23 +10026,24 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
       if(used>=2){toast('The Story Never Ends has no uses remaining.');break;}
       const entries=[];
       G.board.forEach((zone,tz)=>zone.forEach((row,tr)=>row.forEach((target,tc)=>{
-        if(target)entries.push({card:target,z:tz,r:tr,c:tc});
+        if(target && target.faceDown!==true && ['bh01','36','121'].includes(String(target.id)))entries.push({card:target,z:tz,r:tr,c:tc});
       })));
+      if(!entries.length){toast('No card with a counter ability is on the field.');break;}
       const selected=G.aiEnabled && cp===G.aiPlayer
-        ? (entries.find(entry=>entry.card.owner===cp && ['bh01','36','121'].includes(String(entry.card.id))) || entries[0])
+        ? (entries.find(entry=>entry.card.owner===cp) || entries[0])
         : await new Promise(resolve=>showBoardTargetPicker({sourceCard:card,title:'The Story Never Ends',
-            prompt:'Choose any field card to receive one counter.',entries,zones:[0,1,2],
+            prompt:'Choose a face-up card with a counter ability.',entries,zones:[0,1,2],
             minCount:1,maxCount:1,showZoneTitles:true,confirmLabel:'Add Counter',viewerPlayerIndex:cp,
             onCancel:()=>resolve(null)},chosen=>resolve(chosen?.[0]||null)));
       if(!selected){clearEffectActivationInFlight();return false;}
       const target=G.board?.[selected.z]?.[selected.r]?.[selected.c];
-      if(target!==selected.card){clearEffectActivationInFlight();return false;}
-      const key=({bh01:'braveHorizonsCounters','36':'deterranceCounters','121':'infernoCounters'})[String(target.id)]||'storyCounters';
+      if(target!==selected.card || target.faceDown===true || !['bh01','36','121'].includes(String(target.id))){clearEffectActivationInFlight();return false;}
+      const key=({bh01:'braveHorizonsCounters','36':'deterranceCounters','121':'infernoCounters'})[String(target.id)];
       target.counters ||= {};
       target.counters[key]=Math.max(0,Number(target.counters[key])||0)+1;
       if(key==='braveHorizonsCounters')target._braveHorizonsCounters=target.counters[key];
       card.counters ||= {};card.counters.effectUses=used+1;
-      window.playBraveHorizonsCounterSfx?.(false);
+      window.playEmeraldStoryCounterSfx?.();
       renderGame({board:true,scores:true});
       break;
     }

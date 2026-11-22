@@ -304,7 +304,26 @@ function drawRecentSignature(ctx,id,t,w=700,h=430){
   function ink(color,alpha,width,draw){if(alpha<=0)return;ctx.save();ctx.beginPath();draw();ctx.strokeStyle=color;ctx.lineCap='round';ctx.lineJoin='round';ctx.globalAlpha=alpha*.3;ctx.lineWidth=width+4;ctx.shadowColor=color;ctx.shadowBlur=7;ctx.stroke();ctx.globalAlpha=alpha;ctx.lineWidth=width;ctx.shadowBlur=0;ctx.stroke();ctx.restore();}
   function circle(x,y,r,color,alpha,width=1.7){if(r>0)ink(color,alpha,width,()=>ctx.arc(x,y,r,0,Math.PI*2));}
   function poly(points,color,alpha,width=1.7,close=false){ink(color,alpha,width,()=>{points.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));if(close)ctx.closePath();});}
-  if(id==='124'){
+  if(id==='121'){
+    const seal=seg(.04,.48),flame=seg(.29,.63),rise=seg(.32,.70);
+    circle(0,0,105*seal,'#efa970',fade*seal,2.5);
+    circle(0,0,83*seal,'#f9d19b',fade*seal*.64,1.7);
+    for(let i=0;i<8;i++){
+      const z=i*Math.PI/4+t*Math.PI*1.2,show=seg(.1+i*.023,.43+i*.023);
+      poly([[Math.cos(z)*93,Math.sin(z)*93-5],[Math.cos(z)*93+5,Math.sin(z)*93],[Math.cos(z)*93,Math.sin(z)*93+5],[Math.cos(z)*93-5,Math.sin(z)*93]],'#ffd8a7',fade*show,1.7,true);
+    }
+    ctx.save();ctx.translate(0,34*(1-rise));ctx.scale(1.13,1.13);
+    ink('#f4a46b',fade*flame,2.8,()=>{ctx.moveTo(0,50);ctx.bezierCurveTo(-30,34,-35,9,-19,-15);ctx.bezierCurveTo(-19,5,-8,5,-10,-14);ctx.bezierCurveTo(-12,-31,-2,-39,4,-54);ctx.bezierCurveTo(5,-31,17,-22,17,-7);ctx.bezierCurveTo(25,-15,24,-25,22,-35);ctx.bezierCurveTo(44,2,36,30,0,50);ctx.closePath();});
+    ink('#ffe0a4',fade*flame*.85,2,()=>{ctx.moveTo(0,35);ctx.bezierCurveTo(-13,20,-12,7,1,-10);ctx.bezierCurveTo(4,5,16,11,12,26);ctx.quadraticCurveTo(6,36,0,35);ctx.closePath();});ctx.restore();
+    circle(0,0,56*seg(.56,.86),'#ffd19b',fade*(1-t)*.6);
+  }else if(id==='122'){
+    const outer=seg(.04,.43),spirit=seg(.39,.68);
+    circle(0,0,116*outer,'#d4dcf1',fade*outer,2);
+    ink('#e8d9b5',fade*outer,1.7,()=>{for(let i=0;i<6;i++){const z=i*Math.PI/3;ctx.moveTo(Math.cos(z)*113,Math.sin(z)*113);ctx.lineTo(Math.cos(z+Math.PI*2/3)*113,Math.sin(z+Math.PI*2/3)*113);}});
+    ctx.save();ctx.translate(0,49*(1-spirit));ctx.scale(.88,.88);
+    ink('#e8f2ff',fade*spirit,2.5,()=>{ctx.moveTo(-29,43);ctx.lineTo(-29,-8);ctx.bezierCurveTo(-29,-42,-14,-56,0,-56);ctx.bezierCurveTo(14,-56,29,-42,29,-8);ctx.lineTo(29,43);ctx.lineTo(17,31);ctx.lineTo(6,45);ctx.lineTo(-6,31);ctx.lineTo(-18,45);ctx.closePath();});
+    circle(-10,-10,2.5,'#e8f2ff',fade*spirit,2);circle(10,-10,2.5,'#e8f2ff',fade*spirit,2);ctx.restore();
+  }else if(id==='124'){
     const appear=seg(.03,.25),open=seg(.34,.75),col='#e8d990';
     ctx.save();ctx.translate(0,-89*open);ctx.rotate(-.08*open);
     ink(col,fade*appear,2.3,()=>{ctx.moveTo(0,-130);ctx.bezierCurveTo(-57,-129,-91,-68,-89,11);ctx.lineTo(-63,2);ctx.lineTo(-44,21);ctx.lineTo(-23,2);ctx.lineTo(-2,19);ctx.lineTo(21,1);ctx.lineTo(43,20);ctx.lineTo(65,-1);ctx.lineTo(89,11);ctx.bezierCurveTo(91,-68,57,-129,0,-130);ctx.closePath();});ctx.restore();
@@ -353,7 +372,7 @@ function drawNytressSunward(ctx,t,w=700,h=430){
   ctx.restore();
 }
 function draw(ctx,id,t,w=700,h=430,options={}){
-if(['124','125','126','127'].includes(String(id)))return drawRecentSignature(ctx,String(id),t,w,h);
+if(['121','122','124','125','126','127'].includes(String(id)))return drawRecentSignature(ctx,String(id),t,w,h);
 if(String(id)==='130')return drawNytressSunward(ctx,t,w,h);
 if(['04','17'].includes(String(id)))return drawZoeCarolynConcept(ctx,id,t,w,h);
 if(String(id)==='29')return drawDylanLibertyTorch(ctx,t,w,h);
@@ -823,6 +842,6 @@ for(let j=0;j<3;j++)curve(v=>[(j-1)*75-12+24*v,21-3*Math.sin(v*PI)],1,'#e7f6ff',
 }
 ctx.restore();
 }
-window.FateApprovedActivationArt={handles:id=>['04','17','101','102','103','104','105','106','107','108','109','110','124','125','126','127','130'].includes(String(id))||String(id)==='bh15'||names.some(n=>n[0]===String(id)),draw};
+window.FateApprovedActivationArt={handles:id=>['04','17','101','102','103','104','105','106','107','108','109','110','121','122','124','125','126','127','130'].includes(String(id))||String(id)==='bh15'||names.some(n=>n[0]===String(id)),draw};
 })();
 

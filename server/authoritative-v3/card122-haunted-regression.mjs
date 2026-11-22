@@ -22,6 +22,8 @@ const source=state.players[0].hand.find(card=>card.id==='122');
 const tributes=[takeFromHandToBoard(state,0,'32',{z:0,r:2,c:0})];
 let result=act(state,'CONSOLIDATE_CARD',{cardIid:source.iid,tributeIids:tributes.map(card=>card.iid),destination:{z:0,r:2,c:0}});
 state=result.state;
+assert(result.events.some(event=>event.type==='EFFECT_ACTIVATED'&&event.sourceIid===source.iid),
+  'Ellie must emit the activation event that starts her cinematic');
 assert(state.pendingPrompt,'card 122 asks for a discarded card');
 result=act(state,'ANSWER_PROMPT',{promptId:state.pendingPrompt.promptId,selectedIids:[haunted.iid]});state=result.state;
 assert(state.pendingPrompt,'card 122 asks for a destination');

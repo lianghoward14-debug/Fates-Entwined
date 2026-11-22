@@ -84,6 +84,8 @@ const studies={
  '40':['40','Christopher Erbs','Hard Times, Strong Men','Tempered Resolve','anvil','#f1a879',2000],
  '48':['48','Cosmic GF','The Kitchen at the End of Time','Galactic Breakfast','cosmic','#bc9bf2',2000],
  '124':['124','Pony in a Shell (choyo)','Farmhouse Fun','Shell Cap Lifts','approved','#e8d990',2000],
+ '121':['121','Seventh Magician (choyo)','Blazing Inferno','Eight Ember Ignition Seal','approved','#f4a46b',2000],
+ '122':['122','Sharia Ellie (Sasabiki)','Call of the Haunted','Single Spirit Ritual Seal','approved','#c5d8f5',2000],
  '125':['125','The Detective (choyo)','Investigation','Four Documents','approved','#dbca92',2000],
  '126':['126','Cipher (choyo)','Flaming Lightning Storm','Split Flamebolt Seal','approved','#e78763',2000],
  '127':['127','Titan Ex (choyo)','Recalibration','Clock Rewinds','approved','#91d2dc',2000],
