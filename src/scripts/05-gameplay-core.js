@@ -1231,7 +1231,7 @@ const WHISPER_FIELD_WIDE_EFFECT_TEXT = Object.freeze({
   '34':'Declare an affiliation. During Morale Calculation, inflict 2 Morale Damage for each card you control on the field with that affiliation.',
   '57':'All Coordinator auras you control on the field gain 1 Fate in potency.',
   '77':'When set, declare an affiliation. All cards you control on the field with that affiliation gain 4 Fate.',
-  '130':'When you set or consolidate a card with either declared affiliation, cards you control in this card’s zone gain 1 Fate.',
+  '130':'When you set or consolidate a card with either declared affiliation, all cards you control on the field gain 1 Fate.',
   'bh02':'Each time you activate a draw effect, all cards you control on the field gain 1 Fate.',
   'bh07':'For each Dauntless card adjacent to this card, all cards you control on the field gain 2 Fate.',
   'bh08':'Each time you would negate or suppress an opponent\'s card, all cards you control in this card\'s zone gain 2 Fate.',
@@ -10014,7 +10014,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
     case '14': // Alondra Hopkins: on-set only, not re-activatable
       toast('Alondra\'s effect only fires when she is first set.');
       break;
-    case 'bh01': // Anicka Voyager: move to any open cell, draw 1 (once per turn)
+    case 'bh01': // Anicka Voyager: move to any open cell, gain Fate and a counter (once per turn)
       {
         if(!beginAnickaVoyagerMove(card, z, r, c)) {
           clearEffectActivationInFlight();
@@ -10069,6 +10069,8 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
         const discarded=deck.shift();
         G.players[Number(discarded.owner)].discard.push(discarded);
         discardedName=discarded.name;
+        card.counters.infernoCardsDiscarded=Math.max(0,Number(card.counters.infernoCardsDiscarded)||0)+1;
+        card.counters.infernoLastDiscardedCard=discardedName;
       }
       window.showBlazingInfernoDiscard?.(discardedName,card.iid,opp);
       window.playBraveHorizonsCounterSfx?.(true);

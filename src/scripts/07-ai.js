@@ -5943,7 +5943,7 @@ async function aiRunEffect(card, z, r, c, options = {}) {
       log('p2','AI: Jake discarded '+spent.card.name+' from Zone '+(spent.z+1)+' and gained 4 Fate');
       break;
     }
-    case 'bh01': { // Ani\u010dka Voyager: reposition anywhere and take the optional draw
+    case 'bh01': { // Ani\u010dka Voyager: reposition anywhere and gain Fate and a counter
       if(typeof hasAnickaVoyagerMovedThisTurn !== 'function' || hasAnickaVoyagerMovedThisTurn(card)) break;
       const options = typeof getAnickaVoyagerMoveOptions === 'function' ? getAnickaVoyagerMoveOptions(card, z, r, c) : [];
       if(!options.length) break;
@@ -5954,9 +5954,8 @@ async function aiRunEffect(card, z, r, c, options = {}) {
       });
       const destination = options[0];
       if(typeof beginAnickaVoyagerMove === 'function' && beginAnickaVoyagerMove(card, z, r, c)) {
-        const hadCardToDraw = Array.isArray(G.players?.[cp]?.deck) && G.players[cp].deck.length > 0;
         await resolveAnickaVoyagerMove(destination.z, destination.r, destination.c);
-        log('p2','AI: Ani\u010dka crossed to Zone '+(destination.z+1)+(hadCardToDraw ? ' and drew 1 card' : ''));
+        log('p2','AI: Ani\u010dka crossed to Zone '+(destination.z+1)+' and gained Fate and a counter');
       }
       break;
     }

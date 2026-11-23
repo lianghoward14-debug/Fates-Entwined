@@ -5,13 +5,14 @@ import {createInitialState, reduceCommand, projectStateForPlayer} from '../../sh
 import {command} from './test-helpers.mjs';
 
 // Jimmy's opponent-hand replacement must not invalidate Flower Picking.
-for(const extra of [[],['32']]){
+for(const extra of [[],['bh01'],['32']]){
   const ids=['84','bh18','05',...extra];
   const state=createInitialState({matchId:'jimmy-kvetka',handSize:0,
     cardDefinitions:ids.map(id=>({id,type:id==='05'||id==='32'?'Supporter':'Initiator',fate:3,cost:0})),
     players:[0,1].map(p=>({id:`p${p}`,deckIds:ids}))});
-  for(const player of state.players) assert.equal(player.flowerPickingEligible,extra.length===0);
-  if(!extra.length){
+  const expected=extra[0]!=='32';
+  for(const player of state.players) assert.equal(player.flowerPickingEligible,expected);
+  if(expected){
     const card=state.players[0].hand.find(card=>card.id==='84');
     const result=reduceCommand(state,command(state,'p0',1,'CONSOLIDATE_CARD',{
       cardIid:card.iid,tributeIids:[],destination:{z:0,r:2,c:0}
@@ -23,7 +24,7 @@ for(const extra of [[],['32']]){
   const assignment=setup.split('\n').find(line=>line.includes('G.players[player].flowerPickingEligible='));
   const legacy={G:{players:[{},{}],p1Deck:ids,p2Deck:ids},player:0};
   vm.runInNewContext(assignment,legacy);
-  assert.equal(legacy.G.players[0].flowerPickingEligible,extra.length===0);
+  assert.equal(legacy.G.players[0].flowerPickingEligible,expected);
 }
 
 function fixture(owner, eligibility = true, empty = false, suppressed = false){

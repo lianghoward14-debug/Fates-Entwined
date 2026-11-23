@@ -1543,7 +1543,7 @@ function initGameState() {
   G._pendingSelvaSupportBoost = [0, 0];
   G._selvaSupportBoosts = [null, null];
   for(let player=0;player<2;player++){
-    G.players[player].flowerPickingEligible=!(player===0?G.p1Deck:G.p2Deck).some(c=>['27','32','42','80','86','108','bh01'].includes(String(c?.id || c)));
+    G.players[player].flowerPickingEligible=!(player===0?G.p1Deck:G.p2Deck).some(c=>['27','32','42','80','86','108'].includes(String(c?.id || c)));
     for(let i=0;i<6;i++)drawCard(player,1,{skipOptionalImprovisors:true,openingHand:true});
   }
   avalancheEscapeCards.forEach(function(cards, player){

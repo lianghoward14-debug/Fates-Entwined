@@ -1220,6 +1220,10 @@ function runEffectStack(state, ctx){
         if(deck.length){
           const card=deck.shift();
           state.players[Number(card.owner)].discard.push(card);
+          applyOperation(ctx,{type:'SET_CARD_COUNTER',targetIid:source.card.iid,counterKey:'infernoCardsDiscarded',
+            value:Math.max(0,Number(source.card.counters?.infernoCardsDiscarded)||0)+1,sourceIid:source.card.iid});
+          applyOperation(ctx,{type:'SET_CARD_COUNTER',targetIid:source.card.iid,counterKey:'infernoLastDiscardedCard',
+            value:String(card.name||'Card'),sourceIid:source.card.iid});
           ctx.events.push({type:'CARD_DISCARDED',cardIid:card.iid,cardId:String(card.id||''),
             cardName:String(card.name||'Card'),owner:Number(card.owner),playerIndex:1-frame.controller,
             previousZone:'deck',sourceIid:source.card.iid,sourceController:frame.controller,

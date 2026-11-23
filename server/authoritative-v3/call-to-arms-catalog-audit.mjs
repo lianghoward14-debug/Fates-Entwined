@@ -10,15 +10,8 @@ for(const group of categories){
  assert.equal(new Set(group.cardIds).size,group.cardIds.length,group.id+' duplicate');
  for(const id of group.cardIds)assert(byId.has(id),group.id+' unknown '+id);
 }
-for(const card of cards)assert(categories.some(g=>g.cardIds.includes(card.id)),card.id+' lacks a category');
-const expected={
- '21':['power'],'101':['power'],'103':['draw'],'104':['power','tactics'],
- '105':['draw','tactics'],'106':['power'],'107':['power','tactics'],
- '108':['draw','tactics'],'109':['power'],'110':['deploy'],'111':['position'],
- '112':['power'],'113':['disrupt','tactics'],'114':['disrupt'],'115':['draw','tactics'],
- '116':['deploy','tactics'],'117':['tactics'],'118':['disrupt','draw'],'120':['draw','deploy','tactics'],
- 'bh18':['disrupt']
-};
+for(const card of eligible)assert(categories.some(g=>g.cardIds.includes(card.id)),card.id+' lacks a category');
+const expected={'37':['adaptation','utility'],'120':['utility'],'121':['morale','sabotage']};
 for(const [id,groups] of Object.entries(expected))assert.deepEqual(categories.filter(g=>g.cardIds.includes(id)).map(g=>g.id).sort(),groups.sort(),id);
 assert.equal(byId.get('119').name,'Havano Merchant');
 const localSource=fs.readFileSync(new URL('../../src/scripts/support-company.mjs',import.meta.url),'utf8');

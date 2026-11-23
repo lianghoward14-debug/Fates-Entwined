@@ -7271,7 +7271,9 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
     const second=card.counters?.elementalAffiliationB;
     label='Elemental Mastery';
     value=first && second ? names[first]+' / '+names[second] : first ? names[first]+' / Pending' : 'Not declared';
-    sub='Both affiliations grant +1 Fate to cards you control in this zone';
+    sub=card.whisperLandscapeToken===true || card.counters?.whisperLandscapeToken===true
+      ? 'Both affiliations grant +1 Fate to cards you control on the field'
+      : 'Both affiliations grant +1 Fate to cards you control in this zone';
   } else if(trackerId === '34'){
     label = 'Morale Damage Inflicted';
     value = String(Math.max(0, Math.floor(Number(card.counters?.moraleDamageInflicted ?? card._moraleDamageInflicted) || 0)));
@@ -7308,11 +7310,14 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
     label='The Story Never Ends';
     const remaining=Math.max(0,2-Number(card.counters?.effectUses||0));
     value=remaining+' use'+(remaining===1?'':'s')+' remaining';
-    sub='Activate from this card window to place one counter on any field card.';
+    sub='Activate from this card window to place a counter on a card with a counter ability.';
   } else if(trackerId==='121'){
-    label='Blazing Inferno Counters';
-    value=String(Math.max(0,Number(card.counters?.infernoCounters)||0));
-    sub='Spend one to discard the top card of the opposing deck.';
+    const discarded=Math.max(0,Number(card.counters?.infernoCardsDiscarded)||0);
+    label='Blazing Inferno';
+    value=discarded+' card'+(discarded===1?'':'s')+' discarded';
+    sub=discarded && card.counters?.infernoLastDiscardedCard
+      ? 'Last: '+String(card.counters.infernoLastDiscardedCard)
+      : 'No cards discarded by this effect yet';
   } else if(trackerId==='115'){
     label='Loyalty to Tradition';
     let eligible=card.loyalistEligible;

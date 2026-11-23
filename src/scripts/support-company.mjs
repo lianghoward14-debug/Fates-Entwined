@@ -222,7 +222,13 @@ window.openSupportCompany = function(ability,player,category){
   }
   const game=original.game;
   if(!category){
-    window.showSupportCompanyCategoryWindow({ability,cost:original.available.cost,onSelect:category=>window.openSupportCompany(ability,player,category)});
+    const offeredCategories=original.authority && original.active
+      ? SUPPORT_COMPANY_CATEGORIES.filter(item=>(original.commands || []).some(command=>
+          command?.type==='SUPPORT_COMPANY' && command.payload?.ability===ability
+          && command.payload?.category===item.id))
+      : SUPPORT_COMPANY_CATEGORIES;
+    window.showSupportCompanyCategoryWindow({ability,cost:original.available.cost,categories:offeredCategories,
+      onSelect:category=>window.openSupportCompany(ability,player,category)});
     return;
   }
   // Browsing categories is allowed off-turn; revealing an offer is not.
@@ -231,7 +237,14 @@ window.openSupportCompany = function(ability,player,category){
   if(!categoryInfo)return;
   game._supportCompanyOfferSeed ||= `${Date.now()}:${Math.random()}`;
   const offerSeed=original.state?.matchId || game._supportCompanyOfferSeed;
-  const offerIds=supportCompanyOffers(typeof CARDS!=='undefined'?CARDS:[],ability==='desperate'?`${offerSeed}:desperate`:offerSeed,player,category);
+  // In multiplayer the authority's legal commands are the actual offer.
+  // Recomputing it from the browser catalog can show a card that the server
+  // will reject, even though the artwork and category look valid.
+  const offerIds=original.authority
+    ? (original.commands || []).filter(command=>command?.type==='SUPPORT_COMPANY'
+        && command.payload?.ability===ability && command.payload?.category===category)
+        .map(command=>String(command.payload.cardId))
+    : supportCompanyOffers(typeof CARDS!=='undefined'?CARDS:[],ability==='desperate'?`${offerSeed}:desperate`:offerSeed,player,category);
   const cards=offerIds.map(id=>(typeof CARDS!=='undefined'?CARDS:[]).find(card=>String(card.id)===id)).filter(supportCompanyCardEligible);
   if(!cards.length)return;
   if(typeof playSfx === 'function')playSfx('cardSelect');
