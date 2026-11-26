@@ -965,6 +965,8 @@ function aiPickTributes(mySups, cost, preferredTarget=null) {
     }
     return 0;
   };
+  const tributeFate=entry=>Math.max(0,Number(entry.card.currentFate ?? entry.card.fate) || 0);
+  const zoneLoss=(fate,margin)=>fate + 8*(Math.sign(margin)-Math.sign(margin-fate));
   // Sort by least valuable first (sacrifice cheap supporters from zones we're winning)
   const sorted = [...mySups].sort((a,b)=>{
     if(protectRalph && a.card.id !== b.card.id){
@@ -975,8 +977,7 @@ function aiPickTributes(mySups, cost, preferredTarget=null) {
     if(preserveDiff) return preserveDiff;
     const za = aiCachedZoneScore(a.z, G.aiPlayer) - aiCachedZoneScore(a.z, 1-G.aiPlayer);
     const zb = aiCachedZoneScore(b.z, G.aiPlayer) - aiCachedZoneScore(b.z, 1-G.aiPlayer);
-    // Sacrifice from zones we're winning big, keep supporters in contested zones
-    return zb - za; // higher diff = less needed = sacrifice first
+    return zoneLoss(tributeFate(a),za)-zoneLoss(tributeFate(b),zb) || zb-za;
   });
 
   // Try multiple tribute combinations and pick the one with lowest sacrifice penalty.
@@ -1011,12 +1012,14 @@ function aiPickTributes(mySups, cost, preferredTarget=null) {
     }
     // Score this combination
     let penalty = 0;
+    const fatePaid=[0,0,0];
     for(const t of trimmed){
-      penalty += preservationPenalty(t);
-      if(preferredTarget && t.card.iid === preferredTarget.card.iid) continue;
-      const diff = aiCachedZoneScore(t.z, G.aiPlayer) - aiCachedZoneScore(t.z, 1-G.aiPlayer);
-      if(diff <= 2) penalty += 3;
-      if(diff <= 0) penalty += 2;
+      penalty+=preservationPenalty(t);
+      if(preferredTarget && t.card.iid===preferredTarget.card.iid)continue;
+      fatePaid[t.z]+=tributeFate(t);
+    }
+    for(let z=0;z<fatePaid.length;z++){
+      if(fatePaid[z])penalty+=zoneLoss(fatePaid[z],aiCachedZoneScore(z,G.aiPlayer)-aiCachedZoneScore(z,1-G.aiPlayer));
     }
     if(penalty < bestPenalty){ bestPenalty = penalty; bestTributes = trimmed; }
   }
@@ -4215,6 +4218,7 @@ function aiChooseFelicytaYouthLandscape(inst, cp) {
 async function aiTriggerWhenSet(inst, z, r, c) {
   const finishHiddenPresentation = typeof beginHiddenEffectPresentation === 'function' ? beginHiddenEffectPresentation(inst) : function(){};
   try {
+  if(typeof recordBoleslawExpandedWorldsSet === 'function') recordBoleslawExpandedWorldsSet(inst,z);
   if(!inst || inst.whenSetActivated === true) return;
   if(inst.faceDown && hasAuthoritativeWhenSetEffect(inst)) inst._whenSetActivatedHidden = true;
   const cp = G.currentPlayer;
@@ -5543,6 +5547,10 @@ async function aiTriggerWhenSet(inst, z, r, c) {
       if(typeof refreshStatusEffectsNow === 'function') refreshStatusEffectsNow();
       break;
   }
+  if(hasAutomaticSetActivation && !inst.faceDown && !inst._effectNegatedByReaction
+    && !inst._effectSuppressedByReaction && typeof window.recordSuccessfulWhenSetForBoleslaw==='function'){
+    window.recordSuccessfulWhenSetForBoleslaw(inst);
+  }
   } finally { finishHiddenPresentation(); }
 }
 
@@ -5898,6 +5906,7 @@ async function aiRunEffect(card, z, r, c, options = {}) {
     case '29': { // Dylan Kirby: add 2 Third Great War
       const recoverableTgw = typeof getRecoverableDiscardCards === 'function' ? getRecoverableDiscardCards(cp, c=>c.aff==='third_great_war') : G.players[cp].discard.filter(c=>c.aff==='third_great_war');
       const from=[...G.players[cp].deck.filter(c=>c.aff==='third_great_war'),...recoverableTgw];
+      if(!from.length) return;
       const strat = G._selectedAI?._deckStrategy || '';
       const priorities = aiDeckSearchPriority(strat, 'dylan');
       from.sort((a,b)=>{
@@ -5997,17 +6006,21 @@ async function aiRunEffect(card, z, r, c, options = {}) {
       });
       const chosen = targets.slice(0,2);
       chosen.forEach(function(target, idx){
-        modifyFate(target,3,'permanent');
+        modifyFate(target,4,'permanent');
         if(typeof flashCardEffect === 'function') flashCardEffect(target, 'isaac_beaker', {
             label:'scientific inquiry',
             soundKey:'isaac-ai:' + String(card && (card.iid || card.id) || 'card') + ':' + String(target && (target.iid || target.id) || idx) + ':' + String(G.turn || 0)
           });
       });
-      log('p2', `AI: Isaac Perez increased ${chosen.length} card${chosen.length===1?'':'s'} by +3 Fate`);
+      log('p2', `AI: Isaac Perez increased ${chosen.length} card${chosen.length===1?'':'s'} by +4 Fate`);
       break;
     }
     }
     card.effectUsedInitial = true;
+    if(card.type==='Initiator' && effectId!=='107'
+      && !(typeof hasAuthoritativeWhenSetEffect==='function' && hasAuthoritativeWhenSetEffect(card))
+      && !card._effectNegatedByReaction && !card._effectSuppressedByReaction)
+      window.recordSuccessfulWhenSetForBoleslaw?.(card);
     if(typeof renderBoardActionForPlayer === 'function') renderBoardActionForPlayer(cp, {hand:false, piles:true, blocks:effectNeedsBlocks, topbar:false, effects:false, hover:false});
     else renderGame({board:true, scores:true, piles:true, blocks:true, topbar:true});
   } finally {

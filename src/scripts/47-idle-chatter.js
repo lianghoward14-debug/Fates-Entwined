@@ -6,12 +6,12 @@
       ['Far across the seas, in distant shores, the people of the world look upon our nation as the example to follow.','We are the bastion of democracy. We bear the banners of liberty. We are the defenders of freedom.','We are the hope for millions around the world.'],
       ['The torch may have been lit by the great deeds of our founding fathers... Jefferson, Washington, Adams...','but we are the sons and daughters of democracy, those who bear the torch passed down to us by our fathers, and their fathers father.'],
       ['What separates America from the other nations of the world? It is our trust in hope.','It is our everlasting belief that no matter our circumstances, no matter how grim things might seem,','that the people of this nation will persevere and prosper, always finding light at the end of the tunnel.'],
-      ['We are not America because we are black, white, latino or asian. Nor are we America because we are Christian, muslim, hindi or atheist.','We are America because we believe in Freedom, liberty, and equality -','ideals laid down by our founding fathers, and carried tirelessly through the greatest and darkest days of our history.'],
+      ['We are not America because we are Black, white, Latino or Asian. Nor are we America because we are Christian, Muslim, Hindu or atheist.','We are America because we believe in freedom, liberty, and equality -','ideals laid down by our founding fathers, and carried tirelessly through the greatest and darkest days of our history.'],
       ['Men and women of America, come sit with me once more by the fireplace.','Let us talk not as president to citizen, or leader to follower - but as a brother to a brother, a friend to a friend.']
     ]},
     jeremiah:{name:'Jeremiah Jones',portrait:'pfp/pfp57.png',file:'Jeremiah',ids:new Set(['57']),clips:[
       ['Hidden within the snow dusted peaks of the Alpines, is a secret facility buried in the interior of an entire mountain -','there, the most brilliant minds of this age work tirelessly with the shared goal of protecting humanity against the Anomaly.'],
-      ["I know this world better than anyone else. I've met with politicians, world leaders, businessmen, army generals, scientists, actors, all manner of great people.",'Behind closed doors, In my negotiations, I pull the strings to make ALPINE work.'],
+      ["I know this world better than anyone else. I've met with politicians, world leaders, businessmen, army generals, scientists, actors, all manner of great people.",'Behind closed doors, in my negotiations, I pull the strings to make ALPINE work.'],
       ['The men and women of ALPINE are unparalleled in their ability to solve the greatest scientific problems of this world.','I have no such abilities. But I do have my words, my person, my ability to recognize talent when I see it.'],
       ['ALPINE may be located in the Swiss Alps, but ALPINE is what it is today because of its connections to people around the world.','Even in the wastes of the Taklamakan or the deepest jungles of the Amazon, I know someone who can aid us in our mission.'],
       ["There came a point in my life, when I realized that my wealth was meaningless if I couldn't make a meaningful impact on the world that contributed to humanity.",'I took a gamble, a losing gamble at that, and decided to build a secret research facility deep within the Alpine Mountains.']
@@ -34,13 +34,13 @@
       ['I am a simple man in a complex world.','But I will everything in my power to make any difference I can.','Jorge Alvarez, I will follow you.'],
       ['When my wife died years ago, I thought I would not have the strength to go on.','But thanks to my daughter, I have found that strength.'],
       ['It pains me to leave my daughter behind.','But it is so that no one else in the world will ever have to experience this same dilemna ever again.'],
-      ["Sofia, It's okay to go out and play with your friends,", "but make sure you do your homework first and don't get lost.", "But remember, above else, be sure to come home for dinner on time - i'm making your favorite papayas!"],
+      ["Sofia, it's okay to go out and play with your friends,", "but make sure you do your homework first and don't get lost.", "But remember, above else, be sure to come home for dinner on time - I'm making your favorite papayas!"],
       ['My daughter is the star of my world - it is difficult for me to leave her behind,','for she is the only thing I have left in this world.','Though sometimes I wonder, what am I without her? Is there anything left of me?']
     ]},
     bobby:{name:'Bobby Jones',portrait:'pfp/pfp55.png',file:'Bobby',ids:new Set(['55']),clips:[
       ['Within my cosmic locks, are entire stars and galaxies embedded within.','A fountain of golden stardust, an endless tapestry containing the birth and death of infinite universes.'],
       ['No mortal can gaze upon my form and comprehend it -','the pure divinity of my cosmic figure would rupture the very atoms of your physical existence.'],
-      ['In the Third Reckoning. thousands of eons past, I brought low the cosmic horror Szecicine -','our battle was fought over the course of countless millennia, across the expanse of ten thousand universes.'],
+      ['In the Third Reckoning, thousands of eons past, I brought low the cosmic horror Szecicine -','our battle was fought over the course of countless millennia, across the expanse of ten thousand universes.'],
       ['My domain is that of this universe - I am the ruler of stars, galaxies, and clusters,','the protector and warrior of all creation.','I serve the divine entity Cosmic GF, and my son, Juan Carlos, protects the world of the living.'],
       ["Behold, wretched demon of the Outer Realms, gaze upon my ultimate move!", "Chasm of Singularity, Shattered Dimensional Fracture, Aether's Final Oblivion!!!"]
     ]},
@@ -59,7 +59,7 @@
       ['My son may have fallen years ago, but I still carry his axe besides me, so that his spirit may never be lost.','I know that even in this foreign wilderness, he and his ancestors still watch over me,','guiding me along my final journey.']
     ]},
     phil:{name:'Phil',portrait:'pfp/pfp46.png',file:'Phil',ids:new Set(['46']),clips:[
-      ['It doesn\'t matter if its Moloch, Baal, Satan, Barack Obama, or Mason Russell-','there is no greater evil, no greater malice, no greater depravity in an infinite amount of eons of the universe,','than the 115 IQ rock climbing matcha drinking midwits who work in this financial firm.'],
+      ["It doesn't matter if it's Moloch, Baal, Satan, Barack Obama, or Mason Russell-",'there is no greater evil, no greater malice, no greater depravity in an infinite amount of eons of the universe,','than the 115 IQ rock climbing matcha drinking midwits who work in this financial firm.'],
       ["REAL feudalism hasn't been tried before -",'if you look here in my monarchist manifesto, you would see exactly what I\'m talking about.','Mrs. Stroschneider from high school even thought I made a convincing argument.'],
       ['We should all lament what our universities have become -','putrid farms for corporate advancement, stinking of upper middle class students who used ChatGPT and exaggerated resumes to buy their way in.','What happened to the love of learning?'],
       ['ARE YOU HAPPY? IS THIS WHAT YOU WANTED?','I DARE YOU TO CALL ME A BLACK HOLE ONE MORE TIME,','SEE WHAT HAPPENS, YOU SOCIOPATHIC LITTLE SHUT'],
@@ -97,12 +97,12 @@
       ["People ask me, why do we patrol the wastes of Temecula, fighting zombie hordes?","I then ask them, what's the alternative? Hiding behind a wall like a sitting duck?"],
       ["Just like everyone else, I've lost my parents.","But I've also lost a many good men along the way. And yet we must march on, no?"],
       ["If you're resourceful enough, anything can become useful.",'Here in the wastes, the outside body of cars can be perfectly molded into a set of armor -',"that's what the kids at Great Oak do.",'And look, road signs are everywhere - they make the perfect shield.'],
-      ['Pechanga...Pechanga has fallen. My old home... the parks I used to go to...','the walks I used to take with Daisy...all of it...it is completely overrun now...', 'Those zombies!...we will take it back one day...'],
+      ['Pechanga...Pechanga has fallen. My old home... the parks I used to go to...','the walks I used to take with Daisy... all of it... it is completely overrun now...', 'Those zombies!... we will take it back one day...'],
       ['Brawler Company! Hold up your shields, fasten your weapons.','The students of Great Oak, our home, our comrades, are surrounded on all sides by miles of zombie hordes!','We must liberate them! We must break the siege!','Prepare to charge, show no mercy, and break their lines!']
     ]},
     jimmy:{name:'Jimmy',portrait:'pfp/pfp41.png',file:'Jimmy',ids:new Set(['41','bh18']),clips:[
       ['Within the depths of my unloving heart, burns a blazing fire -','The fire of incel rage!'],
-      ['The establishment is out to get me - They keep sending me government agents to try to turn me,','because they know just how dangerous I can be, but I know the truth!','All of them are foids! All of them pretend to care about me, but its all a psyop!'],
+      ['The establishment is out to get me - They keep sending me government agents to try to turn me,','because they know just how dangerous I can be, but I know the truth!',"All of them are foids! All of them pretend to care about me, but it's all a psyop!"],
       ['These foids would never understand the frighteningly complex inner world that I harbor.','Do they know about HOI4 space marines? NO.','Do they know how to find a sword shrine in Terraria? NO.','They are clueless people, and all they care about is hypergamy!'],
       ['I call upon the powers of incel past, incel present, and incel future to aid me in this defining moment!','May all those who have, do, and ever will feel incelic fury strike down the evil foid in front of me!'],
       ['In the depths of foidal hypergamy, there is an incel shackled to the earth.','He is the first incel, the true incel, and he has been filled with an unspeakable rage.','His wrath, his fury, his unparalleled desire to destroy foids -','his coming will bring true inceldom into this hypergamous world.']
@@ -110,10 +110,10 @@
     santiago:{"name":"Santiago","portrait":"pfp/pfp30.png","file":"Santiago","clips":[["Your defiance is charming - I'm almost tempted to keep you alive.","But I do not take lightly to treason and disobedience.","Throw him overboard."],["I have no pity for who oppose me.","But I do have pity for those who may still be useful."],["Tengo muchos enemigos.","Pero muchos de mis enemigos también tienen sus propios enemigos.","Lo mejor es dejar que se enfrenten entre ellos mientras tanto."],["They don't call me \"El Matador del Mares\" because I kill people.","No, they call me \"El Matador\" because I kill people, and then I kill anyone who may have been allied with them, in one way or another."],["I hold many grudges.","But there is one grudge in particular that I've dedicated the entirety of my life to..."]],ids:new Set(["30"])},
     rozsi:{"name":"Rozsi Szocs","portrait":"pfp/pfp34.png","file":"Rozsi","clips":[["I want Hungarian schoolchildren across the nation, to feel the same joy I felt, when I picked up my first history book as a child."],["We are not true citizens of the country unless we are properly educated on what our nation is, where it came from, and what it could become"],["The future of our country lies with its ability to educate the population.","Already, under my sister and I, we have propelled Hungarian Education as the model to emulate across the world."],["I could not rule this country without my sister.","She knows me well, I know her well.","We cover each other weaknesses, and support each others strengths."],["Every day spent not reading a book, is a day spent as if you are dead."]],ids:new Set(["34"])},
     alexander:{"name":"Alexander the Magnificient","portrait":"pfp/pfp35.png","file":"Alexander","clips":[["That age may be over, of when kings used to fight their own battles - but here I stand, as a testament to that glorious tradition!"],["Athenians!","Macedonians!","Thracians!","Spartans!","Epirots!","Let us show them what it means to be Greek!","Let us show them the meaning of  a Hellenic Age!"],["I am not Alexander the Great.","I am not his cousin, his son, or even his grandson.","I am Alexander the Magnificient, and I will be Alexander the Magnificient untill I die!"],["A golden sun rises behind me.","The men of my nation stands beside me, at the ready.","I hold a bronze shield, and the spear of noble warriors that came before me.","On this day, on this battlefield, you will be defeated!"],["This is a war you cannot win.","We will fight, we will die, we will march to the ends of the world to defeat you!"]],ids:new Set(["35"])},
-    marie:{"name":"Marie L'amboure","portrait":"pfp/pfp36.png","file":"Marie","clips":[["I am certain the Maginot will hold against the Soviet and German advance.","The French people today are unlike their ancestors in previous conflicts - they are fiercer, they are stronger, and most of all, they are ready to prove their point."],["hahaha, Do not bother me the trivialities of my political opponent.","Their voice is so meager, so frail, I cannot hear it over the sound of my own footsteps."],["Make no mistake about it.","Not only will never reach Paris, but even if Paris fell, I am not surrendering the French Nation.","I will not surrender even if all of France is taken, or if even all of her posessions across the sea are taken.","We will never surrender."],["I'm not sure my political opponent is even tall enough to speak to me eye to eye - isn't he like 168cm?","These days, that's a little short!","I better take off my shoes to speak to him, no?","I don't want to be mistaken around children."],["Denigrating your political opponent, insulting them, digging up their old dirt- this has been the way of winning politics for decades now.","To bury your head in the sand and pretend that this isn't true is delusion."]],ids:new Set(["36"])},
+    marie:{"name":"Marie L'amboure","portrait":"pfp/pfp36.png","file":"Marie","clips":[["I am certain the Maginot will hold against the Soviet and German advance.","The French people today are unlike their ancestors in previous conflicts - they are fiercer, they are stronger, and most of all, they are ready to prove their point."],["Hahaha, do not bother me the trivialities of my political opponent.","Their voice is so meager, so frail, I cannot hear it over the sound of my own footsteps."],["Make no mistake about it.","Not only will never reach Paris, but even if Paris fell, I am not surrendering the French Nation.","I will not surrender even if all of France is taken, or if even all of her posessions across the sea are taken.","We will never surrender."],["I'm not sure my political opponent is even tall enough to speak to me eye to eye - isn't he like 168cm?","These days, that's a little short!","I better take off my shoes to speak to him, no?","I don't want to be mistaken around children."],["Denigrating your political opponent, insulting them, digging up their old dirt- this has been the way of winning politics for decades now.","To bury your head in the sand and pretend that this isn't true is delusion."]],ids:new Set(["36"])},
 
-    kvetka:{name:"Květka Svoboda",portrait:"pfp/pfp19.png",ids:new Set(["19","87"]),file:"Kvetka",
-      clips:[["I may be the queen of Czechoslovakia, but I like to think I'm still a young girl at heart,","Picking snow-tipped flowers in the Carpathian mountains."],["If you were to ask me, whether I like being Queen of Czechoslovakia or being a","College student better, It's a pretty obvious decision.","After all, monarchies don't have midterms!"],["My siblings in Poland and Hungary have their own idea of what's the best for economic","Growth in their nations.","But Czechoslovakia has always been a land of winding rivers and picturesque woods -","I'm not going to spoil Bohemia with factories."],["I used to hate the idea of being a politician.","But I realize now, it's not so bad when the entire nation universally adores you."],["My favorite part of the day is the part where I wake up, walk up to my window,","And get thrown out by Slovakian secessionists."]]
+    kvetka:{name:"Květka Svoboda",portrait:"pfp/pfp19.png",ids:new Set(["19"]),file:"Kvetka",
+      clips:[["I may be the queen of Czechoslovakia, but I like to think I'm still a young girl at heart,","Picking snow-tipped flowers in the Carpathian mountains."],["If you were to ask me, whether I like being Queen of Czechoslovakia or being a","college student better, it's a pretty obvious decision.","After all, monarchies don't have midterms!"],["My siblings in Poland and Hungary have their own idea of what's the best for economic","Growth in their nations.","But Czechoslovakia has always been a land of winding rivers and picturesque woods -","I'm not going to spoil Bohemia with factories."],["I used to hate the idea of being a politician.","But I realize now, it's not so bad when the entire nation universally adores you."],["My favorite part of the day is the part where I wake up, walk up to my window,","And get thrown out by Slovakian secessionists."]]
     },
     henry:{name:"Henry Dong",portrait:"pfp/pfp21.png",ids:new Set(["21"]),file:"Henry",
       clips:[["The Comintern of the 20th century collapsed because it was run by incompetent tyrants.","We have learned that lesson.","Power belongs in the hands of the people—and nowhere else."],["We are surrounded on all sides by enemies - the wretched Europeans,","Who seek to destroy our ideals, the Chinese, who are no longer sympathetic to our cause,","And the Americans, who foolishly believe they understand what true freedom is."],["I've tried to negotiate with the leaders of the Free World - but every attempt I made","At diplomacy was met with hostility.","We should have coexisted.","But instead they are afraid of us, and look to squash us at any moment of weakness."],["The oligarchs of this country have poisoned us for far too long.","Let us march upon their strongholds, let us rally our fellow countrymen,","And let us fight a glorious battle, to see to their demise!"],["We are a people borne of hardship.","The vast emptiness of the Siberian Forest - it is representative of our ability to","Persevere no matter how harsh our circumstances.","The people of the wider world fear us - we are the winter, we are the storm,","We are the endless and undying."]]
@@ -160,29 +160,134 @@
     },
     markmenz:{name:'Mark Menz',portrait:'pfp/pfp66.png',file:'MarkMenz',extension:'m4a',ids:new Set(['66']),clips:[
       ['What it do Flight Crew? FTC, Flight Team stand up! Today we got the Golden State Warriors. And their opponents? A bunch of nobodies.'],
-      ["I always feel like somebody's watching meeeee...and I have no privacy who-oa-oa"],
+      ["I always feel like somebody's watching meeeee... and I have no privacy who-oa-oa"],
       ["Speed please I need this. My mom is kind of homeless. I live with my dad. I want to help out Speed. I'm watching the stream. Why you tryin' not to laugh bro? That's disrespectful bro."],
       ["Lebron call ba-a-all out. That's why he's the ki-i-ing wearing nu-u-umber twenty-three."],
       ["I'm going to become the greatest animator of all time. Then everyone will have to respect me. Believe it."]
+    ]},
+    boleslaw:{name:'Boleslaw Kopewicz',portrait:'pfp/pfp86.png',file:'Boleslaw',ids:new Set(['86']),clips:[
+      ["You give me too much credit! I'm no politician or world leader.", "I'm just an average, humble lobbyist, looking to spread the word about the wonders of dairy products."],
+      ["If you need a tall, charming, and handsome man, then look no further.", "I've got a mirror so you can get a better look at him."],
+      ["Look, children, I'm aware that your father is somewhat... absent from the house.", 'But fret not, everything he does is for the benefit of you, of me, of Poland, and to a lesser extent, Zsofia.'],
+      ["Let's not get mistaken here. I'm not your babysitter.", 'If anything, children, you are the ones babysitting me.', "That's right, it is your job to make sure that I am comfortably sitting on the couch, receiving an adequate supply of chips and alcohol.", 'Make sure you get the good stuff from the basement.'],
+      ['No progress ever came from meek men. But strong men often destroy good progress too.', "That's why you always need an impartial bullshitter like me, always willing to shit on both sides of the aisle and eat it too."]
+    ]},
+    kvetkaukulele:{name:'Kv\u011btka Svoboda (Ukulele)',portrait:'pfp/pfp87.png',file:'KvetkaUkulele',ids:new Set(['87']),clips:[
+      ['My bestest friends in order. Number one: Felicyta. Number two: my ukulele. Number three: everyone else.'],
+      ["I'm perfectly aware that my singing bothers you.", "But trust in the power of the mere exposure effect: you'll come around eventually."],
+      ["Many people go up to me and ask, 'What's the inspiration for your music?'", "And I tell them, 'Well, it's definitely not my father, my little brother, or Wodny Potok!'"],
+      ["I know I'm not the greatest ukulele player. Or the best singer. Or the best music writer.", 'But I know that at least I sing with a passion: the passion of my hatred for politicians.'],
+      ["I have no intentions to become a famous musician.", "Playing the ukulele, singing, it's just a passionate pastime of mine...", "Wait, what do you mean, 'Thank God'?" ]
+    ]},
+    wojciech:{name:'Wojciech',portrait:'pfp/pfp81.png',file:'Wojciech',ids:new Set(['81']),clips:[
+      ['When I was still young, I used to be a real city slicker, going around from bar to bar, drinking, singing, picking up women.','Now I am too old for all that.'],
+      ['How much would it take to convince you to wrestle a bear?','Apparently for me, it was a pack of gum and a bottle of soda.'],
+      ['It is true that I was once a five star general.','But honestly, it was all just paperwork and politics.','Often, I had wished I was just a regular soldier again.'],
+      ['Listen up! The key to a good pierogi is in the dough and the broth.','It is not always about the meat, contrary to what people might think.'],
+      ['You could say my life used to be exciting, traveling around the world, meeting people from all walks of life.','But never underestimate a warm hearth, a quaint river, and a good meal.']
+    ]},
+    youngrozsi:{name:'Rozsi Szocs (Youth)',portrait:'pfp/pfp88.png',file:'RozsiYouth',ids:new Set(['88']),clips:[
+      ['And so Matthias I rode forth, shining sword in his hand, and the Black Army followed, plunging their gallant spears into the ranks of the Ottoman host.'],
+      ['Do not let my siblings disturb me! I need peace and quiet to digest the glorious deeds of my forefathers.','I must know how Hungary stood tall during the Siege of Belgrade.'],
+      ['This sword was passed down to me by my forefathers, and thus I was bestowed with a divine purpose: to restore the greatness of Hungary!'],
+      ['Zsofia? No, no, no, do not speak to me about the devil. She is wicked. She is evil.','All she cares about is her face and her hair and her makeup. She is super shallow!','She would not understand the complexity of the textbooks and novels I digest.'],
+      ['You see that grove of trees in the distance? Behind them lies a host of Mongol horsemen, itching to conquer Wodny Potok for themselves.','But fear not. With my legendary sword, I will drive them back and claim victory on this day!']
+    ]},
+    youngzsofia:{name:'Zsofia Szocs (Youth)',portrait:'pfp/pfp89.png',file:'YoungZsofia',ids:new Set(['89']),clips:[
+      ['Dad, next time you go out into Warsaw, do you think you can buy me these snow boots?','I like the little kitty on the heels.'],
+      ["Kvetka, help me convince Rozsi that his dressing style is ridiculous and that it's making me annoyed!", 'That orange does not go well with the gray...'],
+      ["Sometimes I just want Rozsi to not exist. He's always up in my business!", "Do you think you can make that happen? He's such an annoying little brother!"],
+      ["I can't wait to get out of Wodny Potok and one day move to Warsaw or Krakow!", "It's so boring here. The only people I can talk to are my siblings minus Rozsi, and old Mr. Kowalski the lumberjack!"],
+      ["Wojciech always makes the most delicious food. I really like his pancakes and pierogi.", "I just wish he would give me some of Rozsi's food so he has less and I have more."]
+    ]},
+    wojciechfisherman:{name:'Wojciech (Fisherman)',portrait:'pfp/pfp90.png',file:'WojciechFisherman',ids:new Set(['90']),clips:[
+      ['Patience is the key to fishing. Become the wind, become the river, become the fish.','That is, up until you stomp on its head after catching it, of course.'],
+      ['When I was stranded in Guam in 1998 after a furious typhoon, I had to fish to survive. Many of my comrades did not make it.','I had to use their livers as bait. Do not worry, they only haunt me in my dreams now.'],
+      ['When I am fishing by this quaint Polish river, I feel the hours pass on by like nothing.','Either that, or it is the dementia hitting early.'],
+      ["The largest fish I ever caught? An eight-foot-long catfish from the Polish River.", "In the ocean? Let's just say I cannot disclose that, or else I'll get arrested by certain agencies... Hahaha!"],
+      ['The best baits are the ones squirming about, still kicking with the last breaths of their life.','Nothing like sacrificing a life to end another one. I would know that well, as a former deployed marine.']
+    ]},
+    sebastyen:{name:'Sebastyen Janowicz',portrait:'pfp/pfp83.png',file:'Sebastyen',ids:new Set(['83']),clips:[
+      ['Poland, the Czech Republic, Slovakia, and Hungary: we stand together as Visegrad, the defenders of Europe.'],
+      ['In the political world, your connections are the key to success.','A simple dinner party goes a long way.'],
+      ['The modern political systems are rotten and corrupt.','Uneducated voters take to the polls, making decisions they hardly know anything about.','Sometimes, a strong leader is what a country needs.'],
+      ['Policy is not the method of electoral victory, cultivating a particular character is.','You must ask yourself, who would the people want?'],
+      ['A country must be self sufficient even in desperate times.','Trade is still good, so long as we do not sell our country out to foreign interests for the sake of it.']
+    ]},
+    youngkvetka:{name:'Kv\u011btka Svoboda (Youth)',portrait:'pfp/pfp84.png',file:'YoungKvetka',ids:new Set(['84']),clips:[
+      ['One of these days, I will climb to the highest peak on the Carpathians, and become queen of this world!'],
+      ['Hmm, if I go into the forest, what should I bring back for my siblings?','Felicyta likes flowers, Zsofia likes feathers, and Rozsi likes... sticks?'],
+      ['On a snowy winter day, that is a sign to go OUTSIDE, not to stay indoors and read boring books!'],
+      ['I swear I saw an evil snowman outside the window last night!','It had a tattered black hat, a creepy smile, and really, really long sticks shaped like claws!'],
+      ["Guys! We have to retrieve Wojciech's super secret pierogi recipe from the forest!", "He won't be able to cook us his delicious pierogi for dinner if we don't find it!", "Wait, what do you mean it's just a trick for us to stop bothering Dad?"]
     ]},
     youngfelicyta:{name:'Felicyta Janowicz (Youth)',portrait:'pfp/pfp82.png',file:'YoungFelicyta',ids:new Set(['82']),clips:[
       ['Why are there no penguins in the Carpathians? I would like to have a penguin as a pet.'],
       ['The snow is falling, winter is here, and now I want to build a handsome snowman!'],
       ['I heard there are many pretty flowers in the forests... I want to find a pretty one and draw it one day.'],
-      ['Its sooo cold this morning! Because its so cold, does this mean I can have another hot chocolate with extra sugar???']
+      ["It's sooo cold this morning! Because it's so cold, does this mean I can have another hot chocolate with extra sugar?"],
+      ["Hmm, I don't know if I want to snowball fight with Zsofia.", 'She is very mean and likes to throw them very hard at my face.']
     ]},
+    felicytakvetka:{
+      name:'Felicyta and Květka', portrait:'pfp/pfp1.png', file:'FelicytaKvetka',
+      ids:new Set(['01','85','100','bh11','19']),
+      requiresBoth:['19',['01','85','100','bh11']],
+      clips:[
+        ['Felicyta and Květka talk together.'],
+        ['Felicyta and Květka talk together.'],
+        ['Felicyta and Květka talk together.'],
+        ['Felicyta and Květka talk together.'],
+        ['Felicyta and Květka talk together.']
+      ]
+    },
     felicyta:{
       name:'Felicyta Janowicz', portrait:'pfp/pfp1.png', ids:new Set(['01', '85', '100', 'bh11']), file:'Felicyta',
       clips:[
         ["I've made my decision.", 'I will not deploy troops in the Polish heartland.', 'I will not force my soldiers to fight.', 'I will not subject my people to the horrors of war.'],
-        ['A thousand year of history rests upon my shoulders.', 'But the only thing that matters are the people who live in this country right now.'],
-        ['Their gaze was freezing iron, their rage the smothering darkness.', 'The marks on their chest ...recited the screams of their cruel ends, carved by the murderous implements of war.'],
+        ['A thousand years of history rests upon my shoulders.', 'But the only thing that matters are the people who live in this country right now.'],
+        ['Their gaze was freezing iron, their rage the smothering darkness.', 'The marks on their chest... recited the screams of their cruel ends, carved by the murderous implements of war.'],
         ['There is no nation without its people.', 'Cities can be rebuilt, farms replowed.', "But memories, those of one's first love... the embrace of a tender mother... and the breeze on a cool Summer Day... those are lost forever."],
-        ['World tension is at a brink.', 'Are we not capable of coming to discourse? To compromise?', 'Even my own sibling, the Hungarian queen, refuse to back down...']
+        ['World tension is at a brink.', 'Are we not capable of coming to discourse? To compromise?', 'Even my own sibling, the Hungarian queen, refuses to back down...']
       ]
     }
   });
-  const clipUrl = (character, index) => 'assets/audio/chatter/' + character.file + (index + 1) + '.' + (character.extension || 'mp3') + (character.file === 'Lina' && (index === 3 || index === 4) ? '?v=20261103-new-lina' + (index + 1) : character.file === 'YoungFelicyta' && index === 3 ? '?v=20261123-new-youth-line-4' : '');
+  const clipUrl = (character, index) => 'assets/audio/chatter/' + character.file + (index + 1) + '.' + (character.extension || 'mp3') + (
+    character.file === 'Wojciech' ? '?v=20261126-wojciech-' + (index + 1)
+    : character.file === 'WojciechFisherman' ? '?v=20261126-fisherman-' + (index + 1)
+    : character.file === 'Lina' && (index === 3 || index === 4) ? '?v=20261103-new-lina' + (index + 1)
+    : character.file === 'YoungFelicyta' && index === 3 ? '?v=20261123-new-youth-line-4' : '');
+  const clipLoudness = new Map();
+  let boleslawLoudness = null;
+  async function measureChatterLoudness(url){
+    if(!clipLoudness.has(url)) clipLoudness.set(url,(async function(){
+      const ctx=getAudioCtx();
+      const response=await fetch(url);
+      if(!response.ok) throw new Error('Chatter audio unavailable');
+      const decoded=await ctx.decodeAudioData(await response.arrayBuffer());
+      const samples=decoded.getChannelData(0), step=32;
+      const block=Math.max(1,Math.floor(decoded.sampleRate*.12/step));
+      const levels=[];
+      for(let start=0;start<samples.length;start+=block*step){
+        let sum=0,count=0;
+        for(let j=start;j<Math.min(samples.length,start+block*step);j+=step){sum+=samples[j]*samples[j];count++;}
+        const rms=Math.sqrt(sum/Math.max(1,count));
+        if(rms>.008) levels.push(rms);
+      }
+      if(!levels.length) return 0;
+      levels.sort((a,b)=>a-b);
+      return levels[Math.floor(levels.length*.65)];
+    })().catch(()=>0));
+    return clipLoudness.get(url);
+  }
+  function boleslawReferenceLoudness(){
+    if(!boleslawLoudness) boleslawLoudness=Promise.all(
+      [1,2,3,4,5].map(i=>measureChatterLoudness('assets/audio/chatter/Boleslaw'+i+'.mp3'))
+    ).then(levels=>{
+      const valid=levels.filter(level=>level>0).sort((a,b)=>a-b);
+      return valid.length ? valid[Math.floor(valid.length/2)] : 0;
+    });
+    return boleslawLoudness;
+  }
   let used = new Set(), failed = new Set(), current = null, panel = null;
   let eligibleNow = [];
   const MIN_CHATTER_GAP_MS = 30000;
@@ -205,6 +310,7 @@
       const old = current;
       current = null;
       old.audio.pause();
+      old.cleanupAudio?.();
       old.audio.removeAttribute('src');
       old.audio.load();
       nextAt = Math.max(nextAt, Date.now() + (old.multiplayer ? MULTIPLAYER_CHATTER_GAP_MS : MIN_CHATTER_GAP_MS));
@@ -242,7 +348,10 @@
     const player = local ? local.playerIndex : (typeof getPerspectivePlayerIndex === 'function' ? getPerspectivePlayerIndex() : 0);
     const cards = state?.board?.flat(3) || [];
     const eligibleCharacters = Object.entries(characters).filter(([, character]) =>
-      cards.some(c => c && !c.faceDown && character.ids.has(String(c.id)))
+      character.requiresBoth
+        ? character.requiresBoth.every(group => cards.some(c => c && !c.faceDown
+          && (Array.isArray(group) ? group.includes(String(c.id)) : group === String(c.id))))
+        : cards.some(c => c && !c.faceDown && character.ids.has(String(c.id)))
     ).map(([key]) => key);
     const now = Date.now();
     // Only major presentations and voices restart the quiet interval.
@@ -253,7 +362,7 @@
       || g?.consolidating || (report?.active && report.consolidationActive)
       || document.body.classList.contains('cinematic-lock')
       || !!document.querySelector('.cc-overlay-v2, .effect-activation-cinematic, .morale-cycle-resolution-reveal, .consolidation-cinematic-overlay');
-    const audio = typeof fateAudioReport === 'function' ? fateAudioReport() : {chatterVolume:0.8, masterVolume:1};
+    const audio = typeof fateAudioReport === 'function' ? fateAudioReport() : {chatterVolume:1, masterVolume:1};
     return {
       matchId:local?.state.matchId || (report?.active ? report.matchId : ''),
       multiplayer:!!(report?.active && report.matchId && !local),
@@ -268,7 +377,7 @@
         && (state.phase || 'main') === 'main' && !state.outcome && !g?._phase7Outcome
         && eligibleCharacters.length > 0 && !busy),
       eligibleCharacters,
-      volume:Math.min(0.7, Math.max(0, (audio.chatterVolume ?? audio.voiceVolume ?? 0.8) * audio.masterVolume))
+      volume:Math.min(1, Math.max(0, (audio.chatterVolume ?? audio.voiceVolume ?? 1) * audio.masterVolume))
     };
   }
   function ensurePanel(){
@@ -283,10 +392,22 @@
     ensurePanel();
     const character = characters[choice.characterKey];
     const audio = new Audio(clipUrl(character, choice.index));
-    window.applyCardVoiceGain?.(audio, [...character.ids][0]);
     const run = {audio, key:choice.key, multiplayer:snapshot().multiplayer, started:false, requestedAt:Date.now()};
-    current = run; audio.volume = Math.min(1, volume * (character.file === 'Marie' ? 1.4 : 1));
+    current = run; audio.volume = Math.min(1, volume);
     audio.muted = volume <= 0;
+    try{
+      const ctx=getAudioCtx(),source=ctx.createMediaElementSource(audio),gain=ctx.createGain();
+      const limiter=ctx.createDynamicsCompressor();
+      limiter.threshold.value=-7;limiter.knee.value=5;limiter.ratio.value=10;
+      limiter.attack.value=.004;limiter.release.value=.16;
+      source.connect(gain);gain.connect(limiter);limiter.connect(ctx.destination);
+      run.cleanupAudio=()=>{source.disconnect();gain.disconnect();limiter.disconnect();};
+      Promise.all([measureChatterLoudness(clipUrl(character,choice.index)),boleslawReferenceLoudness()])
+        .then(([level,reference])=>{
+          if(current!==run || !level || !reference) return;
+          gain.gain.setTargetAtTime(Math.max(.4,Math.min(2.8,reference/level)),ctx.currentTime,.08);
+        }).catch(()=>{});
+    }catch(e){window.applyCardVoiceGain?.(audio,[...character.ids][0]);}
     function fail(error){
       if(current !== run) return;
       // Autoplay denial is retryable after user input; corrupt/missing clips are skipped.
@@ -329,7 +450,7 @@
     if(s.majorPresentation) activity();
     if(s.interrupt || s.inactive){stop(); return;}
     if(current){
-      current.audio.volume = Math.min(1, s.volume * (characters[current.key.split(':')[0]]?.file === 'Marie' ? 1.4 : 1));
+      current.audio.volume = Math.min(1, s.volume);
       current.audio.muted = s.volume <= 0;
       if(now - current.requestedAt > 120000 || (!current.started && now - current.requestedAt > 10000)) stop();
       return;

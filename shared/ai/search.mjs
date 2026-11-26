@@ -24,7 +24,7 @@ export function diverseCommands(commands, limit) {
     }
     const key = [command.type,p.cardIid || p.sourceIid || p.reactionIid || p.cardId || '',
       p.choice || p.cancel || '',p.selectedIid || p.targetIid || '',
-      [...(p.selectedIids || [])].sort().join(',')].join(':');
+      (p.selectedIids || p.discardedIids || []).join(',')].join(':');
     if (!buckets.has(key)) buckets.set(key, []);
     buckets.get(key).push(command);
   }

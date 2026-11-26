@@ -589,6 +589,7 @@ function playSebastianFishSfx(){
   }catch(e){return false;}
 }
 function playBraveHorizonsCounterSfx(spend=false){
+  if(!spend) return playCounterAppearSfx();
   if(document.hidden || _masterVol<=0 || _sfxVol<=0)return false;
   try{
     const ctx=getAudioCtx(),out=ctx.createGain(),now=ctx.currentTime;
@@ -610,26 +611,37 @@ function playBraveHorizonsCounterSfx(spend=false){
 }
 window.playBraveHorizonsCounterSfx=playBraveHorizonsCounterSfx;
 function playEmeraldStoryCounterSfx(){
+  return playCounterAppearSfx();
+}
+window.playEmeraldStoryCounterSfx=playEmeraldStoryCounterSfx;
+function playCounterAppearSfx(){
   if(document.hidden || _masterVol<=0 || _sfxVol<=0)return false;
   try{
     const ctx=getAudioCtx(),out=ctx.createGain(),now=ctx.currentTime;
-    out.gain.value=_masterVol*_sfxVol*.45;
+    out.gain.value=_masterVol*_sfxVol*.88;
     out.connect(getSfxBus(ctx).input);
-    [523.25,783.99,1174.66].forEach((frequency,index)=>{
+    // A crisp metallic impact followed by an upward two-note sparkle.
+    const buffer=ctx.createBuffer(1,Math.ceil(ctx.sampleRate*.09),ctx.sampleRate);
+    const data=buffer.getChannelData(0);
+    for(let i=0;i<data.length;i++) data[i]=(Math.random()*2-1)*Math.pow(1-i/data.length,4)*.5;
+    const strike=ctx.createBufferSource(),filter=ctx.createBiquadFilter();
+    strike.buffer=buffer;filter.type='highpass';filter.frequency.value=1250;
+    strike.connect(filter).connect(out);strike.start(now);
+    [660,990,1320].forEach((frequency,index)=>{
       const at=now+index*.055,osc=ctx.createOscillator(),gain=ctx.createGain();
       osc.type=index===0?'triangle':'sine';
-      osc.frequency.setValueAtTime(frequency*.88,at);
-      osc.frequency.exponentialRampToValueAtTime(frequency,at+.095);
+      osc.frequency.setValueAtTime(frequency*.76,at);
+      osc.frequency.exponentialRampToValueAtTime(frequency,at+.11);
       gain.gain.setValueAtTime(.0001,at);
-      gain.gain.exponentialRampToValueAtTime(index===0?.10:.075,at+.012);
-      gain.gain.exponentialRampToValueAtTime(.0001,at+.3);
-      osc.connect(gain).connect(out);osc.start(at);osc.stop(at+.31);
+      gain.gain.exponentialRampToValueAtTime(index===0?.21:.15,at+.008);
+      gain.gain.exponentialRampToValueAtTime(.0001,at+.27);
+      osc.connect(gain).connect(out);osc.start(at);osc.stop(at+.29);
     });
-    setTimeout(()=>out.disconnect(),650);
+    setTimeout(()=>out.disconnect(),700);
     return true;
   }catch(e){return false;}
 }
-window.playEmeraldStoryCounterSfx=playEmeraldStoryCounterSfx;
+window.playCounterAppearSfx=playCounterAppearSfx;
 function playElementalConvergenceSfx(){
   if(_masterVol<=0 || _sfxVol<=0)return false;
   try{
@@ -677,11 +689,52 @@ function playCardEffectFlashSfx(kind, options) {
   if(cleanKind === 'military_blockade') return !!window.FateApprovedActivationSfx?.play('military-blockade');
   if(cleanKind === 'military_blockade_release') return !!window.FateApprovedActivationSfx?.play('military-blockade-release');
   if(cleanKind === 'sebastian_fish') return playSebastianFishSfx();
+  if(cleanKind === 'santiago_bloody_knife') return playSantiagoKnifeSfx();
   window._fateCardFlashPitchStep = Math.max(0, Number(opts.pitchStep) || 0);
   const effectiveVol = typeof _sfxVol === 'number' ? _sfxVol : 1;
   return playFateOverlayFamilySfx(family, cleanKind, effectiveVol, opts.pitchStep);
 }
 window.playCardEffectFlashSfx = playCardEffectFlashSfx;
+
+function playSantiagoKnifeSfx(){
+  if(_masterVol<=0 || _sfxVol<=0) return false;
+  try{
+    const ctx=getAudioCtx(),now=ctx.currentTime,out=ctx.createGain();
+    out.gain.value=_masterVol*_sfxVol*.72;
+    out.connect(getSfxBus(ctx).input);
+    // A hard fracture transient, low impact, then a short metallic victory ring.
+    const crack=ctx.createBufferSource(),filter=ctx.createBiquadFilter(),crackGain=ctx.createGain();
+    crack.buffer=getCachedSfxNoiseBuffer(ctx,.18,2.2,.12,'santiago-medal-crack');
+    filter.type='bandpass';filter.Q.value=.75;
+    filter.frequency.setValueAtTime(3200,now);
+    filter.frequency.exponentialRampToValueAtTime(750,now+.13);
+    crackGain.gain.setValueAtTime(.0001,now);
+    crackGain.gain.linearRampToValueAtTime(.52,now+.008);
+    crackGain.gain.exponentialRampToValueAtTime(.0001,now+.16);
+    crack.connect(filter).connect(crackGain).connect(out);
+    crack.start(now);crack.stop(now+.18);
+    const thump=ctx.createOscillator(),thumpGain=ctx.createGain();
+    thump.type='sine';
+    thump.frequency.setValueAtTime(190,now+.015);
+    thump.frequency.exponentialRampToValueAtTime(58,now+.24);
+    thumpGain.gain.setValueAtTime(.0001,now+.015);
+    thumpGain.gain.linearRampToValueAtTime(.32,now+.032);
+    thumpGain.gain.exponentialRampToValueAtTime(.0001,now+.25);
+    thump.connect(thumpGain).connect(out);thump.start(now+.015);thump.stop(now+.26);
+    [760,1140].forEach(function(pitch,index){
+      const metal=ctx.createOscillator(),gain=ctx.createGain(),start=now+.075+index*.014;
+      metal.type='triangle';
+      metal.frequency.setValueAtTime(pitch,start);
+      metal.frequency.exponentialRampToValueAtTime(pitch*.64,start+.33);
+      gain.gain.setValueAtTime(.0001,start);
+      gain.gain.linearRampToValueAtTime(index ? .065 : .11,start+.012);
+      gain.gain.exponentialRampToValueAtTime(.0001,start+.35);
+      metal.connect(gain).connect(out);metal.start(start);metal.stop(start+.36);
+    });
+    setTimeout(()=>out.disconnect(),800);
+    return true;
+  }catch(e){return false;}
+}
 
 function playWhisperTokenTone(effectiveVol) {
   try {
@@ -2463,7 +2516,7 @@ const AVAILABLE_CARD_SOUND_FILES = new Set([
 const DEFAULT_AUDIO_SETTINGS = {
   music: 0.20,
   voice: 0.8,
-  chatter: 0.8,
+  chatter: 0.4,
   sfx: 0.8,
   master: 1.0,
   menu: 1.0
@@ -2760,7 +2813,7 @@ window.transitionGameLandscape = transitionGameLandscape;
 // Quiet cinematic recordings need extra gain before playback. Keep voice/master
 // volume on the audio element and limit peaks without using the SFX/reverb bus.
 function applyCardVoiceGain(audio, cardId) {
-  const gainLevel = ({'17':2.5,'124':1.8,'127':2.2})[String(cardId)];
+  const gainLevel = ({'17':2.5,'83':2.2,'124':1.8,'127':2.2})[String(cardId)];
   if(!gainLevel) return;
   try {
     const ctx = getAudioCtx();

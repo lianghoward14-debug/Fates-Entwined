@@ -9,10 +9,12 @@ const definitions=require('../fate-card-catalog').getCardCatalog().cards;
 function fixture(id){
   const s=createInitialState({matchId:'effect-audit',seed:'audit',cardDefinitions:definitions,
     gameSettings:{healthPressureSeals:true,pressureCardReworks:true},
-    players:[{id:'a',deckIds:[id,'28','05','29','48','27','60']},{id:'b',deckIds:['28','09']}]});
+    players:[{id:'a',deckIds:[id,id==='120'?'121':'28','05','29','48','27','60']},{id:'b',deckIds:['28','09']}]});
   for(const p of s.players)p.hand.push(...p.deck.splice(0));
   const put=(p,id,z,r,c)=>{const i=s.players[p].hand.findIndex(c=>c.id===id);const card=s.players[p].hand.splice(i,1)[0];s.board[z][r][c]=card;return card;};
-  const source=put(0,id,0,2,0);put(0,'28',0,2,1);put(1,'28',0,1,0);
+  const source=put(0,id,0,2,0);put(0,id==='120'?'121':'28',0,2,1);
+  if(id==='36')source.counters.deterranceCounters=1;
+  if(id==='121')source.counters.infernoCounters=1;put(1,'28',0,1,0);
   s.players[0].deck.push(...s.players[0].hand.splice(0));s.phase='main';s.pendingPrompt=null;s.turn=8;
   return {s,source};
 }

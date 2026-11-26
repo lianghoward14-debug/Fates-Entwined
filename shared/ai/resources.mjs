@@ -1,5 +1,5 @@
 import {boardEntries,controllerOf,rowOwner} from '../engine/selectors.mjs';
-import {canUseAsConsolidationTribute,effectiveConsolidationCost} from '../engine/modifiers.mjs';
+import {canUseAsConsolidationTribute,effectiveConsolidationCost,isEffectSourceSuppressed,runtimeRuleId} from '../engine/modifiers.mjs';
 import {cardRule} from '../engine/cards/registry.mjs';
 
 // A discounted estimate of usable access, not a promise that a consolidation
@@ -42,10 +42,11 @@ export function resourcePotential(state,player){
     committed+=Math.min(route.cost,uncommitted);
   }
   let interaction=0;
-  for(const {card} of entries){
-    if(card.faceDown || card.statuses?.includes('EFFECTS_SUPPRESSED'))continue;
-    const rule=cardRule(card.id,state);
-    if(rule?.reactionKind){
+  for(const entry of entries){
+    const {card}=entry;
+    if(card.faceDown)continue;
+    const rule=cardRule(runtimeRuleId(card),state);
+    if(rule?.reactionKind && !isEffectSourceSuppressed(state,entry)){
       const remaining=Math.max(0,Number(rule.maxUses ?? 1)-Number(card.counters?.reactionUses || 0));
       interaction+=Math.min(3,remaining)*2;
     }

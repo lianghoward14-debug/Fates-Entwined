@@ -9,6 +9,15 @@ import {
 } from '../../shared/engine/index.mjs';
 import {cloneSerializable, stableStringify} from '../../shared/engine/serialization.mjs';
 
+function envoyChaosTurnMilliseconds(state, rule){
+  const min=Math.round(Number(rule.minMilliseconds) || 20000);
+  const max=Math.round(Number(rule.maxMilliseconds) || 120000);
+  const key=`${state.matchId}:${state.turn}:${state.activePlayer}:envoy-chaos`;
+  let hash=2166136261;
+  for(const char of key){ hash=Math.imul(hash ^ char.charCodeAt(0),16777619) >>> 0; }
+  return min + hash % (Math.floor((max-min)/1000)+1)*1000;
+}
+
 export function privateActionCardsForLegalCommands(state, playerIndex, legalCommands){
   const player = state?.players?.[Number(playerIndex)];
   if(!player) return [];
@@ -145,12 +154,12 @@ export class AuthoritativeRoomActor {
     if(!player) throw new Error('active turn owner is invalid');
     const activeLandscapeRule = landscapeRule(this.state.landscapeId);
     const timeoutMs = activeLandscapeRule?.kind === 'SERVER_TURN_TIMER'
-      ? Number(activeLandscapeRule.milliseconds)
+      ? envoyChaosTurnMilliseconds(this.state,activeLandscapeRule)
       : Math.round(Number(this.state.turnTimerSeconds) || 180) * 1000;
     return {
       playerId:player.id,
       turnSignature:`${this.state.matchId}:${this.state.turn}:${this.state.activePlayer}`,
-      timeoutMs:Math.max(30000, Math.min(600000, timeoutMs)),
+      timeoutMs:Math.max(20000, Math.min(600000, timeoutMs)),
       command:{
         commandId:`server-turn-timeout:${this.state.turn}:${this.state.activePlayer}`,
         matchId:this.state.matchId,

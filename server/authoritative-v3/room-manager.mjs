@@ -181,7 +181,10 @@ export class AuthorityV3RoomManager {
   }
 
   createMatch(input = {}){
-    this.pruneArchivedMatches();
+    // Retention is maintenance. If its checkpoint is temporarily blocked,
+    // matchmaking must still be allowed to create a new room.
+    try{ this.pruneArchivedMatches(); }
+    catch(error){ console.error('authoritative v3 match retention failed:', error); }
     const matchId = validateMatchId(input.matchId);
     if(this.store.hasMatch(matchId)) throw new Error('matchId already exists');
     const requestedPlayers = input.players || [];

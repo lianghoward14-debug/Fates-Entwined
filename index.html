@@ -12,7 +12,7 @@
 <link rel="icon" href="blank.png">
   <link rel="stylesheet" href="src/styles/game.css?v=2026083002">
 <link rel="stylesheet" href="src/styles/99-ui-final.css?v=20261024-booster4b">
-<link rel="stylesheet" href="src/styles/zz-codex-last.css?v=20261123-ellie-spirit-pulse">
+<link rel="stylesheet" href="src/styles/zz-codex-last.css?v=20261123-social-plus-alignment">
 <link rel="stylesheet" href="src/styles/profile-view-v2.css?v=2026092901">
 <link rel="stylesheet" href="src/styles/ledger-archive.css?v=20261014-oligarch-opening">
 <link rel="stylesheet" href="src/styles/profile-picker-performance.css?v=1788280003">
@@ -23,7 +23,7 @@
 <link rel="stylesheet" href="src/styles/button-line-cleanup.css?v=1784359003">
 <link rel="stylesheet" href="src/styles/endgame.css?v=20260912-rank-panel-fit">
 <link rel="stylesheet" href="src/styles/challenger-war-event.css?v=20260918-portrait-safe-color">
-<link rel="stylesheet" href="src/styles/challenger-war-event-final.css?v=20260929-final-map-zone-opacity">
+<link rel="stylesheet" href="src/styles/challenger-war-event-final.css?v=20261123-result-star-breakdown">
 <!-- The match shell is intentionally loaded last. It is a reversible, single
      authority layer; fateMatchUI=0 restores the retained legacy match UI. -->
 <link rel="stylesheet" href="src/styles/zzzzzzzzzzzzzzzzzzzzzzz-match-ui-svg-v20.css?v=20261007-twilight-recovery">
@@ -46,7 +46,7 @@
 <link rel="stylesheet" href="src/styles/card-info-affiliation.css?v=20261011-affiliation-outline-text">
 <link rel="stylesheet" href="src/styles/declaration-picker-designs.css?v=20261017-no-grenadier-arrows">
 <link rel="stylesheet" href="src/styles/approved-berkeley-selva.css?v=20261017-final">
-<link rel="stylesheet" href="src/styles/affiliation-banner-match.css?v=20261123-nytress-choice-label">
+<link rel="stylesheet" href="src/styles/affiliation-banner-match.css?v=20261123-nytress-choice-spacing">
 <link rel="stylesheet" href="src/styles/santiago-payment.css?v=20261023">
 <link rel="stylesheet" href="src/styles/mobile-controls.css?v=20261031-mobile4">
 </head>
@@ -642,18 +642,18 @@
 <!-- TOAST -->
 <div id="toast"></div>
 
-  <script src="src/scripts/00-structural-helpers.js?v=20261122-voyager-counters"></script>
-<script src="src/scripts/01-data-and-state.js?v=20261123-emerald-counter-targets"></script>
+  <script src="src/scripts/00-structural-helpers.js?v=20261125-santiago"></script>
+<script src="src/scripts/01-data-and-state.js?v=20261126-manual-counter-actions"></script>
   <script src="src/scripts/01a-pressure-card-reworks.js?v=2026083002"></script>
 <script src="src/scripts/02-screen-and-deckbuilder.js?v=20261029-video-restore"></script>
-<script src="src/scripts/02-effect-rule-metadata.js?v=2026083102"></script>
+<script src="src/scripts/02-effect-rule-metadata.js?v=20261123-havano-supporter"></script>
 <script src="src/scripts/13-svg-ui-enhancements.js?v=1780269000"></script>
   <script src="shared/starter-choice.js?v=20261004-starter-save"></script>
   <script src="shared/preset-sync.js?v=20260920-durable-presets"></script>
   <script src="src/scripts/03-profile-and-progression.js?v=20261122-nytress-art-refresh"></script>
 <script src="src/scripts/04-game-setup.js?v=20261123-kvetka-bh01-draw-check"></script>
 <script src="src/scripts/declaration-picker-designs.js?v=20261017-banner-match"></script>
-<script src="src/scripts/05-gameplay-core.js?v=20261123-shizuku-inferno-tracker"></script>
+<script src="src/scripts/05-gameplay-core.js?v=20261126-boleslaw-ai-history"></script>
 <script src="src/scripts/render-v2/19-caribbea-selected-art.js?v=20261014"></script>
 <script src="src/scripts/render-v2/19-julio-dice-art.js?v=20261014-cup"></script>
 <script src="src/scripts/render-v2/19-caribbea-activation-sfx.js?v=20261102-all-cinematic-audio-tails"></script>
@@ -663,12 +663,12 @@
 <script src="src/scripts/render-v2/19-signature-activation-fx.js?v=20261123-selected-spirit-seal"></script>
   <script src="src/scripts/render-v2/23-consolidation-sfx.js?v=20260917-strong-fracture"></script>
   <script src="src/scripts/render-v2/23-rarity-consolidation-fx.js?v=20260917-fixed-star-triangle-count"></script>
-<script src="src/scripts/06-rendering-and-helpers.js?v=20261123-shizuku-inferno-tracker"></script>
+<script src="src/scripts/06-rendering-and-helpers.js?v=20261126-boleslaw-tracker-trays"></script>
 <link rel="stylesheet" href="src/styles/support-company.css?v=20261008-selected-title">
 <script type="module" src="src/scripts/support-company.mjs?v=20261123-authoritative-offers"></script>
   <script src="src/scripts/51-ledger-archive.js?v=20261014-oligarch-opening"></script>
 <script src="src/scripts/render-v2/00-render-v2-flags.js?v=1780590901"></script>
-  <script src="src/scripts/render-v2/01-render-snapshot.js?v=20261123-counter-snapshot"></script>
+<script src="src/scripts/render-v2/01-render-snapshot.js?v=20261126-counter-trays"></script>
 <script src="src/scripts/render-v2/02-match-layout-engine.js?v=20261031-mobile4"></script>
 <script src="src/scripts/render-v2/03-card-texture-cache.js?v=20260927-performance2"></script>
 <script src="src/scripts/render-v2/07-animation-timeline.js?v=1784846401"></script>
@@ -679,7 +679,7 @@
 <script src="src/scripts/render-v2/24-approved-card-motion.js?v=20260917-impact-range-80"></script>
 <script src="src/scripts/render-v2/11-vfx-director.js?v=20260920-search-flip-catch"></script>
 <script src="src/scripts/render-v2/20-square-feedback-fx.js?v=20261031-match-feedback"></script>
-<script src="src/scripts/render-v2/04-match-renderer-adapter.js?v=20261123-centered-counter-tray"></script>
+<script src="src/scripts/render-v2/04-match-renderer-adapter.js?v=20261126-counter-trays"></script>
 <script src="src/scripts/mobile-input.js?v=20261031-mobile4"></script>
 <script src="src/scripts/render-v2/06-match-scene-input.js?v=20261031-mobile4"></script>
 <script src="src/scripts/render-v2/09-hand-drag-bridge.js?v=20261031-mobile4"></script>
@@ -696,8 +696,8 @@
   <!-- Deck grid canvas disabled for now: the DOM deck builder path matches the faster Copy (2) baseline. -->
   <script src="src/scripts/07-ai-intelligence.js?v=2026083002"></script>
   <script src="src/scripts/07-ai-learning.js?v=1784382001"></script>
-<script src="src/scripts/07-ai.js?v=20261123-kvetka-bh01-draw-check"></script>
-  <script src="src/scripts/08-audio-and-meta-ui.js?v=20261123-emerald-counter-sound"></script>
+<script src="src/scripts/07-ai.js?v=20261126-boleslaw-ai-history"></script>
+  <script src="src/scripts/08-audio-and-meta-ui.js?v=20261125-santiago-knife-sfx"></script>
   <script src="src/scripts/48-zone-click-voices.js?v=2026090303"></script>
   <script src="src/scripts/50-free-world-zone-voices.js?v=2026090401"></script>
   <script src="src/scripts/08a-profile-performance.js?v=20260912-profile-save-fix"></script>
@@ -711,8 +711,9 @@
   <script src="src/scripts/25-profile-view-v2.js?v=2026092901"></script>
 <script src="src/scripts/54-challenger-free-access.js?v=20261024-challengerfree"></script>
 <script src="src/scripts/09-challenger-mode.js?v=20261109-public-decks"></script>
+<script src="src/scripts/54-four-player-test.js?v=20261123-team-test"></script>
 <script src="shared/warfront-maps.js?v=20260918-diverse-zones"></script>
-<script src="src/scripts/47-challenger-war-event.js?v=20261109-front-star"></script>
+<script src="src/scripts/47-challenger-war-event.js?v=20261123-result-star-breakdown"></script>
 <script src="src/scripts/49-warfront-zone-voice-hook.js?v=2026090304"></script>
 <script src="src/scripts/09a-card-information-5-lore.js?v=1784293501"></script>
 <script src="src/scripts/09-challenger-lore.js?v=20261006-ja-lore-preview"></script>
@@ -736,7 +737,7 @@
     './src/scripts/15-online-auth.js?v=20260912-profile-save-fix',
     './src/scripts/16-online-core.js?v=2026090501',
     './src/scripts/17-online-social.js?v=20261027-tutorial-chat',
-    './src/scripts/18-online-rooms.js?v=20261123-emerald-counter-sound',
+    './src/scripts/18-online-rooms.js?v=20261125-counter-action-buttons',
     './src/scripts/19-online-elo.js?v=2026090501',
     './src/scripts/20-online-economy.js?v=20261006-public-deck-name-language'
   ];
@@ -920,7 +921,7 @@
 </script>
 <link rel="stylesheet" href="src/styles/idle-chatter.css?v=20261030-chatter-captions">
 <link rel="stylesheet" href="src/styles/mission-command-ledger.css?v=20261107-ledger-fix">
-<script src="src/scripts/47-idle-chatter.js?v=20261123-young-felicyta-4"></script>
+<script src="src/scripts/47-idle-chatter.js?v=20261125-youth-fisherman-chatter"></script>
 <script src="src/scripts/50-anne-planning.js?v=20261011-jorge-after-placement-resolution"></script>
 <script src="src/scripts/49-jose-long-game.js?v=jose-trigger-clock-3"></script>
 <script src="src/scripts/51-saboteur-clouds.js?v=20261024-natural-top-wisps"></script>

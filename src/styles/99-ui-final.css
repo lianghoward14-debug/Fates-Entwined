@@ -19177,3 +19177,16 @@ html body #s-game #opp-hand:is(.opp-hand-large,.opp-hand-medium) .opp-card-back{
   min-width:var(--opp-hand-card-w)!important;
   min-height:var(--opp-hand-card-h)!important;
 }
+.freeplay-mode-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .35rem;
+  margin: auto .9rem .8rem;
+}
+.freeplay-mode-actions > .freeplay-mode-cta {
+  margin: 0;
+  width: 100%;
+  min-width: 0;
+  padding-inline: .2rem;
+  cursor: pointer;
+}

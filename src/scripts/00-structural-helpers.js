@@ -1388,6 +1388,11 @@ function fatePushDiscard(playerIndex, cardOrCards, options = {}) {
     discarded.forEach(function(card){ window.FateV2CardMotionFx.discardCard(card, playerIndex, options.sourceLocation || (options.source ? {zone:options.source} : null)); });
   }
   if(options.sound !== false) playDiscardSfx({count:discarded.length});
+  if(options.skipSantiagoCounter !== true && typeof window.recordSantiagoSupporterDiscard === 'function' && G?._phase7CurrentMultiplayer !== true){
+    discarded.forEach(function(card){
+      if(String(card?.type || '') === 'Supporter') window.recordSantiagoSupporterDiscard(playerIndex,card);
+    });
+  }
   return true;
 }
 

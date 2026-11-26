@@ -29897,6 +29897,9 @@ html body #modal .modal.affiliation-picker-modal .aff-pick-choice-tag{
   z-index:3!important;
   margin-bottom:.15rem!important;
 }
+html body #s-social .social-online-command .social-online-card-add{
+  right:calc(.28rem + 6px)!important;
+}
 html body #modal .modal.affiliation-picker-modal{
   max-height:calc(100dvh - 28px)!important;
   overflow-y:auto!important;
@@ -29993,3 +29996,52 @@ html body .card-info-overlay .cd-nytress-tracker .cd-live-tracker-value{
   font:700 13px/1 Georgia,serif!important;
 }
 #s-game .bc .bc-voyager-counters b{font:700 9px/1 Georgia,serif!important;color:#f4e6c9!important;}
+
+/* The footer owns the card inset. Nested actions share that space. */
+html body #modal .modal.freeplay-mode-modal .freeplay-mode-actions {
+  grid-row: 3;
+  align-self: start;
+  margin: 0 1.15rem .85rem;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.12fr);
+  gap: .55rem;
+}
+html body #modal .modal.freeplay-mode-modal .freeplay-mode-actions > .freeplay-mode-cta {
+  grid-row: auto !important;
+  margin: 0 !important;
+  box-sizing: border-box;
+  padding: 0 .45rem !important;
+  text-align: center;
+  letter-spacing: .035em !important;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+html body #modal .modal.freeplay-mode-modal .freeplay-mode-actions > button:is(:hover, :focus-visible) {
+  background: rgba(232,196,82,.17) !important;
+  border-color: currentColor !important;
+}
+
+html body #boleslaw-activated-effect-banner {
+  position: fixed;
+  z-index: 10020;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(520px, 90vw);
+  padding: 13px 20px;
+  display: grid;
+  gap: 5px;
+  border: 2px solid #d9ad65;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #201826, #50302c 55%, #221826);
+  box-shadow: 0 8px 30px #000b, 0 0 22px #da8e4a77;
+  color: #f8ecda;
+  font: 600 14px/1.35 Georgia, serif;
+  text-align: center;
+  pointer-events: none;
+  animation: blazing-banner-in .25s ease-out both;
+}
+html body #boleslaw-activated-effect-banner strong {
+  color: #f4ce8b;
+  font: 700 17px 'Cinzel', serif;
+  letter-spacing: .06em;
+}

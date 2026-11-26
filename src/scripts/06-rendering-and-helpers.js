@@ -505,7 +505,7 @@ function isElectronCardImageRuntime() {
   }
 }
 function getRuntimeCardImageSrc(src, role) {
-  const refreshedArtVersions={"103": "81d808eb3faf", "bh21": "eafe10d4d5b1", "108": "3a31783c0a90", "109": "20261109-new-art", "110": "9a612fa44a10", "111": "74d40b6aa868", "112": "e4f6f817509c", "113": "6f1a7a14be76", "114": "311af41dcce1", "115": "b85cd436dea2", "116": "b779d5cc4592", "117": "4b8a523f8e83", "118": "3c4bd09948da", "120": "b549245e0626"};
+  const refreshedArtVersions={"86": "20261125-new-art", "103": "20261125-new-art", "bh21": "eafe10d4d5b1", "108": "3a31783c0a90", "109": "20261109-new-art", "110": "9a612fa44a10", "111": "74d40b6aa868", "112": "e4f6f817509c", "113": "6f1a7a14be76", "114": "311af41dcce1", "115": "b85cd436dea2", "116": "b779d5cc4592", "117": "4b8a523f8e83", "118": "3c4bd09948da", "120": "b549245e0626"};
   const refreshedArtId=String(src||'').split(/[.?]/)[0];
   if(refreshedArtVersions[refreshedArtId]) src=refreshedArtId+'.png?v='+refreshedArtVersions[refreshedArtId];
   if(/^109\.png(?:[?#]|$)/.test(String(src||'')))return src;
@@ -1356,6 +1356,8 @@ function cardRenderSignature(card, z, r, c) {
     card._expMoved ? 1 : 0, card._busserMovedThisTurn ? 1 : 0,
     Number(card.counters?.braveHorizonsCounters ?? card._braveHorizonsCounters) || 0,
     Number(card.counters?.deterranceCounters) || 0,
+    Number(card.counters?.boleslawCounters) || 0,
+    Number(card.counters?.santiagoSupporterCounters) || 0,
     Number(card.counters?.infernoCounters) || 0,
     Number(card.counters?.storyCounters) || 0,
     card.statuses?.includes('HAUNTED_NO_EFFECTS') || card.counters?.ellieHauntedVisual === true ? 1 : 0
@@ -4369,6 +4371,14 @@ function getAuthoritativeEffectOverlayDescriptor(event, source, target) {
   const type = String(event?.type || '').toUpperCase();
   const sourceId = String(event?.semanticSourceCardId || source?.id || '');
   const targetId = String(target?.id || '');
+  if(type === 'CARD_COUNTER_SET' && sourceId === '86'
+    && event.counterKey === 'boleslawCounters' && event.reason === 'BOLESLAW_CONSOLIDATION')
+    return {kind:'boleslaw_exclaim',label:'!!!'};
+  if(type === 'CARD_COUNTER_SET' && sourceId === '103'
+    && event.counterKey === 'santiagoSupporterCounters' && event.reason === 'SANTIAGO_SUPPORTER_DISCARD')
+    return {kind:'santiago_bloody_knife',label:'Sangre Por Victoria'};
+  if(type === 'SANTIAGO_STRIKE_TARGET')
+    return {kind:'santiago_bloody_knife',label:'Sangre Por Victoria'};
   if(type === 'FATE_CHANGED' && String(event?.reason || '').toUpperCase() === 'YOKAI_JUDGEMENT'
     && Number(event.after) !== Number(event.before))
     return {kind:'yokai_judgement',label:'Yokai’s Judgement'};
@@ -4536,7 +4546,7 @@ function createBoardCardEl(card, z, r, c, reuseMap) {
     ${zoeFieldLocked?'<span class="bc-zoe-field-lock" aria-hidden="true"><span class="bc-zoe-field-lock-icon">'+getStatusEffectIcon('zoe_overlay')+'</span></span>':''}
     ${jaimeHealingSquare?'<span class="bc-jaime-healing-square" aria-hidden="true"><span class="bc-jaime-heal-icon">'+getStatusEffectIcon('heal_outline')+'</span></span>':''}
     ${lowMoraleExpiry.active?'<span class="bc-low-morale-expiry" data-turns-left="'+lowMoraleExpiry.turnsLeft+'" aria-hidden="true"><span class="bc-low-morale-heart">♥</span></span>':''}
-    ${(()=>{const key=({bh01:'braveHorizonsCounters','36':'deterranceCounters','121':'infernoCounters'})[String(card.id)]||'storyCounters';const count=Math.max(0,Math.floor(Number(key==='braveHorizonsCounters'?(card.counters?.[key]??card._braveHorizonsCounters):card.counters?.[key])||0));if(!count)return '';const shown=Math.min(count,6);return '<span class="bc-voyager-counters" aria-label="'+count+' counters">'+Array.from({length:shown},()=>'<i aria-hidden="true">✦</i>').join('')+(count>shown?'<b aria-hidden="true">+'+(count-shown)+'</b>':'')+'</span>';})()}
+    ${(()=>{const key=({bh01:'braveHorizonsCounters','36':'deterranceCounters','86':'boleslawCounters','103':'santiagoSupporterCounters','121':'infernoCounters'})[String(card.id)]||'storyCounters';const count=Math.max(0,Math.floor(Number(key==='braveHorizonsCounters'?(card.counters?.[key]??card._braveHorizonsCounters):card.counters?.[key])||0));if(!count)return '';const shown=Math.min(count,6);return '<span class="bc-voyager-counters" aria-label="'+count+' counters">'+Array.from({length:shown},()=>'<i aria-hidden="true">✦</i>').join('')+(count>shown?'<b aria-hidden="true">+'+(count-shown)+'</b>':'')+'</span>';})()}
     <div class="bc-fate${fateStateCls}${changed?' pulse':''}">${visual.displayFate}</div>`;
   // Spawn mini floater on the card if fate changed
   if(changed && !shouldUseCanvasBoardVisuals()){
@@ -7387,7 +7397,7 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
       : Math.max(0, Number(Array.isArray(G.supportersSetP) ? G.supportersSetP[1 - owner] : 0) || 0);
     label = 'Opponent Supporters Placed';
     value = String(opponentSets);
-    sub = '+1 Fate Each';
+    sub = '+2 Fate Each';
   } else if(trackerId === '21') {
     const count=(G.players[owner].discard || []).length;
     label='Cards in Discard';
@@ -7397,6 +7407,16 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
     label = 'Deterrance Counters';
     value = String(Math.max(0, Number(card.counters?.deterranceCounters) || 0));
     sub = 'Spend one to reduce opposing Zone Fate by 4.';
+  } else if(trackerId === '86') {
+    label = 'Boleslaw Last Activated';
+    const copiedId = card.counters?.boleslawLastActivatedWhenSetId;
+    const copiedCard = typeof CARDS !== 'undefined' && CARDS.find(item => String(item.id) === String(copiedId));
+    value = copiedCard ? String(copiedCard.ability || copiedCard.name) : '—';
+    sub = copiedCard ? String(copiedCard.name || '') : '';
+  } else if(trackerId === '103') {
+    label = 'Morale Damage Inflicted';
+    value = String(Math.max(0, Number(card.counters?.santiagoMoraleInflicted) || 0));
+    sub = Math.max(0, Number(card.counters?.santiagoSupporterCounters) || 0) + ' counters available';
   } else if(trackerId === '40') {
     const uses = Math.max(0, Number(card.usesLeft == null ? 2 : card.usesLeft) || 0);
     label = 'Hard Times Uses';
@@ -7491,7 +7511,6 @@ function refreshWojciechInformationBanners() {
 }
 
 function buildFrenchFusiliersCopyBannerHTML(copiedPassiveName, copiedPassiveEffect, visual) {
-  if(copiedPassiveEffect && visual && String(visual.effect || "").includes(String(copiedPassiveEffect))) return "";
   if(!copiedPassiveName) return '';
   return '<div class="cd-live-tracker french-fusiliers-copy-banner">' +
     '<span class="cd-live-tracker-kicker">Copied Effect</span>' +
@@ -7921,17 +7940,18 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
         // No button needed — coordinators are automatic
       } else if(bc.type==='Initiator' && bc.effectUsedInitial && !['38','40'].includes(typeof getCardRuntimeEffectId === 'function' ? getCardRuntimeEffectId(bc) : String(bc.id || ''))){
         // Initiator already fired — no button
-      } else if((bc.type==='Improvisor' && !['36','40','102','104','105','121','bh16','bh01'].includes(String(bc.id || ''))) || bc.id==='89'){
+      } else if((bc.type==='Improvisor' && !['36','40','86','102','103','104','105','121','bh16','bh01'].includes(String(bc.id || ''))) || bc.id==='89'){
         // Improvisors are conditional/reactive and should not show a manual activation button.
       } else {
         const act=document.createElement('button');
         act.className='btn sm pri';
         act.textContent=String(bc.id || '') === 'bh01'
           ? 'Move'
-          : (String(bc.id || '') === '120' ? 'Put 1 counter on a card'
+          : (String(bc.id || '') === '120' ? 'Daring Adventures'
           : (String(bc.id || '') === '36' ? 'Expend 1 counter'
+          : (String(bc.id || '') === '86' || String(bc.id || '') === '103' ? 'Expend 2 counters'
           : (String(bc.id || '') === '121' ? 'Expend 1 counter'
-          : (String(bc.id || '') === '38' ? 'Fat Fuck' : (String(bc.id || '') === 'bh16' ? 'Storm of Ten Thousand Blades' : (String(bc.id || '') === '20' ? 'Shield Wall' : 'Activate Effect'))))));
+          : (String(bc.id || '') === '38' ? 'Fat Fuck' : (String(bc.id || '') === 'bh16' ? 'Storm of Ten Thousand Blades' : (String(bc.id || '') === '20' ? 'Shield Wall' : 'Activate Effect')))))));
         act.onclick=()=>{playEffectActivationButtonSound(); closeModal(); triggerCharacterEffect(bc,z,r,c);};
         acts.appendChild(act);
       }
@@ -7968,6 +7988,16 @@ function openCardDetail(card, fromHand=false, fromBoard=false) {
         snowBtn.className='btn sm pri';snowBtn.textContent='Snowball Fight';
         snowBtn.onclick=()=>{playEffectActivationButtonSound();closeModal();activateWodnyPotokYouth(bc,z,r,c);};
         acts.appendChild(snowBtn);
+      }
+      if(String(bc.id || '') === '93' && !isFaceDownCard(bc)
+        && !G._onlineRoomCode
+        && G._phase7CurrentMultiplayer !== true
+        && typeof availableMassSnowballSources === 'function'
+        && availableMassSnowballSources(boardActionPlayer).length > 0){
+        const massBtn=document.createElement('button');
+        massBtn.className='btn sm pri';massBtn.textContent='Mass Snowball';
+        massBtn.onclick=()=>{playEffectActivationButtonSound();closeModal();activateMassSnowball();};
+        acts.appendChild(massBtn);
       }
       if(canUseBoardCard && typeof isLandscapeActive === 'function' && isLandscapeActive('igb7') && typeof canUsePanaceaLandscapeMoveCard === 'function' && canUsePanaceaLandscapeMoveCard(bc) && bc._landscapeEventideMovedTurn !== G.turn && !bc.cantBeMoved){
         const landMove=document.createElement('button');
@@ -9757,6 +9787,7 @@ function showAffiliationPickerVisual(callback, sourceCard, confirmCharacterBanne
   body.querySelectorAll('.aff-pick-square').forEach(sq=>{
     sq.onclick=()=>{
       if(sq.disabled)return;
+      if(typeof playSfx==='function')playSfx('uiClick');
       if(nytress){
         body.querySelectorAll('.aff-pick-square:not(:disabled)').forEach(choice=>choice.classList.remove('aff-pick-pending'));
         sq.classList.add('aff-pick-pending');
@@ -10380,6 +10411,21 @@ function setHint(msg) {
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 function showSantiagoDiscardBanner(card) {
   if(card && card.name) toast('Santiago discarded ' + card.name + '.', 4500);
+}
+
+function showBoleslawActivatedEffectBanner(effectCard) {
+  if(typeof document === 'undefined' || !effectCard) return function(){};
+  document.getElementById('boleslaw-activated-effect-banner')?.remove();
+  const banner = document.createElement('div');
+  banner.id = 'boleslaw-activated-effect-banner';
+  banner.setAttribute('role', 'status');
+  const heading = document.createElement('strong');
+  heading.textContent = 'BOLESLAW ACTIVATED ' + String(effectCard.ability || 'When Set');
+  const detail = document.createElement('span');
+  detail.textContent = 'From ' + String(effectCard.name || 'Unknown card');
+  banner.append(heading, detail);
+  document.body.appendChild(banner);
+  return function dismissBoleslawActivatedEffectBanner(){ banner.remove(); };
 }
 
 const blazingInfernoImage = typeof Image === 'function' ? new Image() : null;

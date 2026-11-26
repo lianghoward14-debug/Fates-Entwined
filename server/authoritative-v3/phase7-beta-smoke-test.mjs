@@ -70,15 +70,17 @@ async function stopServer(){
 }
 
 async function waitForHealth(){
+  let lastFailure = '';
   for(let attempt = 0; attempt < 100; attempt += 1){
     if(child?.exitCode !== null) throw new Error(`Phase 7 server exited early: ${childOutput}`);
     try{
       const response = await fetch(`http://127.0.0.1:${port}/health`);
       if(response.ok) return response.json();
-    }catch{}
+      lastFailure = `HTTP ${response.status}: ${await response.text()}`;
+    }catch(error){ lastFailure = String(error?.message || error); }
     await delay(50);
   }
-  throw new Error(`timed out waiting for Phase 7 server: ${childOutput}`);
+  throw new Error(`timed out waiting for Phase 7 server (${lastFailure}): ${childOutput}`);
 }
 
 function socketHarness(pathname = '/v3/beta/socket'){
@@ -407,6 +409,27 @@ try{
   assert.equal(recovered.stateHash, accepted.stateHash);
   assert.equal(recovered.state.board[0][2][0].iid, resident.iid);
   recoveredClient.socket.close();
+
+  // A second game must replace the old reconnect delivery, even when the
+  // previous game has not yet recorded an outcome on the authority.
+  const nextP0 = await fetch(`http://127.0.0.1:${port}/v3/beta/matchmaking/enter`, {
+    method:'POST', headers:identityHeaders('p0'),
+    body:JSON.stringify({name:'Phase 7 P0', deckIds:['32', '27', '54']})
+  });
+  assert.equal(nextP0.status, 202);
+  assert.equal((await nextP0.json()).status, 'waiting');
+  const nextP1 = await fetch(`http://127.0.0.1:${port}/v3/beta/matchmaking/enter`, {
+    method:'POST', headers:identityHeaders('p1'),
+    body:JSON.stringify({name:'Phase 7 P1', deckIds:['79', '56', '32']})
+  });
+  assert.equal(nextP1.status, 200);
+  const nextMatch = await nextP1.json();
+  assert.equal(nextMatch.status, 'matched');
+  assert.notEqual(nextMatch.credential.matchId, matchId);
+  const nextP0Status = await fetch(`http://127.0.0.1:${port}/v3/beta/matchmaking/status`, {
+    headers:identityHeaders('p0')
+  });
+  assert.equal((await nextP0Status.json()).credential.matchId, nextMatch.credential.matchId);
 }finally{
   await stopServer();
   fs.rmSync(dataDir, {recursive:true, force:true});

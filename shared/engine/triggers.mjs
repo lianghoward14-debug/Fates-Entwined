@@ -54,12 +54,26 @@ export function collectTriggeredOperations(state, event){
   collectRiveraArrivalBonuses(state, event, operations);
   if(event.type==='CARD_SET'){
     const placed=boardEntries(state).find(entry=>String(entry.card.iid)===String(event.cardIid));
+    if(placed && String(placed.card.affiliation || placed.card.aff || '') === 'expanded_worlds'
+      && !['Supporter','Counter'].includes(effectiveCardType(state, placed.card))){
+      for(const boleslaw of boardEntries(state).filter(entry=>
+        runtimeRuleId(entry.card) === '86' && entry.card.iid !== placed.card.iid
+        && entry.z === placed.z && controllerOf(entry.card) === Number(event.playerIndex)
+        && !isEffectSourceSuppressed(state, entry))){
+        operations.push({type:'SET_CARD_COUNTER',targetIid:boleslaw.card.iid,
+          counterKey:'boleslawCounters',value:Math.max(0,Number(boleslaw.card.counters?.boleslawCounters)||0)+1,
+          sourceIid:boleslaw.card.iid,sourceController:Number(event.playerIndex),reason:'BOLESLAW_EXPANDED_WORLDS_SET'});
+      }
+    }
     if(placed)for(const source of boardEntries(state)){
       if((source.z!==placed.z && source.card.counters?.whisperLandscapeToken!==true) || runtimeRuleId(source.card)!=='130'
         || controllerOf(source.card)!==controllerOf(placed.card)
         || isEffectSourceSuppressed(state,source))continue;
       const declared=[source.card.counters?.elementalAffiliationA,source.card.counters?.elementalAffiliationB].map(String);
       if(!declared.includes(String(placed.card.affiliation||'')))continue;
+      if(declared.includes('eventide')) operations.push({type:'SET_CARD_COUNTER',targetIid:source.card.iid,
+        counterKey:'triggeredFateHistoryTotal',value:Math.max(0,Number(source.card.counters?.triggeredFateHistoryTotal)||0)+1,
+        sourceIid:source.card.iid});
       for(const target of boardEntries(state).filter(entry=>
         controllerOf(entry.card)===controllerOf(source.card)
         && (entry.z===source.z || source.card.counters?.whisperLandscapeToken===true))){
@@ -146,36 +160,23 @@ export function collectTriggeredOperations(state, event){
       }
     }
   }
-  if(event.type === 'DECK_SEARCHED'){
-    for(const boleslaw of boardEntries(state).filter(entry=>
-      runtimeRuleId(entry.card) === '86'
-      && controllerOf(entry.card) !== Number(event.playerIndex)
-      && !isEffectSourceSuppressed(state, entry)
-    )){
-      const playerIndex = controllerOf(boleslaw.card);
-      operations.push({
-        type:'DRAW_CARD',
-        playerIndex,
-        count:1,
-        sourceIid:boleslaw.card.iid,
-        sourceController:playerIndex,
-        activatedEffect:true,
-        semanticSourceCardId:'86'
-      });
-      if(!isEffectImmutable(boleslaw.card)){
-        operations.push({
-          type:'MODIFY_FATE',
-          targetIid:boleslaw.card.iid,
-          amount:2,
-          sourceIid:boleslaw.card.iid,
-          sourceController:playerIndex,
-          // This passive can resolve inside the searched card's effect frame.
-          // Preserve Boleslaw's own rule identity so presentation and the
-          // detailed oracle do not apply the searcher's target restrictions.
-          semanticSourceCardId:'86',
-          reason:'A_BOMBASTIC_CHARACTER',
-          bypassReaction:true
-        });
+  if(event.type === 'CARD_DISCARDED'){
+    const discarded = state.players.flatMap(player=>player.discard)
+      .find(card=>String(card.iid) === String(event.cardIid));
+    if(discarded && String(discarded.type || '') === 'Supporter'
+      && String(event.reason || '') !== 'CONSOLIDATION_TRIBUTE'){
+      for(const santiago of boardEntries(state).filter(entry=>
+        runtimeRuleId(entry.card) === '103'
+        && controllerOf(entry.card) === Number(event.previousZone === 'board' ? event.previousController : event.owner)
+        && Number(entry.card.counters?.santiagoCounterGainTurn) !== Number(state.turn)
+        && !isEffectSourceSuppressed(state,entry))){
+        operations.push({type:'SET_CARD_COUNTER',targetIid:santiago.card.iid,
+          counterKey:'santiagoSupporterCounters',
+          value:Math.max(0,Number(santiago.card.counters?.santiagoSupporterCounters)||0)+1,
+          sourceIid:santiago.card.iid,sourceController:controllerOf(santiago.card),reason:'SANTIAGO_SUPPORTER_DISCARD'});
+        operations.push({type:'SET_CARD_COUNTER',targetIid:santiago.card.iid,
+          counterKey:'santiagoCounterGainTurn',value:Number(state.turn),
+          sourceIid:santiago.card.iid,sourceController:controllerOf(santiago.card),reason:'SANTIAGO_GAIN_TURN'});
       }
     }
   }

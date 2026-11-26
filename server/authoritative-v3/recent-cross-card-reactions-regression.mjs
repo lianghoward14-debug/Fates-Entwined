@@ -16,8 +16,7 @@ for(const id of ['123','126','127']){
   const result=reduceCommand(state,command(state,'p0',1,'CONSOLIDATE_CARD',
     {cardIid:source.iid,tributeIids:tributes.map(card=>card.iid),destination:{z:0,r:2,c:0}}),{playerIndex:0});
   assert.equal(result.ok,true,id+': '+JSON.stringify(result.rejection));
-  assert.equal(result.state.pendingPrompt?.type,'REACTION',id+' should open a reaction');
-  assert(result.state.pendingPrompt.options?.some(option=>option.kind==='HAVANO'),id+' should allow Havano');
+  assert(!result.state.pendingPrompt?.options?.some(option=>option.kind==='HAVANO'),id+' is not a Supporter effect');
 }
 for(const id of ['119']){
   const state=createInitialState({matchId:'SECULES-'+id,seed:'secules-'+id,handSize:99,activePlayer:0,
@@ -31,4 +30,4 @@ for(const id of ['119']){
   assert.equal(result.state.pendingPrompt?.type,'REACTION',id+' should open a reaction');
   assert(result.state.pendingPrompt.options?.some(option=>option.kind==='SECULES'&&option.reactionIid===secules.iid),id+' should allow Mr. Secules');
 }
-console.log('PASS Havano and Mr. Secules react to recent targeting and Supporter effects');
+console.log('PASS Havano ignores Initiators while Mr. Secules reacts to Supporter effects');

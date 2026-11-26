@@ -1,3 +1,4 @@
+import {canChargeSantiago} from './counter-improvisors.mjs';
 import {filterRevolutionTargets} from './revolution-heuristics.mjs';
 import {cardRule} from '../engine/cards/registry.mjs';
 import {filterLakesMomentum} from './lakes-momentum-heuristics.mjs';
@@ -27,10 +28,12 @@ export function filterAiTargets(commands,state,player){
         && cardRule(runtimeRuleId(entry.card),state)?.manualOnly!==true;
     });
     if(automatic)return [automatic];
+    const chargeSantiago=canChargeSantiago(state,player,entries);
     commands=commands.filter(command=>{
       if(command.type!=='DISCARD_CARD' || command.payload?.reason!=='MANUAL_DISCARD')return true;
       const e=entries.find(e=>e.card.iid===(command.payload.targetIid || command.payload.sourceIid));
       if(!e)return false;
+      if(chargeSantiago && e.card.type==='Supporter' && controllerOf(e.card)===player)return true;
       // Free destruction is not development. Require a concrete replacement
       // route in this square; never clear an ordinary body in an open zone.
       if(state.board[e.z].some((row,r)=>row.some(c=>!c) && (r===1 || (player===0?r===2:r===0))))return false;

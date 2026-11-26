@@ -474,16 +474,17 @@ function armTurnTimer(actor, timeout, delayMs){
     suspended:false
   };
   entry.timer = setTimeout(async ()=>{
-    settleTurnClock(matchId);
-    turnTimers.delete(matchId);
-    const current = actor.turnTimeoutCommand();
-    if(!current || current.turnSignature !== timeout.turnSignature) return;
-    current.command.expectedRevision = actor.state.revision;
     try{
+      settleTurnClock(matchId);
+      turnTimers.delete(matchId);
+      const current = actor.turnTimeoutCommand();
+      if(!current || current.turnSignature !== timeout.turnSignature) return;
+      current.command.expectedRevision = actor.state.revision;
       const outcome = await actor.dispatch(current.playerId, current.command);
       if(outcome.broadcasts.length) broadcastPrivate(matchId, outcome.broadcasts);
       scheduleAuthorityTimers(actor);
     }catch(error){
+      turnTimers.delete(matchId);
       console.error(`authoritative v3 turn timeout failed for ${matchId}:`, error.message || error);
     }
   }, remainingMs);
@@ -531,7 +532,7 @@ function turnClockMessage(actor){
   const paused = !!current?.suspended;
   const active = state.phase === 'main' && !state.outcome;
   const initialMs = actor.turnTimeoutCommand()?.timeoutMs
-    || (String(state.landscapeId) === 'igb14' ? 30000 : (Number(state.turnTimerSeconds) || 180) * 1000);
+    || (Number(state.turnTimerSeconds) || 180) * 1000;
   return {kind:'turn-clock', protocolVersion:3, matchId:state.matchId,
     revision:state.revision, turn:state.turn, activePlayer:state.activePlayer,
     serverTime, paused, active,
@@ -843,6 +844,10 @@ const server = http.createServer(async (req, res)=>{
         const requestedWarfrontKey = requestedMode === 'warfront' ? String(body.matchmakingKey || '') : '';
         const deliveryIsCurrent = pendingMatch
           && !pendingMatch.outcome
+          // An explicit new queue request after play must not be redirected
+          // into an earlier game. Status polling still delivers the original
+          // credential during the initial connection handshake.
+          && Number(pendingMatch.revision || 0) === 0
           && String(pendingDelivery.queueMode || 'freeplay') === requestedMode
           && (requestedMode !== 'warfront' || String(pendingMatch.warfrontMatchmakingKey || '') === requestedWarfrontKey);
         if(!deliveryIsCurrent){
@@ -864,7 +869,13 @@ const server = http.createServer(async (req, res)=>{
       const requestedTestPool = String(body.testPool || '');
       const organicFixtureIdentity = PHASE7_ALLOW_ORGANIC_TEST_FIXTURES
         && phase7OrganicFixtureIdentity(req, identity, requestedTestPool);
-      const deckIds = manager.validateDeckIds(body.deckIds, {organicFixture:organicFixtureIdentity});
+      let deckIds;
+      try{
+        deckIds = manager.validateDeckIds(body.deckIds, {organicFixture:organicFixtureIdentity});
+      }catch(error){
+        writeJson(res, 400, {ok:false, error:String(error.message || error)});
+        return;
+      }
       const validRequestedTestPool = /^[A-Za-z0-9_.:@-]{1,80}$/.test(requestedTestPool);
       const testPool = organicFixtureIdentity
         ? (validRequestedTestPool ? requestedTestPool : `fixture:${identity.uid}`.slice(0, 80))
@@ -1010,7 +1021,14 @@ const server = http.createServer(async (req, res)=>{
     if(await serveGame(req, res, url.pathname)) return;
     writeJson(res, 404, {ok:false, error:'not found'});
   }catch(error){
-    writeJson(res, 400, {ok:false, error:String(error.message || error)});
+    const queueRequest = BETA_MODE && String(req.url || '').startsWith('/v3/beta/matchmaking/');
+    console.error(`authoritative v3 request failed (${req.method} ${req.url}):`, error);
+    // Unexpected failures here can be temporary (for example a busy or full
+    // SQLite volume). A 4xx makes the client abandon its waiting queue seat.
+    writeJson(res, queueRequest ? 503 : 400, {
+      ok:false,
+      error:queueRequest ? 'Matchmaking temporarily unavailable; retrying is safe' : String(error.message || error)
+    });
   }
 });
 
@@ -1046,10 +1064,15 @@ server.on('upgrade', (req, socket)=>{
 
 const pingTimer = setInterval(()=>{
   for(const socket of sockets){
-    send(socket, {kind:'ping', protocolVersion:3, time:Date.now()});
-    const matchId = socket.authorityV3Session?.matchId;
-    const actor = matchId ? manager.actor(matchId) : null;
-    if(actor) send(socket, turnClockMessage(actor));
+    try{
+      send(socket, {kind:'ping', protocolVersion:3, time:Date.now()});
+      const matchId = socket.authorityV3Session?.matchId;
+      const actor = matchId ? manager.actor(matchId) : null;
+      if(actor) send(socket, turnClockMessage(actor));
+    }catch(error){
+      console.error('authoritative v3 heartbeat failed:', error);
+      closeSocket(socket, 1011, 'heartbeat failed');
+    }
   }
 }, 45000);
 pingTimer.unref?.();

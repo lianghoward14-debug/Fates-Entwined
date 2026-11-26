@@ -39,6 +39,13 @@ try {
   const forged = `${input}.${Buffer.alloc(256).toString('base64url')}`;
   assert.equal((await request('GET',forged)).status,401,'invalid signature must be rejected');
   assert.equal((await request('GET','session:fabricated')).status,401,'session identity must remain rejected after authenticated requests');
+  api.close();
+  const snapshotPath = path.join(dataDir, 'rooms.json');
+  fs.writeFileSync(snapshotPath, '{invalid snapshot');
+  assert.throws(()=>createFlyDataApi({readBody:async()=>({}),writeJson:()=>{}}),
+    /Fly data snapshot could not be read/,
+    'a corrupt snapshot must never be replaced by blank profiles and map data');
+  assert.equal(fs.readFileSync(snapshotPath,'utf8'), '{invalid snapshot');
   console.log('Fly data authentication regression test passed');
 } finally {
   globalThis.fetch = originalFetch;

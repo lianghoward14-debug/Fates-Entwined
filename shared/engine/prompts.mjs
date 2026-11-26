@@ -119,7 +119,13 @@ export function eligibleBoardTargets(state, frame, filter = {}){
         || Math.max(Math.abs(entry.r - source.r), Math.abs(entry.c - source.c)) !== 1)) return false;
       if(Number.isInteger(filter.row) && entry.r !== filter.row) return false;
       if(filter.controller && controllerOf(entry.card) !== frame.controller) return false;
+      if(filter.santiagoUnused && source){
+        let selected=[];
+        try{selected=JSON.parse(String(source.card.counters?.santiagoSelectedIids||'[]'));}catch{}
+        if(selected.includes(String(entry.card.iid))) return false;
+      }
       if(filter.triggeredFateCoordinator && !isTriggeredFateCoordinator(state, entry.card)) return false;
+      if(filter.counterAbility && !cardRule(runtimeRuleId(entry.card), state)?.counterResourceKey) return false;
       if(Array.isArray(filter.cardIds) && !filter.cardIds.map(String).includes(String(entry.card.id || ''))) return false;
       if(filter.opponent && controllerOf(entry.card) === frame.controller) return false;
       if(filter.supporter && effectiveCardType(state, entry.card) !== 'Supporter') return false;
@@ -156,7 +162,7 @@ export function eligibleBoardTargets(state, frame, filter = {}){
         if(!eligibleDestinations(state, targetFrame, filter.requiresDestination).length) return false;
       }
       if(filter.requiresSourceDestination && !eligibleDestinations(state, frame, filter.requiresSourceDestination).length) return false;
-      if(filter.copyableSupporterPassive && (!['25','24','44','49','53','59','65','92','93','114'].includes(String(entry.card.id))
+      if(filter.copyableSupporterPassive && (!cardRule(runtimeRuleId(entry.card),state)?.copyableFieldPassive
         || (String(entry.card.id) === '65' && state.gameSettings?.pressureCardReworks !== true)
         || isEffectSourceSuppressed(state, entry))) return false;
       if(filter.excludeSource && String(entry.card.iid) === String(frame.sourceIid)) return false;

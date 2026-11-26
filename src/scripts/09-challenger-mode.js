@@ -1878,7 +1878,7 @@ function freePlaySettingsLandscapeSummary(settings) {
 
 function freePlaySettingsTimerSummary(settings) {
   const normalized = normalizeFreePlayGameSettings(settings);
-  if(normalized.landscapeMode === 'selected' && normalized.landscapeId === 'igb14') return '30 seconds (Lone Pine locked)';
+  if(normalized.landscapeMode === 'selected' && normalized.landscapeId === 'igb14') return 'Random: 20 seconds to 2 minutes (Lone Pine)';
   return normalized.turnTimerMinutes + ' minute' + (normalized.turnTimerMinutes === 1 ? '' : 's');
 }
 
@@ -1939,10 +1939,10 @@ function freePlaySettingsModalHtml(settings) {
       <button type="button" class="freeplay-landscape-arrow" data-freeplay-landscape-step="1" aria-label="Next landscape">&#10095;</button>
     </div>
     <section class="freeplay-timer-settings ${lonePineLocked ? 'is-locked' : ''}">
-      <div class="freeplay-timer-heading"><span>Turn Timer</span><strong id="freeplay-timer-value">${lonePineLocked ? '30 seconds — locked' : normalized.turnTimerMinutes + ' minute' + (normalized.turnTimerMinutes === 1 ? '' : 's')}</strong></div>
+      <div class="freeplay-timer-heading"><span>Turn Timer</span><strong id="freeplay-timer-value">${lonePineLocked ? 'Random: 20 sec to 2 min' : normalized.turnTimerMinutes + ' minute' + (normalized.turnTimerMinutes === 1 ? '' : 's')}</strong></div>
       <input id="freeplay-turn-timer" type="range" min="1" max="10" step="1" value="${normalized.turnTimerMinutes}" ${lonePineLocked ? 'disabled' : ''} aria-label="Turn timer in minutes">
       <div class="freeplay-timer-scale"><span>1 min</span><span>10 min</span></div>
-      <p>${lonePineLocked ? 'Lone Pine always uses its 30-second turn timer.' : (normalized.landscapeMode === 'random' ? 'If Random selects Lone Pine, this timer is overridden and turns become 30 seconds.' : 'This duration applies to both players.')}</p>
+      <p>${lonePineLocked ? 'Envoy of Chaos picks a new timer between 20 seconds and 2 minutes at the start of every turn.' : (normalized.landscapeMode === 'random' ? 'If Random selects Envoy of Chaos, each turn gets a new random timer between 20 seconds and 2 minutes.' : 'This duration applies to both players.')}</p>
     </section>
     <aside class="freeplay-settings-precedence-note"><b>Room settings note:</b> The first player to enter a Free Play room sets the landscape and timer. Their settings take precedence for everyone who joins.</aside>
   </div>`;
@@ -2082,24 +2082,22 @@ function buildFreePlayMenuHtml() {
           </span>
           <span class="freeplay-mode-cta">Choose AI</span>
         </button>
-        <button class="freeplay-mode-card random" type="button" onclick="closeModal();setTimeout(()=>startRandomAiFreePlay(),140);">
+        <section class="freeplay-mode-card random">
           ${renderFreePlayArt('random')}
           <span class="freeplay-mode-copy">
             <span class="freeplay-mode-label">Random AI</span>
             <b>Quick Skirmish</b>
             <em>Get an instant opponent roll and jump into a practice match with less setup.</em>
           </span>
-          <span class="freeplay-mode-cta">Roll Opponent</span>
-        </button>
-        <button class="freeplay-mode-card human" type="button" onclick="closeModal();setTimeout(()=>startFreePlayMatchmaking(),140);">
+          <div class="freeplay-mode-actions"><button type="button" class="freeplay-mode-cta" onclick="closeModal();setTimeout(()=>startRandomAiFreePlay(),140);">Roll Opponent</button><button type="button" class="freeplay-mode-cta" onclick="closeModal();setTimeout(()=>startRandomDeckFreePlayAI(),140);">Randomized Decks</button></div></section>
+        <section class="freeplay-mode-card human">
           ${renderFreePlayArt('human')}
           <span class="freeplay-mode-copy">
             <span class="freeplay-mode-label">Free Play Vs Human</span>
             <b>Human Queue</b>
             <em>Match with another player using a title-screen deck builder preset.</em>
           </span>
-          <span class="freeplay-mode-cta">Find Player</span>
-        </button>
+          <div class="freeplay-mode-actions"><button type="button" class="freeplay-mode-cta" onclick="closeModal();setTimeout(()=>startFreePlayMatchmaking(),140);">Find Player</button><button type="button" class="freeplay-mode-cta" onclick="closeModal();setTimeout(()=>startRandomDeckFreePlayHuman(),140);">Randomized Decks</button></div></section>
       </div>
     </div>`;
   return _freePlayMenuHtmlCache;
@@ -2194,6 +2192,98 @@ function removeOpponentFound() {
   if(el) el.remove();
 }
 window.removeOpponentFound = removeOpponentFound;
+
+// Supporters are tributed when consolidating characters. Budget enough baseline
+// reinforcement for every character, without assuming conditional discounts or
+// extra reinforcement effects will trigger; those effects improve the surplus.
+function buildFreePlayRandomDeck(){
+  if(typeof CARDS === 'undefined') return null;
+  const pool = CARDS.filter(card=>card && card.id && !card.token &&
+    (card.type==='Supporter' || Number.isFinite(Number(card.cost))));
+  const stars = pool.filter(card=>card.rarity==='star');
+  const ordinary = pool.filter(card=>card.rarity!=='star');
+  const supporters = ordinary.filter(card=>card.type==='Supporter');
+  if(!stars.length || !supporters.length) return null;
+  const deck = [];
+  const copies = new Map();
+  const pick = choices=>choices[Math.floor(Math.random()*choices.length)];
+  const add = card=>{ deck.push(card); copies.set(String(card.id), (copies.get(String(card.id))||0)+1); };
+  add(pick(stars));
+  const drawIds=['27','32','42','80','108'];
+  const searchIds=['06','07','08','13','29','48','60','68','91','94'];
+  const deploymentIds=['07','08','09','28','74','122'];
+  const categories=window.fateSupportCompanyCategories;
+  if(!categories)return null;
+  const load=card=>card.type==='Supporter'?0:1+Math.max(0,Number(card.cost)||0);
+  let reservedLoad=load(deck[0]);
+  const drawTarget=4+Math.floor(Math.random()*6);
+  const searchTarget=4+Math.floor(Math.random()*6);
+  function reserve(ids,target,distinct=false){
+    const count=()=>deck.filter(card=>ids.includes(card.id)).length;
+    while(count()<target){
+      const choices=ordinary.filter(card=>ids.includes(card.id) &&
+        (copies.get(card.id)||0)<(distinct?1:3) && reservedLoad+load(card)<=40);
+      if(!choices.length)return false;
+      const card=pick(choices);
+      add(card);
+      reservedLoad+=load(card);
+    }
+    return true;
+  }
+  if(!reserve(searchIds,searchTarget,true) || !reserve(drawIds,drawTarget))return null;
+  const permitted=card=>!drawIds.includes(card.id) && (!searchIds.includes(card.id) || copies.has(card.id));
+  for(const role of ['empower','power']){
+    const ids=categories.find(group=>group.id===role)?.cardIds || [];
+    if(!reserve(ids.filter(id=>!drawIds.includes(id) && (!searchIds.includes(id) || copies.has(id))),2))return null;
+  }
+  if(!deck.some(card=>deploymentIds.includes(card.id)) && !reserve(['09','28','74','122'],1))return null;
+  const reservedSlots=deck.length;
+  while(deck.length<40){
+    const available = ordinary.filter(card=>permitted(card) && (copies.get(String(card.id))||0)<3);
+    if(!available.length) return null;
+    add(pick(available));
+  }
+  const cost = card=>Math.max(0, Number(card.cost)||0);
+  const reinforcementNeeded = ()=>deck.reduce((total,card)=>total+(card.type==='Supporter'?0:cost(card)),0);
+  const reinforcementAvailable = ()=>deck.filter(card=>card.type==='Supporter').length;
+  while(reinforcementAvailable()<reinforcementNeeded()){
+    const replacement = supporters.filter(card=>permitted(card) && (copies.get(String(card.id))||0)<3);
+    const characterSlots = deck.map((card,index)=>index<reservedSlots || card.type==='Supporter'?-1:index).filter(index=>index>=0);
+    if(!replacement.length || !characterSlots.length) return null;
+    const index = pick(characterSlots);
+    const old = deck[index];
+    copies.set(String(old.id), copies.get(String(old.id))-1);
+    const card = pick(replacement);
+    deck[index] = card;
+    copies.set(String(card.id), (copies.get(String(card.id))||0)+1);
+  }
+  return deck.map(card=>card.id);
+}
+
+window.startRandomDeckFreePlayHuman = function(){
+  CURRENT_MODE = 'free';
+  G._aiRewardMultiplier = 1;
+  const deck = buildFreePlayRandomDeck();
+  if(!deck){ toast('A random deck is unavailable right now'); return; }
+  G.p1Deck = [...deck];
+  window.FATE_ONLINE_PENDING_ROOM_DECK = {
+    selectedDeckKey:'freeplay_random', selectedDeckName:'Surprise Deck', deckIds:[...deck]
+  };
+  showMatchmakingScreen({onlineQueue:true, queueMode:'freeplay'});
+};
+
+window.startRandomDeckFreePlayAI = function(){
+  const aiList = typeof getRandomMatchAIOpponents === 'function' ? getRandomMatchAIOpponents() : AI_OPPONENTS;
+  if(!Array.isArray(aiList) || !aiList.length){ toast('No AI opponents available'); return; }
+  const deck = buildFreePlayRandomDeck();
+  if(!deck){ toast('A random deck is unavailable right now'); return; }
+  CURRENT_MODE = 'free';
+  G._pickDeckAfterAi = false;
+  G._aiRewardMultiplier = 1;
+  G.p1Deck = [...deck];
+  selectAIOpponent(aiList[Math.floor(Math.random()*aiList.length)], {skipFollowup:true});
+  startGame(true);
+};
 
 window.startRandomAiFreePlay = function(){
   const aiList = typeof getRandomMatchAIOpponents === 'function' ? getRandomMatchAIOpponents() : AI_OPPONENTS;

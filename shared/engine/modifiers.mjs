@@ -7,6 +7,7 @@ import {
   isBoardCoordinate,
   squareStatuses
 } from './selectors.mjs';
+import {cardRule} from './cards/registry.mjs';
 
 // Historical gain for a normal friendly recipient at the time of the trigger.
 export function adjustedTriggeredFateHistoryGain(state, source, amount){
@@ -16,7 +17,7 @@ export function adjustedTriggeredFateHistoryGain(state, source, amount){
   const riders = boardEntries(state).filter(entry=>controllerOf(entry.card) === owner
     && runtimeRuleId(entry.card) === 'bh15' && !isEffectSourceSuppressed(state,entry)).length;
   const permanent = runtimeRuleId(source.card || source) !== 'bh08';
-  return Math.max(0,Number(amount)||0) * (permanent ? potency : 1) + riders;
+  return Math.max(0,Number(amount)||0) * (permanent ? potency : 1) + riders * 2;
 }
 
 function rejection(code, reason, details = {}){
@@ -24,8 +25,8 @@ function rejection(code, reason, details = {}){
 }
 
 export function isTriggeredFateCoordinator(state, card){
-  return (effectiveCardType(state, card) === 'Coordinator' || String(card?.id) === 'bh05')
-    && ['15','bh02','bh08'].includes(runtimeRuleId(card));
+  return effectiveCardType(state, card) === 'Coordinator'
+    && cardRule(runtimeRuleId(card),state)?.triggeredFateCoordinator === true;
 }
 
 export function runtimeRuleId(card){
@@ -282,7 +283,7 @@ export function effectiveFate(state, entryOrCard, ignoredDylanIid = null){
     modifier += characters * 2;
   }
   if(activeAuraSource(state, entry) && selfId === '85'){
-    modifier += Number(state.supportersSetTotal[targetController === 0 ? 1 : 0]) || 0;
+    modifier += 2 * (Number(state.supportersSetTotal[targetController === 0 ? 1 : 0]) || 0);
   }
   if(activeAuraSource(state, entry)
     && selfId === '89'

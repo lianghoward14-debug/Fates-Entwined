@@ -3343,7 +3343,7 @@
     }
     if(haunted && showStatus) drawHauntedCardOverlay(ctx,r);
     const counterCardId=String(entry?.card?.id||'');
-    const counterKey=({bh01:'braveHorizonsCounters','36':'deterranceCounters','121':'infernoCounters'})[counterCardId]||'storyCounters';
+    const counterKey=({bh01:'braveHorizonsCounters','36':'deterranceCounters','86':'boleslawCounters','103':'santiagoSupporterCounters','121':'infernoCounters'})[counterCardId]||'storyCounters';
     const rawCounterValue=counterKey==='braveHorizonsCounters'
       ? (entry.card.counters?.[counterKey]??entry.card._braveHorizonsCounters)
       : entry.card.counters?.[counterKey];
@@ -3355,7 +3355,7 @@
       const badgeH=Math.max(24,Math.min(34,r.w*.255));
       const badgeW=Math.max(badgeH,Math.min(43,badgeH+Math.max(0,String(visual?.displayFate??'').length-1)*5.4));
       const x=r.x+r.w-badgeW/2-Math.max(1,badgeH*.04),top=r.y+badgeH+8;
-      const holderW=radius*2+8,holderH=Math.max(1,shown)*step+6+(overflow?12:0);
+      const holderW=radius*2+8,holderH=Math.max(1,shown)*step+6+(overflow?17:0);
       ctx.save();
       ctx.fillStyle='rgba(20,26,35,.96)';ctx.strokeStyle='#d9c8a4';ctx.lineWidth=1.2;
       ctx.beginPath();ctx.roundRect(x-holderW/2,top,holderW,holderH,radius+4);ctx.fill();ctx.stroke();
@@ -3369,7 +3369,7 @@
       }
       if(overflow){
         ctx.fillStyle='#f4e6c9';ctx.font='bold 9px Georgia';
-        ctx.fillText('+'+(count-shown),x,top+holderH-7);
+        ctx.fillText('+'+(count-shown),x,top+holderH-12);
       }
       ctx.restore();
     }
@@ -3526,6 +3526,7 @@
     bh04_selva_paradise:{color:'rgba(255,214,178,.99)',glow:'rgba(255,96,76,.72)',tint:'rgba(165,45,40,.18)'},
     joie_thousand_reel:{color:'rgba(255,183,232,.99)',glow:'rgba(255,78,190,.66)',tint:'rgba(177,38,126,.18)'},
     boleslaw_exclaim:{color:'rgba(255,226,130,.99)',glow:'rgba(255,150,54,.68)',tint:'rgba(175,86,24,.17)'},
+    santiago_bloody_knife:{color:'rgba(255,226,218,.99)',glow:'rgba(196,42,55,.78)',tint:'rgba(129,17,32,.24)'},
     jimmy_wrath:{color:'rgba(255,92,82,.99)',glow:'rgba(244,67,58,.68)',tint:'rgba(148,29,29,.20)'},
     jose_clock:{color:'rgba(255,226,150,.99)',glow:'rgba(230,177,76,.72)',tint:'rgba(155,103,25,.20)'},
     alpine_engineer_proc:{color:'rgba(154,222,255,.99)',glow:'rgba(48,156,255,.72)',tint:'rgba(24,88,168,.20)'},
@@ -4000,6 +4001,14 @@
       ctx.moveTo(21,38);
       ctx.bezierCurveTo(28,50,41,50,48,38);
       ctx.stroke();
+    } else if(kind === 'santiago_bloody_knife') {
+      ctx.lineWidth = 3.6;
+      ctx.lineJoin = 'round';
+      line([[18,7],[30,7],[33,21],[22,27],[18,7]],true);
+      line([[34,7],[46,7],[42,27],[31,21],[34,7]],true);
+      circle(32,40,16);
+      ctx.lineWidth = 1.8;
+      line([[20,28],[28,36],[27,41],[36,43],[44,53]],false);
     } else if(kind === 'boleslaw_exclaim') {
       ctx.lineWidth = 7.5;
       ctx.lineCap = 'round';
@@ -5075,7 +5084,6 @@
     const drawOptions = {pulse:false, tilt:0, lift:hovered ? .06 : 0, hideFateBadge:true, noShadow:true, showStatus:false, showCounters:false};
     if(!angle) {
       drawCardVisual(ctx, entry, visual, r, onChange, drawOptions);
-      if(Number.isFinite(Number(item.card?.currentFate)) && Number(item.card.currentFate) !== Number(item.card.fate)) drawFateBadge(ctx, visual, r, item.card);
       const plainIconRect = drawHandEffectIcon(ctx, item.card, r);
       if(disabled) drawDisabledCardOverlay(ctx, r);
       return plainIconRect ? {iconRect:plainIconRect, iconHitRect:plainIconRect, cardRect:r} : null;
@@ -5087,7 +5095,6 @@
     ctx.rotate(angle);
     ctx.translate(-pivot.x, -pivot.y);
     drawCardVisual(ctx, entry, visual, r, onChange, drawOptions);
-    if(Number.isFinite(Number(item.card?.currentFate)) && Number(item.card.currentFate) !== Number(item.card.fate)) drawFateBadge(ctx, visual, r, item.card);
     iconRect = drawHandEffectIcon(ctx, item.card, r);
     if(disabled) drawDisabledCardOverlay(ctx, r);
     ctx.restore();

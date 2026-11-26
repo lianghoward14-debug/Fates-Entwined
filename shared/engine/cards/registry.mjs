@@ -7,7 +7,7 @@ const REGISTRY = Object.freeze({
     {kind:'OPERATION',operation:{type:'RANDOM_DISCARD_HAND',playerIndex:'$opponent',revealDiscard:true,reason:'FLAMING_LIGHTNING_STORM_HAND'}},
     {kind:'OPERATION',operation:{type:'RANDOM_DISCARD_HAND',playerIndex:'$opponent',revealDiscard:true,reason:'FLAMING_LIGHTNING_STORM_HAND'}}
   ]},
-  '130':{timings:['WHEN_SET','PASSIVE'],operations:['SET_CARD_COUNTER','MODIFY_FATE'],prompts:['MODAL_CHOICE'],triggerSubscriptions:['CARD_SET'],program:[
+  '130':{triggeredFateCoordinator:true,timings:['WHEN_SET','PASSIVE'],operations:['SET_CARD_COUNTER','MODIFY_FATE'],prompts:['MODAL_CHOICE'],triggerSubscriptions:['CARD_SET'],program:[
     {kind:'CHOOSE_OPTION',local:'firstAffiliation',options:[
       {value:'reality',label:'Reality'},{value:'third_great_war',label:'Third Great War'},
       {value:'expanded_worlds',label:'Expanded Worlds'},{value:'eventide',label:'Eventide'}
@@ -40,7 +40,7 @@ const REGISTRY = Object.freeze({
     {kind:'RESOLVE_HOPLITE_CALL',cardId:'$callCardId'}
   ]},
   '120':{timings:['ACTIVATE'],manualOnly:true,maxUses:2,operations:['SET_CARD_COUNTER'],prompts:['BOARD_TARGET'],program:[
-    {kind:'SELECT_BOARD',local:'counterTarget',optional:true,deferOnCancel:false,filter:{cardIds:['bh01','36','121'],faceUp:true}},
+    {kind:'SELECT_BOARD',local:'counterTarget',optional:true,deferOnCancel:false,filter:{counterAbility:true,faceUp:true}},
     {kind:'GIVE_EMERALD_COUNTER',local:'counterTarget'}
   ]},
   '117':{timings:['WHEN_SET'],operations:['CREATE_MATCH_STATUS'],prompts:[],program:[
@@ -49,11 +49,11 @@ const REGISTRY = Object.freeze({
   ]},
   '118':{timings:['WHEN_SET'],havanoTargeting:'OPPONENT',operations:['TRANSFER_CARDS'],prompts:[],program:[{kind:'CARIBBEA_FISHERMAN'}]},
   '112':{timings:['WHEN_SET'],operations:['MODIFY_FATE'],prompts:[],program:[{kind:'REVOLUTIONARY_FLIPPED_FATE'}]},
-  '113':{timings:['WHEN_SET'],havanoTargeting:'OPPONENT',operations:[],prompts:['CARD_SELECTION'],program:[
+  '113':{havanoTargeting:'OPPONENT',timings:['WHEN_SET'],operations:[],prompts:['CARD_SELECTION'],program:[
     {kind:'SELECT_CARDS',local:'orderedIids',reorderTopCount:5,exactUpToAvailable:5,filter:{locations:['deck'],playerIndex:'opponent'},title:'Oppression of the Old Elite',prompt:'Arrange your opponent’s next five draws.'},
     {kind:'APPLY_DECK_ORDER',local:'orderedIids',count:5,playerIndex:'opponent'}
   ]},
-  '114':{timings:['PASSIVE'],havanoTargeting:'OPPONENT',havanoPassiveEntry:true,operations:[],prompts:[],program:[]},
+  '114':{havanoTargeting:'OPPONENT',copyableFieldPassive:true,timings:['PASSIVE'],havanoPassiveEntry:true,operations:[],prompts:[],program:[]},
   '115':{timings:['WHEN_SET'],operations:[],prompts:['MODAL_CHOICE','CARD_SELECTION'],program:[
     {kind:'REQUIRE_ORIGINAL_AFFILIATION_COUNT',count:30},
     {kind:'SELECT_HOPLITE_CALL',local:'callCardId',unconditional:true},
@@ -123,7 +123,7 @@ const REGISTRY = Object.freeze({
       }
     ]
   },
-  '25':{timings:['PASSIVE'],operations:[],prompts:[],program:[]},
+  '25':{copyableFieldPassive:true,timings:['PASSIVE'],operations:[],prompts:[],program:[]},
   '28':{
     timings:['DECK_SET', 'PASSIVE'],
     operations:['SET_CARD'],
@@ -326,13 +326,14 @@ const REGISTRY = Object.freeze({
     ]
   },
   '21':{timings:['PASSIVE'],operations:[],prompts:[]},
-  '24':{
+  '24':{copyableFieldPassive:true,
     effectLabels:['ADJACENCY_BONUS'],
     timings:['PASSIVE'],
     operations:[],
     prompts:[]
   },
   '36':{
+    counterResourceKey:'deterranceCounters',
     havanoPassiveEntry:true,
     timings:['PASSIVE','ACTIVATE'],manualOnly:true,
     operations:['SET_CARD_COUNTER','CREATE_MATCH_STATUS'],
@@ -340,7 +341,7 @@ const REGISTRY = Object.freeze({
     triggerSubscriptions:['CARD_CONSOLIDATED'],
     program:[{kind:'SPEND_DETERRANCE_COUNTER'}]
   },
-  '121':{timings:['PASSIVE','ACTIVATE'],manualOnly:true,operations:['SET_CARD_COUNTER','DISCARD_CARD'],prompts:[],program:[{kind:'SPEND_INFERNO_COUNTER'}]},
+  '121':{counterResourceKey:'infernoCounters',timings:['PASSIVE','ACTIVATE'],manualOnly:true,operations:['SET_CARD_COUNTER','DISCARD_CARD'],prompts:[],program:[{kind:'SPEND_INFERNO_COUNTER'}]},
   '41':{
     timings:['PASSIVE'],
     operations:[],
@@ -355,7 +356,7 @@ const REGISTRY = Object.freeze({
       {kind:'OPERATION', operation:{type:'ADD_SAFE_SQUARE', playerIndex:'$controller', destination:'$destination'}}
     ]
   },
-  '44':{
+  '44':{copyableFieldPassive:true,
     effectLabels:['ADJACENCY_BONUS'],
     timings:['PASSIVE'],
     operations:['SET_CARD_COUNTER'],
@@ -376,7 +377,7 @@ const REGISTRY = Object.freeze({
     operations:[],
     prompts:[]
   },
-  '52':{
+  '52':{havanoTargeting:'OPPONENT',
     timings:['WHEN_SET'],
     operations:['CREATE_CARD_MARK', 'RANDOM_DISCARD_HAND'],
     prompts:['BOARD_TARGET', 'REACTION'],
@@ -456,12 +457,12 @@ const REGISTRY = Object.freeze({
     havanoTargeting:'OPPONENT',
     program:[{kind:'OPERATION',operation:{type:'SET_CARD_COUNTER',targetIid:'$sourceIid',counterKey:'doubleNextMoraleDamage',value:true}}]
   },
-  '70':{
+  '70':{havanoTargeting:'OPPONENT',
     timings:['PASSIVE'],
     operations:['TRANSFER_CARDS', 'RANDOM_HAND_FATE', 'DISCARD_CARD'],
     prompts:[]
   },
-  '71':{
+  '71':{havanoTargeting:'OPPONENT',
     timings:['WHEN_SET'],
     operations:['CREATE_MATCH_STATUS'],
     prompts:[],
@@ -481,7 +482,7 @@ const REGISTRY = Object.freeze({
       }
     ]
   },
-  '72':{
+  '72':{havanoTargeting:'OPPONENT',
     timings:['WHEN_SET'],
     operations:['RANDOM_STEAL_HAND'],
     prompts:[],
@@ -582,10 +583,12 @@ const REGISTRY = Object.freeze({
     triggerSubscriptions:['TURN_STARTED']
   },
   '86':{
-    timings:['PASSIVE'],
-    operations:['DRAW_CARD', 'MODIFY_FATE'],
+    counterResourceKey:'boleslawCounters',
+    timings:['PASSIVE','ACTIVATE'],manualOnly:true,
+    operations:['SET_CARD_COUNTER'],
     prompts:[],
-    triggerSubscriptions:['DECK_SEARCHED']
+    triggerSubscriptions:['CARD_SET'],
+    program:[{kind:'SPEND_BOLESLAW_COUNTERS'}]
   },
   '09':{
     timings:['PASSIVE'],
@@ -705,13 +708,13 @@ const REGISTRY = Object.freeze({
       }
     ]
   },
-  '15':{
+  '15':{triggeredFateCoordinator:true,
     timings:['PASSIVE'],
     operations:['MODIFY_FATE'],
     prompts:[],
     triggerSubscriptions:['CARD_SET']
   },
-  '16':{
+  '16':{havanoTargeting:'OPPONENT',
     timings:['WHEN_SET'],
     operations:['DISCARD_CARD'],
     prompts:['BOARD_TARGET', 'REACTION'],
@@ -737,7 +740,7 @@ const REGISTRY = Object.freeze({
       }
     ]
   },
-  '18':{
+  '18':{havanoTargeting:'OPPONENT',
     timings:['WHEN_SET'],
     operations:['CREATE_TIMED_PLAYER_STATUS'],
     prompts:[],
@@ -783,7 +786,7 @@ const REGISTRY = Object.freeze({
       },
       {
         kind:'OPERATION',
-        operation:{type:'MODIFY_FATE', targetIids:'$targetIids', amount:3}
+        operation:{type:'MODIFY_FATE', targetIids:'$targetIids', amount:4}
       }
     ]
   },
@@ -792,7 +795,7 @@ const REGISTRY = Object.freeze({
     operations:[],
     prompts:[]
   },
-  '26':{
+  '26':{havanoTargeting:'OPPONENT',
     timings:['WHEN_SET'],
     operations:['REVEAL_HAND'],
     prompts:[],
@@ -953,7 +956,7 @@ const REGISTRY = Object.freeze({
     prompts:[],
     triggerSubscriptions:['DRAW_PHASE_COMPLETED']
   },
-  '47':{timings:['WHEN_SET'],operations:['MODIFY_MORALE'],prompts:['REACTION'],havanoTargeting:'OPPONENT',program:[{kind:'OPERATION',operation:{type:'MODIFY_MORALE',playerIndex:'$opponent',sourceIid:'$sourceIid',amount:-10}}]},
+  '47':{havanoTargeting:'OPPONENT',timings:['WHEN_SET'],operations:['MODIFY_MORALE'],prompts:['REACTION'],program:[{kind:'OPERATION',operation:{type:'MODIFY_MORALE',playerIndex:'$opponent',sourceIid:'$sourceIid',amount:-10}}]},
   '48':{
     timings:['ACTIVATE'],
     operations:['TRANSFER_CARDS'],
@@ -1003,12 +1006,12 @@ const REGISTRY = Object.freeze({
       }
     ]
   },
-  '49':{
+  '49':{copyableFieldPassive:true,
     timings:['PASSIVE'],
     operations:[],
     prompts:[]
   },
-  '50':{
+  '50':{havanoTargeting:'OPPONENT',
     timings:['WHEN_SET'],
     operations:['CREATE_TIMED_PLAYER_STATUS'],
     prompts:['ZONE_SELECTION'],
@@ -1060,7 +1063,7 @@ const REGISTRY = Object.freeze({
       }
     ]
   },
-  '53':{
+  '53':{havanoTargeting:'OPPONENT',havanoPassiveEntry:true,copyableFieldPassive:true,
     timings:['PASSIVE'],
     operations:[],
     prompts:[]
@@ -1132,7 +1135,7 @@ const REGISTRY = Object.freeze({
       }
     ]
   },
-  '59':{
+  '59':{copyableFieldPassive:true,
     timings:['PASSIVE'],
     operations:[],
     prompts:[]
@@ -1166,7 +1169,7 @@ const REGISTRY = Object.freeze({
     operations:[],
     prompts:[]
   },
-  '65':{
+  '65':{copyableFieldPassive:true,
     timings:['WHEN_SET'],
     operations:['SET_FATE'],
     prompts:[],
@@ -1412,17 +1415,16 @@ const REGISTRY = Object.freeze({
       }
     ]
   },
-  '92':{
+  '92':{copyableFieldPassive:true,
     timings:['PASSIVE'],
     operations:['CREATE_STATUS'],
     prompts:[],
     triggerSubscriptions:['EFFECT_REACTED']
   },
-  '93':{
+  '93':{havanoTargeting:'OPPONENT',copyableFieldPassive:true,
     timings:['ACTIVATE'],
     operations:['MODIFY_FATE'],
     prompts:['BOARD_TARGET', 'REACTION'],
-    havanoTargeting:'OPPONENT',
     oncePerTurn:true,
     program:[
       {
@@ -1461,7 +1463,7 @@ const REGISTRY = Object.freeze({
       }
     ]
   },
-  '97':{
+  '97':{havanoTargeting:'OPPONENT',
     timings:['WHEN_SET'],
     operations:['CREATE_MATCH_STATUS'],
     prompts:[],
@@ -1484,6 +1486,7 @@ const REGISTRY = Object.freeze({
     ]
   },
   'bh01':{
+    counterResourceKey:'braveHorizonsCounters',
     timings:['ACTIVATE', 'PASSIVE'],
     operations:['MOVE_CARD', 'MODIFY_FATE', 'SET_CARD_COUNTER'],
     prompts:['BOARD_DESTINATION', 'MODAL_CHOICE', 'CARD_SELECTION'],
@@ -1494,7 +1497,7 @@ const REGISTRY = Object.freeze({
       {kind:'RESOLVE_HOPLITE_CALL',cardId:'$callCardId'}
     ]
   },
-  'bh02':{
+  'bh02':{triggeredFateCoordinator:true,
     timings:['PASSIVE'],
     operations:['MODIFY_FATE'],
     prompts:[],
@@ -1580,7 +1583,7 @@ const REGISTRY = Object.freeze({
     operations:[],
     prompts:[]
   },
-  'bh08':{
+  'bh08':{triggeredFateCoordinator:true,
     timings:['PASSIVE'],
     operations:['MODIFY_FATE'],
     prompts:[],
@@ -1855,8 +1858,14 @@ const REGISTRY = Object.freeze({
   ]},
   '106':{timings:['PASSIVE'],effectLabels:['GROWING_ZONE_FATE_AURA'],operations:['MODIFY_MORALE','SET_CARD_COUNTER'],prompts:[],program:[]},
   '103':{
-    timings:['WHEN_SET'],effectLabels:['PAY_MORALE_DRAW'],operations:['MODIFY_MORALE','DRAW_CARD'],prompts:['MODAL_CHOICE'],
-    program:[{kind:'CHOOSE_OPTION',local:'moralePayment',moralePaymentStep:15,options:[{value:'0',label:'Do not pay'}],defaultChoice:'0'},{kind:'SANTIAGO_MORALE_DRAW'}]
+    counterResourceKey:'santiagoSupporterCounters',
+    timings:['PASSIVE','ACTIVATE'],manualOnly:true,
+    operations:['SET_CARD_COUNTER','MODIFY_MORALE'],prompts:['BOARD_TARGET'],
+    triggerSubscriptions:['CARD_DISCARDED'],
+    program:[
+      {kind:'SELECT_BOARD',local:'santiagoTarget',filter:{controller:true,santiagoUnused:true}},
+      {kind:'SANTIAGO_COUNTER_STRIKE'}
+    ]
   },
   'test-p3-chain':{
     testOnly:true,
@@ -1931,7 +1940,7 @@ const REGISTRY = Object.freeze({
 
 const PRESSURE_REWORK_REGISTRY = Object.freeze({
   '20':{timings:['ACTIVATE'],operations:['CREATE_TIMED_PLAYER_STATUS'],prompts:['REACTION'],manualOnly:true,maxUses:2,program:[{kind:'OPERATION',operation:{type:'CREATE_TIMED_PLAYER_STATUS',statusType:'MORALE_DAMAGE_INFLICTED_ZERO',playerIndex:'$opponent',targetTurns:1,startsNextTargetTurn:true}}]},
-  '25':{timings:['PASSIVE'],operations:[],prompts:[],program:[]},
+  '25':{copyableFieldPassive:true,timings:['PASSIVE'],operations:[],prompts:[],program:[]},
   '33':{timings:['WHEN_SET'],operations:['MODIFY_MORALE'],prompts:[],program:[{kind:'OPERATION',operation:{type:'MODIFY_MORALE',playerIndex:'$controller',sourceIid:'$sourceIid',amount:16}}]},
   '34':{timings:['WHEN_SET','PASSIVE'],operations:['SET_CARD_COUNTER'],prompts:['MODAL_CHOICE','REACTION'],havanoTargeting:'OPPONENT',program:[
     {kind:'CHOOSE_OPTION',local:'affiliation',options:[{value:'reality',label:'Reality'},{value:'third_great_war',label:'Third Great War'},{value:'expanded_worlds',label:'Expanded Worlds'},{value:'eventide',label:'Eventide'}],defaultChoice:'reality'},
@@ -1939,7 +1948,7 @@ const PRESSURE_REWORK_REGISTRY = Object.freeze({
     {kind:'OPERATION',operation:{type:'SET_CARD_COUNTER',targetIid:'$sourceIid',counterKey:'moraleAffiliation',value:'$affiliation'}}
   ]},
   '35':{timings:['PASSIVE'],operations:[],prompts:['REACTION'],havanoPassiveEntry:true},
-  '44':{timings:['PASSIVE'],operations:['SET_CARD_COUNTER'],prompts:['MODAL_CHOICE'],program:[
+  '44':{copyableFieldPassive:true,timings:['PASSIVE'],operations:['SET_CARD_COUNTER'],prompts:['MODAL_CHOICE'],program:[
     {kind:'CHOOSE_OPTION',local:'declaredType',options:[
       {value:'Supporter',label:'Supporter'},
       {value:'Initiator',label:'Initiator'},
@@ -1954,9 +1963,9 @@ const PRESSURE_REWORK_REGISTRY = Object.freeze({
     {kind:'SELECT_BOARD',local:'targetIid',filter:{targetable:'DISCARD_CARD'}},
     {kind:'OPERATION',targeted:true,operation:{type:'DISCARD_CARD',targetIid:'$targetIid',reason:'THE_LAST_MOHICAN'}}
   ]},
-  '47':{timings:['WHEN_SET'],operations:['MODIFY_MORALE'],prompts:['REACTION'],havanoTargeting:'OPPONENT',program:[{kind:'OPERATION',operation:{type:'MODIFY_MORALE',playerIndex:'$opponent',sourceIid:'$sourceIid',amount:-10}}]},
+  '47':{havanoTargeting:'OPPONENT',timings:['WHEN_SET'],operations:['MODIFY_MORALE'],prompts:['REACTION'],program:[{kind:'OPERATION',operation:{type:'MODIFY_MORALE',playerIndex:'$opponent',sourceIid:'$sourceIid',amount:-10}}]},
   '64':{timings:['WHEN_SET'],operations:['SET_CARD_COUNTER'],prompts:['REACTION'],havanoTargeting:'OPPONENT',program:[{kind:'OPERATION',operation:{type:'SET_CARD_COUNTER',targetIid:'$sourceIid',counterKey:'doubleNextMoraleDamage',value:true}}]},
-  '65':{timings:['PASSIVE','TURN_BOUNDARY'],operations:['MODIFY_MORALE'],prompts:['REACTION'],havanoPassiveEntry:true,triggerSubscriptions:['TURN_STARTED'],program:[]},
+  '65':{copyableFieldPassive:true,timings:['PASSIVE','TURN_BOUNDARY'],operations:['MODIFY_MORALE'],prompts:['REACTION'],havanoPassiveEntry:true,triggerSubscriptions:['TURN_STARTED'],program:[]},
   '69':{timings:['WHEN_SET'],operations:['MODIFY_MORALE','TRANSFER_CARDS'],prompts:['CARD_SELECTION'],program:[
     {kind:'SELECT_CARDS',local:'targetIid',min:1,max:1,filter:{locations:['discard'],playerIndex:'controller',type:'Initiator'}},
     {kind:'OPERATION',operation:{type:'MODIFY_MORALE',playerIndex:'$controller',sourceIid:'$sourceIid',amount:-25,reason:'BREAKFAST_REPUBLIC_BUSSER_COST'}},
@@ -1965,23 +1974,12 @@ const PRESSURE_REWORK_REGISTRY = Object.freeze({
   '73':{timings:['PASSIVE'],operations:[],prompts:[]}
 });
 
-// Keep authoritative Havano eligibility aligned with the shipping browser
-// metadata. These effects can target the opponent or an opponent-owned card.
-const HAVANO_TARGETING_SOURCE_IDS = new Set([
-  '04','14','16','17','18','26','30','31','34','39','47','50',
-  '52','61','62','64','71','72','81','93','97','bh04','bh16','bh18','bh21'
-]);
-
 export function cardRule(cardId, state = null){
   const id = String(cardId || '');
   let rule = null;
   if(['20','25','33','34','47','64','73'].includes(id) && PRESSURE_REWORK_REGISTRY[id]) rule = PRESSURE_REWORK_REGISTRY[id];
   else if(state?.gameSettings?.pressureCardReworks === true && PRESSURE_REWORK_REGISTRY[id]) rule = PRESSURE_REWORK_REGISTRY[id];
   else rule = REGISTRY[id] || null;
-  if(rule && ['10','21','35','36','53','65'].includes(id)) return {...rule,havanoTargeting:'NONE',havanoPassiveEntry:false};
-  if(rule && HAVANO_TARGETING_SOURCE_IDS.has(id) && rule.havanoTargeting !== 'OPPONENT'){
-    return {...rule, havanoTargeting:'OPPONENT'};
-  }
   return rule;
 }
 

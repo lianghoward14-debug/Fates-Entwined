@@ -382,6 +382,7 @@ html body #s-challenger .war2-zone-command-v3{border:2px solid #c19a43!important
 
 /* WARFRONT V40 — enforce Free World score blue over the red base rule. */
 #s-challenger .war8-conclusion-score article.team-b b{color:#57adf5!important}
+#s-challenger .war8-conclusion-score article span small{display:block;margin-top:6px;color:#aeb8bd;font:600 10px/1.25 system-ui,sans-serif;white-space:nowrap;text-transform:uppercase}
 #s-challenger .war8-report-score article.team-b b{color:#54aaf2!important}
 
 /* State-aware Warfront motion language. */

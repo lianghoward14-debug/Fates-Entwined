@@ -7,7 +7,8 @@ export async function serveGame(req, res, pathname) {
   let decoded;
   try { decoded = decodeURIComponent(pathname); } catch { return false; }
   const tutorialRoute = decoded === '/tutorial' || decoded === '/tutorial/';
-  if (tutorialRoute) decoded = '/index.html';
+  const testNewModeRoute = decoded === '/testnewmode' || decoded === '/testnewmode/';
+  if (tutorialRoute || testNewModeRoute) decoded = '/index.html';
   if (decoded.split('/').some(p => p.startsWith('.'))) return false;
   const file = path.resolve(root, '.' + (decoded === '/' ? '/index.html' : decoded));
   if (!file.startsWith(root + path.sep) || !types[path.extname(file).toLowerCase()]) return false;
@@ -17,7 +18,7 @@ export async function serveGame(req, res, pathname) {
   let body;
   if (file === path.join(root, 'index.html')) {
     body = (await fs.promises.readFile(file, 'utf8')).replace(/<button\b[^>]*onclick="playMenuSfx\(\);startTutorial\(\)"[^>]*>Tutorial<\/button>/, '');
-    if (tutorialRoute) body = body.replace('<head>', '<head>\n<base href="/">');
+    if (tutorialRoute || testNewModeRoute) body = body.replace('<head>', '<head>\n<base href="/">');
   }
   res.writeHead(200, {'content-type':types[path.extname(file).toLowerCase()], 'cache-control':'no-cache', 'content-length':body === undefined ? stat.size : Buffer.byteLength(body), 'x-content-type-options':'nosniff'});
   if (req.method === 'HEAD') res.end();

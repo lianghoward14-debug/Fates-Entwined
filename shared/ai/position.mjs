@@ -100,7 +100,24 @@ export function evaluatePosition(state, player, preferences=personalityFor()) {
     const available=(!rule?.maxUses || Number(card.counters?.effectUses || 0)<rule.maxUses)
       && !(rule?.oncePerTurn && Number(card.counters?.lastEffectTurn)===state.turn)
       && !(rule?.blockedWhileStatus && card.statuses?.includes(rule.blockedWhileStatus));
-    if(rule?.timings?.includes('ACTIVATE') && available)score+=sign*preferences.development;
+    if(rule?.timings?.includes('ACTIVATE') && available){
+      const cost=['bh01','103','86'].includes(runtimeRuleId(card))?2:1;
+      const uses=rule.counterResourceKey?Math.floor(Number(card.counters?.[rule.counterResourceKey] || 0)/cost):1;
+      if(uses>0)score+=sign*(1+Math.min(2,uses-1)*.5)*preferences.development;
+    }
+    // A draw in hand can pay off an established Joie even in a mixed deck.
+    if(runtimeRuleId(card)==='bh02'){
+      const owner=controllerOf(card),resources=owner===player?ownAccess:enemyAccess;
+      const ready=state.players[owner].deck?.length && state.players[owner].hand?.some(c=>{
+        const program=cardRule(runtimeRuleId(c),state)?.program;
+        if(!program?.some(step=>step.operation?.type==='DRAW_CARD' && step.operation.playerIndex==='$controller'))return false;
+        return c.type==='Supporter'?resources.readiness>0:resources.routes.some(route=>route.iid===c.iid && route.deficit===0);
+      });
+      if(ready){
+        const beneficiaries=entries.filter(e=>controllerOf(e.card)===owner && (card.counters?.whisperLandscapeToken || e.z===entry.z));
+        score+=sign*Math.min(4,beneficiaries.length)*preferences.development;
+      }
+    }
     // Public, reusable interaction is a resource even before it fires.
   }
   return score;

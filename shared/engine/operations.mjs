@@ -716,6 +716,7 @@ function discardCard(ctx, operation){
     card = ctx.state.players[entry.playerIndex][entry.zone].splice(entry.index, 1)[0];
   }
   const owner = Number(card.owner);
+  const previousController = Number(card.controller);
   const revealedOnDiscard = operation.revealDiscard === true && entry.zone === 'board';
   // Reveal only after removal succeeds, never during targeting/reaction windows
   // or a replacement that sends the card somewhere other than the discard pile.
@@ -726,6 +727,7 @@ function discardCard(ctx, operation){
     type:RULE_EVENT_TYPES.CARD_DISCARDED,
     cardIid:card.iid,
     owner,
+    previousController,
     previousZone:entry.zone,
     ...(entry.zone === 'board' ? {previousBoardPosition:{z:entry.z,r:entry.r,c:entry.c}} : {}),
     ...(revealedOnDiscard ? {revealedOnDiscard:true} : {}),
@@ -870,10 +872,10 @@ function changeFate(ctx, operation, absolute){
           && !isEffectSourceSuppressed(ctx.state, sourceEntry)
         )
       : [];
-    const chineseMacArthurBaseBonus = chineseMacArthurSources.length;
+    const chineseMacArthurBaseBonus = chineseMacArthurSources.length * 2;
     const chineseMacArthurBonus = chineseMacArthurBaseBonus;
     const chineseMacArthurPresentationSourceIids = chineseMacArthurSources.flatMap(sourceEntry=>
-      [String(sourceEntry.card.iid || '')]
+      Array(2).fill(String(sourceEntry.card.iid || ''))
     );
     const gain = transformed + chineseMacArthurBonus - beforeStored;
     commitPermanentFate(entry.card, transformed + chineseMacArthurBonus);
@@ -2277,7 +2279,7 @@ function applyChineseMacArthurToDerivedAuraGains(ctx, beforeSnapshot){
   try{
     for(const item of pending){
       const before = item.afterEffective;
-      const potency = 1; // Hsei-Ling's rider is not explicitly permanent.
+      const potency = 2; // Hsei-Ling's rider is not explicitly permanent.
       const bonus = item.sources.length * potency;
       commitPermanentFate(item.entry.card, Math.max(0, Number(item.entry.card.currentFate) || 0) + bonus);
       copyRiveraGain(ctx,item.entry.card.iid,bonus);

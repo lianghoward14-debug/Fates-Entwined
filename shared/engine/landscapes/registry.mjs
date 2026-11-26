@@ -12,7 +12,7 @@ const LANDSCAPE_RULES = Object.freeze({
   igb11:{kind:'CARD_SET_FATE_BONUS', type:'Initiator', amount:3},
   igb12:{kind:'REVEAL_BOTH_HANDS'},
   igb13:{kind:'ALTERNATING_DRAW_PHASE_SKIP'},
-  igb14:{kind:'SERVER_TURN_TIMER', milliseconds:30000},
+  igb14:{kind:'SERVER_TURN_TIMER', minMilliseconds:20000, maxMilliseconds:120000},
   igb15:{kind:'SUPPORTER_EFFECT_LIMIT', maxPerTurn:1},
   igb16:{kind:'DISCARD_HAND_FOR_SIDE_FATE', amount:4},
   igb17:{kind:'COORDINATOR_COPY_TOKEN', oncePerGame:true},

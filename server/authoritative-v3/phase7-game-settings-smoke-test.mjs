@@ -18,7 +18,7 @@ for(const landscapeId of PHASE7_MULTIPLAYER_LANDSCAPE_IDS){
   assert.equal(normalized.landscapeMode, 'selected');
   assert.equal(normalized.landscapeId, landscapeId);
   assert.equal(resolved.resolvedLandscapeId, landscapeId);
-  assert.equal(resolved.turnTimerSeconds, landscapeId === 'igb14' ? 30 : 420);
+  assert.equal(resolved.turnTimerSeconds, landscapeId === 'igb14' ? 120 : 420);
 }
 
 // Random is deterministic for one match seed, shared by both clients, and is

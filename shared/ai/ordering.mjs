@@ -1,10 +1,12 @@
+import {counterImprovisorPrior,canChargeSantiago} from './counter-improvisors.mjs';
+import {createPlacementPrior} from './card-placement.mjs';
 import {createRevolutionPrior} from './revolution-heuristics.mjs';
 import {createHavanoViajePrior} from './havano-viaje-heuristics.mjs';
 import {createLakesMomentumPrior} from './lakes-momentum-heuristics.mjs';
 import {boardEntries,controllerOf} from '../engine/selectors.mjs';
 import {zoneScore} from '../engine/scoring.mjs';
 import {cardRule} from '../engine/cards/registry.mjs';
-import {runtimeRuleId} from '../engine/modifiers.mjs';
+import {canUseAsConsolidationTribute,effectiveConsolidationCost,runtimeRuleId} from '../engine/modifiers.mjs';
 import {createIncelPrior} from './incel-heuristics.mjs';
 import {createAssaultPrior} from './assault-heuristics.mjs';
 import {createFreeWorldPrior} from './freeworld-heuristics.mjs';
@@ -46,6 +48,16 @@ export function createCommandOrderer(state,player,personality='balanced'){
   const havanoViajePrior=createHavanoViajePrior(state,player);
   const lakesMomentumPrior=createLakesMomentumPrior(state,player);
   const newPublicDeckPrior=createNewPublicDeckPrior(state,player,entries,cards);
+  const placementPrior=createPlacementPrior(state,player,entries);
+  const prompt=state.pendingPrompt;
+  const copied=state.effectStack?.findLast(f=>f.sourceIid===prompt?.sourceIid && f.kind==='COPIED_CARD_EFFECT');
+  const promptRule=cardRule(copied?.sourceCardId || runtimeRuleId(promptSource),state);
+  const improvisorPrior=counterImprovisorPrior(state,player,entries,cards);
+  const chargeSantiago=canChargeSantiago(state,player,entries);
+  const selection=promptRule?.program?.find(step=>step.local===prompt?.local && ['SELECT_BOARD','SELECT_HAND','SELECT_CARDS'].includes(step.kind));
+  const discardsSelection=selection?.filter?.targetable==='DISCARD_CARD' ||
+    (selection && promptRule.program[promptRule.program.indexOf(selection)+1]?.operation?.type==='DISCARD_CARD');
+  const boardIds=new Set(entries.map(e=>e.card.iid));
   let supportCompanyPrior;
   const values=new Map();
   const dependencyValues=new Map();
@@ -63,9 +75,14 @@ export function createCommandOrderer(state,player,personality='balanced'){
   function value(card){
     if(!card)return 0;
     if(values.has(card.iid))return values.get(card.iid);
-    const operations=cardRule(runtimeRuleId(card),state)?.operations || [];
+    const rule=cardRule(runtimeRuleId(card),state);
+    const operations=rule?.operations || [];
     let score=Number(card.currentFate ?? card.fate ?? card.baseFate ?? 0)*.3;
-    score+=operations.includes('DRAW_CARDS')?5:0;
+    const draw=rule?.program?.find(step=>step.operation?.type==='DRAW_CARD' && step.operation.playerIndex==='$controller')?.operation;
+    if(draw){
+      const available=state.players[controllerOf(card)]?.deck?.length || 0;
+      score+=2*Math.min(3,Number(draw.count || 1),available);
+    }
     score+=operations.includes('TRANSFER_CARDS')?4:0;
     score+=operations.includes('SET_CARD')?5:0;
     score+=operations.some(op=>op==='DISCARD_CARD' || op==='DISCARD_CARDS')?5:0;
@@ -73,6 +90,30 @@ export function createCommandOrderer(state,player,personality='balanced'){
     score+=operations.includes('CHANGE_PLAYER_COUNTER')?4:0;
     if(card.type!=='Supporter')score-=Number(card.cost || 0)*1.2;
     values.set(card.iid,score);return score;
+  }
+  const handValues=new Map();
+  function handValue(target){
+    if(!target)return 0;
+    if(handValues.has(target.iid))return handValues.get(target.iid);
+    const owner=controllerOf(target);
+    const rule=cardRule(runtimeRuleId(target),state);
+    let score=Math.max(0,value(target));
+    if(rule?.reactionKind)score+=3;
+    if(target.type==='Supporter'){
+      if(!(state.players[owner]?.hand || []).some(c=>c.iid!==target.iid && c.type==='Supporter'))score+=3;
+    }else if(owner===0 || owner===1){
+      let supply=0,lowestCost=Infinity;
+      for(const entry of entries){
+        const payment=canUseAsConsolidationTribute(state,entry,owner,target);
+        if(!payment.ok)continue;
+        supply+=payment.reinforcement;
+        lowestCost=Math.min(lowestCost,effectiveConsolidationCost(state,target,owner,entry));
+      }
+      const cost=Number.isFinite(lowestCost)?lowestCost:effectiveConsolidationCost(state,target,owner);
+      score+=supply>=cost?3:-Math.min(4,cost-supply);
+    }
+    handValues.set(target.iid,score);
+    return score;
   }
   return command=>{
     const p=command.payload || {};
@@ -85,9 +126,9 @@ export function createCommandOrderer(state,player,personality='balanced'){
       // Voluntary disposal is a cost, not another activation of the printed
       // ability. Keep it available for unusual plans without promoting it
       // merely because the discarded card has powerful operation tags.
-      return -8-departureValue([p.targetIid || p.sourceIid])+deckPreservationPrior(command)+contestedCommandDelta(state,player,command,cards);
+      return (chargeSantiago && card?.type==='Supporter'?2:-8)-departureValue([p.targetIid || p.sourceIid])+deckPreservationPrior(command)+contestedCommandDelta(state,player,command,cards);
     }
-    let score=havanoViajePrior(command)+revolutionPrior(command)+lakesMomentumPrior(command)+newPublicDeckPrior(command)+value(card)+incelPrior(command)+assaultPrior(command)+freeWorldPrior(command)+majaPrior(command)+timePrior(command)+patiencePrior(command)+wintertidePrior(command)+endlessSeaPrior(command)+publicComboPrior(command)+archiveExpansionPrior(command)+comboPlanPrior(command)+deckPreservationPrior(command);
+    let score=improvisorPrior(command,card)+placementPrior(command,card)+havanoViajePrior(command)+revolutionPrior(command)+lakesMomentumPrior(command)+newPublicDeckPrior(command)+value(card)+incelPrior(command)+assaultPrior(command)+freeWorldPrior(command)+majaPrior(command)+timePrior(command)+patiencePrior(command)+wintertidePrior(command)+endlessSeaPrior(command)+publicComboPrior(command)+archiveExpansionPrior(command)+comboPlanPrior(command)+deckPreservationPrior(command);
     if(card && ['SET_CARD','SET_CARD_FROM_DECK','CONSOLIDATE_CARD'].includes(command.type)){
       const id=String(card.id||''),enemy=entries.filter(e=>controllerOf(e.card)===1-player&&!e.card.faceDown);
       if(id==='121')score+=4;
@@ -129,7 +170,21 @@ export function createCommandOrderer(state,player,personality='balanced'){
         return sum+usefulness/(index+1);
       },0);
     }
-    if(p.reactionIid)score+=8;
+    if(p.reactionIid){
+      // The printed power of the reactor is not the benefit of spending it.
+      score-=value(card);
+      const rule=cardRule(runtimeRuleId(card),state);
+      const usesLeft=Number(rule?.maxUses ?? 1)-Number(card?.counters?.reactionUses || 0);
+      score+=usesLeft>1?3:0;
+      const operation=state.effectStack?.findLast(frame=>frame.pendingOperation)?.pendingOperation;
+      const target=cards.get(operation?.targetIid || operation?.cardIid);
+      if(target && controllerOf(target)===player){
+        if(['DISCARD_CARD','CHANGE_CONTROL','RETURN_TO_HAND'].includes(operation.type))
+          score+=Math.max(0,departureValue([target.iid]));
+        if(operation.type==='MODIFY_FATE')
+          score+=Math.max(0,-Number(operation.amount || 0));
+      }
+    }
     if(command.type==='ANSWER_PROMPT' && promptSource?.id==='130' && p.choice){
       const affinity=String(p.choice),ownCards=[...(state.players[player].hand||[]),...(state.players[player].deck||[])];
       score+=ownCards.filter(c=>String(c.affiliation||c.aff||'')===affinity).length*1.8;
@@ -142,10 +197,6 @@ export function createCommandOrderer(state,player,personality='balanced'){
       const target=cards.get(String(p.selectedIid));
       score+=Math.max(0,Number(target?.currentFate??target?.fate)||0)*2;
     }
-    if(command.type==='ANSWER_PROMPT' && promptSource?.id==='126' && p.selectedIids){
-      // The two deck discards are a cost; prefer expending weaker cards.
-      score-=p.selectedIids.reduce((sum,iid)=>sum+Math.max(0,value(cards.get(iid)))*2,0);
-    }
     if(command.type==='ANSWER_PROMPT' && promptSource?.id==='125' && p.selectedIids){
       const seen=new Set([...(state.players[1-player].discard||[]),...entries.filter(e=>controllerOf(e.card)===1-player&&!e.card.faceDown).map(e=>e.card)].map(c=>String(c.id||'')));
       score+=p.selectedIids.filter(id=>seen.has(String(id))).length*6;
@@ -154,8 +205,24 @@ export function createCommandOrderer(state,player,personality='balanced'){
       // A low-Fate aura or combo enabler can matter more than the largest body.
       score+=Math.max(0,-departureValue([card.iid]))*.6;
     }
-    if(p.selectedIids)score+=p.selectedIids.reduce((sum,iid)=>sum+2+value(cards.get(iid)),0);
-    if(p.discardedIids)score-=p.discardedIids.reduce((sum,iid)=>sum+value(cards.get(iid)),0);
+    const selected=p.selectedIids || (p.selectedIid?[p.selectedIid]:[]);
+    if(discardsSelection && selected.length){
+      // Replace the generic card-value bonus with the cost to its controller.
+      score-=value(card);
+      const onBoard=selected.filter(iid=>boardIds.has(iid));
+      if(onBoard.length)score-=departureValue(onBoard);
+      for(const iid of selected){
+        const target=cards.get(iid);
+        if(target)score+=(controllerOf(target)===player?-1:1)*(boardIds.has(iid)?value(target):handValue(target));
+      }
+    }else if(prompt?.ordered && selection){
+      const sign=selection.filter?.playerIndex==='opponent'?-1:1;
+      score+=sign*selected.reduce((sum,iid,index)=>sum+handValue(cards.get(iid))/(index+1),0);
+    }else if(selection?.kind==='SELECT_CARDS' && selection.filter?.playerIndex==='controller'){
+      score-=value(card);
+      score+=selected.reduce((sum,iid)=>sum+handValue(cards.get(iid)),0);
+    }else if(p.selectedIids)score+=selected.reduce((sum,iid)=>sum+2+value(cards.get(iid)),0);
+    if(p.discardedIids)score-=p.discardedIids.reduce((sum,iid)=>sum+handValue(cards.get(iid)),0);
     if(p.destination){
       const margin=margins[Number(p.destination.z)] || 0;
       const gain=Number(card?.currentFate ?? card?.baseFate ?? 1);

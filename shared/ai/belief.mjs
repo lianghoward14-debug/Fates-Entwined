@@ -21,14 +21,19 @@ export function sampleWorld(state,player,sample=0){
   const affiliations=new Set(publicCards.filter(c=>Number(c.controller ?? c.owner)===enemy).map(c=>c.affiliation));
   const candidates=catalog.filter(c=>!c.retired && !c.temporarilyDisabled && !String(c.id).startsWith('token'));
   const visibleHand=Array.isArray(view.players[enemy].hand)?view.players[enemy].hand:[];
+  const visiblePrompt=view.pendingPrompt;
+  const revealed=Number(visiblePrompt?.playerIndex)===player ? visiblePrompt.eligibleCards || [] : [];
+  const revealedById=new Map(revealed.filter(c=>c.iid && c.id).map(c=>[c.iid,c]));
+  const knownEnemy=new Map([...publicCards,...visibleHand,...revealed].filter(c=>Number(c.owner)===enemy).map(c=>[c.iid,c]));
   const counts=new Map();
   let stars=0;
-  for(const card of [...publicCards.filter(c=>Number(c.owner)===enemy),...visibleHand]){
+  for(const card of knownEnemy.values()){
     counts.set(card.id,(counts.get(card.id) || 0)+1);
     if(card.rarity==='star')stars++;
   }
   const unknown=new Map();
   function sampled(owner,iid){
+    if(revealedById.has(iid))return structuredClone(revealedById.get(iid));
     const eligible=candidates.filter(c=>(counts.get(c.id) || 0)<3 && !(c.rarity==='star' && stars>0));
     const pool=eligible.length?eligible:candidates;
     const supporter=nextInt(rng,100)<65;
@@ -77,6 +82,10 @@ export function sampleWorld(state,player,sample=0){
   for(const owner of [0,1]){
     world.players[owner].deck.sort((a,b)=>String(a.iid).localeCompare(String(b.iid)));
     shuffleInPlace(world.players[owner].deck,rng);
+    if(visiblePrompt?.ordered && owner===(visiblePrompt.opponentDeck?enemy:player)){
+      const order=new Map(revealed.map((card,index)=>[card.iid,index]));
+      world.players[owner].deck.sort((a,b)=>(order.get(a.iid) ?? order.size)-(order.get(b.iid) ?? order.size));
+    }
   }
   world.rngState=rng;
   return world;

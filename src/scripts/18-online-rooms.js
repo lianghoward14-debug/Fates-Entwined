@@ -1,3 +1,4 @@
+import {cardRule} from '../../shared/engine/cards/registry.mjs';
 // FATES ENTWINED ONLINE ROOMS V1.3
 // Fly authority room transport, with RTDB room-code fallback only when enabled.
 (function(){
@@ -1665,12 +1666,6 @@
     const type = onlineCardType(card);
     return !!type && type !== 'Supporter' && type !== 'Counter';
   }
-  const ONLINE_HAVANO_FIRST_SET_SOURCE_IDS = new Set([
-    '04','10','14','16','17','18','21','26','30','31','36','39','50','52','53','61','62','64','71','72','123','126','127'
-  ]);
-  const ONLINE_SECULES_WHEN_SET_IDS = new Set(['108','111','112','113','115','116','117','118','119',
-    '02','03','04','05','06','07','08','12','13','14','16','17','18','21','22','25','26','27','29','30','31','32','33','34','35','37','38','39','40','42','43','45','46','48','50','51','52','54','56','58','60','61','62','66','68','69','71','72','73','75','76','77','80','84','91','94','bh09','bh23','bh24','bh25'
-  ]);
   const resumedOnlinePlacementReactionPrompts = new Set();
 
   function onlinePlacementReactionSourceIsImmune(card){
@@ -1726,8 +1721,8 @@
     const sourceType = onlineCardType(sourceCard);
     const kinds = [];
     if(onlineImprovisorOnBoardReady(g, reactor, '56')) kinds.push('lydia');
-    if(onlineImprovisorOnBoardReady(g, reactor, '67') && (sourceType === 'Initiator' || (sourceType === 'Supporter' && ONLINE_SECULES_WHEN_SET_IDS.has(sourceId)))) kinds.push('secules');
-    if(ONLINE_HAVANO_FIRST_SET_SOURCE_IDS.has(sourceId)){
+    if(onlineImprovisorOnBoardReady(g, reactor, '67') && (sourceType === 'Initiator' || (sourceType === 'Supporter' && cardRule(sourceId, g)?.timings?.includes('WHEN_SET')))) kinds.push('secules');
+    if(sourceType === 'Supporter' && (cardRule(sourceId, g)?.havanoTargeting === 'OPPONENT' || cardRule(sourceId, g)?.havanoPassiveEntry === true)){
       const havano = (g.players?.[reactor]?.hand || []).find(card=>String(card?.id || '') === '79');
       if(havano) kinds.push('havano');
     }
@@ -3302,6 +3297,12 @@
       // the authoritative projection boundary.
       next.copiedPassiveId = copiedPassiveId;
       next._copiedPassiveId = copiedPassiveId;
+      if(String(card.id || '') === '37'){
+        const copiedDefinition=(window.FATE_CARD_DEFINITIONS || (typeof CARDS !== 'undefined' ? CARDS : []))
+          .find(definition=>String(definition?.id || '')===copiedPassiveId);
+        next.copiedPassiveName=next._copiedPassiveName=String(copiedDefinition?.name || 'Supporter');
+        next.copiedPassiveEffect=next._copiedPassiveEffect=String(copiedDefinition?.effect || '');
+      }
     }
     if(String(card.id || '') === 'bh05'){
       const taylorCopiedId = String(card.counters?.copiedEffectId || card.counters?.copiedPassiveId || '');
@@ -4181,6 +4182,80 @@
     phase7FlushPendingWhiteboardCatalog();
     return true;
   };
+  let phase7MassSnowball = null;
+  function phase7SnowballCommands(){
+    return phase7CurrentCommands().filter(command=>command?.type === 'ACTIVATE_EFFECT'
+      && String(command.cardId || '') === '93'
+      && !phase7FindBoardCard(command.payload?.sourceIid)?.card?.faceDown);
+  }
+  function phase7AdvanceMassSnowball(){
+    const batch = phase7MassSnowball;
+    if(!batch) return false;
+    const state = phase7CurrentUiSession.view?.state;
+    if(!state || String(state.matchId) !== batch.matchId || Number(state.turn) !== batch.turn
+      || Number(state.activePlayer) !== batch.playerIndex || state.outcome){
+      phase7MassSnowball = null;
+      return false;
+    }
+    if(batch.pending) return true;
+    const revision = Number(phase7CurrentUiSession.view?.revision ?? state.revision ?? -1);
+    if(revision <= batch.lastRevision) return true;
+    const prompt = state.pendingPrompt;
+    if(prompt){
+      if(prompt.type === 'BOARD_TARGET' && String(prompt.sourceIid || '') === batch.activeSourceIid
+        && Number(prompt.playerIndex) === batch.playerIndex){
+        const answer = phase7CurrentCommands().find(command=>command.type === 'ANSWER_PROMPT'
+          && String(command.payload?.promptId) === String(prompt.promptId)
+          && String(command.payload?.selectedIid) === batch.targetIid);
+        if(!answer){ phase7MassSnowball = null; toast('Mass Snowball target is no longer available.'); return false; }
+        batch.pending = true;
+        batch.lastRevision = revision;
+        phase7SubmitCommand(answer).then(ok=>{
+          batch.pending = false;
+          if(!ok) phase7MassSnowball = null;
+          else setTimeout(phase7SyncInteractionUi, 0);
+        });
+        return true;
+      }
+      // Reaction choices remain with the players; the batch resumes when
+      // the server has finished resolving that activation.
+      return false;
+    }
+    const commands = phase7SnowballCommands();
+    const next = batch.sourceIids.slice(batch.nextIndex).map((iid, offset)=>({
+      command:commands.find(candidate=>String(candidate.payload?.sourceIid)===iid),
+      index:batch.nextIndex + offset
+    })).find(item=>item.command);
+    if(!next){ phase7MassSnowball = null; return false; }
+    batch.nextIndex = next.index + 1;
+    batch.activeSourceIid = String(next.command.payload.sourceIid);
+    batch.pending = true;
+    batch.lastRevision = revision;
+    phase7SubmitCommand(next.command, {manualActivationIntent:true}).then(ok=>{
+      batch.pending = false;
+      if(!ok) phase7MassSnowball = null;
+      else setTimeout(phase7SyncInteractionUi, 0);
+    });
+    return true;
+  }
+  function phase7BeginMassSnowball(){
+    if(phase7MassSnowball) return;
+    const commands = phase7SnowballCommands();
+    if(!commands.length) return;
+    const state = phase7CurrentUiSession.view?.state;
+    const playerIndex = Number(phase7CurrentUiSession.view?.playerIndex);
+    closeModal();
+    pickCardFromAnyZone('Mass Snowball: select one opponent card for all available Snowball Fights.', target=>{
+      if(!target || Number(target.owner) === playerIndex) return;
+      phase7MassSnowball = {
+        matchId:String(state.matchId), turn:Number(state.turn), playerIndex,
+        targetIid:String(target.iid),
+        sourceIids:commands.map(command=>String(command.payload.sourceIid)),
+        nextIndex:0, activeSourceIid:'', pending:false, lastRevision:-1
+      };
+      phase7AdvanceMassSnowball();
+    }, cell=>cell && Number(cell.owner) !== playerIndex);
+  }
   function phase7ChooseCommand(matches, label, options){
     const choices = Array.isArray(matches) ? matches.filter(Boolean) : [];
     const blackRoseFaceUp=choices.find(command=>String(command?.type||'')==='SET_CARD'&&command?.payload?.faceDown!==true&&['102','104','105','107'].includes(String(phase7FindAnyCard(command?.payload?.cardIid)?.id||'')));
@@ -4760,8 +4835,10 @@
     if(String(card?.id || '') === '93') return {label:'Snowball Fight', prompt:'Snowball Fight'};
     if(String(card?.id || '') === 'bh16') return {label:'Storm of Ten Thousand Blades', prompt:'Storm of Ten Thousand Blades'};
     if(String(card?.id || '') === 'bh01') return {label:'Expend 2 counters', prompt:'Call to Arms'};
-    if(String(card?.id || '') === '120') return {label:'Put 1 counter on a card', prompt:'The Story Never Ends'};
+    if(String(card?.id || '') === '120') return {label:'Daring Adventures', prompt:'The Story Never Ends'};
     if(String(card?.id || '') === '36') return {label:'Expend 1 counter', prompt:'Deterrance'};
+    if(String(card?.id || '') === '86') return {label:'Expend 2 counters', prompt:'A Bombastic Character'};
+    if(String(card?.id || '') === '103') return {label:'Expend 2 counters', prompt:'Sangre Por Victoria'};
     if(String(card?.id || '') === '121') return {label:'Expend 1 counter', prompt:'Blazing Inferno'};
     if(String(card?.id || '') === '20') return {label:'Shield Wall', prompt:'Shield Wall'};
     return {label:'Activate Effect', prompt:'Activate Effect'};
@@ -4814,6 +4891,9 @@
       if(consolidations.length) add('Consolidate', function(){ phase7BeginConsolidation(card); }, {primary:true, phase7Action:'consolidate', iid});
     }
     if(fromBoard){
+      if(String(card.id || '') === '93' && phase7SnowballCommands().length) add('Mass Snowball', function(){
+        phase7BeginMassSnowball();
+      }, {primary:true, phase7Action:'mass-snowball', iid});
       const activations = commands.filter(function(command){
         return command?.type === 'ACTIVATE_EFFECT' && String(command?.payload?.sourceIid || '') === iid;
       });
@@ -5605,7 +5685,7 @@
         const mode = String(payload.choice || 'NEGATE').toUpperCase();
         const modeLabel = kind === 'LYDIA'
           ? 'Negate effect & suppress source'
-          : (kind === 'HAVANO' ? 'Negate the effect'
+          : (kind === 'HAVANO' ? 'Negate and permanently suppress'
             : (mode === 'SUPPRESS' ? 'Suppress the source' : 'Negate the effect'));
         const location = phase7FindCardLocation(payload.reactionIid);
         const locationLabel = location?.zone === 'hand'
@@ -5670,7 +5750,7 @@
       if(!iid) return false;
       const option = (prompt?.options || []).find(function(value){ return value.reactionIid === iid; });
       if(option?.kind !== 'HAVANO') return true;
-      // Havano negates only the current effect.
+      // Havano negates the current Supporter effect and suppresses its source.
       const preferred = 'NEGATE';
       const preferredExists = choices.some(function(value){
         return value?.payload?.reactionIid === iid && value.payload.choice === preferred;
@@ -5937,6 +6017,7 @@
     }
     phase7CurrentUiSession.screenRecoveryKey = '';
     const prompt = state.pendingPrompt || null;
+    if(phase7MassSnowball && phase7AdvanceMassSnowball()) return;
     // Presentation batches can finish while a queued banner is still draining.
     if(prompt?.title === 'Call to Arms' && typeof getSupportCompanyPresentationDelayMs === 'function'
       && getSupportCompanyPresentationDelayMs() > 0){
@@ -6774,11 +6855,14 @@
       }
       prePresentedMoveIndexes.add(eventIndex);
     }
-    for(const event of events)if(event.type==='CARD_COUNTER_SET' && event.reason==='EMERALD_STORY_COUNTER')
-      window.playEmeraldStoryCounterSfx?.();
-    for(const event of events)if(event.type==='CARD_COUNTER_SET' && event.counterKey==='braveHorizonsCounters'
-      && Number(event.value)>0 && events.some(move=>move.type==='CARD_MOVED' && String(move.cardIid||'')===String(event.cardIid||'')))
-      window.playBraveHorizonsCounterSfx?.(false);
+    for(const event of events)if(event.type==='CARD_COUNTER_SET'
+      && ['storyCounters','braveHorizonsCounters','deterranceCounters','boleslawCounters',
+        'santiagoSupporterCounters','infernoCounters'].includes(String(event.counterKey || ''))
+      && Number(event.value)>0
+      && !/COST|SPEND|COPY|EXPEND|CALL_TO_ARMS/i.test(String(event.reason || ''))
+      && !events.some(spent=>spent.type==='CARD_COUNTER_SPENT'
+        && String(spent.cardIid || '')===String(event.cardIid || '')))
+      window.playCounterAppearSfx?.();
     phase7PresentJimmyCounterGain(view);
     // Hand resets resolve visibly in the same order as their rules: the
     // activation cinematic has finished, then discard, then ordinary draws.
@@ -6968,6 +7052,14 @@
     };
     events.forEach(function(event, eventIndex){
       const type = String(event?.type || '').toUpperCase();
+      if((type === 'CARD_COUNTER_SET' &&
+          ((event.counterKey === 'boleslawCounters' && event.reason === 'BOLESLAW_CONSOLIDATION')
+            || (event.counterKey === 'santiagoSupporterCounters' && event.reason === 'SANTIAGO_SUPPORTER_DISCARD')))
+        || type === 'SANTIAGO_STRIKE_TARGET'){
+        const overlayCard = phase7FindAnyCard(event.cardIid || event.targetIid)
+          || phase7FindProjectedEntry(view,event.cardIid || event.targetIid)?.card;
+        if(overlayCard) phase7ShowExactEffectOverlay(view,event,overlayCard,eventIndex);
+      }
       if(type === 'CARD_COUNTER_SPENT'){
         window.dismissCardInfoOverlay?.();
         const spentCard = phase7FindAnyCard(event.cardIid) || phase7FindProjectedEntry(view,event.cardIid)?.card;
@@ -8771,7 +8863,7 @@
       return false;
     }
     if(!deploymentOptions.length){
-      if(window.toast) toast('Havano Citizen will negate the effect and remain in hand.');
+      if(window.toast) toast('Havano Citizen will negate and permanently suppress the effect.');
       sendOnlineImprovisorReactionChoice(g, pending, localIndex, 'negate', optionIndex, null);
       return true;
     }
@@ -14656,7 +14748,7 @@
       ? (typeof LANDSCAPES !== 'undefined' && LANDSCAPES?.[roomSettings.landscapeId]?.shortName || roomSettings.landscapeId.toUpperCase())
       : 'Random landscape';
     const roomTimerLabel = roomSettings.landscapeMode === 'selected' && roomSettings.landscapeId === 'igb14'
-      ? '30 seconds (Lone Pine locked)'
+      ? 'Random: 20 seconds to 2 minutes (Lone Pine)'
       : roomSettings.turnTimerMinutes + ' minute' + (roomSettings.turnTimerMinutes === 1 ? '' : 's');
     const html = `
       <div class="online-room-lobby online-room-lobby-v15 online-room-lobby-v21">

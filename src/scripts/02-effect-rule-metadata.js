@@ -5,21 +5,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function createFateEffectRuleMetadata(){
   'use strict';
 
-  // These are effects whose rules can target an opposing player or one of that
-  // player's cards. Havano consumes this shared registry in both the browser and
-  // the authority so the two runtimes cannot silently drift apart.
-  const HAVANO_TARGETING_SOURCE_IDS = Object.freeze([
-    '04', '14', '16', '17', '18', '26', '30', '31', '39',
-    '34', '47', '50', '52', '61', '62', '64', '71', '72', '81', '93', '97',
-    'bh04', 'bh16', 'bh18','bh21'
-  ]);
-  const havanoTargetingSources = new Set(HAVANO_TARGETING_SOURCE_IDS);
-  // Passive Morale sources expose Havano when they enter play, before their
-  // continuous/automatic damage can begin. Hybrid WHEN_SET cards (such as
-  // Rozsi) remain in the activation list above so their normal reaction frame
-  // is not bypassed.
-  const HAVANO_PASSIVE_ENTRY_SOURCE_IDS = Object.freeze([]);
-  const havanoPassiveEntrySources = new Set(HAVANO_PASSIVE_ENTRY_SOURCE_IDS);
+  // Havano uses the Supporter's effect properties and the actual chosen target.
 
   const BOARD_ACTIVATION_CLASSES = Object.freeze({
     triggerCharacterEffect:'initiator_effect',
@@ -38,11 +24,11 @@
   }
 
   function canTriggerHavano(value){
-    return havanoTargetingSources.has(normalizedId(value));
+    return value?.type === 'Supporter' && value.havanoAffectsOpponent === true;
   }
 
   function canTriggerHavanoOnPassiveEntry(value){
-    return havanoPassiveEntrySources.has(normalizedId(value));
+    return value?.type === 'Supporter' && value.havanoPassiveEntry === true;
   }
 
   function boardActivationClass(fnName){
@@ -50,8 +36,6 @@
   }
 
   return Object.freeze({
-    HAVANO_TARGETING_SOURCE_IDS,
-    HAVANO_PASSIVE_ENTRY_SOURCE_IDS,
     BOARD_ACTIVATION_CLASSES,
     canTriggerHavano,
     canTriggerHavanoOnPassiveEntry,

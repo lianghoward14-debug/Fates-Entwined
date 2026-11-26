@@ -110,11 +110,20 @@ assert(result.events.some(event=>
   && event.tied === true
 ));
 
-// Lone Pine exposes a server-owned 30-second END_TURN command, never a client clock.
+// Envoy of Chaos exposes a stable server-owned random timer for each turn.
 state = stateFor('igb14', 'P4LAND-IGB14');
 const actor = new AuthoritativeRoomActor({state, store:null});
 const timeout = actor.turnTimeoutCommand();
-assert.equal(timeout.timeoutMs, 30000);
+assert(timeout.timeoutMs >= 20000 && timeout.timeoutMs <= 120000);
+assert.equal(actor.turnTimeoutCommand().timeoutMs, timeout.timeoutMs,
+  'rechecking one turn must not reroll its timer');
+const envoyTurnDurations=new Set();
+for(let turn=1;turn<=12;turn++){
+  state.turn=turn;
+  envoyTurnDurations.add(actor.turnTimeoutCommand().timeoutMs);
+}
+assert(envoyTurnDurations.size>1,'Envoy of Chaos should choose different durations across turns');
+state.turn=1;
 assert.equal(timeout.playerId, 'p0');
 assert.equal(timeout.command.type, 'END_TURN');
 assert.equal(timeout.command.expectedRevision, state.revision);

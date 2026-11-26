@@ -105,7 +105,7 @@ function openingChoiceAvailable(state, card, playerIndex, timing){
   return openingProgramChoiceAvailable(state, frame, rule.program);
 }
 
-function placementPreview(state, playerIndex, card, destination, tributeIids = []){
+export function placementPreview(state, playerIndex, card, destination, tributeIids = []){
   const tributeSet = new Set((tributeIids || []).map(String));
   const board = state.board.map(zone=>zone.map(row=>row.slice()));
   for(let z = 0; z < board.length; z += 1){
@@ -493,6 +493,11 @@ export function legalCommandTemplates(state, playerIndex){
       && !zoneActionBlock(state, player, entry.z)
       && (runtimeRuleId(entry.card)!=='bh01' || Number(entry.card.counters?.braveHorizonsCounters||0)>=2)
       && (runtimeRuleId(entry.card)!=='36' || Number(entry.card.counters?.deterranceCounters||0)>=1)
+      && (runtimeRuleId(entry.card)!=='86' || (Number(entry.card.counters?.boleslawCounters||0)>=2
+          && !!state.successfulWhenSetHistory?.length))
+        && (runtimeRuleId(entry.card)!=='103' || (Number(entry.card.counters?.santiagoSupporterCounters||0)>=2
+          && eligibleBoardTargets(state,{sourceIid:entry.card.iid,controller:player},
+            {controller:true,santiagoUnused:true}).length>0))
       && (runtimeRuleId(entry.card)!=='121' || Number(entry.card.counters?.infernoCounters||0)>=1)){
       if(!rule.maxUses || Number(entry.card.counters?.effectUses || 0) < Number(rule.maxUses)){
         if(rule.oncePerTurn && Number(entry.card.counters?.lastEffectTurn) === state.turn) continue;
@@ -567,7 +572,7 @@ export function legalCommandTemplates(state, playerIndex){
   }
   if(state.landscapeId === 'igb17'
     && Number(state.landscapeState.oncePerGameUses[player] || 0) < 1){
-    const copyableIds = new Set(['10', '11', '15', '19', '23', '34', '57', '77', '130', 'bh02', 'bh07', 'bh08', 'bh11']);
+    const copyableIds = new Set(['10', '11', '15', '19', '23', '34', '57', '77', '106', '130', 'bh02', 'bh07', 'bh08', 'bh11']);
     const sources = boardEntries(state).filter(entry=>
       controllerOf(entry.card) === player
       && effectiveCardType(state, entry.card) === 'Coordinator'

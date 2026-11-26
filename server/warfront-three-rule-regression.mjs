@@ -14,8 +14,10 @@ vm.createContext(context);
 vm.runInContext(source.slice(source.indexOf('function score('),source.indexOf('function telemetry('))+
   source.slice(source.indexOf('function totals('),source.indexOf('function participation(')),context);
 const totals=context.totals();
-assert.equal(totals.match.a+totals.match.b,5,'five won fronts award five battle stars');
+assert.equal(totals.match.a+totals.match.b,15,'fifteen match wins award fifteen battle stars');
+assert.equal(totals.match.a,zones.reduce((n,z)=>n+z.matches.filter(m=>m.winnerTeam==='a').length,0));
+assert.equal(totals.match.b,zones.reduce((n,z)=>n+z.matches.filter(m=>m.winnerTeam==='b').length,0));
 assert.equal(totals.award.a+totals.award.b,3,'three commendations award one star each');
-assert.equal(totals.a+totals.b,8,'five front stars plus three commendation stars');
+assert.equal(totals.a+totals.b,18,'fifteen match stars plus three commendation stars');
 for(const zone of zones)assert.equal(warfrontPlayed(zone),3);
 console.log('Warfront three-match limits and client star totals passed');

@@ -42,6 +42,8 @@ const server = http.createServer((req, res) => {
     let pathname = decodeURIComponent(url.pathname);
     if(pathname === '/tutorial/') { send(res, 302, {location:'/tutorial'}, ''); return; }
     if(pathname === '/tutorial') pathname = '/index.html';
+    if(pathname === '/testnewmode/') { send(res, 302, {location:'/testnewmode'}, ''); return; }
+    if(pathname === '/testnewmode') pathname = '/index.html';
     if(pathname === '/') pathname = '/index.html';
     const filePath = path.resolve(root, pathname.replace(/^\/+/, ''));
     if(!filePath.startsWith(root + path.sep) && filePath !== root) {
@@ -78,3 +80,4 @@ const server = http.createServer((req, res) => {
 server.listen(port, host, () => {
   console.log(`Solo multiplayer server listening at http://${host}:${port}/`);
 });
+

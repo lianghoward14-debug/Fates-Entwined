@@ -22,7 +22,7 @@ const DEFINITIONS = [
   {id:'64', name:'Cook Islands Duelist', type:'Supporter', aff:'eventide', fate:1, cost:0},
   {id:'76', name:'ALPINE Infantry', type:'Supporter', aff:'expanded_worlds', fate:1, cost:0},
   {id:'77', name:'Duncan Heyward', type:'Coordinator', aff:'eventide', fate:6, cost:3},
-  {id:'85', name:'Felicyta Janowicz (Specters)', type:'Dauntless', aff:'expanded_worlds', fate:1, cost:4},
+  {id:'85', name:'Felicyta Janowicz (Specters)', type:'Dauntless', aff:'expanded_worlds', fate:6, cost:4},
   {id:'88', name:'Rozsi Szocs (Youth)', type:'Dauntless', aff:'expanded_worlds', fate:1, cost:3},
   {id:'89', name:'Zsofia Szocs (Youth)', type:'Dauntless', aff:'expanded_worlds', fate:8, cost:2},
   {id:'100', name:'Felicyta and Kvetka (Youth)', type:'Dauntless', aff:'expanded_worlds', fate:12, cost:2},
@@ -244,9 +244,9 @@ function put(state, playerIndex, cardId, z, r, c){
 {
   const state = scenario(['85']);
   const specters = put(state, 0, '85', 0, 2, 0);
-  assert.equal(effectiveFate(state, specters), 1, 'Specters must have no bonus before the opponent sets a Supporter');
+  assert.equal(effectiveFate(state, specters), 6, 'Specters must have no bonus before the opponent sets a Supporter');
   state.supportersSetTotal[1] = 3;
-  assert.equal(effectiveFate(state, specters), 4, 'Specters must gain exactly one Fate per opposing Supporter set');
+  assert.equal(effectiveFate(state, specters), 12, 'Specters must gain exactly two Fate per opposing Supporter set');
 }
 
 {

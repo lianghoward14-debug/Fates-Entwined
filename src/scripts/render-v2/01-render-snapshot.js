@@ -164,7 +164,7 @@
     base.fate = card.fate;
     base.currentFate = card.currentFate;
     if(onBoard){
-      const visibleCounterKeys=['braveHorizonsCounters','deterranceCounters','infernoCounters','storyCounters','ellieHauntedVisual'];
+      const visibleCounterKeys=['braveHorizonsCounters','deterranceCounters','boleslawCounters','santiagoSupporterCounters','infernoCounters','storyCounters','ellieHauntedVisual'];
       base.counters={};
       for(const key of visibleCounterKeys){
         if(card.counters?.[key] !== undefined) base.counters[key]=card.counters[key];

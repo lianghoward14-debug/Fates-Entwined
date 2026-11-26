@@ -677,8 +677,14 @@ export class FateAuthoritativeV3SinglePlayerScreen {
 
   presentEvents(events = [], metadata = {}){
     for(const event of events){
-      if(event?.type==='CARD_COUNTER_SET' && event.reason==='EMERALD_STORY_COUNTER')
-        this.window.playEmeraldStoryCounterSfx?.();
+      if(event?.type==='CARD_COUNTER_SET'
+        && ['storyCounters','braveHorizonsCounters','deterranceCounters','boleslawCounters',
+          'santiagoSupporterCounters','infernoCounters'].includes(String(event.counterKey || ''))
+        && Number(event.value)>0
+        && !/COST|SPEND|COPY|EXPEND|CALL_TO_ARMS/i.test(String(event.reason || ''))
+        && !events.some(spent=>spent.type==='CARD_COUNTER_SPENT'
+          && String(spent.cardIid || '')===String(event.cardIid || '')))
+        this.window.playCounterAppearSfx?.();
       if(event?.type==='FISH_COUNTER_CREATED') this.window.queueSebastianFishOverlay?.(this.findCard(event.sourceIid),`${this.view?.state?.matchId}:${metadata.revision}:${events.indexOf(event)}:fish`,event.createdIids);
       this.window.queueDonJulioDieRoll?.(event, `${this.view?.state?.matchId}:${metadata.revision}:${events.indexOf(event)}`, this.findCard(event.sourceIid));
       this.window.presentJoseLongGameEvent?.(event, `${this.view?.state?.matchId}:${metadata.revision}:${event.cardIid}:${event.value}`, this.findCard(event.cardIid), this.view?.state);

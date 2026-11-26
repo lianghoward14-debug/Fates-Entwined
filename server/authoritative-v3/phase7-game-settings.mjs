@@ -63,7 +63,7 @@ export function resolvePhase7GameSettings(value, matchSeed){
   return {
     ...normalized,
     resolvedLandscapeId:landscapeId,
-    turnTimerSeconds:landscapeId === 'igb14' ? 30 : normalized.turnTimerMinutes * 60
+    turnTimerSeconds:landscapeId === 'igb14' ? 120 : normalized.turnTimerMinutes * 60
   };
 }
 

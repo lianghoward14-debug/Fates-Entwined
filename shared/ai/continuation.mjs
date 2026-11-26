@@ -38,13 +38,13 @@ export function completeContinuation(initial,player,{budget=48,personality,rootT
     for(const command of ranked){
       const p=command.payload || {};
       const family=[p.reactionIid || '',p.choice || '',p.selectedIid || p.targetIid || '',
-        [...(p.selectedIids || [])].sort().join(','),p.destination?.z ?? ''].join(':');
+        (p.selectedIids || p.discardedIids || []).join(','),p.destination?.z ?? ''].join(':');
       if(seen.has(family))continue;
       seen.add(family);choices.push(command);
       if(choices.length>=width)break;
     }
-    const decline=ranked.find(c=>c.payload?.choice==='DECLINE');
-    if(decline && !choices.includes(decline)){
+    const decline=ranked.find(c=>c.payload?.choice==='DECLINE' || c.payload?.cancel===true);
+    if(decline && allowance>1 && !choices.includes(decline)){
       if(choices.length>=allowance)choices[choices.length-1]=decline;
       else choices.push(decline);
     }
@@ -54,7 +54,7 @@ export function completeContinuation(initial,player,{budget=48,personality,rootT
       const next=apply(s,choices[i]);
       if(!next)continue;
       const tail=settle(next,share-1,depth-1);
-      if(!best || (actor===player?tail.score>best.score:tail.score<best.score)){
+      if(!best || (actor===player?tail.score>best.score:tail.score<best.score) || (choices[i].payload?.choice==='DECLINE' && tail.score===best.score)){
         best={...tail,variation:[{player:actor,command:choices[i]},...tail.variation]};
       }
     }
@@ -78,7 +78,7 @@ export function completeContinuation(initial,player,{budget=48,personality,rootT
     for(const {command} of ranked){
       const p=command.payload || {};
       const family=[command.type,p.cardIid || p.sourceIid || p.reactionIid || p.cardId || '',p.choice || '',p.selectedIid || p.targetIid || '',
-        [...(p.selectedIids || [])].sort().join(','),p.destination?.z ?? ''].join(':');
+        (p.selectedIids || p.discardedIids || []).join(','),p.destination?.z ?? ''].join(':');
       if(families.has(family))continue;
       families.add(family);selected.push(command);
       if(selected.length>=3)break;

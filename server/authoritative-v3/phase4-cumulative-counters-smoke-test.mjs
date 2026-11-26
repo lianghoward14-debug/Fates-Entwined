@@ -15,7 +15,7 @@ const DEFINITIONS = [
   {id:'26', name:'UCPD', type:'Supporter', aff:'reality', fate:1, cost:0},
   {id:'32', name:'Temecula Resident', type:'Supporter', aff:'reality', fate:1, cost:0},
   {id:'56', name:'Lydia', type:'Improvisor', aff:'expanded_worlds', fate:7, cost:2},
-  {id:'85', name:'Felicyta Janowicz (Specters)', type:'Dauntless', aff:'expanded_worlds', fate:1, cost:4},
+  {id:'85', name:'Felicyta Janowicz (Specters)', type:'Dauntless', aff:'expanded_worlds', fate:6, cost:4},
   {id:'89', name:'Zsofia Szocs (Youth)', type:'Dauntless', aff:'expanded_worlds', fate:8, cost:2}
 ];
 
@@ -63,14 +63,14 @@ for(const destination of [{z:1, r:0, c:0}, {z:1, r:0, c:1}]){
   });
 }
 assert.deepStrictEqual(state.supportersSetTotal, [0, 2]);
-assert.equal(felicyta.currentFate, 1, 'cumulative Fate must not mutate stored Fate');
-assert.equal(effectiveFate(state, felicyta), 3);
+assert.equal(felicyta.currentFate, 6, 'cumulative Fate must not mutate stored Fate');
+assert.equal(effectiveFate(state, felicyta), 10);
 assert.equal(effectiveFate(state, zsofia), 16);
 assert.deepStrictEqual(projectStateForPlayer(state, 0).supportersSetTotal, [0, 2]);
 assert.deepStrictEqual(projectStateForSpectator(state).supporterEffectsActivated, [0, 0]);
 state = JSON.parse(stableStringify(state));
 assertInvariants(state);
-assert.equal(effectiveFate(state, state.board[0][2][0]), 3, 'counter-derived Fate must survive recovery');
+assert.equal(effectiveFate(state, state.board[0][2][0]), 10, 'counter-derived Fate must survive recovery');
 
 state = newState('P4COUNTERACTIVATE', ['89', '26'], ['32']);
 const activationZsofia = putOnBoard(state, 0, '89', {z:0, r:2, c:0});

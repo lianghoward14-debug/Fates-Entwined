@@ -708,7 +708,8 @@ function activationReactionOptions(state, frame){
     }
   }
   const sourceRule = cardRule(frame.sourceCardId, state);
-  if((sourceRule?.havanoTargeting === 'OPPONENT' || (frame.kind === 'COPIED_CARD_EFFECT' && sourceRule?.havanoPassiveEntry === true))
+  if(String(frame.sourceType || '') === 'Supporter'
+    && (sourceRule?.havanoTargeting === 'OPPONENT' || (frame.kind === 'COPIED_CARD_EFFECT' && sourceRule?.havanoPassiveEntry === true))
     && Number(state.supportersSetForCapThisTurn?.[opponent] || 0) < MAX_SUPPORTERS_SET_PER_TURN){
     for(const card of state.players[opponent].hand){
       if(cardRule(card.id, state)?.reactionKind === 'HAVANO' && havanoDestinations(state,opponent).length){
@@ -720,8 +721,9 @@ function activationReactionOptions(state, frame){
 }
 
 function targetReactionOptions(state, frame, operation){
-  // Empowerment stays non-reactable even when an opposing card is selected.
-  if(cardRule(frame.sourceCardId, state)?.havanoTargeting === 'NONE') return [];
+  if(String(frame.sourceType || '') !== 'Supporter') return [];
+  // These effects can also select a friendly card; their target does not trigger Havano.
+  if(['05','120'].includes(String(frame.sourceCardId || ''))) return [];
   const target = findCard(state, operation.targetIid || operation.cardIid);
   const explicitTargetController = Number(operation.targetPlayerIndex);
   const targetController = target
@@ -737,8 +739,8 @@ function targetReactionOptions(state, frame, operation){
 }
 
 function startPassiveTargetReaction(state, ctx, source, controller, commandId){
-  const rule = cardRule(source?.id, state);
-  if(!source || source.faceDown === true || rule?.havanoPassiveEntry !== true) return false;
+  const rule = cardRule(runtimeRuleId(source), state);
+  if(!source || String(source.type || '') !== 'Supporter' || source.faceDown === true || rule?.havanoPassiveEntry !== true) return false;
   if(isEffectSourceSuppressed(state, source)) return false;
   const reactingPlayer = controller === 0 ? 1 : 0;
   if(Number(state.supportersSetForCapThisTurn?.[reactingPlayer] || 0) >= MAX_SUPPORTERS_SET_PER_TURN) return false;
@@ -1189,7 +1191,7 @@ function runEffectStack(state, ctx){
     if(instruction?.kind === 'GIVE_EMERALD_COUNTER'){
       const targetIid=frame.locals[instruction.local];
       const target=targetIid && findBoardCard(state,targetIid)?.card;
-      const counterKey=target?.faceDown!==true && ({bh01:'braveHorizonsCounters','36':'deterranceCounters','121':'infernoCounters'})[String(target?.id)];
+      const counterKey=target?.faceDown!==true && cardRule(runtimeRuleId(target),state)?.counterResourceKey;
       if(counterKey)applyOperation(ctx,{type:'SET_CARD_COUNTER',targetIid:target.iid,
         counterKey,value:Math.max(0,Number(target.counters?.[counterKey])||0)+1,
         sourceIid:frame.sourceIid,sourceController:frame.controller,reason:'EMERALD_STORY_COUNTER'});
@@ -1299,8 +1301,91 @@ function runEffectStack(state, ctx){
     }
     if(!instruction){
       state.effectStack.pop();
+      // A negated frame is removed by the reaction resolver, so only effects
+      // that reach this completion point are eligible for Boleslaw to repeat.
+      if((frame.timing === 'WHEN_SET'
+        || (frame.timing === 'ACTIVATE' && frame.sourceType === 'Initiator'
+          && cardRule(frame.sourceCardId,state)?.manualOnly !== true)) && frame.sourceCardId){
+        state.lastSuccessfulWhenSetByPlayer ||= [null,null];
+        state.lastSuccessfulWhenSetByPlayer[frame.controller] = {
+          cardId:String(frame.sourceCardId), sourceType:String(frame.sourceType || '')
+        };
+        state.successfulWhenSetHistory ||= [];
+        state.successfulWhenSetHistory.push({cardId:String(frame.sourceCardId),
+          sourceType:String(frame.sourceType || ''),controller:frame.controller});
+        for(const entry of boardEntries(state)){
+          if(runtimeRuleId(entry.card)!=='86') continue;
+          entry.card.counters ||= {};
+          entry.card.counters.boleslawLastEligibleWhenSetId=String(frame.sourceCardId);
+        }
+      }
+      if(frame.kind === 'COPIED_CARD_EFFECT' && runtimeRuleId(findBoardCard(state,frame.sourceIid)?.card) === '86'){
+        applyOperation(ctx,{type:'SET_CARD_COUNTER',targetIid:frame.sourceIid,
+          counterKey:'boleslawLastActivatedWhenSetId',value:String(frame.sourceCardId),
+          sourceIid:frame.sourceIid,sourceController:frame.controller,reason:'BOLESLAW_RANDOM_EFFECT'});
+      }
       ctx.events.push({type:'EFFECT_RESOLVED', sourceIid:frame.sourceIid, frameId:frame.frameId});
       continue;
+    }
+    if(instruction.kind === 'SPEND_BOLESLAW_COUNTERS'){
+      const source = findBoardCard(state, frame.sourceIid);
+      const history=state.successfulWhenSetHistory || [];
+      const remembered=history.length ? history[nextInt(state.rngState,history.length)] : null;
+      const copiedRule = cardRule(remembered?.cardId, state);
+      if(!source || Number(source.card.counters?.boleslawCounters || 0) < 2
+        || !(copiedRule?.timings?.includes('WHEN_SET')
+          || (remembered?.sourceType === 'Initiator'
+            && copiedRule?.timings?.includes('ACTIVATE') && copiedRule.manualOnly !== true))
+        || !copiedRule.program){
+        throw Object.assign(new Error('Boleslaw needs two counters and a resolved When Set effect'),
+          {code:'BOLESLAW_COPY_UNAVAILABLE'});
+      }
+      applyOperation(ctx,{type:'SET_CARD_COUNTER',targetIid:source.card.iid,
+        counterKey:'boleslawCounters',value:Number(source.card.counters.boleslawCounters)-2,
+        sourceIid:source.card.iid,sourceController:frame.controller,reason:'BOLESLAW_COPY'});
+      ctx.events.push({type:'CARD_COUNTER_SPENT',cardIid:source.card.iid,cardId:'86',
+        sourceIid:source.card.iid,amount:2,copiedCardId:remembered.cardId});
+      frame.instructionIndex++;
+      const copiedFrame = {
+        frameId:nextId(state,'frame'),kind:'COPIED_CARD_EFFECT',sourceIid:source.card.iid,
+        sourceCardId:remembered.cardId,sourceType:remembered.sourceType,
+        controller:frame.controller,timing:'COPIED',instructionIndex:0,waitingFor:null,locals:{},
+        program:cloneSerializable(copiedRule.program),originalCommandId:frame.originalCommandId
+      };
+      state.effectStack.push(copiedFrame);
+      const reactions = activationReactionOptions(state,copiedFrame).filter(option=>option.kind === 'HAVANO');
+      if(reactions.length){openReactionPrompt(state,copiedFrame,reactions,'ACTIVATION');return;}
+      continue;
+    }
+    if(instruction.kind === 'SANTIAGO_COUNTER_STRIKE'){
+      const source=findBoardCard(state,frame.sourceIid);
+      const target=findBoardCard(state,frame.locals.santiagoTarget);
+      if(!source || !target || controllerOf(target.card)!==frame.controller
+        || Number(source.card.counters?.santiagoSupporterCounters||0)<2){
+        throw Object.assign(new Error('Santiago needs two counters and a friendly field card'),{code:'SANTIAGO_STRIKE_UNAVAILABLE'});
+      }
+      let selected=[];
+      try{selected=JSON.parse(String(source.card.counters?.santiagoSelectedIids||'[]'));}catch{}
+      if(selected.includes(String(target.card.iid)))
+        throw Object.assign(new Error('Santiago already selected this card'),{code:'SANTIAGO_TARGET_USED'});
+      const damage=Math.max(0,Math.floor(effectiveFate(state,target)*1.5));
+      applyOperation(ctx,{type:'SET_CARD_COUNTER',targetIid:source.card.iid,
+        counterKey:'santiagoSupporterCounters',value:Number(source.card.counters.santiagoSupporterCounters)-2,
+        sourceIid:source.card.iid,sourceController:frame.controller,reason:'SANTIAGO_COUNTER_COST'});
+      applyOperation(ctx,{type:'SET_CARD_COUNTER',targetIid:source.card.iid,
+        counterKey:'santiagoSelectedIids',value:JSON.stringify([...selected,String(target.card.iid)]),
+        sourceIid:source.card.iid,sourceController:frame.controller,reason:'SANTIAGO_TARGET_USED'});
+      const before=Number(state.moralePressure?.morale?.[1-frame.controller]||0);
+      applyOperation(ctx,{type:'MODIFY_MORALE',playerIndex:1-frame.controller,amount:-damage,
+        sourceIid:source.card.iid,sourceController:frame.controller,
+        overlayTargetIid:target.card.iid,reason:'SANTIAGO_COUNTER_STRIKE'});
+      ctx.events.push({type:'SANTIAGO_STRIKE_TARGET',sourceIid:source.card.iid,
+        targetIid:target.card.iid,cardIid:target.card.iid});
+      const inflicted=Math.max(0,before-Number(state.moralePressure?.morale?.[1-frame.controller]||0));
+      if(inflicted)applyOperation(ctx,{type:'SET_CARD_COUNTER',targetIid:source.card.iid,
+        counterKey:'santiagoMoraleInflicted',value:Number(source.card.counters?.santiagoMoraleInflicted||0)+inflicted,
+        sourceIid:source.card.iid,sourceController:frame.controller,reason:'SANTIAGO_DAMAGE_TRACKER'});
+      frame.instructionIndex++;continue;
     }
     if(instruction.kind === 'CARIBBEA_FISHERMAN'){
       const deck=state.players[1-frame.controller].deck;
@@ -1495,6 +1580,8 @@ function runEffectStack(state, ctx){
         copiedFromIid:selected.iid
       });
       frame.instructionIndex += 1;
+      if(String(source.id) === '37' && instruction.execute === false
+        && startPassiveTargetReaction(state, ctx, source, frame.controller, frame.originalCommandId)) return;
       if((instruction.execute !== false || String(selected.id) === '44') && (copiedRule.program || copiedRule.havanoPassiveEntry)){
         const copiedFrame = {
           frameId:nextId(state, 'frame'),
@@ -1525,7 +1612,11 @@ function runEffectStack(state, ctx){
       if(!coordinator || !isTriggeredFateCoordinator(state, coordinator)){
         throw Object.assign(new Error('the selected Coordinator cannot provide triggered Fate history'), {code:'INVALID_TARGET'});
       }
-      const amount = Math.max(0, Number(coordinator.counters?.triggeredFateHistoryTotal) || 0);
+      let amount = Math.max(0, Number(coordinator.counters?.triggeredFateHistoryTotal) || 0);
+      // The current Militia placement has already fired Nytress before this
+      // choice resolves; "previous triggers" excludes that placement.
+      if(runtimeRuleId(coordinator)==='130' && [coordinator.counters?.elementalAffiliationA,
+        coordinator.counters?.elementalAffiliationB].includes('eventide')) amount=Math.max(0,amount-1);
       if(amount > 0){
         applyResolvedEffectOperation(ctx, {
           type:'MODIFY_FATE',
@@ -1553,7 +1644,7 @@ function runEffectStack(state, ctx){
         ctx.events.push({type:'EFFECT_CONDITION_UNMET',sourceIid:frame.sourceIid,semanticSourceCardId:'bh25',reason:'TURN_BEFORE_18'});
         continue;
       }
-      const eligibleIds = new Set(['15','46','86','95','100','109','bh02','bh08','bh01','130']);
+      const eligibleIds = new Set(['15','46','86','95','100','106','109','bh02','bh08','bh01','130']);
       const sources = boardEntries(state).filter(entry=>
         String(entry.card.iid || '') !== String(frame.sourceIid || '')
         && controllerOf(entry.card) === controllerOf(engineerEntry.card)
@@ -1599,6 +1690,13 @@ function runEffectStack(state, ctx){
           applyResolvedEffectOperation(ctx,{type:'ROLL_FATE_DIE',targetIid:entry.card.iid,
             sourceIid:entry.card.iid,sourceController:owner,semanticSourceCardId:id,
             reason:'ENGINEERS_AMBITION_FORCED_PROC',bypassReaction:true},frame);
+        }else if(id==='106'){
+          const tier=Math.floor(Math.max(0,Number(entry.card.counters?.joseFieldTurns)||0)/3);
+          for(const target of zoneTargets){
+            if(tier>0) applyResolvedEffectOperation(ctx,{type:'MODIFY_FATE',targetIid:target.card.iid,amount:tier,
+              permanentFateGain:true,sourceIid:entry.card.iid,sourceController:owner,semanticSourceCardId:id,
+              reason:'ENGINEERS_AMBITION_FORCED_PROC',bypassReaction:true,presentationDelayMs:3500},frame);
+          }
         }else if(id==='bh01'){
           entry.card.counters.braveHorizonsCounters=Math.max(0,Number(entry.card.counters.braveHorizonsCounters)||0)+1;
           ctx.events.push({type:'CARD_COUNTER_SET',cardIid:entry.card.iid,counterKey:'braveHorizonsCounters',value:entry.card.counters.braveHorizonsCounters});
@@ -1606,6 +1704,10 @@ function runEffectStack(state, ctx){
             sourceIid:entry.card.iid,sourceController:owner,semanticSourceCardId:id,
             reason:'ENGINEERS_AMBITION_FORCED_PROC',bypassReaction:true,presentationDelayMs:3500},frame);
         }else if(id==='130'){
+          if([entry.card.counters?.elementalAffiliationA,entry.card.counters?.elementalAffiliationB].includes('eventide')){
+            applyOperation(ctx,{type:'SET_CARD_COUNTER',targetIid:entry.card.iid,counterKey:'triggeredFateHistoryTotal',
+              value:Math.max(0,Number(entry.card.counters?.triggeredFateHistoryTotal)||0)+1,sourceIid:entry.card.iid});
+          }
           for(const target of boardEntries(state).filter(candidate=>candidate.z===entry.z
             && canTarget(state,entry.card,candidate.card,{type:'MODIFY_FATE',sourceController:owner,
               sourceIid:entry.card.iid,targetIid:candidate.card.iid}).ok)){
@@ -2220,7 +2322,7 @@ function resolveReaction(state, ctx, frame, prompt, payload){
   if(option.kind !== 'HAVANO') consumeReaction(reactionEntry.card);
   // Lydia suppresses the source; Havano only negates this resolution.
   const reactedSourceIid = frame.activeReactionSourceIid || frame.sourceIid;
-  if(option.kind !== 'HAVANO' && (choice === 'SUPPRESS' || option.kind === 'LYDIA' || frame.reactionPhase === 'PASSIVE_TARGET')) addSuppression(state, reactedSourceIid);
+  if(option.kind === 'HAVANO' || choice === 'SUPPRESS' || option.kind === 'LYDIA' || frame.reactionPhase === 'PASSIVE_TARGET') addSuppression(state, reactedSourceIid);
   emitRuleEvent(ctx, {
     type:RULE_EVENT_TYPES.EFFECT_REACTED,
     sourceIid:reactedSourceIid,
@@ -2625,7 +2727,7 @@ function performCommand(state, ctx, command, actorIndex, options){
         throw Object.assign(new Error('Concrete Roads can only be used once per game'), {code:'USE_LIMIT_REACHED'});
       }
       const source = findBoardCard(state, payload.sourceIid);
-      const copyableIds = new Set(['10', '11', '15', '19', '23', '34', '57', '77', '130', 'bh02', 'bh07', 'bh08', 'bh11']);
+      const copyableIds = new Set(['10', '11', '15', '19', '23', '34', '57', '77', '106', '130', 'bh02', 'bh07', 'bh08', 'bh11']);
       if(!source
         || controllerOf(source.card) !== actorIndex
         || String(source.card.counters?.bh14OriginalType || source.card.type || '') !== 'Coordinator'

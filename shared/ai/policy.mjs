@@ -47,10 +47,21 @@ export function planDecision(commands,projection,context={}){
   const worlds=Array.from({length:samples},(_,sample)=>sampleWorld(state,player,sample));
   const orderers=worlds.map(world=>createCommandOrderer(world,player,personality));
   const priorities=new Map(candidates.map(command=>[command,orderers.map(order=>order(command))]));
-  const ranked=candidates.map(command=>{
+  // Give each match a repeatable preference among equally rated squares.
+  // Keep card and response families in their original order on an exact tie.
+  const familyOrder=new Map();
+  let orientation=player;
+  for(const char of String(state.matchId || ''))orientation=(orientation*31+char.charCodeAt(0))>>>0;
+  const ranked=candidates.map((command,index)=>{
+    const p=command.payload || {},dest=p.destination;
+    const family=dest ? command.type+':'+(p.cardIid || p.sourceIid || '') : index;
+    if(!familyOrder.has(family))familyOrder.set(family,index);
+    const square=dest ? ((Number(dest.z)+orientation%3)%3)*100+
+      Number(dest.r)*10+(orientation%2?-Number(dest.c):Number(dest.c)) : 0;
     const values=priorities.get(command);
-    return {command,priority:values.reduce((a,b)=>a+b,0)/values.length};
-  }).sort((a,b)=>b.priority-a.priority).map(item=>item.command);
+    return {command,priority:values.reduce((a,b)=>a+b,0)/values.length,family:familyOrder.get(family),square};
+  }).sort((a,b)=>b.priority-a.priority || a.family-b.family || a.square-b.square).map(item=>item.command);
+  const rank=new Map(ranked.map((command,index)=>[command,index]));
   const requestedWidth=integer(context.width,12,2,32);
   const width=Math.min(requestedWidth,Math.max(2,Math.floor(nodeBudget/12)));
   const rootCommands=diverseCommands(ranked,width);
@@ -60,6 +71,10 @@ export function planDecision(commands,projection,context={}){
     const best=candidates.reduce((best,c)=>!best || priorities.get(c)[i]>priorities.get(best)[i]?c:best,null);
     if(best && !rootCommands.includes(best))rootCommands[rootCommands.length-i]=best;
   }
+  // Keep the cost-free response in the comparison even when several reactions
+  // or optional targets would otherwise occupy every search slot.
+  const hold=ranked.find(c=>c.type==='ANSWER_PROMPT' && (c.payload?.choice==='DECLINE' || c.payload?.cancel===true));
+  if(hold && !rootCommands.includes(hold) && rootCommands.length>1)rootCommands[rootCommands.length-1]=hold;
   for(const world of worlds){
     results.push(searchWorld(world,player,{nodeBudget,maxSteps:allocation.maxSteps,width:rootCommands.length || 1,rootCommands,personality}));
   }
@@ -76,7 +91,7 @@ export function planDecision(commands,projection,context={}){
     const worst=Math.min(...row.scores);
     const score=worst<=-900000 ? -2000000+mean : mean*(1-personality.risk)+worst*personality.risk;
     return {...row,mean,worst,score};
-  }).sort((a,b)=>b.score-a.score || a.principalVariation.length-b.principalVariation.length || stableStringify(a.command).localeCompare(stableStringify(b.command)));
+  }).sort((a,b)=>b.score-a.score || Number(b.command.payload?.choice==='DECLINE')-Number(a.command.payload?.choice==='DECLINE') || a.principalVariation.length-b.principalVariation.length || rank.get(a.command)-rank.get(b.command) || stableStringify(a.command).localeCompare(stableStringify(b.command)));
   // Half our Morale is an emergency resource, not ordinary development.
   // Require evidence across every sampled world, and keep a free alternative
   // whenever spending merely improves a heuristic score.
@@ -120,21 +135,17 @@ export function chooseCommand(commands,projection,context={}){
   }
   if(targetingState?.board)commands=filterAiTargets(commands,targetingState,Number(context.playerIndex ?? projection?.activePlayer ?? 0));
   const actor=Number(context.playerIndex ?? projection?.activePlayer ?? 0);
-  if(targetingState?.board && !targetingState.pendingPrompt && !targetingState.pendingHandLimit
-    && !targetingState.board.flat(3).some(c=>c && Number(c.controller ?? c.owner)===actor)){
-    const owner=targetingState.players?.[actor];
-    const known=[...(owner?.hand || []),...(owner?.deck || [])];
-    const fuel=commands.filter(c=>['SET_CARD','SET_CARD_FROM_DECK'].includes(c.type)
-      && ['09','28','98'].includes(known.find(card=>card.iid===c.payload?.cardIid)?.id));
-    if(fuel.length){
-      const priority=createCommandOrderer(targetingState,actor);
-      return fuel.map(command=>({command,score:priority(command)})).sort((a,b)=>b.score-a.score)[0].command;
-    }
-  }
   // Deliberately replan after every resolution, even if the previous intended
   // command remains legal. Legality does not prove a combo is still worthwhile.
   if(context.planCache)context.planCache.sequence=[];
+  const playable=commands.filter(command=>command.type!=='CONCEDE');
+  if(playable.length===1){
+    context.onDecision?.({policy:'forced-command',simulations:0,alternatives:[{command:playable[0]}]});
+    return playable[0];
+  }
   let plan=planDecision(commands,projection,context);
+  // A terminal win in every search world needs no pass review.
+  if(plan?.command?.type==='END_TURN' && plan.principalVariation.length===1 && plan.trace?.alternatives?.find(row=>row.command===plan.command)?.worst>=1e6)return plan.command;
   // Passing is irreversible for this turn. Verify a shallow pass with a
   // larger bounded search, preserving every strategic target restriction.
   if(plan?.command?.type==='END_TURN' && context.canonicalState && !context.canonicalState.pendingPrompt

@@ -7,7 +7,7 @@ export function createAssaultPrior(state,player,entries,cards){
   const owner=state.players[player];
   const own=entries.filter(e=>controllerOf(e.card)===player);
   const ids=new Set([...own.map(e=>e.card),...(owner.hand || []),...(owner.deck || []),...(owner.discard || [])].map(c=>c.id));
-  if(!['11','40','63','59'].every(id=>ids.has(id)))return ()=>0;
+  const assaultDeck=['11','40','63','59'].every(id=>ids.has(id));
   const hand=owner.hand || [];
   const prompt=state.pendingPrompt,source=cards.get(prompt?.sourceIid);
   const active=e=>!e.card.faceDown && !e.card.statuses?.includes('EFFECTS_SUPPRESSED');
@@ -32,23 +32,8 @@ export function createAssaultPrior(state,player,entries,cards){
   return command=>{
     const p=command.payload || {};
     const card=cards.get(p.cardIid || p.sourceIid);
-    const selected=(p.selectedIids || (p.selectedIid?[p.selectedIid]:[])).map(i=>cards.get(i)).filter(Boolean);
     let score=0;
-    if(prompt?.type==='CARD_SELECTION' && ['68','06','60'].includes(source?.id)){
-      score+=selected.reduce((sum,c)=>sum+access(c),0);
-    }
-    if(prompt?.type==='HAND_SELECTION' && source?.id==='42'){
-      // Keep a useful development hand; extra tutors and slow infrastructure
-      // are expendable once their job is already covered.
-      for(const c of selected){
-        score-=access(c);
-        if(c.id==='68' && hasAnne)score+=4;
-        if(['43','40'].includes(c.id) && own.some(e=>e.card.id===c.id))score+=3;
-      }
-    }
-    if(command.type==='SET_CARD_FROM_DECK' && card?.id==='28')score+=40;
-    if(command.type==='SET_CARD' && card?.id==='60')score+=access(card);
-    if(p.destination){
+    if(p.destination && (card?.type==='Supporter' || ['11','59','63','43','16'].includes(card?.id) || source?.id==='43')){
       const z=Number(p.destination.z),tributes=new Set(p.tributeIids || []);
       const survivors=own.filter(e=>e.z===z && !tributes.has(e.card.iid));
       const bodies=survivors.filter(e=>e.card.type==='Supporter');
@@ -67,6 +52,22 @@ export function createAssaultPrior(state,player,entries,cards){
       }
       if(card?.id==='16')score+=entries.some(e=>e.z===z && controllerOf(e.card)!==player && e.card.type==='Supporter')?5:-5;
     }
+    if(!assaultDeck)return score;
+    const selected=(p.selectedIids || (p.selectedIid?[p.selectedIid]:[])).map(i=>cards.get(i)).filter(Boolean);
+    if(prompt?.type==='CARD_SELECTION' && ['68','06','60'].includes(source?.id)){
+      score+=selected.reduce((sum,c)=>sum+access(c),0);
+    }
+    if(prompt?.type==='HAND_SELECTION' && source?.id==='42'){
+      // Keep a useful development hand; extra tutors and slow infrastructure
+      // are expendable once their job is already covered.
+      for(const c of selected){
+        score-=access(c);
+        if(c.id==='68' && hasAnne)score+=4;
+        if(['43','40'].includes(c.id) && own.some(e=>e.card.id===c.id))score+=3;
+      }
+    }
+    if(command.type==='SET_CARD_FROM_DECK' && card?.id==='28')score+=40;
+    if(command.type==='SET_CARD' && card?.id==='60')score+=access(card);
     if(['05','22'].includes(source?.id))for(const c of selected){
       const entry=own.find(e=>e.card.iid===c.iid);
       if(!entry){score-=15;continue;}
