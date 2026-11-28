@@ -420,20 +420,16 @@ function getRecoverableDiscardCards(player, filter) {
 
 function applyLandscapePlacementBonuses(card, z, r, c) {
   if (!card) return 0;
+  if(card.counterResourceKey && !card.counters?.wodnyCounterFirstSetChecked){
+    card.counters ||= {};
+    card.counters.wodnyCounterFirstSetChecked=true;
+    if(isLandscapeActive('igb18')) card.counters[card.counterResourceKey]=
+      Math.max(0,Number(card.counters[card.counterResourceKey])||0)+2;
+  }
   if (!Array.isArray(card._landscapeBonusIds)) card._landscapeBonusIds = [];
   if (typeof isFullyEffectImmuneCard === 'function' ? isFullyEffectImmuneCard(card) : isCardEffectImmutable(card)) return 0;
   let bonus = 0;
   let playFeedback = false;
-  if (isLandscapeActive('igb6') && card.aff === 'reality' && !card._landscapeBonusIds.includes('igb6')) {
-    card._landscapeBonusIds.push('igb6');
-    bonus += 3;
-    playFeedback = true;
-  }
-  if (isLandscapeActive('igb11') && card.type === 'Initiator' && !card._landscapeBonusIds.includes('igb11')) {
-    card._landscapeBonusIds.push('igb11');
-    bonus += 3;
-    playFeedback = true;
-  }
   if (isLandscapeActive('igb5') && card.owner === getFlowingCurrentsLeader() && !card._landscapeBonusIds.includes('igb5')) {
     card._landscapeBonusIds.push('igb5');
     bonus += 2;
@@ -461,6 +457,7 @@ function trackLandscapeConsolidation(player, card, z) {
   const st = getLandscapeState();
   if (!st) return 0;
   st.consolidations[player] = (Number(st.consolidations[player]) || 0) + 1;
+  if (isLandscapeActive('igb4') && card) card._zionMoraleCostPending = player;
   let bonus = 0;
   if (isLandscapeActive('igb3') && st.targetZone === z && G.turn <= 12 && !(card && typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(card))) {
     bonus = 4;
@@ -475,6 +472,19 @@ function trackLandscapeConsolidation(player, card, z) {
     if (typeof triggerLandscapeFlash === 'function') triggerLandscapeFlash('Anchorage landscape bonus', 'minor');
   }
   return bonus;
+}
+
+function resolveZionConsolidationMoraleCost(card) {
+  if (!card || (card._zionMoraleCostPending !== 0 && card._zionMoraleCostPending !== 1)) return false;
+  const player = card._zionMoraleCostPending;
+  delete card._zionMoraleCostPending;
+  const morale = G?._moralePressure?.morale;
+  if (!Array.isArray(morale)) return false;
+  const before = Math.max(0, Number(morale[player]) || 0);
+  morale[player] = Math.max(0, before - 8);
+  window.presentLegacyMoraleDelta?.({playerIndex:player,before,after:morale[player],sourceIid:card.iid,reason:'ZION_CANYON_CONSOLIDATION_COST'});
+  if (typeof triggerLandscapeFlash === 'function') triggerLandscapeFlash('Zion Canyon: -8 Morale', 'minor');
+  return true;
 }
 
 function refreshStatusEffectsNow() {
@@ -1029,7 +1039,11 @@ function getHandCardEffectModifiers(card) {
     if (!text) text = parts.join(', ') || 'Card modified.';
     rows.push({ key, name:String(row.name || 'Effect'), text, fateDelta, costDelta });
   }
-  if(card.counters?.chauffeurFreeSet === true){
+  if(card.counters?.greatOakFreeSet === true){
+    addRow({key:'great-oak-free-set',name:'Great Oak Highschool',
+      text:'Searched by Great Oak. This Supporter can be set for free once; its set still counts toward the hard Supporter cap.'});
+  }
+  if(card.counters?.chauffeurFreeSet === true && card.counters?.greatOakFreeSet !== true){
     addRow({key:'chauffeur-free-set',name:'Chauffeur — Free Set',
       text:'Created by Francisek. This card’s next set does not count toward the normal 2-Supporter-per-turn limit. It still counts toward the global 5-Supporter cap. This benefit is used up when this card is set.'});
   }

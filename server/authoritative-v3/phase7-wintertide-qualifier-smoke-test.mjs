@@ -6,10 +6,10 @@ import {createInitialState, effectiveFate} from '../../shared/engine/index.mjs';
 const definitions = [
   {id:'01', name:'Felicyta Janowicz', type:'Coordinator', aff:'third_great_war', fate:6, cost:3, rarity:'square'},
   {id:'87', name:'Květka Svoboda (Ukulele)', type:'Initiator', aff:'expanded_worlds', fate:3, cost:2, rarity:'triangle'},
-  {id:'100', name:'Felicyta and Květka (Youth)', type:'Dauntless', aff:'expanded_worlds', fate:12, cost:2, rarity:'square'}
+  {id:'100', name:'Felicyta and Květka (Youth)', type:'Dauntless', aff:'expanded_worlds', fate:15, cost:2, rarity:'square'}
 ];
 
-function createState(){
+function createState(deckIds=['100', '01', '87']){
   return createInitialState({
     matchId:'PHASE7WINTERTIDEQUALIFIER',
     seed:'phase7-wintertide-qualifier',
@@ -18,7 +18,7 @@ function createState(){
     landscapeId:'',
     cardDefinitions:definitions,
     players:[
-      {id:'p0', deckIds:['100', '01', '87']},
+      {id:'p0', deckIds},
       {id:'p1', deckIds:[]}
     ]
   });
@@ -37,13 +37,13 @@ const state = createState();
 const wintertide = moveToBoard(state, '100', {z:0, r:2, c:0});
 assert.equal(
   effectiveFate(state, wintertide),
-  12,
+  15,
   'authoritative Wintertide must not count its own instance as the separate Felicyta/Květka requirement'
 );
 moveToBoard(state, '01', {z:1, r:2, c:0});
 assert.equal(
   effectiveFate(state, wintertide),
-  17,
+  20,
   'authoritative Wintertide must gain +5 when a distinct qualifying card is controlled'
 );
 
@@ -52,7 +52,7 @@ const ukuleleWintertide = moveToBoard(ukuleleState, '100', {z:0, r:2, c:0});
 moveToBoard(ukuleleState, '87', {z:2, r:2, c:0});
 assert.equal(
   effectiveFate(ukuleleState, ukuleleWintertide),
-  17,
+  20,
   'authoritative Wintertide must recognize Květka (Ukulele) as a distinct qualifying card'
 );
 
@@ -85,10 +85,12 @@ assert.equal(
   true,
   'singleplayer named-card scan must find a distinct qualifying card'
 );
-assert.match(
-  coreText,
-  /controlsNamedCard\(card\.owner, \['Felicyta', 'Kvetka', 'Květka'\], \{excludeIid:card\.iid\}\)/,
-  'singleplayer Wintertide Fate calculation must exclude the evaluated instance'
-);
+const duplicateState = createState(['100', '100']);
+const firstUnion = moveToBoard(duplicateState, '100', {z:0, r:2, c:0});
+moveToBoard(duplicateState, '100', {z:1, r:2, c:0});
+assert.equal(effectiveFate(duplicateState, firstUnion), 15,
+  'another union card cannot qualify for the separate-character bonus');
+assert(coreText.includes("['01','19','82','84','85','87','bh11'].includes(String(peer.id))"),
+  'singleplayer Wintertide must require a separate Felicyta or Kvetka card');
 
 console.log('phase7 Wintertide separate-card qualifier smoke passed');

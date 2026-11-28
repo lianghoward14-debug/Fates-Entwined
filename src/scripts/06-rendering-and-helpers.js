@@ -2081,14 +2081,6 @@ function renderLandscapePanel() {
   }
   let whiteboardActionHtml = '';
   let whiteboardActionSig = '';
-  if(landscape.id === 'igb4' && !tutorialLandscapeDisplay){
-    const spent = Number(st?.twilightRecoveryUses?.[perspectivePlayer] || 0) >= 1;
-    const enabled = !G._isSpectator && G._onlineRole !== 'spectator';
-    whiteboardActionSig = ['twilight', perspectivePlayer, spent, enabled].join(':');
-    whiteboardActionHtml = '<div class="landscape-whisper-action ' + (spent ? 'is-spent' : 'is-ready') + '">' +
-      '<button type="button" class="landscape-whisper-button" onclick="activateTwilightRecoveryLandscape()"' + (enabled ? '' : ' disabled') + '>' +
-      (spent ? 'View Discard — Recovery Used' : 'Open Twilight Recovery') + '</button></div>';
-  }
   if(landscape.id === 'igb21' && !tutorialLandscapeDisplay) {
     const uses = st && Array.isArray(st.igb21CatalogUses) ? st.igb21CatalogUses : (st && Array.isArray(st.oncePerGameUses) ? st.oncePerGameUses : [0,0]);
     const spent = (Number(uses[perspectivePlayer]) || 0) >= 1;
@@ -7418,14 +7410,16 @@ function buildCardDetailTrackerHTML(card, viewerP, hideCard) {
     value = String(Math.max(0, Number(card.counters?.santiagoMoraleInflicted) || 0));
     sub = Math.max(0, Number(card.counters?.santiagoSupporterCounters) || 0) + ' counters available';
   } else if(trackerId === '40') {
-    const uses = Math.max(0, Number(card.usesLeft == null ? 2 : card.usesLeft) || 0);
+    const maxUses = 2 + (isLandscapeActive('igb18') ? 1 : 0);
+    const uses = Math.max(0, Number(card.usesLeft == null ? maxUses : card.usesLeft) || 0);
     label = 'Hard Times Uses';
-    value = (2 - uses) + ' / 2';
+    value = Math.max(0, maxUses - uses) + ' / ' + maxUses;
     sub = uses + ' Empowerment' + (uses === 1 ? '' : 's') + ' Remaining';
   } else if(trackerId === '56') {
-    const uses = Math.max(0, Math.min(3, Number(card.usesLeft == null ? 3 : card.usesLeft) || 0));
+    const maxUses = 3 + (isLandscapeActive('igb18') ? 1 : 0);
+    const uses = Math.max(0, Math.min(maxUses, Number(card.usesLeft == null ? maxUses : card.usesLeft) || 0));
     label = 'Berknomaly Uses';
-    value = (3 - uses) + ' / 3';
+    value = (maxUses - uses) + ' / ' + maxUses;
     sub = uses + ' Negation' + (uses === 1 ? '' : 's') + ' Remaining';
   } else if(trackerId === '67') {
     const uses = Math.max(0, Number(card.usesLeft == null ? (card._seculesUsed ? 0 : 1) : card.usesLeft) || 0);
@@ -8365,6 +8359,11 @@ function closeModal(opts) {
     && !authoritativeHandLimitCloseIsAllowed()
     && !(opts && opts.authoritativeHandLimitResolved)) return false;
   if(closingHandLimit && !(opts && opts.forceHandLimitClose)) return false;
+  if(modal?.querySelector('.move-target-picker-modal') && window._boleslawMoveTicket
+    && !window._boleslawMoveConfirming){
+    window._boleslawMoveTicket(false);
+    window._boleslawMoveTicket=null;
+  }
   modal.classList.remove('on');
   if(closingHandLimit && document.body) document.body.classList.remove('hand-limit-discard-active');
   resetModalChrome();
@@ -8584,6 +8583,13 @@ function getBoardTargetPickerRowLabel(rowIndex, viewerP) {
 }
 
 function showBoardTargetPicker(opts, onConfirm) {
+  if(opts && !opts._boleslawCopyPickerTracked && typeof window.trackBoleslawCopyPicker==='function'){
+    const tracked=window.trackBoleslawCopyPicker(onConfirm,opts.onCancel);
+    if(tracked){
+      opts={...opts,onCancel:tracked.cancel,_boleslawCopyPickerTracked:true};
+      onConfirm=tracked.confirm;
+    }
+  }
   if(!opts.sourceCard && typeof localPickerSource === 'function') opts={...opts,sourceCard:localPickerSource()};
   if(deferPickerUntilAnimationFinishes(()=>showBoardTargetPicker(opts, onConfirm))) return;
   const interactionWait = opts?.immediate === true
@@ -8596,7 +8602,7 @@ function showBoardTargetPicker(opts, onConfirm) {
   const viewerP = typeof opts.viewerPlayerIndex === 'number' ? opts.viewerPlayerIndex : getPerspectivePlayerIndex();
   const allowSquareTargets = !!(opts && opts.allowSquareTargets);
   const entries = (opts.entries || []).filter(function(entry){ return entry && (entry.card || allowSquareTargets); });
-  if(!entries.length){ toast(opts.emptyMessage || 'No valid targets'); return; }
+  if(!entries.length){ toast(opts.emptyMessage || 'No valid targets'); opts.onCancel?.(); return; }
   const maxCount = Math.max(1, Math.min(opts.maxCount || 1, entries.length));
   const minCount = Math.max(0, Math.min(opts.minCount === undefined ? 1 : Number(opts.minCount) || 0, maxCount));
   const zones = (opts.visibleZones && opts.visibleZones.length
@@ -8860,6 +8866,14 @@ function showBoardTargetPicker(opts, onConfirm) {
 
 // Zone-shaped picker: shows the real zone with ownership rows and cell slots.
 function showZonePicker(z, prompt, entries, maxCount, viewerP, onConfirm, filter, onCancel, sourceCard, minCount=1) {
+  if(onConfirm && !onConfirm._boleslawCopyPickerTracked && typeof window.trackBoleslawCopyPicker==='function'){
+    const tracked=window.trackBoleslawCopyPicker(onConfirm,onCancel);
+    if(tracked){
+      onConfirm=tracked.confirm;
+      onConfirm._boleslawCopyPickerTracked=true;
+      onCancel=tracked.cancel;
+    }
+  }
   if(deferPickerUntilAnimationFinishes(()=>showZonePicker(z, prompt, entries, maxCount, viewerP, onConfirm, filter, onCancel, sourceCard, minCount))) return;
   const wait = String(sourceCard?.id || '') === '12' ? 0 : (typeof getInteractionAnimationDelayMs === 'function' ? getInteractionAnimationDelayMs() : getPlacementUiDelayMs());
   if(wait > 0){
@@ -8867,7 +8881,7 @@ function showZonePicker(z, prompt, entries, maxCount, viewerP, onConfirm, filter
     return;
   }
   const pickerEntries = (entries || []).filter(function(entry){ return entry && entry.card; });
-  if(!pickerEntries.length){ toast('No valid targets in this zone'); return; }
+  if(!pickerEntries.length){ toast('No valid targets in this zone'); onCancel?.(); return; }
   // The production single-zone picker is the compact board-target component.
   // Keep the old .zone-picker-wrap implementation below as dead fallback
   // history; it is the oversized 3x3 modal and must not be mounted.
@@ -9016,10 +9030,17 @@ function bindLocalCardPickerLifetime(opts){
 
 // Image-based card picker with pagination
 function pickCardsVisual(cards, opts, onConfirm) {
+  if(opts && !opts._boleslawCopyPickerTracked && typeof window.trackBoleslawCopyPicker==='function'){
+    const tracked=window.trackBoleslawCopyPicker(onConfirm,opts.onCancel);
+    if(tracked){
+      opts={...opts,onCancel:tracked.cancel,_boleslawCopyPickerTracked:true};
+      onConfirm=tracked.confirm;
+    }
+  }
   if(opts?.title === 'Call to Arms' && cards.length <= 3 && window.pickRoyalSeal) return window.pickRoyalSeal(cards,opts,onConfirm);
   if(!opts?.sourceCard && typeof localPickerSource === 'function') opts={...opts,sourceCard:localPickerSource()};
   opts = bindLocalCardPickerLifetime(opts);
-  if(opts._localPickerIsCurrent && !opts._localPickerIsCurrent()) return;
+  if(opts._localPickerIsCurrent && !opts._localPickerIsCurrent()){opts.onCancel?.();return;}
   if(deferPickerUntilAnimationFinishes(()=>pickCardsVisual(cards, opts, onConfirm))) return;
   opts = opts || {};
   if(!opts._characterBannerConfirm) {
@@ -9509,6 +9530,9 @@ function searchDeckForType(player, type, prompt, maxCount=1, searchOptions={}) {
       if(chosen.length && typeof playSfx === 'function') playSfx('searchFound');
       renderBoardActionForPlayer(player, {hand:true, piles:true});
       if(chosen.length) toast(`Added ${chosen.length} card(s) to hand`);
+      if(!chosen.length && typeof resolveGreatOakAfterSearchSelection === 'function') {
+        return resolveGreatOakAfterSearchSelection(player,searchOptions);
+      }
       if(chosen.length && typeof resolveBoleslawAfterSearchSelection === 'function') {
         return resolveBoleslawAfterSearchSelection(player, chosen, searchOptions);
       }
@@ -9520,7 +9544,8 @@ function searchDeckForCard(player, filter, prompt, callback, searchOptions={}) {
   const matches=G.players[player].deck.filter(filter);
   const openSearch = function(){ pickCardsVisual(matches, {title:prompt, subtitle:'Search your deck', maxCount:1, confirmLabel:'Choose', immediate:true, opponentSearch:true, searchingPlayer:player, searchSourceCardId:String(searchOptions.sourceCardId || '')},
     (chosen)=>{
-      if(!chosen.length) return;
+      if(!chosen.length) return typeof resolveGreatOakAfterSearchSelection === 'function'
+        ? resolveGreatOakAfterSearchSelection(player,searchOptions) : undefined;
       const c=chosen[0];
       c._fateHandArrivalKind = 'search';
       queueSearchToHandMotion(player, c, 'deck', G.players[player].hand.length, 0, 1);
@@ -9984,7 +10009,10 @@ function showMoveTarget(card, fromZ, fromR, fromC, targetZ, options={}) {
   G.board[targetZ].forEach((row,r)=>row.forEach((cell,c)=>{
     if(!cell&&!isBlocked(targetZ,r,c) && !disallowRows.has(r) && !(disallowExtraSafeRows && r >= 3)) open.push({r,c});
   }));
-  if(!open.length){toast('No open cells in Zone '+(targetZ+1));return;}
+  if(!open.length){toast('No open cells in Zone '+(targetZ+1));
+    if(G?._boleslawCopyPickerSession){const finish=G._boleslawCopyPickerSession.begin();finish(false);}
+    return;}
+  window._boleslawMoveTicket=G?._boleslawCopyPickerSession?.begin() || null;
   const openKey = new Set(open.map(p=>`${p.r}:${p.c}`));
   const zoneRows = (G.board[targetZ]||[]).length || 3;
   const displayCols = Math.max(3, ...Array.from({length:zoneRows}, (_, r)=>
@@ -10047,6 +10075,7 @@ window.doMove=async function(i){
   if(!dest||!from||!window._moveCard)return;
   if(window._moveCard && isTargetImmuneToEffectOwner(window._moveCard, window._moveSourceCard ? window._moveSourceCard.owner : G.currentPlayer)){toast('this card is immune');closeModal();return;}
   if(window._moveCard.cantBeMoved){toast('This card cannot be moved');closeModal();return;}
+  window._boleslawMoveConfirming=!!window._boleslawMoveTicket;
   if(String(window._moveSourceCard?.id||'')==='39' && window.FateJuanCarlosTargetFx){
     const moving=window._moveCard,source=window._moveSourceCard,targetZ=window._moveTargetZ;
     const state=G,turn=G.turn;
@@ -10055,7 +10084,9 @@ window.doMove=async function(i){
     try{await window.FateJuanCarlosTargetFx.play(source,moving,{z:targetZ,r:dest.r,c:dest.c});}
     catch(e){/* Presentation failure must not strand a confirmed move. */}
     finally{window._juanMovePresentationPending=false;}
-    if(G!==state||G.turn!==turn||G.board[from.z]?.[from.r]?.[from.c]!==moving||G.board[targetZ]?.[dest.r]?.[dest.c]||moving.cantBeMoved||isTargetImmuneToEffectOwner(moving,source.owner))return;
+    if(G!==state||G.turn!==turn||G.board[from.z]?.[from.r]?.[from.c]!==moving||G.board[targetZ]?.[dest.r]?.[dest.c]||moving.cantBeMoved||isTargetImmuneToEffectOwner(moving,source.owner)){
+      window._boleslawMoveTicket?.(false);window._boleslawMoveTicket=null;window._boleslawMoveConfirming=false;return;
+    }
     window._moveCard=moving;window._moveSourceCard=source;window._moveTargetZ=targetZ;
   }
   G.board[from.z][from.r][from.c]=null;
@@ -10064,6 +10095,7 @@ window.doMove=async function(i){
   if(typeof triggerRozsiPassive === 'function') triggerRozsiPassive(window._moveCard, window._moveTargetZ);
   if(window._moveSourceCard && typeof markInitialEffectResolved === 'function') markInitialEffectResolved(window._moveSourceCard);
   closeModal();toast('Card moved');renderBoardActionForPlayer(window._moveCard && typeof window._moveCard.owner === 'number' ? window._moveCard.owner : G.currentPlayer, {hand:false});
+  window._boleslawMoveTicket?.(true);window._boleslawMoveTicket=null;window._boleslawMoveConfirming=false;
 };
 
 function highlightForBlock(z, sourceCard) {
@@ -12081,6 +12113,14 @@ function maybeShowSealCheckpointTurnBanner() {
 
 // Pick a card from ANY zone (for effects like Juan Carlos)
 function pickCardFromAnyZone(prompt, callback, filter) {
+  if(callback && !callback._boleslawCopyPickerTracked && typeof window.trackBoleslawCopyPicker==='function'){
+    const tracked=window.trackBoleslawCopyPicker(callback);
+    if(tracked){
+      callback=tracked.confirm;
+      callback._boleslawCopyPickerTracked=true;
+      callback._boleslawCopyPickerCancel=tracked.cancel;
+    }
+  }
   const wait = (typeof getInteractionAnimationDelayMs === 'function' ? getInteractionAnimationDelayMs() : (typeof getPlacementUiDelayMs === 'function' ? getPlacementUiDelayMs() : 0));
   if(wait > 0){
     setTimeout(function(){ pickCardFromAnyZone(prompt, callback, filter); }, wait);
@@ -12099,7 +12139,7 @@ function pickCardFromAnyZone(prompt, callback, filter) {
       }
     }
   }
-  if(!entries.length){ toast('No valid targets'); return; }
+  if(!entries.length){ toast('No valid targets'); callback._boleslawCopyPickerCancel?.(); return; }
   showBoardTargetPicker({
     title: 'Select Target',
     prompt: prompt,
@@ -12109,7 +12149,8 @@ function pickCardFromAnyZone(prompt, callback, filter) {
     zones: [0, 1, 2],
     entries: entries,
     showOpponentOverlay: !filter,
-    emptyMessage: 'No valid targets'
+    emptyMessage:'No valid targets',
+    onCancel:callback._boleslawCopyPickerCancel
   }, function(chosenEntries){
     if(!chosenEntries.length) return;
     const picked = chosenEntries[0];

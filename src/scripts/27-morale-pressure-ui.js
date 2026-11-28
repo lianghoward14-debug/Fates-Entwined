@@ -1627,8 +1627,8 @@
   function animateMoraleDamage(event){
     const root = document.getElementById(HUD_ID);
     const player = root?.querySelector('.mp-player[data-seat="' + Number(event?.playerIndex) + '"]');
-    if(!player) return Promise.resolve(false);
     const visiblePlayer = visibleMoralePresentationTarget(event?.playerIndex);
+    if(!player && !visiblePlayer) return Promise.resolve(false);
     const floater = document.createElement('div');
     floater.className = 'morale-damage-floater';
     const damageAmount = Math.max(0,Number(event?.amount)||0);
@@ -1636,12 +1636,11 @@
     floater.textContent = '-' + damageLabel + ' Morale';
     positionMoraleFloater(floater,player,event?.playerIndex);
     document.body.appendChild(floater);
-    player.classList.remove('mp-morale-hit');
+    player?.classList.remove('mp-morale-hit');
     visiblePlayer?.classList.remove('morale-fx-damage');
-    void player.offsetWidth;
-    player.classList.add('mp-morale-hit');
+    if(player){void player.offsetWidth;player.classList.add('mp-morale-hit');}
     if(visiblePlayer){void visiblePlayer.offsetWidth;visiblePlayer.classList.add('morale-fx-damage');}
-    return new Promise(function(resolve){setTimeout(function(){player.classList.remove('mp-morale-hit');visiblePlayer?.classList.remove('morale-fx-damage');floater.remove();resolve(true);},1500);});
+    return new Promise(function(resolve){setTimeout(function(){player?.classList.remove('mp-morale-hit');visiblePlayer?.classList.remove('morale-fx-damage');floater.remove();resolve(true);},1500);});
   }
 
   function animateMoraleHeal(event){

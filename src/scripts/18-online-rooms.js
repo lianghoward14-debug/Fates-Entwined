@@ -3254,14 +3254,14 @@ import {cardRule} from '../../shared/engine/cards/registry.mjs';
         next.achillesToken = true;
       }
       const reactionUses = Math.max(0, Number(card.counters?.reactionUses) || 0);
-      if(String(card.id || '') === '56') next.usesLeft = Math.max(0, 3 - reactionUses);
+      if(String(card.id || '') === '56') next.usesLeft = Math.max(0, 3 + (String(projectedState?.landscapeId || '') === 'igb18' ? 1 : 0) - reactionUses);
       if(String(card.id || '') === '67'){
         next.usesLeft = Math.max(0, 1 - reactionUses);
         next._seculesUsed = reactionUses > 0;
       }
       const effectUses = Math.max(0, Number(card.counters?.effectUses) || 0);
       const trackedMaxUses = ({'20':2,'40':2,'107':2,'bh16':2})[String(card.id || '')];
-      if(Number.isFinite(trackedMaxUses)) next.usesLeft = Math.max(0, trackedMaxUses - effectUses);
+      if(Number.isFinite(trackedMaxUses)) next.usesLeft = Math.max(0, trackedMaxUses + (String(projectedState?.landscapeId || '') === 'igb18' ? 1 : 0) - effectUses);
       if(card.counters?.pierogiCounter === true){
         next.pierogiCounter = true;
         next._pierogiCreator = Number(card.counters.pierogiCreator);
@@ -4750,6 +4750,7 @@ import {cardRule} from '../../shared/engine/cards/registry.mjs';
     }
     const reinforcementFor = function(entry){
       const card = entry?.card || {};
+      if(String(phase7CurrentUiSession.view?.state?.landscapeId || '') === 'igb11' && card.type === 'Initiator') return 1;
       let value = String(card.id || '') === '09' ? 2 : 1;
       value += Number(card.counters?.reinforcementBonus || card._reinforcementBonus || 0) || 0;
       (card.statuses || []).forEach(function(status){

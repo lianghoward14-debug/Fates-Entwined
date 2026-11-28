@@ -400,8 +400,17 @@ function startFieldEntryDeclaration(state, ctx, card, controller, commandId){
   return true;
 }
 
-function consumeEffectUse(card){
+function wodnyUseLimit(state,card,rule){
+  const base=Number(rule?.maxUses || 0);
+  return base+(base>1 && state.landscapeId==='igb18' ? 1 : 0);
+}
+
+function consumeEffectUse(card,state,rule){
   if(!card.counters || typeof card.counters !== 'object') card.counters = {};
+  if(Number(rule?.maxUses || 0)>1 && state.landscapeId==='igb18'
+    && effectUses(card) >= Number(rule.maxUses) && !card.counters.wodnyExtraUseSpent){
+    card.counters.wodnyExtraUseSpent=true;
+  }
   card.counters.effectUses = effectUses(card) + 1;
 }
 
@@ -409,8 +418,11 @@ function reactionUses(card){
   return Number(card?.counters?.reactionUses || 0) || 0;
 }
 
-function consumeReaction(card){
+function consumeReaction(card,state){
   if(!card.counters || typeof card.counters !== 'object') card.counters = {};
+  const rule=cardRule(card.id,state);
+  if(Number(rule?.maxUses || 0)>1 && state.landscapeId==='igb18'
+    && reactionUses(card)>=Number(rule.maxUses)) card.counters.wodnyExtraUseSpent=true;
   card.counters.reactionUses = reactionUses(card) + 1;
 }
 
@@ -695,7 +707,7 @@ function activationReactionOptions(state, frame){
   for(const entry of boardEntries(state)){
     if(controllerOf(entry.card) !== opponent || isEffectSourceSuppressed(state, entry)) continue;
     const rule = cardRule(entry.card.id, state);
-    if(rule?.reactionKind === 'LYDIA' && reactionUses(entry.card) < Number(rule.maxUses || 0)){
+    if(rule?.reactionKind === 'LYDIA' && reactionUses(entry.card) < wodnyUseLimit(state,entry.card,rule)){
       options.push({reactionIid:entry.card.iid, kind:'LYDIA', modes:['NEGATE']});
     }
     // Secules reacts to Initiator effects regardless of whether their printed
@@ -703,7 +715,7 @@ function activationReactionOptions(state, frame){
     // to Supporter WHEN_SET effects.
     const secWorks = String(frame.sourceType || '') === 'Initiator'
       || (frame.timing === 'WHEN_SET' && String(frame.sourceType || '') === 'Supporter');
-    if(rule?.reactionKind === 'SECULES' && secWorks && reactionUses(entry.card) < Number(rule.maxUses || 0)){
+    if(rule?.reactionKind === 'SECULES' && secWorks && reactionUses(entry.card) < wodnyUseLimit(state,entry.card,rule)){
       options.push({reactionIid:entry.card.iid, kind:'SECULES', modes:['NEGATE']});
     }
   }
@@ -1299,8 +1311,38 @@ function runEffectStack(state, ctx){
       }
       frame.instructionIndex++;continue;
     }
+    if(instruction?.kind === 'GREAT_OAK_ADD_SUPPORTER'){
+      const iid=String(frame.locals.greatOakSupporterIid || '');
+      const entry=findCard(state,iid);
+      if(entry?.zone==='deck' && entry.playerIndex===frame.controller && entry.card.type==='Supporter'){
+        applyOperation(ctx,{type:'TRANSFER_CARDS',targetIid:iid,playerIndex:frame.controller,
+          destinationPile:'hand',sourceIid:frame.sourceIid,sourceController:frame.controller,
+          semanticSourceCardId:'igb6',reason:'GREAT_OAK_SEARCH'});
+        const added=findCard(state,iid)?.card;
+        if(added){
+          added.counters ||= {};
+          added.counters.chauffeurFreeSet=true;
+          added.counters.greatOakFreeSet=true;
+          ctx.events.push({type:'GREAT_OAK_SUPPORTER_ADDED',cardIid:iid,playerIndex:frame.controller,privateTo:[frame.controller]});
+        }
+      }
+      frame.instructionIndex++;
+      continue;
+    }
     if(!instruction){
       state.effectStack.pop();
+      if(state.landscapeId === 'igb6' && ['WHEN_SET','ACTIVATE','COPIED'].includes(frame.timing)
+        && frame.kind !== 'GREAT_OAK_LANDSCAPE'
+        && /\bsearch\b|(?:add|select|choose).{0,80}\bfrom (?:your |the )?deck\b/i.test(String(state.cardCatalog.find(card=>String(card.id)===String(frame.sourceCardId))?.effect || ''))
+        && state.players[frame.controller]?.deck.some(card=>card.type==='Supporter')){
+        state.effectStack.push({frameId:nextId(state,'frame'),kind:'GREAT_OAK_LANDSCAPE',
+          sourceIid:frame.sourceIid,sourceCardId:'igb6',sourceType:'Landscape',controller:frame.controller,
+          timing:'LANDSCAPE',instructionIndex:0,waitingFor:null,locals:{},originalCommandId:frame.originalCommandId,
+          program:[{kind:'SELECT_CARDS',local:'greatOakSupporterIid',min:1,max:1,
+            title:'Great Oak Highschool',prompt:'Search your deck for an additional Supporter to set for free.',
+            filter:{locations:['deck'],playerIndex:'controller',type:'Supporter'}},
+            {kind:'GREAT_OAK_ADD_SUPPORTER'}]});
+      }
       // A negated frame is removed by the reaction resolver, so only effects
       // that reach this completion point are eligible for Boleslaw to repeat.
       if((frame.timing === 'WHEN_SET'
@@ -2234,7 +2276,7 @@ function startAutomaticActivation(state, ctx, source, controller, commandId){
   // explicit ACTIVATE_EFFECT command carrying userActivated=true.
   if(rule.manualOnly === true) return false;
   if(isEffectSourceSuppressed(state, findBoardCard(state, source.iid) || source)) return false;
-  if(rule.maxUses && effectUses(source) >= Number(rule.maxUses)) return false;
+  if(rule.maxUses && effectUses(source) >= wodnyUseLimit(state,source,rule)) return false;
   if(rule.oncePerTurn && Number(source.counters?.lastEffectTurn) === state.turn) return false;
   if(rule.blockedWhileStatus && source.statuses?.includes(rule.blockedWhileStatus)) return false;
   if(rule.sharedUseLimit
@@ -2255,7 +2297,7 @@ function startAutomaticActivation(state, ctx, source, controller, commandId){
     });
     return false;
   }
-  consumeEffectUse(source);
+  consumeEffectUse(source,state,rule);
   if(rule.oncePerTurn) source.counters.lastEffectTurn = state.turn;
   ctx.events.push({
     type:RULE_EVENT_TYPES.EFFECT_ACTIVATED,
@@ -2319,7 +2361,7 @@ function resolveReaction(state, ctx, frame, prompt, payload){
   }
   const reactionEntry = findCard(state, option.reactionIid);
   if(!reactionEntry) throw Object.assign(new Error('reaction card no longer exists'), {code:'REACTION_NOT_FOUND'});
-  if(option.kind !== 'HAVANO') consumeReaction(reactionEntry.card);
+    if(option.kind !== 'HAVANO') consumeReaction(reactionEntry.card,state);
   // Lydia suppresses the source; Havano only negates this resolution.
   const reactedSourceIid = frame.activeReactionSourceIid || frame.sourceIid;
   if(option.kind === 'HAVANO' || choice === 'SUPPRESS' || option.kind === 'LYDIA' || frame.reactionPhase === 'PASSIVE_TARGET') addSuppression(state, reactedSourceIid);
@@ -2669,27 +2711,8 @@ function performCommand(state, ctx, command, actorIndex, options){
     return;
   }
   if(command.type === 'ACTIVATE_LANDSCAPE'){
-    if(!['igb4', 'igb16', 'igb17', 'igb21'].includes(state.landscapeId)){
+    if(!['igb16', 'igb17', 'igb21'].includes(state.landscapeId)){
       throw Object.assign(new Error('the active landscape has no direct v3 activation'), {code:'LANDSCAPE_ACTIVATION_NOT_AVAILABLE'});
-    }
-    if(state.landscapeId === 'igb4'){
-      const uses = state.landscapeState.twilightRecoveryUses || (state.landscapeState.twilightRecoveryUses = [0, 0]);
-      if(Number(uses[actorIndex] || 0) >= 1){
-        throw Object.assign(new Error('Twilight recovery can only be used once per game'), {code:'USE_LIMIT_REACHED'});
-      }
-      const card = state.players[actorIndex].discard.find(card=>card.iid === payload.targetIid);
-      if(state.phase !== 'main' || !card || !['Initiator','Coordinator','Dauntless','Improvisor'].includes(String(card.type))){
-        throw Object.assign(new Error('Choose a Character in your own discard'), {code:'INVALID_LANDSCAPE_SELECTION'});
-      }
-      applyOperation(ctx, {type:'TRANSFER_CARDS', targetIid:card.iid, playerIndex:actorIndex,
-        destinationPile:'hand', sourceController:actorIndex, sourceIid:'landscape:igb4', reason:'LANDSCAPE_IGB4_RECOVERY'});
-      // Zion grants a fresh activation budget without resetting Fate or identity.
-      if(!card.counters) card.counters = {};
-      card.counters.effectUses = 0;
-      for(const key of ['whenSetResolved','lastEffectTurn']) delete card.counters[key];
-      uses[actorIndex] = 1;
-      ctx.events.push({type:'LANDSCAPE_ACTIVATED', landscapeId:'igb4', playerIndex:actorIndex, targetIid:card.iid});
-      return;
     }
     if(state.landscapeId === 'igb21'){
       if(Number(state.landscapeState.oncePerGameUses[actorIndex] || 0) >= 1){
@@ -3283,7 +3306,7 @@ function performCommand(state, ctx, command, actorIndex, options){
         {code:'EFFECT_PERMISSION_BLOCKED', statusId:permissionBlock.statusId}
       );
     }
-    if(rule.maxUses && effectUses(entry.card) >= Number(rule.maxUses)){
+    if(rule.maxUses && effectUses(entry.card) >= wodnyUseLimit(state,entry.card,rule)){
       throw Object.assign(new Error('the effect use limit has been reached'), {code:'USE_LIMIT_REACHED'});
     }
     if(rule.oncePerTurn && Number(entry.card.counters?.lastEffectTurn) === state.turn){
@@ -3310,7 +3333,7 @@ function performCommand(state, ctx, command, actorIndex, options){
       ctx.events.push({type:'CARD_COUNTER_SET',cardIid:entry.card.iid,counterKey:'braveHorizonsCounters',value:entry.card.counters.braveHorizonsCounters});
       ctx.events.push({type:'CARD_COUNTER_SPENT',cardIid:entry.card.iid,cardId:'bh01',sourceIid:entry.card.iid});
     }
-    consumeEffectUse(entry.card);
+    consumeEffectUse(entry.card,state,rule);
     if(rule.oncePerTurn) entry.card.counters.lastEffectTurn = state.turn;
     if(!hiddenWhenSet){
       ctx.events.push({type:RULE_EVENT_TYPES.EFFECT_ACTIVATED,sourceIid:entry.card.iid,playerIndex:actorIndex});
@@ -3372,6 +3395,14 @@ export function reduceCommand(currentState, rawCommand, options = {}){
     ctx.drainVillagerArrivals = true;
     if(!state.pendingPrompt && !state.pendingHandLimit){
       runEffectStack(state, ctx);
+      if(!state.pendingPrompt && !state.pendingHandLimit && !state.effectStack.length){
+        const pending = state.landscapeState?.zionPendingMoraleCosts?.splice(0) || [];
+        for(const payment of pending) applyOperation(ctx,{
+          type:'MODIFY_MORALE',playerIndex:payment.playerIndex,amount:-8,
+          sourceIid:'landscape:igb4',sourceController:payment.playerIndex,
+          reason:'ZION_CANYON_CONSOLIDATION_COST'
+        });
+      }
       refreshMoralePressure(ctx);
       refreshHandLimitRequirement(state);
     }

@@ -266,9 +266,6 @@ async function runAITurn() {
     try {
       const settings = getAIDifficultySettings();
       aiObserveOpponentAndPlan();
-      if(!aiTurnTimeExpired() && typeof activateTwilightRecoveryLandscape === 'function') {
-        activateTwilightRecoveryLandscape({auto:true, playerIndex:G.aiPlayer});
-      }
       if(!aiTurnTimeExpired() && typeof activateWhisperOfTheHeartLandscape === 'function') {
         await activateWhisperOfTheHeartLandscape({auto:true, playerIndex:G.aiPlayer});
       }
@@ -892,7 +889,7 @@ function aiGenerateAllMoves() {
       // Irvine Businessman lets ordinary Characters pay normal consolidation
       // costs in his zone. Keep this second role separate from cards such as
       // Wintertide that explicitly require Character tributes.
-      if(isCharacter && card.type !== 'Supporter' && irvineZones.has(z)) {
+      if(isCharacter && card.type !== 'Supporter' && (irvineZones.has(z) || (isLandscapeActive('igb11') && card.type === 'Initiator'))) {
         mySups.push({card,z,r,c,reinforcement:1, kind:'supporter', viaIrvine:true});
       }
     });
@@ -1034,8 +1031,6 @@ function aiLandscapeTargetZone() {
 function aiProjectedLandscapeFateBonus(card, move) {
   if(!card) return 0;
   let bonus = 0;
-  if(typeof isLandscapeActive === 'function' && isLandscapeActive('igb6') && card.aff === 'reality') bonus += 3;
-  if(typeof isLandscapeActive === 'function' && isLandscapeActive('igb11') && card.type === 'Initiator') bonus += 3;
   if(move && move.type === 'consolidate' && typeof isLandscapeActive === 'function' && isLandscapeActive('igb3')) {
     const targetZone = aiLandscapeTargetZone();
     if(G.turn <= 12 && targetZone === move.z) bonus += 4;
@@ -1167,8 +1162,6 @@ function aiLandscapeMoveBonus(move) {
     else if(my < op) bonus += 5;
   }
 
-  if(isLandscapeActive('igb6') && move.card && move.card.aff === 'reality') bonus += 4;
-  if(isLandscapeActive('igb11') && move.card && move.card.type === 'Initiator') bonus += 4;
 
   return bonus;
 }
@@ -3988,8 +3981,8 @@ async function aiDoPlace(choice) {
         }
       }
     }
-    if(inst.counters)delete inst.counters.chauffeurFreeSet;
-    if(card.counters)delete card.counters.chauffeurFreeSet;
+  if(inst.counters){delete inst.counters.chauffeurFreeSet;delete inst.counters.greatOakFreeSet;}
+  if(card.counters){delete card.counters.chauffeurFreeSet;delete card.counters.greatOakFreeSet;}
     if(isEffectFree && G._linaFreeIids) G._linaFreeIids.delete(card.iid);
     if(choice.fromDeck && card.id==='28'){
       G._polishUsedThisTurn = true;
@@ -4078,6 +4071,10 @@ async function aiDoConsolidate(choice) {
   inst.currentFate = getPlacedCardFate(choice.card, {bonusFate:0, tributeCount: choice.tributes.length});
   if(typeof applyGreatOakConsolidationBonus === 'function') applyGreatOakConsolidationBonus(inst, bonusFate);
   else inst.currentFate = Math.max(0, Number(inst.currentFate ?? inst.fate) || 0) + bonusFate;
+  if(typeof getBerkeleyInitiatorTransfer === 'function') {
+    const transferred = getBerkeleyInitiatorTransfer(choice.tributes);
+    if(transferred) modifyFate(inst, transferred, 'permanent', cp);
+  }
   if(typeof preparePlacementFateReveal === 'function') preparePlacementFateReveal(inst, choice.card, 'consolidation');
   if(typeof applyLandscapePlacementBonuses === 'function') applyLandscapePlacementBonuses(inst, target.z, target.r, target.c);
   if(typeof trackLandscapeConsolidation === 'function') trackLandscapeConsolidation(cp, inst, target.z);

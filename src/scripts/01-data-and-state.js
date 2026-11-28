@@ -237,9 +237,9 @@ const CARDS = [
     effect:'While this card is on the field, declare a card type. If this card is adjacent to a card of that type you control, this card and one random matching adjacent card you control gain 3 Fate (max 1 target).',
     flavor:'"Only the strongest and tallest men are worthy of the title, Grenadier"',img:'44.png?v=20261007-balance'},
   {id:'45',name:'Chingachlook',ability:'The Last Mohican',type:'Dauntless',aff:'eventide',
-    fate:13,cost:2,rarity:'triangle',
+    fate:14,cost:2,rarity:'triangle',
     effect:'This is the only character card you can control in this zone. Only one copy of this card can be played.',
-    flavor:'"Through him, the entire history, legacy, and traditions of the Mohican people will live on. When he dies, so will they"',img:'45.png'},
+    flavor:'"Through him, the entire history, legacy, and traditions of the Mohican people will live on. When he dies, so will they"',img:'45.png?v=20261127-fate14-art'},
   {id:'46',name:'Phil',ability:'The Monarchist Manifesto',type:'Dauntless',aff:'reality',
     fate:1,cost:3,rarity:'square',
     effect:'For every one of your Draw phases that passes after this card is set, this card permanently gains 3 Fate.',
@@ -301,9 +301,9 @@ const CARDS = [
     effect:'When set, search your deck for a Supporter and add it to your hand.',
     flavor:'"Maybe the true benefit of IB was the 4000 word essay we wrote along the way"',img:'60.png'},
   {id:'61',name:'Maria Song',ability:'Precise Shot',type:'Dauntless',aff:'eventide',
-    fate:9,cost:2,rarity:'triangle',
+    fate:10,cost:2,rarity:'triangle',
     effect:'When set, reveal all Character cards in your opponent\'s hand and select one. All copies of that card everywhere permanently lose 9 Fate.',
-    flavor:'"That giant cleaver is cool and all but what\'s the point if I just blow your brains out from over here?"',img:'61.png?v=20261123-cost2-art'},
+    flavor:'"That giant cleaver is cool and all but what\'s the point if I just blow your brains out from over here?"',img:'61.png?v=20261127-fate10-art'},
   {id:'62',name:'Berkeley Homeless',ability:'People\'s Park',type:'Supporter',aff:'reality',
     fate:1,cost:0,rarity:'circle',
     effect:'When set, you can move this card to any open square in any zone your opponent controls. Neither player can use this card for consolidation. Your opponent can only discard this card by discarding 2 cards from their hand.',
@@ -739,7 +739,7 @@ const LANDSCAPES = {
     id:'igb4',
     name:'Zion Canyon: Memories of a Fading Twilight',
     shortName:'Memories of a Fading Twilight',
-    description:'Once per game, each player may recover one Character from their discard pile to their hand during their Main Phase.'
+    description:'Every time you consolidate a card, pay 8 Morale.'
   },
   igb5: {
     id:'igb5',
@@ -751,7 +751,7 @@ const LANDSCAPES = {
     id:'igb6',
     name:'Great Oak Highschool: Home of the Wolfpack',
     shortName:'Home of the Wolfpack',
-    description:'All Reality cards gain 3 Fate permanently.'
+    description:'Whenever you activate a search card effect, afterward search your deck for an additional Supporter and add it to your hand. You may set that Supporter for free.'
   },
   igb7: {
     id:'igb7',
@@ -782,7 +782,7 @@ const LANDSCAPES = {
     id:'igb11',
     name:'University of California, Berkeley: Sather Gate',
     shortName:'Sather Gate',
-    description:'All Initiators gain 3 Fate.'
+    description:'Initiators can be used for consolidation as 1 Reinforcement. The consolidated card permanently gains Fate equal to each used Initiator\'s Fate above its base Fate.'
   },
   igb12: {
     id:'igb12',
@@ -824,7 +824,7 @@ const LANDSCAPES = {
     id:'igb18',
     name:'Wodny Potok: An Idyllic Polish Village',
     shortName:'An Idyllic Polish Village',
-    description:'Expanded Worlds Character cards you control gain 1 Fate at the start of each of your Draw Phases.'
+    description:'Cards with multiple effect uses gain 1 extra use. Cards that use counters for their abilities gain 2 counters when first set.'
   },
   igb19: {
     id:'igb19',

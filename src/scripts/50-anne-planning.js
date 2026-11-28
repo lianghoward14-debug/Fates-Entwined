@@ -43,6 +43,7 @@
       const state=game();if(!state)return;
       (card._anneDeclarations||=[]).push({action,turn:Number(state.turn)+1,opponent:1-Number(card.owner)});
       card._anneEffectUses=Number(card._anneEffectUses||0)+1;
+      if(card._anneEffectUses>2 && String(state.landscapeId||'')==='igb18') card._wodnyExtraUseSpent=true;
       card._anneLastActivatedTurn=Number(state.turn);
     },
     statuses(effects){

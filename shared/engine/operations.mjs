@@ -424,6 +424,7 @@ function setCard(ctx, operation){
     ctx.state.supportersSetThisTurn[playerIndex] += 1;
   }
   delete card.counters.chauffeurFreeSet;
+  delete card.counters.greatOakFreeSet;
   emit(ctx, {
     type:RULE_EVENT_TYPES.CARD_SET,
     playerIndex,
@@ -533,6 +534,11 @@ function consolidateCard(ctx, operation){
   const consolidationBonusCardId = '73';
   const greatOakCount = tributes.reduce((sum, entry)=>sum + (runtimeRuleId(entry.card) === consolidationBonusCardId && !isEffectSourceSuppressed(ctx.state, entry) ? 1 : 0), 0);
   const greatOakBonus = greatOakCount * 4;
+  const initiatorTransfer = ctx.state.landscapeId === 'igb11'
+    ? tributes.reduce((sum, entry)=>sum + (structuralCardType(ctx.state, entry.card) === 'Initiator'
+      ? Math.max(0, Number(entry.card.currentFate ?? entry.card.baseFate ?? entry.card.fate)
+        - Number(entry.card.baseFate ?? entry.card.fate ?? 0)) : 0), 0)
+    : 0;
   const reservedIndex = player.hand.findIndex(card=>String(card.iid) === String(handEntry.card.iid));
   const reservedCard = player.hand.splice(reservedIndex, 1)[0];
   for(const entry of tributes){
@@ -571,6 +577,17 @@ function consolidateCard(ctx, operation){
       sourceController:playerIndex,
       permanentFateGain:true,
       reason:'ALPINE_GLOBAL_MISSIONS_CONSOLIDATION'
+    }, false);
+  }
+  if(initiatorTransfer > 0 && placedCard && !isEffectImmutable(placedCard)){
+    changeFate(ctx, {
+      type:OPERATION_TYPES.MODIFY_FATE,
+      targetIid:placement.cardIid,
+      amount:initiatorTransfer,
+      sourceIid:tributes.find(entry=>structuralCardType(ctx.state,entry.card)==='Initiator')?.card.iid,
+      sourceController:playerIndex,
+      permanentFateGain:true,
+      reason:'BERKELEY_INITIATOR_CONSOLIDATION_TRANSFER'
     }, false);
   }
   emit(ctx, {

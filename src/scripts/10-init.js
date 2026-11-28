@@ -773,7 +773,9 @@ window.__FATES_HAND_DRAG_INSTALLED = false;
       var cp = G.currentPlayer;
       (G.board || []).forEach(function(zone,z){ (zone || []).forEach(function(row,r){
         (row || []).forEach(function(cell,c){
-          if(cell && cell.owner === cp && cell.type === 'Supporter' && !cell.noConsolidate){
+          if(cell && cell.owner === cp && !cell.noConsolidate
+            && (cell.type === 'Supporter'
+              || (typeof isLandscapeActive === 'function' && isLandscapeActive('igb11') && cell.type === 'Initiator'))){
             var el = document.querySelector('#board .cell[data-z="'+z+'"][data-r="'+r+'"][data-c="'+c+'"]');
             if(el) el.classList.add('placeable','drag-tribute-target');
           }
@@ -845,12 +847,15 @@ window.__FATES_HAND_DRAG_INSTALLED = false;
       return;
     }
 
-    // Non-supporters use the existing consolidate pathway; dropping on a friendly supporter selects it.
+    // Dropping on any eligible tribute selects it in the consolidation flow.
     G.placing = false;
     if(typeof clearPlaceHighlights === 'function') clearPlaceHighlights();
     if(typeof initiateConsolidate === 'function') initiateConsolidate();
-    if(boardCard && boardCard.owner === G.currentPlayer && boardCard.type === 'Supporter' && typeof handleConsolidateClick === 'function'){
-      setTimeout(function(){ handleConsolidateClick(z,r,c); }, 20);
+    if(boardCard && boardCard.owner === G.currentPlayer && typeof handleConsolidateClick === 'function'
+      && G._consolidating?.allPossible?.some(item=>item.z===z && item.r===r && item.c===c)){
+      setTimeout(function(){
+        handleConsolidateClick(z,r,c);
+      }, 20);
     }
   }
 

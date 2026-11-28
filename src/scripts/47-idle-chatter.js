@@ -30,7 +30,7 @@
       ['During the Age of Ash, over four hundred years ago, I guided the people of Colombo across the seas to Panacea -','Those who wanted a better life, those who wanted a new opportunity, became the founders of Pacifica.'],
       ['Every day, every hour, every minute I make a difficult decision.','It is a choice engraved with the blood of thousands, and yet I must remain steadfast.','The Great Calamity... it must never happen again.']
     ]},
-    rivera:{name:'Rivera',portrait:'pfp/pfp51.png',file:'Rivera',ids:new Set(['51','104']),clips:[
+    rivera:{name:'Rivera',portrait:'pfp/pfp51.png',portraitsById:{'104':'pfp/card-104-portrait.png'},file:'Rivera',ids:new Set(['51','104']),clips:[
       ['I am a simple man in a complex world.','But I will everything in my power to make any difference I can.','Jorge Alvarez, I will follow you.'],
       ['When my wife died years ago, I thought I would not have the strength to go on.','But thanks to my daughter, I have found that strength.'],
       ['It pains me to leave my daughter behind.','But it is so that no one else in the world will ever have to experience this same dilemna ever again.'],
@@ -100,14 +100,14 @@
       ['Pechanga...Pechanga has fallen. My old home... the parks I used to go to...','the walks I used to take with Daisy... all of it... it is completely overrun now...', 'Those zombies!... we will take it back one day...'],
       ['Brawler Company! Hold up your shields, fasten your weapons.','The students of Great Oak, our home, our comrades, are surrounded on all sides by miles of zombie hordes!','We must liberate them! We must break the siege!','Prepare to charge, show no mercy, and break their lines!']
     ]},
-    jimmy:{name:'Jimmy',portrait:'pfp/pfp41.png',file:'Jimmy',ids:new Set(['41','bh18']),clips:[
+    jimmy:{name:'Jimmy',portrait:'pfp/pfp41.png',portraitsById:{'bh18':'pfp/pfp118.png'},file:'Jimmy',ids:new Set(['41','bh18']),clips:[
       ['Within the depths of my unloving heart, burns a blazing fire -','The fire of incel rage!'],
       ['The establishment is out to get me - They keep sending me government agents to try to turn me,','because they know just how dangerous I can be, but I know the truth!',"All of them are foids! All of them pretend to care about me, but it's all a psyop!"],
       ['These foids would never understand the frighteningly complex inner world that I harbor.','Do they know about HOI4 space marines? NO.','Do they know how to find a sword shrine in Terraria? NO.','They are clueless people, and all they care about is hypergamy!'],
       ['I call upon the powers of incel past, incel present, and incel future to aid me in this defining moment!','May all those who have, do, and ever will feel incelic fury strike down the evil foid in front of me!'],
       ['In the depths of foidal hypergamy, there is an incel shackled to the earth.','He is the first incel, the true incel, and he has been filled with an unspeakable rage.','His wrath, his fury, his unparalleled desire to destroy foids -','his coming will bring true inceldom into this hypergamous world.']
     ]},
-    santiago:{"name":"Santiago","portrait":"pfp/pfp30.png","file":"Santiago","clips":[["Your defiance is charming - I'm almost tempted to keep you alive.","But I do not take lightly to treason and disobedience.","Throw him overboard."],["I have no pity for who oppose me.","But I do have pity for those who may still be useful."],["Tengo muchos enemigos.","Pero muchos de mis enemigos también tienen sus propios enemigos.","Lo mejor es dejar que se enfrenten entre ellos mientras tanto."],["They don't call me \"El Matador del Mares\" because I kill people.","No, they call me \"El Matador\" because I kill people, and then I kill anyone who may have been allied with them, in one way or another."],["I hold many grudges.","But there is one grudge in particular that I've dedicated the entirety of my life to..."]],ids:new Set(["30"])},
+    santiago:{"name":"Santiago","portrait":"pfp/pfp30.png","file":"Santiago","clips":[["Your defiance is charming - I'm almost tempted to keep you alive.","But I do not take lightly to treason and disobedience.","Throw him overboard."],["I have no pity for who oppose me.","But I do have pity for those who may still be useful."],["I have many enemies.","But many of my enemies also have their own enemies.","The best thing to do is to let them clash with each other in the meantime."],["They don't call me \"El Matador del Mares\" because I kill people.","No, they call me \"El Matador\" because I kill people, and then I kill anyone who may have been allied with them, in one way or another."],["I hold many grudges.","But there is one grudge in particular that I've dedicated the entirety of my life to..."]],ids:new Set(["30"])},
     rozsi:{"name":"Rozsi Szocs","portrait":"pfp/pfp34.png","file":"Rozsi","clips":[["I want Hungarian schoolchildren across the nation, to feel the same joy I felt, when I picked up my first history book as a child."],["We are not true citizens of the country unless we are properly educated on what our nation is, where it came from, and what it could become"],["The future of our country lies with its ability to educate the population.","Already, under my sister and I, we have propelled Hungarian Education as the model to emulate across the world."],["I could not rule this country without my sister.","She knows me well, I know her well.","We cover each other weaknesses, and support each others strengths."],["Every day spent not reading a book, is a day spent as if you are dead."]],ids:new Set(["34"])},
     alexander:{"name":"Alexander the Magnificient","portrait":"pfp/pfp35.png","file":"Alexander","clips":[["That age may be over, of when kings used to fight their own battles - but here I stand, as a testament to that glorious tradition!"],["Athenians!","Macedonians!","Thracians!","Spartans!","Epirots!","Let us show them what it means to be Greek!","Let us show them the meaning of  a Hellenic Age!"],["I am not Alexander the Great.","I am not his cousin, his son, or even his grandson.","I am Alexander the Magnificient, and I will be Alexander the Magnificient untill I die!"],["A golden sun rises behind me.","The men of my nation stands beside me, at the ready.","I hold a bronze shield, and the spear of noble warriors that came before me.","On this day, on this battlefield, you will be defeated!"],["This is a war you cannot win.","We will fight, we will die, we will march to the ends of the world to defeat you!"]],ids:new Set(["35"])},
     marie:{"name":"Marie L'amboure","portrait":"pfp/pfp36.png","file":"Marie","clips":[["I am certain the Maginot will hold against the Soviet and German advance.","The French people today are unlike their ancestors in previous conflicts - they are fiercer, they are stronger, and most of all, they are ready to prove their point."],["Hahaha, do not bother me the trivialities of my political opponent.","Their voice is so meager, so frail, I cannot hear it over the sound of my own footsteps."],["Make no mistake about it.","Not only will never reach Paris, but even if Paris fell, I am not surrendering the French Nation.","I will not surrender even if all of France is taken, or if even all of her posessions across the sea are taken.","We will never surrender."],["I'm not sure my political opponent is even tall enough to speak to me eye to eye - isn't he like 168cm?","These days, that's a little short!","I better take off my shoes to speak to him, no?","I don't want to be mistaken around children."],["Denigrating your political opponent, insulting them, digging up their old dirt- this has been the way of winning politics for decades now.","To bury your head in the sand and pretend that this isn't true is delusion."]],ids:new Set(["36"])},
@@ -121,7 +121,7 @@
     kazumi:{name:"Kazumi",portrait:"pfp/pfp27.png",ids:new Set(["27"]),file:"Kazumi",
       clips:[["From what I understand, the humans of the old age used to ride on giant birds,","The size of 100 people, in order to travel vast distances across the land."],["I-I don't remember much of my past.","It's not even that it's blurry - it's just a vast emptiness.","There is nothing there."],["Our entire world is Caribbea and Colombo...","But these books, they speak of so many places, so many different people and cultures.","Just how small is our corner of the world?"],["Anicka!","We have to go north, to Caribbea - I've heard rumors that in a vast city by the sea,","They have hundreds of libraries,","Containing an unfathomable amount of books from the Old Age!","Please, we have to go!"],["No, Anicka, your eyes are like the sea.","But it is not destruction.","It is not calamity.","It is not death.","It is beauty.","It is the beauty of the waves and wind, the blue horizon and the peaceful calm."]]
     },
-    alondra:{name:"Alondra Hopkins",portrait:"pfp/pfp14.png",ids:new Set(["14","bh09"]),file:"Alondra",
+    alondra:{name:"Alondra Hopkins",portrait:"pfp/pfp14.png",portraitsById:{'bh09':'pfp/pfp109.png'},ids:new Set(["14","bh09"]),file:"Alondra",
       clips:[["They're afraid of me. They always are.","Still, they've got nowhere to run."],["Whether they bring five, fifty, or five hundred men,","They have no hope of defeating me!"],["Ironic, isn't it?","It is the point of my spear that brought peace to Pacifica.","I ended the Fifth Warring. I brought low the Three Pirate Lords.","I ended the factional warfare that plagued our seas."],["In my youth, I was a very different person.","I wielded my spear because I saw no other path.","Now, I wield the spear because there is only one path for me:","The path of justice and redemption."],["Don't make me laugh.","Swords are hardly practical weapons.","Why would I use something slower and with less reach?","Perforating your opponent with several quick thrusts","Is the most efficient way of incapacitating someone."]]
     },
     zsofia:{name:"Zsofia Szocs",portrait:"pfp/pfp15.png",ids:new Set(["15"]),file:"Zsofia",
@@ -149,7 +149,7 @@
       clips:[["The sons and daughters of the United Kingdom","Shall stand together once more.","We are bound by our shared history,","Our shared struggles, and our shared blood."],["The Free World stands on principles","Of democracy, liberty, and equality.","Our ideals are not backed by guns and weaponry,","But our hearts and shared vision."],["Thousands of Australians have fought, struggled,","And gave their lives for decades in all corners of the world—","Europe, Africa, the Pacific, Asia.","Duty once more calls our nation to fight for a worthy cause…"],["I still remember my childhood in Santa Barbara.","I remember playing on the beach with my sister, Marie.","We used to talk about the future,","What we would do to make sure that we steer our own courses.","Now, we steer the course of entire nations…"],["The world is a dangerous place.","Sometimes, I can’t help but think—","What good will this war do for Australia?","For the world at large?","Is this charter a mistake?"]]
     },
     anicka:{
-      name:'Anicka Konvicka', portrait:'pfp/pfp2.png', ids:new Set(['02', 'bh01', 'bh04']), file:'Anicka',
+      name:'Anicka Konvicka', portrait:'pfp/pfp2.png', ids:new Set(['02']), file:'Anicka',
       clips:[
         ['I used to play on the shores of the sea when I was young.', 'I collected seashells, built sandcastles, and watched the sun fall beneath the waves.', 'A lot of time has passed since then.'],
         ['In another time, in another place, these seas were once called Pacifique'],
@@ -158,6 +158,10 @@
         ['I know that somewhere in the Western Seas, Kazumi is there, waiting for me.', "I'll find her, I'll bring her back.", "I won't let the seas take my family away from me ever again."]
       ]
     },
+    aliBraveHorizons:{name:'Ali',portrait:'pfp/pfp103.png',ids:new Set(['bh03']),file:'Ali',clips:[["You see, strong durability has practical applications because you can at least test weaponry against it and measure its effectiveness.","But being completely invincible means that everything just has no effect on you..."],["I've considered being a superhero. But what kind of superhero can't even walk up four flights of stairs without having to pause and take a break?"],["I try not to, but yes, I have a body count. Let's just say there was a Russian tank that fired a terribly unlucky shell that ricocheted perfectly backwards..."],["I mean, it's a decent power, but overall kind of boring, no? People get tired of watching nothing happen to you very quickly."],["I didn't always know I was invincible. It took an Israeli missile leaving a fifty meter crater around me to realize something was up."]]},
+    anickaBraveHorizons:{name:'Anicka Konvicka (Voyager)',portrait:'pfp/pfp101.png',ids:new Set(['bh01']),file:'BhAnicka',clips:[["Through vicious storms, through the darkest nights, through passages never seen before by man, I will not stop until I reach the ends of the world."],["At first I thought the people of Pacifica were truly free, able to sail the waves and follow the wind to wherever they please.","But now I see that they suffer, just like the people of Colombo. Grievances are a fact of life."],["Sometimes I doubt whether or not I truly want to settle down. The more I sail, the more free I feel.","The crashing of waves, the wind in my sails, the tapestry of stars above—perhaps a life drifting with the sea isn't so bad."],["To me, the path is now clear. The stars are my guide, and my destiny is the one that I will steer for myself.","The Heart of the Sea—I will use it for the good of Pacifica."],["The thing is, I don't have a plan. All I know is that I will sail forward and never look back.","Maybe in one week, maybe in one month, maybe in one year, I will figure out where to go. But for now, I must discover my way forward—the only way forward."]]},
+    anickaSelva:{name:'Anicka Konvicka (Selva Island)',portrait:'pfp/pfp104.png',ids:new Set(['bh04']),file:'SelvaAnicka',clips:[["All of the war, all of the death in Pacifica. He had the power to stop it, but he did not.","So now it is my turn. It is my turn to help those who are suffering. It is my turn to find my own way forward. The seas are mine to command."],["They... they deserved it. They killed people who helped me. They killed innocents, they killed children. So many dead... there are too many dead."],["Richard... Richard Fleur. He's evil. H-he's evil. H-he's the one who made me do this.","The Selva Islands... the S-selva Islands... it's all gone now. The waves, they came crashing down... the waves... crashing..."],["H-how could I just stand there and watch Richard Fleur wage war across Pacifica, killing hundreds every day?","The Heart of the Sea, the H-heart of the Sea... I c-could use it to end him! I should use it to end him forever..."],["The H-heart of the Sea... it was just a gift from my father. I-I had no idea what it could do... the destruction it could cause.","This entire t-time... the seas... the s-seas... the seas are neither calm, freedom, nor destruction. The seas are ambivalent. They are ambivalent to all the suffering in the world."]]},
+    rozsiZsofia:{name:'Rozsi and Zsofia',portrait:'pfp/pfp99.png',speakerPortraits:{rozsi:'pfp/pfp99.png',zsofia:'pfp/pfp99.png'},speakerCrops:{rozsi:'right',zsofia:'left'},speakerNames:{rozsi:'Rozsi Szocs (Youth)',zsofia:'Zsofia Szocs (Youth)'},ids:new Set(['99']),file:'RozsiZsofia',clipNumbers:[3,4,5],clips:[[{"speaker":"rozsi","text":"You know, I just came to the realization that we will probably have to be together for the next decade at least..."},{"speaker":"zsofia","text":"Maybe you should convince Father to let you go to America instead."},{"speaker":"rozsi","text":"Maybe, but I don't know what's worse, being in a mass shooting or living with you."},{"speaker":"zsofia","text":"Eh, I'd rather live with you."}],[{"speaker":"zsofia","text":"Do you ever get bored of reading books and swinging around that ridiculous sword of yours?"},{"speaker":"rozsi","text":"Depends. Do you ever get sick of staring at your face all day in the mirror?"}],[{"speaker":"zsofia","text":"Let's make a deal. You give me your pancakes for today, and I will give you my pancakes for the next two days."},{"speaker":"rozsi","text":"This sounds too good to be true. You must know something, or did something..."},{"speaker":"zsofia","text":"I don't know. Would I be the sister you know if I didn't try to scam you?"},{"speaker":"rozsi","text":"Ah, I see. You saw that there was almost no more flour left in the bag, so there wouldn't be pancakes anyway for the next few days..."}]]},
     markmenz:{name:'Mark Menz',portrait:'pfp/pfp66.png',file:'MarkMenz',extension:'m4a',ids:new Set(['66']),clips:[
       ['What it do Flight Crew? FTC, Flight Team stand up! Today we got the Golden State Warriors. And their opponents? A bunch of nobodies.'],
       ["I always feel like somebody's watching meeeee... and I have no privacy who-oa-oa"],
@@ -229,19 +233,15 @@
       ["Hmm, I don't know if I want to snowball fight with Zsofia.", 'She is very mean and likes to throw them very hard at my face.']
     ]},
     felicytakvetka:{
-      name:'Felicyta and Květka', portrait:'pfp/pfp1.png', file:'FelicytaKvetka',
+      name:'Felicyta and Květka',portrait:'pfp/pfp100.png',file:'FelicytaKvetka',
       ids:new Set(['01','85','100','bh11','19']),
-      requiresBoth:['19',['01','85','100','bh11']],
-      clips:[
-        ['Felicyta and Květka talk together.'],
-        ['Felicyta and Květka talk together.'],
-        ['Felicyta and Květka talk together.'],
-        ['Felicyta and Květka talk together.'],
-        ['Felicyta and Květka talk together.']
-      ]
+      requiresBoth:['19',['01','85','100','bh11']],unionCardId:'100',
+      speakerPortraits:{felicyta:'pfp/pfp100.png',kvetka:'pfp/pfp100.png'},speakerCrops:{felicyta:'right',kvetka:'left'},
+      speakerNames:{felicyta:'Felicyta Janowicz (Youth)',kvetka:'Květka Svoboda (Youth)'},
+      clips:[[{"speaker":"kvetka","text":"I say today, we climb to the top of the Carpathian Mountains!"},{"speaker":"felicyta","text":"Um, isn't there supposed to be a snowstorm later today?"},{"speaker":"kvetka","text":"No worries! When lightning strikes and splinters a tree in two, we will use it to slide back down the mountain to safety!"},{"speaker":"felicyta","text":"Okay, but if Dad asks whose idea it was, you're taking the blame!"}],[{"speaker":"felicyta","text":"Květka, what's your favorite day of the week?"},{"speaker":"kvetka","text":"Any day I spend with you, of course!"},{"speaker":"felicyta","text":"Aw, that's sweet! Mine is Thursday."}],[{"speaker":"kvetka","text":"I think one day you'll find someone who'll finally break you out of your shell..."},{"speaker":"felicyta","text":"Maybe... but I like my life here. I like the snow, the pancakes..."},{"speaker":"kvetka","text":"Well, I'm betting it's going to be a cute boy!"}],[{"speaker":"felicyta","text":"Květka... we have a very serious matter..."},{"speaker":"kvetka","text":"Oh no... did you forget to do your German homework?"},{"speaker":"felicyta","text":"Worse... Rozsi and Zsofia have gone an entire day without arguing..."}],[{"speaker":"kvetka","text":"Honestly, I love the forests... the snow... the gloomy winters... How about you?"},{"speaker":"felicyta","text":"I guess... I guess I don't know yet. I know it's been fifteen years, but I still haven't made up my mind."},{"speaker":"kvetka","text":"No rush. But one day, you'll have to leave it behind. Will you be ready when the time comes?"}]]
     },
     felicyta:{
-      name:'Felicyta Janowicz', portrait:'pfp/pfp1.png', ids:new Set(['01', '85', '100', 'bh11']), file:'Felicyta',
+      name:'Felicyta Janowicz', portrait:'pfp/pfp1.png', portraitsById:{'85':'pfp/pfp85.png','bh11':'pfp/pfp111.png'}, ids:new Set(['01', '85', 'bh11']), file:'Felicyta',
       clips:[
         ["I've made my decision.", 'I will not deploy troops in the Polish heartland.', 'I will not force my soldiers to fight.', 'I will not subject my people to the horrors of war.'],
         ['A thousand years of history rests upon my shoulders.', 'But the only thing that matters are the people who live in this country right now.'],
@@ -251,7 +251,7 @@
       ]
     }
   });
-  const clipUrl = (character, index) => 'assets/audio/chatter/' + character.file + (index + 1) + '.' + (character.extension || 'mp3') + (
+  const clipUrl = (character, index) => 'assets/audio/chatter/' + character.file + (character.clipNumbers?.[index] ?? index + 1) + '.' + (character.extension || 'mp3') + (
     character.file === 'Wojciech' ? '?v=20261126-wojciech-' + (index + 1)
     : character.file === 'WojciechFisherman' ? '?v=20261126-fisherman-' + (index + 1)
     : character.file === 'Lina' && (index === 3 || index === 4) ? '?v=20261103-new-lina' + (index + 1)
@@ -349,10 +349,15 @@
     const cards = state?.board?.flat(3) || [];
     const eligibleCharacters = Object.entries(characters).filter(([, character]) =>
       character.requiresBoth
-        ? character.requiresBoth.every(group => cards.some(c => c && !c.faceDown
-          && (Array.isArray(group) ? group.includes(String(c.id)) : group === String(c.id))))
+        ? (cards.some(c => c && !c.faceDown && String(c.id) === character.unionCardId)
+          || character.requiresBoth.every(group => cards.some(c => c && !c.faceDown
+          && (Array.isArray(group) ? group.includes(String(c.id)) : group === String(c.id)))))
         : cards.some(c => c && !c.faceDown && character.ids.has(String(c.id)))
     ).map(([key]) => key);
+    const portraitCardIds = Object.fromEntries(eligibleCharacters.map(key=>[
+      key,
+      String(cards.find(c=>c && !c.faceDown && characters[key].ids.has(String(c.id)))?.id || '')
+    ]));
     const now = Date.now();
     // Only major presentations and voices restart the quiet interval.
     // Card browsing, targeting, placement, and UI sounds do not affect it.
@@ -377,6 +382,7 @@
         && (state.phase || 'main') === 'main' && !state.outcome && !g?._phase7Outcome
         && eligibleCharacters.length > 0 && !busy),
       eligibleCharacters,
+      portraitCardIds,
       volume:Math.min(1, Math.max(0, (audio.chatterVolume ?? audio.voiceVolume ?? 1) * audio.masterVolume))
     };
   }
@@ -391,6 +397,19 @@
   function start(choice, volume){
     ensurePanel();
     const character = characters[choice.characterKey];
+    const captionText = part => typeof part === 'string' ? part : String(part?.text || '');
+    function updateCaption(part){
+      const speaker = typeof part === 'string' ? '' : String(part?.speaker || '');
+      const portrait = panel.querySelector('img');
+      portrait.src = character.speakerPortraits?.[speaker]
+        || character.portraitsById?.[snapshot().portraitCardIds?.[choice.characterKey]]
+        || character.portrait;
+      const crop = character.speakerCrops?.[speaker];
+      portrait.classList?.toggle?.('chatter-pair-left', crop === 'left');
+      portrait.classList?.toggle?.('chatter-pair-right', crop === 'right');
+      panel.querySelector('.chatter-name').textContent = character.speakerNames?.[speaker] || character.name;
+      panel.querySelector('p').textContent = captionText(part);
+    }
     const audio = new Audio(clipUrl(character, choice.index));
     const run = {audio, key:choice.key, multiplayer:snapshot().multiplayer, started:false, requestedAt:Date.now()};
     current = run; audio.volume = Math.min(1, volume);
@@ -418,9 +437,7 @@
       if(current !== run) return;
       run.started = true; hideAt = 0;
       panel.style.opacity = '0'; panel.hidden = false;
-      panel.querySelector('img').src = character.portrait;
-      panel.querySelector('.chatter-name').textContent = character.name;
-      panel.querySelector('p').textContent = character.clips[choice.index][0];
+      updateCaption(character.clips[choice.index][0]);
       positionPanel();
       void panel.offsetWidth; // Commit the transparent frame before transitioning in.
       panel.style.opacity = '1';
@@ -428,10 +445,10 @@
     audio.addEventListener('timeupdate', function(){
       if(current !== run || !Number.isFinite(audio.duration) || audio.duration <= 0) return;
       const parts = character.clips[choice.index];
-      const total = parts.reduce((n, text) => n + text.length, 0);
+      const total = parts.reduce((n, part) => n + captionText(part).length, 0);
       const position = audio.currentTime / audio.duration * total;
       let length = 0;
-      panel.querySelector('p').textContent = parts.find(text => (length += text.length) > position) || parts[parts.length - 1];
+      updateCaption(parts.find(part => (length += captionText(part).length) > position) || parts[parts.length - 1]);
     });
     audio.addEventListener('ended', function(){
       if(current !== run) return;

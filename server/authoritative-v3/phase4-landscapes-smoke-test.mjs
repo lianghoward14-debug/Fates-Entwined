@@ -32,7 +32,8 @@ assert.deepEqual(
   multiplayerEligibleLandscapeIds(),
   [
     'igb1', 'igb10', 'igb11', 'igb12', 'igb13', 'igb14', 'igb15',
-    'igb16', 'igb17', 'igb18', 'igb19', 'igb2', 'igb20', 'igb3', 'igb4', 'igb5',
+    'igb16', 'igb17', 'igb18', 'igb19', 'igb2', 'igb20',
+    'igb21', 'igb22', 'igb23', 'igb24', 'igb3', 'igb4', 'igb5',
     'igb6', 'igb7', 'igb8', 'igb9'
   ]
 );
@@ -57,12 +58,7 @@ applyOperation(ctx, {
   destination:{z:0, r:2, c:0},
   sourceController:0
 });
-assert.equal(reality.currentFate, 4);
-assert(reality.statuses.includes('LANDSCAPE_BONUS:igb6'));
-assert(ctx.events.some(event=>
-  event.type === 'FATE_CHANGED'
-  && event.reason === 'LANDSCAPE_IGB6_SET_BONUS'
-));
+assert.equal(reality.currentFate, 1, 'Great Oak no longer gives Reality cards a Fate bonus');
 
 applyOperation(ctx, {
   type:'DISCARD_CARD',
@@ -84,7 +80,7 @@ applyOperation(ctx, {
   destination:{z:1, r:2, c:0},
   sourceController:0
 });
-assert.equal(reality.currentFate, 4, 'the permanent landscape bonus must apply once per card instance');
+assert.equal(reality.currentFate, 1, 'Great Oak does not change a card\'s Fate on set');
 assertInvariants(state);
 
 state = createInitialState({
@@ -107,7 +103,7 @@ applyOperation(ctx, {
   destination:{z:0, r:2, c:0},
   sourceController:0
 });
-assert.equal(initiator.currentFate, 4);
+assert.equal(initiator.currentFate, 1, 'Berkeley does not give a flat Fate bonus');
 const ordinarySupporter = cardInHand(state, 0, '32');
 applyOperation(ctx, {
   type:'SET_CARD',

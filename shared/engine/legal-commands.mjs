@@ -375,12 +375,14 @@ export function legalCommandTemplates(state, playerIndex){
     const possibleCosts = tributeCandidates.map(entry=>effectiveConsolidationCost(state, card, player, entry));
     const cost = possibleCosts.length ? Math.min(...possibleCosts) : effectiveConsolidationCost(state, card, player);
     const maximumCost = possibleCosts.length ? Math.max(...possibleCosts) : cost;
-    const combinations = [];
+    const combinations = tributeCandidates
+      .filter(entry=>Number(entry.reinforcement || 0) >= cost)
+      .map(entry=>[entry]);
     function collect(start, selected, reinforcement){
       // A zero reinforcement amount still uses a real tribute square. The
       // isolated fixture waives only the numeric cost, not consolidation's
       // consume/replace interaction or its production presentation path.
-      if(selected.length > 0 && reinforcement >= cost){
+      if(selected.length > 1 && reinforcement >= cost){
         combinations.push(selected);
         // Cheaper squares must not truncate payment for a more expensive destination.
         if(reinforcement >= maximumCost) return;
@@ -499,7 +501,8 @@ export function legalCommandTemplates(state, playerIndex){
           && eligibleBoardTargets(state,{sourceIid:entry.card.iid,controller:player},
             {controller:true,santiagoUnused:true}).length>0))
       && (runtimeRuleId(entry.card)!=='121' || Number(entry.card.counters?.infernoCounters||0)>=1)){
-      if(!rule.maxUses || Number(entry.card.counters?.effectUses || 0) < Number(rule.maxUses)){
+      const wodnyExtra=Number(rule.maxUses || 0)>1 && state.landscapeId==='igb18' ? 1 : 0;
+      if(!rule.maxUses || Number(entry.card.counters?.effectUses || 0) < Number(rule.maxUses)+wodnyExtra){
         if(rule.oncePerTurn && Number(entry.card.counters?.lastEffectTurn) === state.turn) continue;
         if(rule.blockedWhileStatus && entry.card.statuses?.includes(rule.blockedWhileStatus)) continue;
         if(!supporterActivationAvailable(state, entry.card, player)) continue;
@@ -546,13 +549,6 @@ export function legalCommandTemplates(state, playerIndex){
         for(const destination of openBoardDestinations(state)){
           commands.push({type:'MOVE_CARD', payload:{cardIid:entry.card.iid, destination}});
         }
-      }
-    }
-  }
-  if(state.landscapeId === 'igb4' && Number(state.landscapeState.twilightRecoveryUses?.[player] || 0) < 1){
-    for(const card of state.players[player].discard){
-      if(['Initiator','Coordinator','Dauntless','Improvisor'].includes(String(card.type))){
-        commands.push({type:'ACTIVATE_LANDSCAPE', payload:{targetIid:card.iid}});
       }
     }
   }

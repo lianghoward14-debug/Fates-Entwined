@@ -244,13 +244,13 @@ assert.equal(result.state.pendingPrompt, null, 'blocked Snow WHEN_SET effect mus
 assert.equal(result.state.effectStack.length, 0, 'blocked Snow WHEN_SET effect must not leave a frame');
 assert(legalCommandTemplates(result.state, 0).some(entry=>entry.type === 'END_TURN'), 'turn must remain endable immediately');
 
-// Idyllic Polish Village affects only the active player's face-up Expanded Worlds Characters.
+// Wodny Potok no longer gives Expanded Worlds Characters Fate on the Draw phase.
 state = makeState('igb18');
 ctx = context(state);
 const expandedCharacter = takeToBoard(state, 0, '39', {z:0, r:2, c:0});
 const expandedSupporter = takeToBoard(state, 0, '54', {z:0, r:2, c:1});
 emitRuleEvent(ctx, {type:'TURN_STARTED', playerIndex:0, turn:2});
-assert.equal(expandedCharacter.currentFate, 4);
+assert.equal(expandedCharacter.currentFate, 3);
 assert.equal(expandedSupporter.currentFate, 1);
 
 // Californique discards Characters after their third completed owner turn.

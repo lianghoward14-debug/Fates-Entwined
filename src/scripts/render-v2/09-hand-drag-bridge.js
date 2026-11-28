@@ -304,6 +304,10 @@
       && cardActsAsPassive(source, '49') && !isSupporterAuraSuppressed(source)));
   }
 
+  function satherGateInitiatorTribute(cell){
+    return cell?.type === 'Initiator' && typeof isLandscapeActive === 'function' && isLandscapeActive('igb11');
+  }
+
   function availableReinforcementFor(card){
     if(!card || isDirectSetCard(card) || typeof G === 'undefined' || !G || !G.board) return Infinity;
     if(G._linaFreeIids && G._linaFreeIids.has(card.iid)) return Infinity;
@@ -319,7 +323,7 @@
             if(typeof canUseAsConsolidationTribute === 'function' && !canUseAsConsolidationTribute(cell, cp, z, r, c)) return;
             const eligibleTribute = usesCharacterTributes
               ? (typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(cell, cp) : cell.type !== 'Supporter')
-              : cell.type === 'Supporter' || irvineCharacterTribute(cell, z, cp);
+              : cell.type === 'Supporter' || irvineCharacterTribute(cell, z, cp) || satherGateInitiatorTribute(cell);
             if(eligibleTribute){
               if(usesCharacterTributes || cell.type !== 'Supporter'){ total += 1; return; }
               let value = 1;
@@ -723,7 +727,7 @@
       && cardUsesCharacterConsolidationTributes(card);
     const eligibleTribute = usesCharacterTributes
       ? (typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(boardCard, G.currentPlayer) : boardCard.type !== 'Supporter')
-      : boardCard.type === 'Supporter' || irvineCharacterTribute(boardCard, Number(hit.z), G.currentPlayer);
+      : boardCard.type === 'Supporter' || irvineCharacterTribute(boardCard, Number(hit.z), G.currentPlayer) || satherGateInitiatorTribute(boardCard);
     return eligibleTribute ? 'valid' : 'invalid';
   }
 
@@ -1192,7 +1196,10 @@
     if(typeof playSfx === 'function') playSfx('dragDrop');
     if(typeof initiateConsolidate === 'function') initiateConsolidate();
     if(target && typeof handleConsolidateClick === 'function'){
-      setTimeout(function(){ handleConsolidateClick(Number(hit.z), Number(hit.r), Number(hit.c)); }, 20);
+      setTimeout(function(){
+        const z=Number(hit.z),r=Number(hit.r),c=Number(hit.c);
+        handleConsolidateClick(z,r,c);
+      }, 20);
     }
   }
 

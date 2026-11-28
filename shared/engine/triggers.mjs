@@ -1,6 +1,7 @@
 import {boardEntries, controllerOf, findCard} from './selectors.mjs';
 import {zoneScore} from './scoring.mjs';
 import {collectAnneNewPath} from './cards/anne-new-path.mjs';
+import {cardRule} from './cards/registry.mjs';
 import {
   canTarget,
   adjustedTriggeredFateHistoryGain,
@@ -51,6 +52,17 @@ function collectRiveraArrivalBonuses(state, event, operations){
 
 export function collectTriggeredOperations(state, event){
   const operations = collectAnneNewPath(state, event);
+  if(event.type==='CARD_SET'){
+    const placed=boardEntries(state).find(entry=>String(entry.card.iid)===String(event.cardIid));
+    const counterKey=placed && cardRule(runtimeRuleId(placed.card),state)?.counterResourceKey;
+    if(counterKey && !placed.card.counters?.wodnyCounterFirstSetChecked){
+      operations.push({type:'SET_CARD_COUNTER',targetIid:placed.card.iid,
+        counterKey:'wodnyCounterFirstSetChecked',value:true,sourceIid:'landscape:igb18'});
+      if(state.landscapeId==='igb18') operations.push({type:'SET_CARD_COUNTER',targetIid:placed.card.iid,
+        counterKey,value:Math.max(0,Number(placed.card.counters?.[counterKey])||0)+2,
+        sourceIid:'landscape:igb18',reason:'WODNY_POTOK_INITIAL_COUNTERS'});
+    }
+  }
   collectRiveraArrivalBonuses(state, event, operations);
   if(event.type==='CARD_SET'){
     const placed=boardEntries(state).find(entry=>String(entry.card.iid)===String(event.cardIid));
@@ -178,33 +190,6 @@ export function collectTriggeredOperations(state, event){
           counterKey:'santiagoCounterGainTurn',value:Number(state.turn),
           sourceIid:santiago.card.iid,sourceController:controllerOf(santiago.card),reason:'SANTIAGO_GAIN_TURN'});
       }
-    }
-  }
-  if(event.type === 'CARD_SET' && ['igb6', 'igb11'].includes(state.landscapeId)){
-    const entry = boardEntries(state).find(item=>String(item.card.iid) === String(event.cardIid));
-    const marker = `LANDSCAPE_BONUS:${state.landscapeId}`;
-    const eligible = state.landscapeId === 'igb6'
-      ? String(entry?.card?.affiliation || '') === 'reality'
-      : String(entry?.card?.type || '') === 'Initiator';
-    if(entry
-      && eligible
-      && !isEffectImmutable(entry.card)
-      && !entry.card.statuses?.includes(marker)){
-      operations.push({
-        type:'CREATE_STATUS',
-        targetIid:entry.card.iid,
-        status:marker,
-        sourceIid:`landscape:${state.landscapeId}`
-      });
-      operations.push({
-        type:'MODIFY_FATE',
-        targetIid:entry.card.iid,
-        amount:3,
-        sourceIid:`landscape:${state.landscapeId}`,
-        sourceController:Number(event.playerIndex),
-        reason:`LANDSCAPE_${state.landscapeId.toUpperCase()}_SET_BONUS`,
-        bypassReaction:true
-      });
     }
   }
   if(event.type === 'CARD_SET'){
@@ -458,25 +443,6 @@ export function collectTriggeredOperations(state, event){
     if(state.gameSettings?.pressureCardReworks === true){
       for(const entry of boardEntries(state).filter(item=>runtimeRuleId(item.card)==='65'&&controllerOf(item.card)===Number(event.playerIndex)&&!isEffectSourceSuppressed(state,item))){
         operations.push({type:'MODIFY_MORALE',playerIndex:1-Number(event.playerIndex),amount:-2,sourceIid:entry.card.iid});
-      }
-    }
-    if(state.landscapeId === 'igb18'){
-      for(const entry of boardEntries(state).filter(item=>
-        controllerOf(item.card) === Number(event.playerIndex)
-        && String(item.card.affiliation || '') === 'expanded_worlds'
-        && effectiveCardType(state, item.card) !== 'Supporter'
-        && effectiveCardType(state, item.card) !== 'Counter'
-        && !isEffectImmutable(item.card)
-      )){
-        operations.push({
-          type:'MODIFY_FATE',
-          targetIid:entry.card.iid,
-          amount:1,
-          sourceIid:'landscape:igb18',
-          sourceController:Number(event.playerIndex),
-          reason:'LANDSCAPE_IGB18_DRAW_PHASE_BONUS',
-          bypassReaction:true
-        });
       }
     }
     if(state.landscapeId === 'igb15'){

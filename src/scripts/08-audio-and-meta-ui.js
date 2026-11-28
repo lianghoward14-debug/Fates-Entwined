@@ -568,23 +568,9 @@ window.playLedgerPanelSfx=playLedgerPanelSfx;
 function playSebastianFishSfx(){
   if(_masterVol<=0 || _sfxVol<=0)return false;
   try{
-    const ctx=getAudioCtx(),out=ctx.createGain(),now=ctx.currentTime;
-    out.gain.value=_masterVol*_sfxVol*.65;
-    out.connect(getSfxBus(ctx).input);
-    // A soft splash followed by two rising, watery plucks: the fresh catch.
-    const buffer=ctx.createBuffer(1,Math.ceil(ctx.sampleRate*.32),ctx.sampleRate);
-    const data=buffer.getChannelData(0);
-    for(let i=0;i<data.length;i++)data[i]=(Math.random()*2-1)*Math.pow(1-i/data.length,3)*.22;
-    const splash=ctx.createBufferSource(),filter=ctx.createBiquadFilter();
-    splash.buffer=buffer;filter.type='bandpass';filter.frequency.value=1100;filter.Q.value=.6;
-    splash.connect(filter).connect(out);splash.start(now);
-    [440,660,880].forEach((freq,i)=>{
-      const osc=ctx.createOscillator(),gain=ctx.createGain(),t=now+.05+i*.12;
-      osc.type='sine';osc.frequency.setValueAtTime(freq*1.6,t);osc.frequency.exponentialRampToValueAtTime(freq,t+.12);
-      gain.gain.setValueAtTime(.0001,t);gain.gain.exponentialRampToValueAtTime(.16,t+.012);gain.gain.exponentialRampToValueAtTime(.0001,t+.4);
-      osc.connect(gain).connect(out);osc.start(t);osc.stop(t+.42);
-    });
-    setTimeout(()=>out.disconnect(),1200);
+    const sound=new Audio('assets/audio/fish-plop-samples/fish-plop-1.wav');
+    sound.volume=Math.min(1,_masterVol*_sfxVol*.8);
+    sound.play().catch(()=>{});
     return true;
   }catch(e){return false;}
 }
@@ -2484,7 +2470,7 @@ const CARD_SOUNDS = {
   '87': '../new voices/87set', '88': '../new voices/88set', '89': '../new voices/89set',
   '90': '../new voices/90set', '99': '../new voices/99set', '100': '../new voices/100set',
   '121': '121set', '122':'122set', '123':'123set', '124':'124set', '125':'125set', '126':'126set', '127':'127set', '130':'130set',
-  'bh01': 'bh1', 'bh02': 'bh2', 'bh03': 'bh3', 'bh04': 'bh4', 'bh05': 'bh5', 'bh06': 'bh6', 'bh07': 'bh7', 'bh08': 'bh8', 'bh09': 'bh9', 'bh10': 'bh10', 'bh11': 'bh11', 'bh12': 'bh12', 'bh13': 'bh13', 'bh14': 'bh14', 'bh15': 'bh15', 'bh16': 'bh16', 'bh17': 'bh17', 'bh18': 'bh18', 'bh19': 'bh19', 'bh20': 'bh20', 'bh25': 'bh25set'
+  'bh01': 'bh-anicka-20261127', 'bh02': 'bh2', 'bh03': 'bh3', 'bh04': 'selva-anicka-20261127', 'bh05': 'bh5', 'bh06': 'bh6', 'bh07': 'bh7', 'bh08': 'bh8', 'bh09': 'bh9', 'bh10': 'bh10', 'bh11': 'bh11', 'bh12': 'bh12', 'bh13': 'bh13', 'bh14': 'bh14', 'bh15': 'bh15', 'bh16': 'bh16', 'bh17': 'bh17', 'bh18': 'bh18', 'bh19': 'bh19', 'bh20': 'bh20', 'bh25': 'bh25set'
 };
 const GAME_SONGS = Array.from({length:24}, (_,i)=>'board'+(i+1));
 const GAME_AUDIO_FALLBACKS = {
@@ -2509,7 +2495,7 @@ const AVAILABLE_CARD_SOUND_FILES = new Set([
   '1set','2set','3set','4set','6set','maja-consolidation-20261030','8set','10set','11set','12set','johnathan-consolidation-20261030','14set','15set',
   'carolyn-consolidation-20261102','kvetka-consolidation-20261103','henry-consolidation-20261103','22set','23set','27set','29set','30set','rozsi-consolidation-20261107','alexander-consolidation-20261107','36set','38set',
   'juan-consolidation-20261108','chris-consolidation-20261108','41set','mark-consolidation-20261108','45set','46set','48set','51set','55set','56set','57set','61set',
-  '66set','67set','77set','lydia-consolidation-20261110','bh1','bh2','bh3','bh4','bh5','bh6','bh7','bh8','bh9','bh10','bh11','bh12','bh13','bh14','bh15','bh16','bh17','bh18','bh19','bh20','horizons24set','../new voices/81set','../new voices/82set','../new voices/83set',
+  '66set','67set','77set','lydia-consolidation-20261110','bh-anicka-20261127','selva-anicka-20261127','bh1','bh2','bh3','bh4','bh5','bh6','bh7','bh8','bh9','bh10','bh11','bh12','bh13','bh14','bh15','bh16','bh17','bh18','bh19','bh20','horizons24set','../new voices/81set','../new voices/82set','../new voices/83set',
   '../new voices/84set','../new voices/85set','../new voices/86set','../new voices/87set','../new voices/88set',
   '../new voices/89set','../new voices/90set','../new voices/99set','../new voices/100set'
 ]);

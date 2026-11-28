@@ -56,6 +56,9 @@ export function recordLandscapeRuleEvent(state, event){
     const playerIndex = Number(event.playerIndex);
     if(playerIndex === 0 || playerIndex === 1){
       state.landscapeState.consolidations[playerIndex] += 1;
+      if(state.landscapeId === 'igb4') {
+        (state.landscapeState.zionPendingMoraleCosts ||= []).push({playerIndex,cardIid:event.cardIid});
+      }
     }
   }
 }

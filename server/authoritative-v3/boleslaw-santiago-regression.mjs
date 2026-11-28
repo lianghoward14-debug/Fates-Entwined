@@ -46,6 +46,32 @@ for(const [id,key] of [['86','boleslawCounters'],['103','santiagoSupporterCounte
   context.recordSuccessfulWhenSetForBoleslaw({id:'107',type:'Initiator',owner:0});
   assert.equal(context.G.successfulWhenSetHistory.length,1,'player-timed Anne is not a When Set effect');
 }
+{
+  const gameplay=fs.readFileSync(new URL('../../src/scripts/05-gameplay-core.js',import.meta.url),'utf8');
+  const context={G:{},window:{},Promise,Set};
+  vm.createContext(context);
+  vm.runInContext(gameplay.slice(gameplay.indexOf('function createBoleslawCopyPickerSession(){'),
+    gameplay.indexOf('async function triggerWhenSet(',gameplay.indexOf('function createBoleslawCopyPickerSession(){'))),context);
+  const session=vm.runInContext('createBoleslawCopyPickerSession()',context);
+  context.G._boleslawCopyPickerSession=session;
+  let finishSecond;
+  const first=context.window.trackBoleslawCopyPicker(()=>{
+    const second=context.window.trackBoleslawCopyPicker(()=>true);
+    finishSecond=second.confirm;
+  });
+  let completed=false;
+  const wait=session.wait().then(value=>{completed=value;});
+  first.confirm();
+  await Promise.resolve();
+  assert.equal(completed,false,'a chained destination picker must keep the copy pending');
+  finishSecond();
+  await wait;
+  assert.equal(completed,true,'the copy completes after the final destination');
+  const cancelled=vm.runInContext('createBoleslawCopyPickerSession()',context);
+  context.G._boleslawCopyPickerSession=cancelled;
+  context.window.trackBoleslawCopyPicker(()=>true).cancel();
+  assert.equal(await cancelled.wait(),false,'cancelling a copied effect must not mark it resolved');
+}
 function fixture(){
   const state=createInitialState({matchId:'boleslaw-santiago-regression',seed:'counter-effects',
     handSize:99,activePlayer:0,cardDefinitions:definitions,

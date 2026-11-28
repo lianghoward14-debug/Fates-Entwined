@@ -1396,65 +1396,6 @@ function activateWhisperOfTheHeartLandscape(options = {}) {
 window.activateWhisperOfTheHeartLandscape = activateWhisperOfTheHeartLandscape;
 window.whisperLandscapeUseAvailable = whisperLandscapeUseAvailable;
 
-function activateTwilightRecoveryLandscape(options = {}) {
-  if(!G || !isLandscapeActive('igb4') || G._isSpectator || G._onlineRole === 'spectator') return false;
-  const player = options.auto ? options.playerIndex : getPerspectivePlayerIndex();
-  if(player !== 0 && player !== 1) return false;
-  const matchAtOpen = G;
-  const matchId = G._phase7AuthorityMatchId || G._onlineRoomCode;
-  const authoritative = !!(matchId || G._phase7CurrentMultiplayer || window.FatePhase7CurrentMultiplayerUi?.report?.()?.active);
-  const spent = () => Number(getLandscapeState()?.twilightRecoveryUses?.[player] || 0) >= 1;
-  const ready = () => isLandscapeActive('igb4') && !spent() && G.currentPlayer === player && G.phase === 'main'
-    && !G._isSpectator && G._onlineRole !== 'spectator';
-  const cards = (G.players[player].discard || []).filter(card=>['Initiator','Coordinator','Dauntless','Improvisor'].includes(card.type));
-  if(options.auto && (!ready() || !cards.length)) return false;
-  if(!cards.length){ if(!options.auto) toast('No Characters in your discard pile. You can return to this panel later.'); return false; }
-  function commit(chosen){
-    if(!chosen?.length || !ready()) return false;
-    if(authoritative){
-      if((G._phase7AuthorityMatchId || G._onlineRoomCode) !== matchId) return false;
-      return window.fatePhase7SubmitTwilightRecovery?.(String(chosen[0].iid)) || false;
-    }
-    if(G !== matchAtOpen) return false;
-    const discard = G.players[player].discard;
-    const index = discard.findIndex(card=>card.iid === chosen[0].iid && ['Initiator','Coordinator','Dauntless','Improvisor'].includes(card.type));
-    if(index < 0) { toast('That Character is no longer in your discard.'); return false; }
-    const card = discard[index];
-    if(typeof addCardToHand === 'function'){
-      if(!addCardToHand(player, card, {arrivalKind:'discard_recovery', searchSource:'discard'})) return false;
-    } else G.players[player].hand.push(card);
-    discard.splice(index, 1);
-    // Recovery refreshes the ability, while retaining this instance and its Fate.
-    card.effectUsedInitial=false;
-    card.effectUsedThisTurn=false;
-    card._effectTurnLocked=false;
-    card.whenSetActivated=false;
-    card.usesLeft=({'20':2,'40':2,'56':3,'67':1,'bh16':2})[String(card.id)] ?? null;
-    for(const key of ['_blackRoseUsed','_seculesUsed','vigilanteUsed','wolfCreekUsed','_whenSetActivatedHidden','_effectNegatedByReaction','_effectActivationInFlight','_pendingWhenSetEffect','_pendingWhenSetActivationInFlight']) delete card[key];
-    if(card.counters){card.counters.effectUses=0;delete card.counters.whenSetResolved;delete card.counters.lastEffectTurn;}
-    const st = getLandscapeState();
-    if(!Array.isArray(st.twilightRecoveryUses)) st.twilightRecoveryUses = [0, 0];
-    st.twilightRecoveryUses[player] = 1;
-    log(player === 0 ? 'p1' : 'p2', 'Memories of a Fading Twilight recovered ' + card.name);
-    renderGame({hand:true, oppHand:true, piles:true, landscape:true});
-    return true;
-  }
-  if(options.auto) return commit([cards.slice().sort((a,b)=>Number(b.currentFate || b.fate || 0)-Number(a.currentFate || a.fate || 0))[0]]);
-  // This is a local, dismissible browser; no command or use is reserved on open.
-  // Do not replace a mandatory gameplay prompt with the optional browser.
-  if(document.getElementById('modal')?._mandatoryCardChoice){ toast('Finish the current choice first.'); return false; }
-  closeModal();
-  pickCardsVisual(cards, {
-    title:'Memories of a Fading Twilight',
-    subtitle:spent() ? 'Recovery used. You can still inspect your discarded Characters.' : 'Recover one Character once per game during your Main Phase. Cancel to decide later.',
-    maxCount:1, minCount:1, allowCancel:true, immediate:true, authoritativeDirectAction:true,
-    viewerPlayerIndex:player, confirmLabel:'Recover Character',
-    canSelect:function(){ if(ready()) return true; toast(spent() ? 'Recovery already used this game.' : 'Recover during your Main Phase.'); return false; }
-  }, commit);
-  return true;
-}
-window.activateTwilightRecoveryLandscape = activateTwilightRecoveryLandscape;
-
 function activateWhiteboardDrawingsLandscape() {
   const player = (typeof getPerspectivePlayerIndex === 'function') ? getPerspectivePlayerIndex() : G.currentPlayer;
   const authoritativeUiAtOpen = window.FatePhase7CurrentMultiplayerUi
@@ -1651,33 +1592,7 @@ async function resolveWhisperTokenPlacement(card, z, r, c, opts = {}) {
 window.resolveWhisperTokenPlacement = resolveWhisperTokenPlacement;
 
 function applyIdyllicPolishVillageDrawPhase(player) {
-  if(player !== 0 && player !== 1) return 0;
-  if(!(typeof isLandscapeActive === 'function' && isLandscapeActive('igb18'))) return 0;
-  let count = 0;
-  forEachBoardCard(function(card){
-    if(!card || card.owner !== player || card.aff !== 'expanded_worlds') return;
-    if(typeof isFullyEffectImmuneCard === 'function' && isFullyEffectImmuneCard(card)) return;
-    const isCharacter = typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(card, player) : card.type !== 'Supporter';
-    if(!isCharacter || (typeof isCardEffectImmutable === 'function' && isCardEffectImmutable(card))) return;
-    const presentation = applyPairedOverlayFateGain(card, 1, player, {
-      kind:'idyllic_polish_village',
-      label:'An Idyllic Polish Village',
-      sourceIid:'igb18',
-      waitForMoraleCalculation:true,
-      soundKey:'idyllic-polish-village:' + String(card.iid || card.id || 'card') + ':' + String(G && G.turn || 0)
-    });
-    const after = presentation.after;
-    count++;
-  });
-  if(count) {
-    const showFeedback=function(){
-      if(typeof triggerLandscapeFlash === 'function') triggerLandscapeFlash('Wodny Potok: An Idyllic Polish Village', 'minor');
-      toast(count + ' Expanded Worlds Character' + (count === 1 ? '' : 's') + ' gained 1 Fate.');
-      log(player === 0 ? 'p1' : 'p2', 'An Idyllic Polish Village gave ' + count + ' Expanded Worlds Character' + (count === 1 ? '' : 's') + ' +1 Fate');
-    };
-    if(typeof window.runAfterMoraleCalculationPresentation==='function')window.runAfterMoraleCalculationPresentation(showFeedback);else showFeedback();
-  }
-  return count;
+  return 0;
 }
 window.applyIdyllicPolishVillageDrawPhase = applyIdyllicPolishVillageDrawPhase;
 
@@ -2188,7 +2103,34 @@ async function nextPlayerTurn() {
   }
 }
 
+function syncWodnyPotokExtraUses(){
+  if(!G || typeof forEachBoardCard !== 'function') return;
+  const active=isLandscapeActive('igb18');
+  const sync=(card,onBoard)=>{
+    if(!card) return;
+    const effectId=typeof getCardRuntimeEffectId==='function'
+      ? String(getCardRuntimeEffectId(card)) : String(card.id);
+    const eligible=!['107','120'].includes(effectId)
+      && (/\((?:two|three|[2-9]) uses?\)/i.test(String(card.effect || ''))
+        || ['20','22','40','56','bh16'].includes(effectId));
+    if(!eligible) return;
+    if(active && onBoard && !card._wodnyExtraUseGranted && !card._wodnyExtraUseSpent){
+      const base=effectId==='56' ? 3 : 2;
+      card.usesLeft=Math.max(0,Number(card.usesLeft == null ? base : card.usesLeft))+1;
+      card._wodnyExtraUseGranted=true;
+    }else if(!active && card._wodnyExtraUseGranted){
+      if(Number(card.usesLeft)>0) card.usesLeft--;
+      else card._wodnyExtraUseSpent=true;
+      card._wodnyExtraUseGranted=false;
+    }
+  };
+  forEachBoardCard(card=>sync(card,true));
+  if(!active) (G.players || []).forEach(player=>['hand','deck','discard'].forEach(pile=>
+    (player[pile] || []).forEach(card=>sync(card,false))));
+}
+
 function applyContinuousEffects() {
+  syncWodnyPotokExtraUses();
   reconcileHenrySuppressionTriggers();
   // South Wind no longer creates a zone-wide Shield Wall aura.
   G.shieldWallZones = [];
@@ -4724,6 +4666,8 @@ async function clickCell(z,r,c) {
   // Clear Lina free flag after use
   if(inst.counters)delete inst.counters.chauffeurFreeSet;
   if(card.counters)delete card.counters.chauffeurFreeSet;
+  if(inst.counters)delete inst.counters.greatOakFreeSet;
+  if(card.counters)delete card.counters.greatOakFreeSet;
   if(isLinaFree && G._linaFreeIids) G._linaFreeIids.delete(card.iid);
   if(isLinaFree) {
     delete card._linaFree;
@@ -5043,11 +4987,15 @@ function beginImmediateFreePlacement(player, card, message, effectInfo) {
 }
 
 async function resolveSetCardAfterPlacement(inst, z, r, c, opts = {}) {
+  if(inst?._blackRoseBombed){
+    resolveZionConsolidationMoraleCost(inst);
+    return false;
+  }
   if(window.isHowardPerspectiveTestCard?.(inst)) {
     if(!inst.faceDown && window.activateHowardPerspectiveTestCard?.(inst)) markInitialEffectResolved(inst);
+    resolveZionConsolidationMoraleCost(inst);
     return;
   }
-  if(inst?._blackRoseBombed)return false;
   if(!inst) return;
   if(String(inst.id || '') === 'bh03') {
     delete inst._bh03OpponentHand;
@@ -5144,6 +5092,7 @@ async function resolveSetCardAfterPlacement(inst, z, r, c, opts = {}) {
     delete inst._onlineSetResolutionInFlight;
     await resolveDonJulioSupporterArrival(inst);
     await resolveJorgeConsolidationArrival(inst);
+    resolveZionConsolidationMoraleCost(inst);
   }
 }
 window.resolveSetCardAfterPlacement = resolveSetCardAfterPlacement;
@@ -5356,13 +5305,13 @@ function doConsolidate(card, cost) {
   }));
 
   const charSupports = [];
-  if(!usesCharacterTributes && irvineZones.length>0){
+  if(!usesCharacterTributes && (irvineZones.length>0 || isLandscapeActive('igb11'))){
     G.board.forEach((zone,z)=>{
-      if(!irvineZones.includes(z)) return;
+      if(!irvineZones.includes(z) && !isLandscapeActive('igb11')) return;
       zone.forEach((row,r)=>{
         if(!row) return;
         row.forEach((cell,c)=>{
-          if(cell && (typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(cell, cp) : cell.type!=='Supporter') && canUseAsConsolidationTribute(cell, cp, z, r, c)){
+          if(cell && (irvineZones.includes(z) || (isLandscapeActive('igb11') && cell.type === 'Initiator')) && (typeof isCardCharacterForRules === 'function' ? isCardCharacterForRules(cell, cp) : cell.type!=='Supporter') && canUseAsConsolidationTribute(cell, cp, z, r, c)){
             charSupports.push({card:cell,z,r,c,zoneIdx:z,isChar:true,reinforcement:1});
           }
         });
@@ -5828,12 +5777,14 @@ function finalizeConsolidate(card, tributes, targetIdx, conContext) {
     }
 
     const bonusFate = getGreatOakConsolidationBonus(tributes);
+    const transferredFate = getBerkeleyInitiatorTransfer(tributes);
     const inst = newInstance(card);
     inst.owner = cp;
     inst._wasConsolidated = true;
     const basePrintedFate = card.fate;
     inst.currentFate = getPlacedCardFate(card, {bonusFate:0, tributeCount: tributes.length});
     applyGreatOakConsolidationBonus(inst, bonusFate);
+    if(transferredFate) modifyFate(inst, transferredFate, 'permanent', cp);
     preparePlacementFateReveal(inst, card, 'consolidation');
     markCardSetTurn(inst, cp);
     if(typeof applyLandscapePlacementBonuses === 'function') applyLandscapePlacementBonuses(inst, targetZ, targetR, targetC);
@@ -5895,7 +5846,7 @@ function finalizeConsolidate(card, tributes, targetIdx, conContext) {
     G.players[cp].hand = G.players[cp].hand.filter(c => c !== card);
     G.selectedHandCard = null;
     G.selectedBoardCard = null;
-    if(destroyedByBlackRose){renderGame({board:true,hand:true,piles:true,blocks:true,topbar:true});return;}
+    if(destroyedByBlackRose){resolveZionConsolidationMoraleCost(inst);renderGame({board:true,hand:true,piles:true,blocks:true,topbar:true});return;}
 
     if(typeof tutorialEvent === 'function' && _tutorialActive) {
       tutorialEvent('placeCharacter', {
@@ -6070,6 +6021,16 @@ function getGreatOakConsolidationBonus(tributes) {
   }, 0);
 }
 
+function getBerkeleyInitiatorTransfer(tributes) {
+  if(!isLandscapeActive('igb11')) return 0;
+  return (Array.isArray(tributes) ? tributes : []).reduce((total, tribute)=>{
+    const card = tribute?.card;
+    return total + (card?.type === 'Initiator'
+      ? Math.max(0, Number(card.currentFate ?? card.baseFate ?? card.fate)
+        - Number(card.baseFate ?? card.fate ?? 0)) : 0);
+  }, 0);
+}
+
 function applyGreatOakConsolidationBonus(card, amount) {
   if(!card) return 0;
   const gain = Math.max(0, Number(amount) || 0);
@@ -6189,7 +6150,7 @@ function resolveBoleslawAfterSearchSelection(searchingPlayer, chosen, context = 
     const iid = String(card && card.iid || '');
     return !!card && !!iid && handIids.has(iid);
   });
-  if(!selected.length) return Promise.resolve(0);
+  if(!selected.length) return resolveGreatOakAfterSearchSelection(searchingPlayer,context);
   if(G && G._onlineRoomCode) {
     const transactions = typeof window !== 'undefined' ? window.FateOnlineEffectTransactions : null;
     if(transactions && typeof transactions.captureSearchSelection === 'function') {
@@ -6201,7 +6162,34 @@ function resolveBoleslawAfterSearchSelection(searchingPlayer, chosen, context = 
     .catch(function(err){
       console.warn('Boleslaw completed-search reaction failed open', err);
       return 0;
+    }).then(function(){
+      return resolveGreatOakAfterSearchSelection(searchingPlayer,context);
     });
+}
+
+function resolveGreatOakAfterSearchSelection(player,context={}){
+  if(!G || G._onlineRoomCode || G._phase7CurrentMultiplayer || !isLandscapeActive('igb6')) return Promise.resolve(null);
+  const source=CARDS.find(card=>String(card.id)===String(context.sourceCardId || ''));
+  if(!source || !/\bsearch\b|(?:add|select|choose).{0,80}\bfrom (?:your |the )?deck\b/i.test(String(source.effect || ''))) return Promise.resolve(null);
+  const matches=G.players[player]?.deck?.filter(card=>card.type==='Supporter') || [];
+  if(!matches.length) return Promise.resolve(null);
+  const commit=card=>{
+    if(!card || !G.players[player].deck.some(entry=>entry.iid===card.iid)) return null;
+    G.players[player].deck=G.players[player].deck.filter(entry=>entry.iid!==card.iid);
+    card.counters ||= {};
+    card.counters.chauffeurFreeSet=true;
+    card.counters.greatOakFreeSet=true;
+    addCardToHand(player,card,{arrivalKind:'search'});
+    renderEffectResolutionForPlayer(player,{hand:true,piles:true});
+    return card;
+  };
+  if(G.aiEnabled && player===G.aiPlayer) return Promise.resolve(commit(matches[0]));
+  return new Promise(resolve=>{
+    pickCardsVisual(matches,{title:'Great Oak Highschool',
+      subtitle:'Choose an additional Supporter from your deck. You can set it for free.',
+      maxCount:1,immediate:true,confirmLabel:'Add Supporter',viewerPlayerIndex:player,
+      onCancel:()=>resolve(null)},chosen=>resolve(commit(chosen?.[0])));
+  });
 }
 
 const ALPINE_ENGINEER_TRIGGERED_FATE_IDS = new Set(['15','46','95','100','106','109','bh02','bh08','bh01','130']);
@@ -6988,6 +6976,49 @@ function recordSuccessfulWhenSetForBoleslaw(inst){
   inst._boleslawWhenSetRecorded=true;
 }
 window.recordSuccessfulWhenSetForBoleslaw=recordSuccessfulWhenSetForBoleslaw;
+
+function createBoleslawCopyPickerSession(){
+  const pending=new Set();
+  let cancelled=false;
+  return {
+    begin(){
+      let finish;
+      const promise=new Promise(resolve=>{finish=resolve;});
+      pending.add(promise);
+      let done=false;
+      return function(success=true){
+        if(done)return;
+        done=true;
+        if(success===false)cancelled=true;
+        pending.delete(promise);
+        finish();
+      };
+    },
+    async wait(){
+      while(pending.size){await Promise.all([...pending]);}
+      return !cancelled;
+    }
+  };
+}
+window.trackBoleslawCopyPicker=function(confirm,cancel){
+  const session=G?._boleslawCopyPickerSession;
+  if(!session)return null;
+  const finish=session.begin();
+  return {
+    confirm:function(){
+      try{
+        const result=confirm?.apply(this,arguments);
+        Promise.resolve(result).then(()=>finish(true),()=>finish(false));
+        return result;
+      }catch(error){finish(false);throw error;}
+    },
+    cancel:function(){
+      try{return cancel?.apply(this,arguments);}
+      finally{finish(false);}
+    },
+    finish
+  };
+};
 
 async function triggerWhenSet(inst, z, r, c, opts = {}) {
 
@@ -9057,11 +9088,11 @@ async function _executeWhenSetSwitch(inst, z, r, c, cp, opp, id) {
       break;
     }
     case '56': // Lydia: negate opponent card effect activations (3 uses)
-      inst.usesLeft = 3; break;
+      inst.usesLeft = 3 + (inst._wodnyExtraUseGranted ? 1 : 0); break;
     case '40': // Christopher Erbs: initialize 2 uses
-      inst.usesLeft = 2; break;
+      inst.usesLeft = 2 + (inst._wodnyExtraUseGranted ? 1 : 0); break;
     case 'bh16': // Li-Hua: two player-timed Zone Fate reductions
-      inst.usesLeft = 2; break;
+      inst.usesLeft = 2 + (inst._wodnyExtraUseGranted ? 1 : 0); break;
     case '14': // Alondra Hopkins: discard adjacent OR diagonal opponent supporters when set
       {
         const adjCards = getAdjacentAndDiagonalCards(z,r,c);
@@ -9467,6 +9498,8 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
         activationInFlight:card._effectActivationInFlight};
       card.counters.boleslawCounters-=2;
       G._boleslawCopyResolving=true;
+      const pickerSession=createBoleslawCopyPickerSession();
+      G._boleslawCopyPickerSession=pickerSession;
       let completed=false;
       const dismissCopiedEffectBanner=typeof showBoleslawActivatedEffectBanner === 'function'
         ? showBoleslawActivatedEffectBanner(copied) : function(){};
@@ -9481,7 +9514,8 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
         if(card.type==='Supporter') copiedResult=await runWhenSetEffect(card,z,r,c);
         else if(card.type==='Initiator') copiedResult=await triggerCharacterEffect(card,z,r,c,{fromSet:true,copiedByTaylor:true});
         else await runWhenSetEffect(card,z,r,c);
-        completed=copiedResult!==false && !card._effectNegatedByReaction && !card._effectSuppressedByReaction;
+        const pickerResolved=await pickerSession.wait();
+        completed=copiedResult!==false && pickerResolved && !card._effectNegatedByReaction && !card._effectSuppressedByReaction;
       } finally {
         card.id=original.id;card.type=original.type;
         card.effectUsedInitial=original.effectUsedInitial;
@@ -9489,6 +9523,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
         card.whenSetActivated=original.whenSetActivated;
         card._effectActivationInFlight=original.activationInFlight;
         G._boleslawCopyResolving=false;
+        if(G._boleslawCopyPickerSession===pickerSession)delete G._boleslawCopyPickerSession;
         dismissCopiedEffectBanner();
       }
       if(completed){
@@ -10151,7 +10186,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
       await activateLiHuaStormOfTenThousandBlades(card, z, cp);
       break;
     case '107': {
-      if(Number(card._anneEffectUses||0)>=2){toast('No uses remaining.');break;}
+      if(Number(card._anneEffectUses||0)>=2+(isLandscapeActive('igb18') && !card._wodnyExtraUseSpent ? 1 : 0)){toast('No uses remaining.');break;}
       const labels={DRAW:'Draw',SEARCH:'Search',FATE:'Fate Increase/Decrease',MOVEMENT:'Movement',STATUS:'Status Effect Activation',MORALE:'Morale Increase/Decrease'};
       const chosen=G.aiEnabled && cp===G.aiPlayer ? 'DRAW' : await new Promise(resolve=>{
         showAnneActionDeclarationPicker(Object.entries(labels).map(([value,label])=>({label,action:()=>resolve(value)})));
@@ -10211,7 +10246,7 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
       } break;
     case '120': {
       const used=Math.max(0,Number(card.counters?.effectUses)||0);
-      if(used>=2){toast('The Story Never Ends has no uses remaining.');break;}
+      if(used>=2+(isLandscapeActive('igb18') && !card.counters?.wodnyExtraUseSpent ? 1 : 0)){toast('The Story Never Ends has no uses remaining.');break;}
       const entries=[];
       G.board.forEach((zone,tz)=>zone.forEach((row,tr)=>row.forEach((target,tc)=>{
         if(target && target.faceDown!==true && target.counterResourceKey)entries.push({card:target,z:tz,r:tr,c:tc});
@@ -10230,7 +10265,9 @@ async function triggerCharacterEffect(card, z, r, c, opts = {}) {
       target.counters ||= {};
       target.counters[key]=Math.max(0,Number(target.counters[key])||0)+1;
       if(key==='braveHorizonsCounters')target._braveHorizonsCounters=target.counters[key];
-      card.counters ||= {};card.counters.effectUses=used+1;
+      card.counters ||= {};
+      if(used>=2) card.counters.wodnyExtraUseSpent=true;
+      card.counters.effectUses=used+1;
       window.playEmeraldStoryCounterSfx?.();
       renderGame({board:true,scores:true});
       break;
@@ -10346,7 +10383,7 @@ function canUseManualCharacterEffect(card) {
   if(id === '102') return !card._blackRoseUsed;
   if(id === '104') return card.effectUsedInitial !== true;
   if(id === '105') return card.effectUsedInitial !== true;
-  if(id === '107') return Number(card.counters?.effectUses || card._anneEffectUses || 0) < 2;
+  if(id === '107') return Number(card.counters?.effectUses || card._anneEffectUses || 0) < 2+(isLandscapeActive('igb18') && !card._wodnyExtraUseSpent ? 1 : 0);
   if(id === '40') {
     const armed = Array.isArray(G.erbsActive) ? G.erbsActive[card.owner] : G.erbsActive;
     return Number(card.usesLeft || 0) > 0 && !armed
@@ -10359,7 +10396,7 @@ function canUseManualCharacterEffect(card) {
   if(id === 'bh16') return Number(card.usesLeft == null ? 2 : card.usesLeft) > 0;
   if(id === '38') return card.effectUsedThisTurn !== true;
   if(id === 'bh01') return !hasAnickaVoyagerMovedThisTurn(card);
-  if(id === '120') return Number(card.counters?.effectUses||0)<2;
+  if(id === '120') return Number(card.counters?.effectUses||0)<2+(isLandscapeActive('igb18') && !card.counters?.wodnyExtraUseSpent ? 1 : 0);
   if(id === '36') return Number(card.counters?.deterranceCounters||0)>0;
   if(id === '86') return Number(card.counters?.boleslawCounters||0)>=2;
   if(id === '103') return Number(card.counters?.santiagoSupporterCounters||0)>=2
@@ -11733,7 +11770,7 @@ function getEffectiveFate(card, z) {
     const counts = Array.isArray(G._supporterEffectsActivatedP) ? G._supporterEffectsActivatedP : [0,0];
     if((Number(counts[card.owner]) || 0) < 10) bonus += 8;
   }
-  if(cardContributesAura(card, '100') && typeof controlsNamedCard === 'function' && controlsNamedCard(card.owner, ['Felicyta', 'Kvetka', 'Květka'], {excludeIid:card.iid})) {
+  if(cardContributesAura(card, '100') && G.board.some(zone=>zone.some(row=>row.some(peer=>peer && peer.owner===card.owner && ['01','19','82','84','85','87','bh11'].includes(String(peer.id)))))) {
     bonus += 5;
   }
 

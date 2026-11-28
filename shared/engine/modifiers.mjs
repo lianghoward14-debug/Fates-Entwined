@@ -307,7 +307,7 @@ export function effectiveFate(state, entryOrCard, ignoredDylanIid = null){
     // Every printed Felicyta/Květka card qualifies. Keep this explicit so a
     // copied effect or a coincidental name cannot satisfy Wintertide, but do
     // include Květka (Ukulele), whose card id is 87.
-    const relatedIds = new Set(['01', '19', '82', '84', '85', '87', '100', 'bh11']);
+    const relatedIds = new Set(['01', '19', '82', '84', '85', '87', 'bh11']);
     if(boardEntries(state).some(source=>
       controllerOf(source.card) === targetController
       && String(source.card.iid || '') !== String(card.iid || '')
@@ -381,6 +381,9 @@ export function canUseAsConsolidationTribute(state, entry, playerIndex, consolid
     return {ok:true, reinforcement:1};
   }
   if(cardType !== 'Supporter'){
+    if(state?.landscapeId === 'igb11' && cardType === 'Initiator'
+      && !isEffectImmutable(card) && card.noConsolidate !== true
+      && !card.statuses?.includes('CANNOT_CONSOLIDATE')) return {ok:true, reinforcement:1};
     const irvinePermission = boardEntries(state).some(source=>
       source.z === entry.z
       && runtimeRuleId(source.card) === '49'

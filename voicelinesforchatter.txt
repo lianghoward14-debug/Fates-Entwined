@@ -161,7 +161,7 @@ Dylan
 Santiago
 1.Your defiance is charming - I'm almost tempted to keep you alive. But I do not take lightly to treason and disobedience. Throw him overboard.
 2. I have no pity for who oppose me. But I do have pity for those who may still be useful.
-3.Tengo muchos enemigos. Pero muchos de mis enemigos también tienen sus propios enemigos. Lo mejor es dejar que se enfrenten entre ellos mientras tanto.
+3.I have many enemies. But many of my enemies also have their own enemies. The best thing to do is to let them clash with each other in the meantime.
 4. They don't call me "El Matador del Mares" because I kill people. No, they call me "El Matador" because I kill people, and then I kill anyone who may have been allied with them, in one way or another. 
 5. I hold many grudges. But there is one grudge in particular that I've dedicated the entirety of my life to... 
 
@@ -381,3 +381,47 @@ felicyta and kvetka youth
 rozsi and zsofia 
 
 1. (rozsi) There's no way you think your clothes are more important than my antique sword...
+2. (Zsofia) Clothes actually have a purpose. Your sword is just a toy.
+3 (Rozsi) You dare call my sword useless? It's a priceless antique from the 17th century!
+4. (Zsofia) Just tell yourself that—as if Dad didn’t just order it from Amazon!
+
+
+1. (Zsofia) One of these days, we should consider pranking Kvetka and Felicyta.
+2. (ROzsi) Perhaps. We can't get outshined too much by them...
+3 (Zsofia) Agreed. Sometimes, their perfect relationship makes me annoyed!
+
+1. (Rozsi) You know, I just came to the realization that we will probably have to be together for the next decade at least...
+2. (Zsofia) Maybe you should convince father to let you go to America instead.
+3. (Rozsi) Maybe, but I don't know what's worse, being in a mass shooting or living with you. 
+4. (Zsofia) Eh, I'd rather live with you.
+
+1. (Zsofia)Do you ever get bored of reading books and swinging around that ridiculous sword of yours?
+2. (rozsi) Depends. Do you ever get sick of staring at your face all day in the mirror? 
+
+1. (Zsofia) Lets make a deal. You give me your pancakes for today, and I will give you my pancakes for the next two days.
+2. (Rozsi) This sounds too good to be true. You must know something, or did something...
+3. 9(sofia) I don't know. Would I be the sister you know if I didn't try to scam you?
+4. (Rozsi) Ah I see. You saw that there was almost no more flour left in the bag, so there wouldn't be pancakes anyway for the next few days...
+
+anicka (Brave horizons)
+1.  Through vicious storms, through the darkest nights, through passages never seen before by man—I will not stop until I reach the ends of the world.
+2. At first I thought the people of Pacifica were truly free, able to sail the waves and follow the wind to wherever they please.  But now I see that they suffer, just like the people of Colombo. Grievances are a fact of life.
+3. Sometimes, I doubt whether or not I truly want to settle down. The more I sail, the more free I feel. the crashing of waves, the wind in my sails, the tapestry of stars above - perhaps a life drifting with the sea isn't so bad.
+4. To me, the path is now clear - the stars are my guide, and my destiny is the one that I will steer for myself. The Heart of the Sea - I will use it for the good of Pacifica. 
+5.  The thing is, I don't have a plan. All I know is that I will sail forward and never look back.Maybe in one week, maybe in one month, maybe in one year I will figure out where to go, but for now, I must discover my way forward - the only way forward. 
+
+
+Anicka (selva islands)
+1. All of the war, all of the death in Pacifica. He had the power to stop it, but he didn't. So now its my turn. It's my turn to help those who are suffering. It is my turn to find my own way forward. The seas are mine to command. 
+2.They..they deserved it. THey killed people who helped me. THey killed innocents, they killed children. So many dead...there's too many dead. 
+3. Richard...Richard Fleur. He's evil. H-he's evil. H-he's the one that made me do this. The Selva Islands...the S-selva Islands...i-it's all gone now. The waves, they came crashing down...the waves...crashing....
+4. H-how could I just stand there and watch Richard Fleur wage war across Pacifica, killing hundreds everyday! The Heart of the Sea, the H-heart of the Sea...I c-could use it to end him! I should use it to end him forever....
+5. The H-heart of the Sea....it was just a gift from my father. I-I had no idea of what it could do... the destruction it could cause.  This entire t-time...The seas...the s-seas....the seas are neither calm, freedom or destruction.The seas are ambivalent. They are ambivalent to all the suffering in the world.
+
+ali 
+1. You see, strong durability has practical applications because you can at least test weaponry against it and measure its effectiveness - but being completely invincible means that everything just has no effect on you...
+2. Ive considered being a superhero. But what kind of superhero cant even walk up four flights of stairs without having to pause and take a break?
+3. I try not to, but yes I have a body count - lets just say there was an Russian Tank that fired a terribly unlucky shell that ricocheted perfectly backwards...
+4. I mean its a decent power, but overall kind of boring, no? People get tired of watching nothing happen to you very quickly.
+5. I didn't always know I was invincible - it took an Israeli missile leaving a fifty meter crater around me to realize something was up.
+
