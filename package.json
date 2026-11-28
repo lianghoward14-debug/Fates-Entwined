@@ -167,6 +167,7 @@
     },
     "mac": {
       "icon": "build/icon.icns",
+      "artifactName": "Fates-Entwined-macOS-${arch}-${version}.${ext}",
       "target": [
         "dmg",
         "zip"
